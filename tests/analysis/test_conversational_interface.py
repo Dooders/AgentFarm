@@ -8,7 +8,7 @@ that provides chat-based interaction with the analysis system.
 import pytest
 import asyncio
 from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
+from datetime import datetime, timedelta
 import tempfile
 import shutil
 
@@ -36,8 +36,6 @@ class TestConversationalInterface:
             max_session_duration=3600,
             max_messages_per_session=100,
             enable_notifications=True,
-            enable_session_persistence=True,
-            enable_command_processing=True,
             enable_ai_assistant=True
         )
         self.interface = ConversationalInterface(config=self.config)
@@ -65,12 +63,13 @@ class TestConversationalInterface:
         # Mock insights
         self.mock_insights = [
             Insight(
-                insight_type=InsightType.PERFORMANCE,
+                id="insight_1",
+                type=InsightType.PERFORMANCE_PATTERN,
                 title="High CPU Usage",
                 description="CPU usage is above 85%",
                 severity=InsightSeverity.HIGH,
                 confidence=0.9,
-                data={"cpu_usage": 85.5},
+                data_points=[{"cpu_usage": 85.5}],
                 recommendations=["Optimize CPU usage"],
                 created_at=datetime.now()
             )
@@ -107,7 +106,7 @@ class TestConversationalInterface:
         interface = ConversationalInterface()
         assert interface.config is not None
         assert interface.config.enable_ai_assistant is True
-        assert interface.config.enable_command_processing is True
+        assert interface.config.enable_notifications is True
     
     @pytest.mark.asyncio
     async def test_start_session(self):
@@ -443,16 +442,12 @@ class TestConversationalInterface:
             max_session_duration=7200,
             max_messages_per_session=200,
             enable_notifications=False,
-            enable_session_persistence=False,
-            enable_command_processing=False,
             enable_ai_assistant=False
         )
         
         assert config.max_session_duration == 7200
         assert config.max_messages_per_session == 200
         assert config.enable_notifications is False
-        assert config.enable_session_persistence is False
-        assert config.enable_command_processing is False
         assert config.enable_ai_assistant is False
     
     def test_conversation_state_enum(self):

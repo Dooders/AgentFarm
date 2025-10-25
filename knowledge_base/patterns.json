@@ -1,0 +1,1805 @@
+[
+  {
+    "id": "analysis_unknown",
+    "pattern_type": "analysis",
+    "conditions": {
+      "duration": 120.5,
+      "phase_count": 2,
+      "error_count": 0,
+      "warning_count": 1,
+      "success": true
+    },
+    "outcomes": {
+      "phases": [
+        "statistical_analysis",
+        "ml_analysis"
+      ],
+      "errors": [],
+      "warnings": [
+        "Minor warning"
+      ]
+    },
+    "confidence": 0.8,
+    "frequency": 41,
+    "last_seen": "2025-10-24 22:02:53.898204",
+    "examples": [
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:53:09.318497"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:53:09.333846"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:53:09.473387"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:53:32.969886"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:53:32.983908"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:53:33.138661"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:54:11.568994"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:54:11.588502"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:54:11.786529"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:54:20.322299"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:54:20.328862"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:54:20.395568"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:54:59.046265"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:54:59.060997"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:54:59.203673"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:55:26.235675"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:55:26.249924"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:55:26.396325"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:55:39.972039"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:55:40.003082"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:55:40.109272"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:05.925090"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:05.930807"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:06.007377"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:15.680818"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:15.688398"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:15.792874"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:25.756513"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:25.762381"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:25.842870"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:38.297526"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:38.304685"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:56:38.447462"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:57:04.892967"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:57:04.899680"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:57:05.031173"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:59:47.830745"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T21:59:47.974590"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T22:02:53.790352"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T22:02:53.798010"
+      },
+      {
+        "conditions": {
+          "duration": 120.5,
+          "phase_count": 2,
+          "error_count": 0,
+          "warning_count": 1,
+          "success": true
+        },
+        "outcomes": {
+          "phases": [
+            "statistical_analysis",
+            "ml_analysis"
+          ],
+          "errors": [],
+          "warnings": [
+            "Minor warning"
+          ]
+        },
+        "timestamp": "2025-10-24T22:02:53.898206"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "insight_performance_pattern_test-insight-1",
+    "pattern_type": "insight",
+    "conditions": {
+      "type": "performance_pattern",
+      "severity": "high",
+      "confidence": 0.9,
+      "tags": []
+    },
+    "outcomes": {
+      "title": "High CPU Usage",
+      "description": "CPU usage is above 85%",
+      "recommendations": [
+        "Optimize CPU usage"
+      ]
+    },
+    "confidence": 0.9,
+    "frequency": 41,
+    "last_seen": "2025-10-24 22:02:53.898216",
+    "examples": [],
+    "metadata": {}
+  },
+  {
+    "id": "recommendation_performance_optimization_test-recommendation-1",
+    "pattern_type": "recommendation",
+    "conditions": {
+      "type": "performance_optimization",
+      "priority": "high",
+      "confidence": 0.9,
+      "context": [
+        "Reduce simulation complexity"
+      ]
+    },
+    "outcomes": {
+      "title": "Optimize CPU Usage",
+      "description": "Reduce CPU usage by 10%",
+      "context": [
+        "Reduce simulation complexity"
+      ]
+    },
+    "confidence": 0.9,
+    "frequency": 41,
+    "last_seen": "2025-10-24 22:02:53.898222",
+    "examples": [],
+    "metadata": {}
+  },
+  {
+    "id": "interaction_search_20251024_215459",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 21:54:59.065553"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:54:59.065556",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 21:54:59.065541"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_215459",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 21:54:59.098308"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:54:59.098313",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 21:54:59.098296"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_215526",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 21:55:26.255972"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:55:26.255976",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 21:55:26.255960"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_215526",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 21:55:26.290339"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:55:26.290343",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 21:55:26.290327"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_215540",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 21:55:40.007324"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:55:40.007328",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 21:55:40.007312"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_215540",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 21:55:40.041290"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:55:40.041295",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 21:55:40.041281"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_215605",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 21:56:05.934525"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:56:05.934528",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 21:56:05.934516"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_215605",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 21:56:05.943431"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:56:05.943434",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 21:56:05.943413"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_215615",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 21:56:15.693506"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:56:15.693510",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 21:56:15.693494"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_215615",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 21:56:15.705431"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:56:15.705436",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 21:56:15.705413"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_215625",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 21:56:25.766129"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:56:25.766132",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 21:56:25.766120"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_215625",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 21:56:25.775263"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:56:25.775266",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 21:56:25.775253"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_215638",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 21:56:38.309337"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:56:38.309341",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 21:56:38.309326"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_215638",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 21:56:38.341147"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:56:38.341151",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 21:56:38.341137"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_215704",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 21:57:04.904023"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:57:04.904025",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 21:57:04.904012"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_215704",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 21:57:04.933594"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:57:04.933597",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 21:57:04.933585"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_215947",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 21:59:47.837374"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:59:47.837380",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 21:59:47.837353"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_215947",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 21:59:47.884240"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:59:47.884244",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 21:59:47.884228"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_215949",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 21:59:49.248500"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:59:49.248504",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 21:59:49.248488"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_215949",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 21:59:49.282773"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 21:59:49.282779",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 21:59:49.282760"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_220048",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 22:00:48.808211"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 22:00:48.808214",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 22:00:48.808199"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_220048",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 22:00:48.816727"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 22:00:48.816730",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 22:00:48.816716"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_220148",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 22:01:48.377637"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 22:01:48.377641",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 22:01:48.377627"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_220148",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 22:01:48.386881"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 22:01:48.386885",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 22:01:48.386871"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_220230",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 22:02:30.538050"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 22:02:30.538056",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 22:02:30.538030"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_220230",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 22:02:30.558689"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 22:02:30.558696",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 22:02:30.558666"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  },
+  {
+    "id": "interaction_search_20251024_220253",
+    "pattern_type": "user_interaction",
+    "conditions": {
+      "interaction_type": "search",
+      "context": {
+        "query": "performance optimization",
+        "results_clicked": 3
+      }
+    },
+    "outcomes": {
+      "learned": true,
+      "timestamp": "2025-10-24 22:02:53.802971"
+    },
+    "confidence": 0.8,
+    "frequency": 1,
+    "last_seen": "2025-10-24 22:02:53.802974",
+    "examples": [
+      {
+        "type": "search",
+        "context": {
+          "query": "performance optimization",
+          "results_clicked": 3
+        },
+        "user_id": "user_1",
+        "timestamp": "2025-10-24 22:02:53.802961"
+      }
+    ],
+    "metadata": {
+      "source": "user_interaction",
+      "interaction_type": "search"
+    }
+  },
+  {
+    "id": "error_analysis_error_20251024_220253",
+    "pattern_type": "error_pattern",
+    "conditions": {
+      "error_type": "analysis_error",
+      "context": {
+        "error_type": "timeout",
+        "context": "large_simulation"
+      }
+    },
+    "outcomes": {
+      "handled": true,
+      "timestamp": "2025-10-24 22:02:53.813598"
+    },
+    "confidence": 0.9,
+    "frequency": 1,
+    "last_seen": "2025-10-24 22:02:53.813601",
+    "examples": [
+      {
+        "type": "analysis_error",
+        "context": {
+          "error_type": "timeout",
+          "context": "large_simulation"
+        },
+        "timestamp": "2025-10-24 22:02:53.813587"
+      }
+    ],
+    "metadata": {
+      "source": "error_handling",
+      "error_type": "analysis_error"
+    }
+  }
+]

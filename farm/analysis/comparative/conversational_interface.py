@@ -118,12 +118,17 @@ class ConversationalInterface:
     
     def _start_session_cleanup(self):
         """Start the session cleanup task."""
-        async def cleanup_sessions():
-            while True:
-                await asyncio.sleep(self.config.session_cleanup_interval)
-                self._cleanup_expired_sessions()
-        
-        asyncio.create_task(cleanup_sessions())
+        try:
+            async def cleanup_sessions():
+                while True:
+                    await asyncio.sleep(self.config.session_cleanup_interval)
+                    self._cleanup_expired_sessions()
+            
+            asyncio.create_task(cleanup_sessions())
+        except RuntimeError:
+            # No event loop running, skip cleanup task creation
+            # This can happen during testing or when not in an async context
+            pass
     
     def _cleanup_expired_sessions(self):
         """Clean up expired sessions."""
