@@ -1,0 +1,144 @@
+{
+  "success": true,
+  "start_time": "2025-10-25T01:47:38.868671",
+  "end_time": "2025-10-25T01:47:38.871375",
+  "total_duration": 0.002704,
+  "summary": {
+    "total_phases": 7,
+    "successful_phases": 7,
+    "failed_phases": 0,
+    "total_duration": 0.002704,
+    "average_phase_duration": 0.0009418571428571428,
+    "phase_breakdown": {
+      "statistical_analysis": {
+        "success": true,
+        "duration": 5.8e-05,
+        "error": null
+      },
+      "ml_analysis": {
+        "success": true,
+        "duration": 0.001822,
+        "error": null
+      },
+      "anomaly_detection": {
+        "success": true,
+        "duration": 0.001447,
+        "error": null
+      },
+      "clustering": {
+        "success": true,
+        "duration": 0.001241,
+        "error": null
+      },
+      "trend_prediction": {
+        "success": true,
+        "duration": 0.001069,
+        "error": null
+      },
+      "similarity_analysis": {
+        "success": true,
+        "duration": 0.000901,
+        "error": null
+      },
+      "visualization": {
+        "success": true,
+        "duration": 5.5e-05,
+        "error": null
+      }
+    },
+    "performance_metrics": {
+      "total_simulations_analyzed": 2,
+      "analysis_throughput": 739.6449704142012
+    }
+  },
+  "output_paths": {
+    "statistical_analysis": "test_output/statistical_analysis_20251025_014738.json",
+    "ml_analysis": "test_output/ml_analysis_20251025_014738.json",
+    "anomaly_detection": "test_output/anomaly_detection_20251025_014738.json",
+    "clustering": "test_output/clustering_20251025_014738.json",
+    "trend_prediction": "test_output/trend_prediction_20251025_014738.json",
+    "similarity_analysis": "test_output/similarity_analysis_20251025_014738.json",
+    "visualization": "test_output/visualization_20251025_014738.json"
+  },
+  "errors": [],
+  "warnings": [],
+  "phase_results": [
+    {
+      "phase_name": "statistical_analysis",
+      "success": true,
+      "start_time": "2025-10-25T01:47:38.868743",
+      "end_time": "2025-10-25T01:47:38.868801",
+      "duration": 5.8e-05,
+      "error": null,
+      "metadata": {
+        "execution_mode": "sequential"
+      }
+    },
+    {
+      "phase_name": "ml_analysis",
+      "success": true,
+      "start_time": "2025-10-25T01:47:38.868899",
+      "end_time": "2025-10-25T01:47:38.870721",
+      "duration": 0.001822,
+      "error": null,
+      "metadata": {
+        "execution_mode": "parallel"
+      }
+    },
+    {
+      "phase_name": "anomaly_detection",
+      "success": true,
+      "start_time": "2025-10-25T01:47:38.869423",
+      "end_time": "2025-10-25T01:47:38.870870",
+      "duration": 0.001447,
+      "error": null,
+      "metadata": {
+        "execution_mode": "parallel"
+      }
+    },
+    {
+      "phase_name": "clustering",
+      "success": true,
+      "start_time": "2025-10-25T01:47:38.869766",
+      "end_time": "2025-10-25T01:47:38.871007",
+      "duration": 0.001241,
+      "error": null,
+      "metadata": {
+        "execution_mode": "parallel"
+      }
+    },
+    {
+      "phase_name": "trend_prediction",
+      "success": true,
+      "start_time": "2025-10-25T01:47:38.870040",
+      "end_time": "2025-10-25T01:47:38.871109",
+      "duration": 0.001069,
+      "error": null,
+      "metadata": {
+        "execution_mode": "parallel"
+      }
+    },
+    {
+      "phase_name": "similarity_analysis",
+      "success": true,
+      "start_time": "2025-10-25T01:47:38.870327",
+      "end_time": "2025-10-25T01:47:38.871228",
+      "duration": 0.000901,
+      "error": null,
+      "metadata": {
+        "execution_mode": "parallel"
+      }
+    },
+    {
+      "phase_name": "visualization",
+      "success": true,
+      "start_time": "2025-10-25T01:47:38.871294",
+      "end_time": "2025-10-25T01:47:38.871349",
+      "duration": 5.5e-05,
+      "error": null,
+      "metadata": {
+        "execution_mode": "sequential"
+      }
+    }
+  ]
+}
