@@ -69,6 +69,7 @@ httpx>=0.24.0  # Required for FastAPI test client
 # LLM Integration
 openai>=1.0.0  # OpenAI API client for chart analysis
 pyscn>=0.1.0  # PySCN library
+transformers>=4.30.0  # Hugging Face transformers for NLP
 
 # Optional dependencies
 moviepy>=1.0.3  # For video generation and processing
