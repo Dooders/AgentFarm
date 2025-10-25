@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation Comparison Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card h2 {
+            color: #333;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+        
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            transition: border-color 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: #667eea;
+        }
+        
+        .upload-area.dragover {
+            border-color: #667eea;
+            background-color: #f0f4ff;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .upload-icon {
+            font-size: 3rem;
+            color: #ccc;
+            margin-bottom: 1rem;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: transform 0.2s ease;
+        }
+        
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 1rem 0;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .results {
+            margin-top: 2rem;
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .summary-item {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 5px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+        
+        .summary-item h3 {
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+        
+        .summary-item .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .severity-high {
+            color: #dc3545 !important;
+        }
+        
+        .severity-medium {
+            color: #ffc107 !important;
+        }
+        
+        .severity-low {
+            color: #28a745 !important;
+        }
+        
+        .differences-list {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+        
+        .differences-list ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .differences-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .differences-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .no-differences {
+            color: #28a745;
+            font-style: italic;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #dee2e6;
+            margin-bottom: 1rem;
+        }
+        
+        .tab {
+            padding: 1rem 2rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab.active {
+            border-bottom-color: #667eea;
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .visualization {
+            text-align: center;
+            margin: 1rem 0;
+        }
+        
+        .visualization img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+        
+        .comparison-list {
+            background: white;
+            border-radius: 10px;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .comparison-item {
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .comparison-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .comparison-item:last-child {
+            border-bottom: none;
+        }
+        
+        .comparison-item h3 {
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+        
+        .comparison-item p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .summary-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Simulation Comparison Tool</h1>
+            <p>Compare two simulations and analyze their differences</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="card">
+                <h2>Upload Simulations</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <p>Drag and drop simulation files here or click to browse</p>
+                    <input type="file" id="simulation1" class="file-input" multiple webkitdirectory>
+                    <input type="file" id="simulation2" class="file-input" multiple webkitdirectory>
+                </div>
+                <div class="progress" id="progress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <button class="btn" id="compareBtn" disabled>Compare Simulations</button>
+            </div>
+            
+            <div class="card">
+                <h2>Recent Comparisons</h2>
+                <div id="comparisonList" class="comparison-list">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading comparisons...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="results" id="results" style="display: none;">
+            <div class="card">
+                <h2>Comparison Results</h2>
+                <div id="summarySection"></div>
+                
+                <div class="tabs">
+                    <div class="tab active" data-tab="overview">Overview</div>
+                    <div class="tab" data-tab="config">Configuration</div>
+                    <div class="tab" data-tab="database">Database</div>
+                    <div class="tab" data-tab="logs">Logs</div>
+                    <div class="tab" data-tab="metrics">Metrics</div>
+                    <div class="tab" data-tab="visualizations">Visualizations</div>
+                </div>
+                
+                <div class="tab-content active" id="overview">
+                    <div id="overviewContent"></div>
+                </div>
+                
+                <div class="tab-content" id="config">
+                    <div id="configContent"></div>
+                </div>
+                
+                <div class="tab-content" id="database">
+                    <div id="databaseContent"></div>
+                </div>
+                
+                <div class="tab-content" id="logs">
+                    <div id="logsContent"></div>
+                </div>
+                
+                <div class="tab-content" id="metrics">
+                    <div id="metricsContent"></div>
+                </div>
+                
+                <div class="tab-content" id="visualizations">
+                    <div id="visualizationsContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        class SimulationComparisonApp {
+            constructor() {
+                this.currentComparison = null;
+                this.uploadArea = document.getElementById('uploadArea');
+                this.simulation1Input = document.getElementById('simulation1');
+                this.simulation2Input = document.getElementById('simulation2');
+                this.compareBtn = document.getElementById('compareBtn');
+                this.progress = document.getElementById('progress');
+                this.progressBar = document.getElementById('progressBar');
+                this.results = document.getElementById('results');
+                this.comparisonList = document.getElementById('comparisonList');
+                
+                this.setupEventListeners();
+                this.loadComparisons();
+            }
+            
+            setupEventListeners() {
+                // Upload area events
+                this.uploadArea.addEventListener('click', () => {
+                    this.simulation1Input.click();
+                });
+                
+                this.uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    this.uploadArea.classList.add('dragover');
+                });
+                
+                this.uploadArea.addEventListener('dragleave', () => {
+                    this.uploadArea.classList.remove('dragover');
+                });
+                
+                this.uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.uploadArea.classList.remove('dragover');
+                    this.handleFileDrop(e);
+                });
+                
+                // File input events
+                this.simulation1Input.addEventListener('change', (e) => {
+                    this.handleFileSelection(e, 'simulation1');
+                });
+                
+                this.simulation2Input.addEventListener('change', (e) => {
+                    this.handleFileSelection(e, 'simulation2');
+                });
+                
+                // Compare button
+                this.compareBtn.addEventListener('click', () => {
+                    this.compareSimulations();
+                });
+                
+                // Tab switching
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', (e) => {
+                        this.switchTab(e.target.dataset.tab);
+                    });
+                });
+            }
+            
+            handleFileDrop(e) {
+                const files = Array.from(e.dataTransfer.files);
+                if (files.length > 0) {
+                    // For simplicity, assume first file is simulation1, second is simulation2
+                    if (files.length >= 2) {
+                        this.simulation1Input.files = files.slice(0, 1);
+                        this.simulation2Input.files = files.slice(1, 2);
+                        this.updateUploadArea();
+                    }
+                }
+            }
+            
+            handleFileSelection(e, simulation) {
+                this.updateUploadArea();
+            }
+            
+            updateUploadArea() {
+                const sim1Files = this.simulation1Input.files;
+                const sim2Files = this.simulation2Input.files;
+                
+                if (sim1Files.length > 0 && sim2Files.length > 0) {
+                    this.uploadArea.innerHTML = `
+                        <div class="upload-icon">✅</div>
+                        <p>Simulation 1: ${sim1Files[0].name}</p>
+                        <p>Simulation 2: ${sim2Files[0].name}</p>
+                        <p>Click to change files</p>
+                    `;
+                    this.compareBtn.disabled = false;
+                } else {
+                    this.uploadArea.innerHTML = `
+                        <div class="upload-icon">📁</div>
+                        <p>Drag and drop simulation files here or click to browse</p>
+                    `;
+                    this.compareBtn.disabled = true;
+                }
+            }
+            
+            async compareSimulations() {
+                try {
+                    this.showProgress();
+                    this.compareBtn.disabled = true;
+                    
+                    // Upload files
+                    const formData = new FormData();
+                    formData.append('simulation1', this.simulation1Input.files[0]);
+                    formData.append('simulation2', this.simulation2Input.files[0]);
+                    
+                    const uploadResponse = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!uploadResponse.ok) {
+                        throw new Error('Upload failed');
+                    }
+                    
+                    const uploadData = await uploadResponse.json();
+                    
+                    // Run comparison
+                    const compareResponse = await fetch('/api/compare', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            comparison_id: uploadData.comparison_id,
+                            sim1_path: uploadData.sim1_path,
+                            sim2_path: uploadData.sim2_path,
+                            options: {
+                                include_logs: true,
+                                include_metrics: true
+                            }
+                        })
+                    });
+                    
+                    if (!compareResponse.ok) {
+                        throw new Error('Comparison failed');
+                    }
+                    
+                    const comparisonData = await compareResponse.json();
+                    this.currentComparison = comparisonData;
+                    
+                    this.hideProgress();
+                    this.displayResults(comparisonData);
+                    this.loadComparisons();
+                    
+                } catch (error) {
+                    this.hideProgress();
+                    this.showError('Comparison failed: ' + error.message);
+                    this.compareBtn.disabled = false;
+                }
+            }
+            
+            showProgress() {
+                this.progress.style.display = 'block';
+                this.progressBar.style.width = '0%';
+                
+                // Simulate progress
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += Math.random() * 20;
+                    if (progress > 90) progress = 90;
+                    this.progressBar.style.width = progress + '%';
+                    
+                    if (progress >= 90) {
+                        clearInterval(interval);
+                    }
+                }, 200);
+            }
+            
+            hideProgress() {
+                this.progressBar.style.width = '100%';
+                setTimeout(() => {
+                    this.progress.style.display = 'none';
+                }, 500);
+            }
+            
+            displayResults(data) {
+                this.results.style.display = 'block';
+                this.results.scrollIntoView({ behavior: 'smooth' });
+                
+                // Display summary
+                this.displaySummary(data.summary);
+                
+                // Display detailed results
+                this.displayOverview(data);
+                this.displayConfig(data);
+                this.displayDatabase(data);
+                this.displayLogs(data);
+                this.displayMetrics(data);
+                this.displayVisualizations(data.visualization_files);
+            }
+            
+            displaySummary(summary) {
+                const summarySection = document.getElementById('summarySection');
+                summarySection.innerHTML = `
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <h3>Total Differences</h3>
+                            <div class="value severity-${summary.severity}">${summary.total_differences}</div>
+                        </div>
+                        <div class="summary-item">
+                            <h3>Severity</h3>
+                            <div class="value severity-${summary.severity}">${summary.severity.toUpperCase()}</div>
+                        </div>
+                        <div class="summary-item">
+                            <h3>Configuration</h3>
+                            <div class="value">${summary.config_differences}</div>
+                        </div>
+                        <div class="summary-item">
+                            <h3>Database</h3>
+                            <div class="value">${summary.database_differences}</div>
+                        </div>
+                        <div class="summary-item">
+                            <h3>Logs</h3>
+                            <div class="value">${summary.log_differences}</div>
+                        </div>
+                        <div class="summary-item">
+                            <h3>Metrics</h3>
+                            <div class="value">${summary.metrics_differences}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            displayOverview(data) {
+                const overviewContent = document.getElementById('overviewContent');
+                overviewContent.innerHTML = `
+                    <h3>Comparison Overview</h3>
+                    <p>This comparison analyzed two simulations and found ${data.summary.total_differences} differences across all categories.</p>
+                    <p>The overall severity is classified as <strong>${data.summary.severity.toUpperCase()}</strong>.</p>
+                    
+                    <h3>Statistical Analysis</h3>
+                    <div class="differences-list">
+                        <ul>
+                            <li><strong>Analysis Quality:</strong> ${data.statistical_analysis.summary.analysis_quality}</li>
+                            <li><strong>Significant Correlations:</strong> ${data.statistical_analysis.summary.significant_correlations}</li>
+                            <li><strong>Significant Tests:</strong> ${data.statistical_analysis.summary.significant_tests}</li>
+                            <li><strong>Overall Trend:</strong> ${data.statistical_analysis.summary.overall_trend}</li>
+                            <li><strong>Total Anomalies:</strong> ${data.statistical_analysis.summary.total_anomalies}</li>
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            displayConfig(data) {
+                const configContent = document.getElementById('configContent');
+                // This would be populated with actual config data
+                configContent.innerHTML = `
+                    <h3>Configuration Differences</h3>
+                    <div class="no-differences">Configuration analysis not yet implemented in this demo</div>
+                `;
+            }
+            
+            displayDatabase(data) {
+                const databaseContent = document.getElementById('databaseContent');
+                // This would be populated with actual database data
+                databaseContent.innerHTML = `
+                    <h3>Database Differences</h3>
+                    <div class="no-differences">Database analysis not yet implemented in this demo</div>
+                `;
+            }
+            
+            displayLogs(data) {
+                const logsContent = document.getElementById('logsContent');
+                // This would be populated with actual log data
+                logsContent.innerHTML = `
+                    <h3>Log Analysis</h3>
+                    <div class="no-differences">Log analysis not yet implemented in this demo</div>
+                `;
+            }
+            
+            displayMetrics(data) {
+                const metricsContent = document.getElementById('metricsContent');
+                // This would be populated with actual metrics data
+                metricsContent.innerHTML = `
+                    <h3>Metrics Comparison</h3>
+                    <div class="no-differences">Metrics analysis not yet implemented in this demo</div>
+                `;
+            }
+            
+            displayVisualizations(visualizationFiles) {
+                const visualizationsContent = document.getElementById('visualizationsContent');
+                if (visualizationFiles && Object.keys(visualizationFiles).length > 0) {
+                    let html = '<h3>Generated Visualizations</h3>';
+                    for (const [name, file] of Object.entries(visualizationFiles)) {
+                        html += `
+                            <div class="visualization">
+                                <h4>${name.replace('_', ' ').toUpperCase()}</h4>
+                                <img src="/api/visualizations/${file.split('/').pop()}" alt="${name}">
+                            </div>
+                        `;
+                    }
+                    visualizationsContent.innerHTML = html;
+                } else {
+                    visualizationsContent.innerHTML = `
+                        <h3>Visualizations</h3>
+                        <div class="no-differences">No visualizations available</div>
+                    `;
+                }
+            }
+            
+            switchTab(tabName) {
+                // Remove active class from all tabs and content
+                document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                
+                // Add active class to selected tab and content
+                document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+                document.getElementById(tabName).classList.add('active');
+            }
+            
+            async loadComparisons() {
+                try {
+                    const response = await fetch('/api/comparisons');
+                    const data = await response.json();
+                    
+                    if (data.comparisons.length === 0) {
+                        this.comparisonList.innerHTML = '<div class="no-differences">No comparisons yet</div>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    data.comparisons.forEach(comp => {
+                        html += `
+                            <div class="comparison-item" onclick="app.loadComparison('${comp.comparison_id}')">
+                                <h3>${comp.sim1_path.split('/').pop()} vs ${comp.sim2_path.split('/').pop()}</h3>
+                                <p>Differences: ${comp.total_differences} | Severity: ${comp.severity.toUpperCase()}</p>
+                                <p>Created: ${new Date(comp.created_at).toLocaleString()}</p>
+                            </div>
+                        `;
+                    });
+                    
+                    this.comparisonList.innerHTML = html;
+                } catch (error) {
+                    this.comparisonList.innerHTML = '<div class="error">Failed to load comparisons</div>';
+                }
+            }
+            
+            async loadComparison(comparisonId) {
+                try {
+                    const response = await fetch(`/api/comparison/${comparisonId}`);
+                    const data = await response.json();
+                    
+                    this.currentComparison = data;
+                    this.displayResults(data);
+                } catch (error) {
+                    this.showError('Failed to load comparison: ' + error.message);
+                }
+            }
+            
+            showError(message) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.textContent = message;
+                document.querySelector('.main-content').appendChild(errorDiv);
+                
+                setTimeout(() => {
+                    errorDiv.remove();
+                }, 5000);
+            }
+        }
+        
+        // Initialize the app
+        const app = new SimulationComparisonApp();
+    </script>
+</body>
+</html>
