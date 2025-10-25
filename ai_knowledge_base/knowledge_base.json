@@ -1,0 +1,81 @@
+[
+  {
+    "id": "simulation_analysis_101",
+    "title": "Simulation Analysis Basics",
+    "content": "Simulation analysis involves comparing different simulation runs to identify patterns, anomalies, and performance differences. Key metrics include execution time, resource usage, and outcome accuracy.",
+    "category": "basics",
+    "tags": [
+      "simulation",
+      "analysis",
+      "comparison",
+      "basics"
+    ],
+    "created_at": "2025-10-24 20:47:35.611084",
+    "updated_at": "2025-10-24 20:47:35.611086",
+    "usage_count": 0,
+    "relevance_score": 0.0
+  },
+  {
+    "id": "metrics_explanation",
+    "title": "Key Analysis Metrics",
+    "content": "Important metrics in simulation analysis include: 1) Execution time - how long simulations take to run, 2) Memory usage - RAM consumption during execution, 3) CPU utilization - processor usage patterns, 4) Accuracy - correctness of simulation results, 5) Stability - consistency across multiple runs.",
+    "category": "metrics",
+    "tags": [
+      "metrics",
+      "performance",
+      "analysis"
+    ],
+    "created_at": "2025-10-24 20:47:35.611088",
+    "updated_at": "2025-10-24 20:47:35.611089",
+    "usage_count": 0,
+    "relevance_score": 0.0
+  },
+  {
+    "id": "anomaly_detection_guide",
+    "title": "Anomaly Detection",
+    "content": "Anomalies in simulation analysis are unusual patterns that deviate from normal behavior. Common types include: performance outliers, unexpected resource usage spikes, unusual execution patterns, and result inconsistencies. ML-based detection can identify these automatically.",
+    "category": "anomalies",
+    "tags": [
+      "anomaly",
+      "detection",
+      "machine learning",
+      "outliers"
+    ],
+    "created_at": "2025-10-24 20:47:35.611090",
+    "updated_at": "2025-10-24 20:47:35.611090",
+    "usage_count": 0,
+    "relevance_score": 0.0
+  },
+  {
+    "id": "clustering_analysis",
+    "title": "Clustering Analysis",
+    "content": "Clustering groups similar simulations together based on their characteristics. This helps identify simulation families, performance patterns, and optimization opportunities. Common clustering algorithms include K-means, DBSCAN, and hierarchical clustering.",
+    "category": "clustering",
+    "tags": [
+      "clustering",
+      "grouping",
+      "similarity",
+      "patterns"
+    ],
+    "created_at": "2025-10-24 20:47:35.611091",
+    "updated_at": "2025-10-24 20:47:35.611092",
+    "usage_count": 0,
+    "relevance_score": 0.0
+  },
+  {
+    "id": "trend_analysis",
+    "title": "Trend Analysis",
+    "content": "Trend analysis identifies patterns over time in simulation performance and results. It can predict future behavior, identify performance degradation, and suggest optimization strategies. Time series analysis and regression models are commonly used.",
+    "category": "trends",
+    "tags": [
+      "trends",
+      "time series",
+      "prediction",
+      "forecasting"
+    ],
+    "created_at": "2025-10-24 20:47:35.611093",
+    "updated_at": "2025-10-24 20:47:35.611093",
+    "usage_count": 0,
+    "relevance_score": 0.0
+  }
+]

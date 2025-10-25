@@ -596,6 +596,18 @@ class AdvancedAnomalyDetector:
         else:
             return f"LOW PRIORITY: {base_recommendation}. Monitor and address when convenient."
     
+    def _generate_pair_recommendation(self, sim1_id: int, sim2_id: int, similarity: float, 
+                                    features1: List[str], features2: List[str]) -> str:
+        """Generate recommendation for simulation pair based on similarity."""
+        if similarity >= 0.95:
+            return f"Simulations {sim1_id} and {sim2_id} are very similar (similarity: {similarity:.2f}). Consider consolidating or investigating why they are so similar."
+        elif similarity >= 0.85:
+            return f"Simulations {sim1_id} and {sim2_id} are highly similar (similarity: {similarity:.2f}). Review differences in features: {', '.join(set(features1 + features2))}."
+        elif similarity >= 0.75:
+            return f"Simulations {sim1_id} and {sim2_id} show moderate similarity (similarity: {similarity:.2f}). Compare key differences in features: {', '.join(set(features1 + features2))}."
+        else:
+            return f"Simulations {sim1_id} and {sim2_id} are quite different (similarity: {similarity:.2f}). This may indicate significant changes or different simulation conditions."
+    
     def _generate_anomaly_summary(self, anomalies: List[Dict], scores: List[float], 
                                 types: List[str]) -> Dict[str, Any]:
         """Generate summary of anomaly detection results."""

@@ -377,8 +377,16 @@ class FileComparisonEngine:
                                  log_comp: LogComparisonResult,
                                  metrics_comp: MetricsComparisonResult) -> ComparisonSummary:
         """Create overall comparison summary."""
+        # Count total items in config differences
+        config_count = 0
+        for category, items in config_comp.differences.items():
+            if isinstance(items, list):
+                config_count += len(items)
+            else:
+                config_count += 1
+        
         return ComparisonSummary(
-            config_differences=len(config_comp.differences),
+            config_differences=config_count,
             database_differences=len(database_comp.schema_differences) + len(database_comp.data_differences),
             log_differences=len(log_comp.performance_differences) + len(log_comp.error_differences),
             metrics_differences=len(metrics_comp.metric_differences)

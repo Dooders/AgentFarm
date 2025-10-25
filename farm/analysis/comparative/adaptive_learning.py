@@ -197,16 +197,23 @@ class AdaptiveLearningSystem:
     
     def _start_learning_tasks(self):
         """Start background learning tasks."""
-        # Pattern recognition task
-        asyncio.create_task(self._pattern_recognition_task())
-        
-        # Performance monitoring task
-        if self.config.enable_performance_monitoring:
-            asyncio.create_task(self._performance_monitoring_task())
-        
-        # Model update task
-        if self.config.enable_model_updates:
-            asyncio.create_task(self._model_update_task())
+        try:
+            # Check if there's a running event loop
+            loop = asyncio.get_running_loop()
+            
+            # Pattern recognition task
+            asyncio.create_task(self._pattern_recognition_task())
+            
+            # Performance monitoring task
+            if self.config.enable_performance_monitoring:
+                asyncio.create_task(self._performance_monitoring_task())
+            
+            # Model update task
+            if self.config.enable_model_updates:
+                asyncio.create_task(self._model_update_task())
+        except RuntimeError:
+            # No running event loop (e.g., in tests), skip async tasks
+            logger.debug("No running event loop, skipping async learning tasks")
     
     async def record_learning_event(self, 
                                   event_type: LearningEventType,
@@ -756,17 +763,17 @@ class AdaptiveLearningSystem:
         """Update learning models based on new data."""
         if not SKLEARN_AVAILABLE:
             return
-        
+
         # Update performance model
-        if self.performance_model and len(self.performance_history) > 50:
+        if self.performance_model is not None and len(self.performance_history) > 50:
             await self._update_performance_model()
-        
+
         # Update success prediction model
-        if self.success_prediction_model and len(self.learning_events) > 50:
+        if self.success_prediction_model is not None and len(self.learning_events) > 50:
             await self._update_success_prediction_model()
-        
+
         # Update recommendation effectiveness model
-        if self.recommendation_effectiveness_model and len(self.feedback_history) > 20:
+        if self.recommendation_effectiveness_model is not None and len(self.feedback_history) > 20:
             await self._update_recommendation_effectiveness_model()
     
     async def _update_performance_model(self):

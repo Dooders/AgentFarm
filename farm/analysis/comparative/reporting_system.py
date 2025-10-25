@@ -315,7 +315,7 @@ class ReportingSystem:
         content = "<h2>Performance Analysis</h2>"
         
         # Calculate performance metrics
-        total_duration = sum(getattr(p, 'duration', 0) for p in phase_results)
+        total_duration = summary.get('total_duration', sum(getattr(p, 'duration', 0) for p in phase_results))
         avg_duration = total_duration / len(phase_results) if phase_results else 0
         successful_phases = [p for p in phase_results if getattr(p, 'success', False)]
         success_rate = len(successful_phases) / len(phase_results) if phase_results else 0

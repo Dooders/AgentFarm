@@ -100,11 +100,10 @@ class TestMetricsLoader:
         mock_request = MagicMock()
         mock_result = MagicMock()
         mock_result.success = True
-        mock_result.data = {'test_data': 123}
-        mock_result.metrics = {'test_metric': 456}
-        mock_result.metadata = {'test_meta': 'value'}
+        mock_result.dataframe = None  # AnalysisResult has dataframe, not data
+        mock_result.metadata = {'test_metric': 456, 'test_meta': 'value'}
         
-        mock_service.run_analysis.return_value = mock_result
+        mock_service.run.return_value = mock_result
         
         loader = MetricsLoader(self.simulation_dir)
         result = loader.load_comprehensive_metrics(['test_module'])
@@ -124,7 +123,7 @@ class TestMetricsLoader:
         # Mock analysis service to raise exception
         mock_service = MagicMock()
         mock_analysis_service.return_value = mock_service
-        mock_service.run_analysis.side_effect = Exception("Analysis failed")
+        mock_service.run.side_effect = Exception("Analysis failed")
         
         loader = MetricsLoader(self.simulation_dir)
         result = loader.load_comprehensive_metrics(['test_module'])
@@ -169,20 +168,19 @@ class TestMetricsLoader:
         
         mock_result = MagicMock()
         mock_result.success = True
-        mock_result.data = {'data': 123}
-        mock_result.metrics = {'metric': 456}
-        mock_result.metadata = {'meta': 'value'}
+        mock_result.dataframe = None
+        mock_result.metadata = {'metric': 456, 'meta': 'value'}
         
-        mock_service.run_analysis.return_value = mock_result
+        mock_service.run.return_value = mock_result
         
         loader = MetricsLoader(self.simulation_dir)
         result = loader._run_analysis_module('test_module')
         
         assert result is not None
         assert result['success'] is True
-        assert result['data'] == {'data': 123}
-        assert result['metrics'] == {'metric': 456}
-        assert result['metadata'] == {'meta': 'value'}
+        assert result['data'] == {}  # Empty because dataframe is None
+        assert result['metrics'] == {'metric': 456, 'meta': 'value'}  # metadata contains both
+        assert result['metadata'] == {'metric': 456, 'meta': 'value'}
     
     @patch('farm.analysis.comparative.metrics_loader.AnalysisService')
     def test_run_analysis_module_failure(self, mock_analysis_service):
@@ -193,7 +191,7 @@ class TestMetricsLoader:
         # Mock analysis service to raise exception
         mock_service = MagicMock()
         mock_analysis_service.return_value = mock_service
-        mock_service.run_analysis.side_effect = Exception("Analysis failed")
+        mock_service.run.side_effect = Exception("Analysis failed")
         
         loader = MetricsLoader(self.simulation_dir)
         result = loader._run_analysis_module('test_module')

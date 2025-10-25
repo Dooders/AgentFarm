@@ -151,7 +151,7 @@ class TestAdvancedAnomalyDetector(unittest.TestCase):
             self.assertIsInstance(result, AnomalyResult)
             mock_statistical.assert_called_once()
     
-    @patch('farm.analysis.comparative.anomaly_detection.SKLEARN_AVAILABLE', True)
+    @patch('farm.analysis.comparative.anomaly_detector.SKLEARN_AVAILABLE', True)
     def test_detect_anomalies_single_method(self):
         """Test detect_anomalies with single method."""
         detector = AdvancedAnomalyDetector()

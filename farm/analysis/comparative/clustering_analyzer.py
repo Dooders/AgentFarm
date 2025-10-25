@@ -324,7 +324,7 @@ class ClusteringAnalyzer:
             return min_clusters
         
         # Find optimal number of clusters based on silhouette score
-        optimal_clusters = min_clusters + np.argmax(silhouette_scores)
+        optimal_clusters = int(min_clusters + np.argmax(silhouette_scores))
         
         logger.debug(f"Optimal number of clusters: {optimal_clusters}")
         return optimal_clusters
@@ -353,8 +353,13 @@ class ClusteringAnalyzer:
         
         if best_result is None:
             logger.warning("All clustering methods failed, using K-means")
-            best_result = self._single_method_clustering(X, features_df, 'kmeans', n_clusters)
-            best_method = 'kmeans'
+            try:
+                best_result = self._single_method_clustering(X, features_df, 'kmeans', n_clusters)
+                best_method = 'kmeans'
+            except Exception as e:
+                logger.error(f"Even K-means failed: {e}")
+                # Return empty result if all methods fail
+                return self._create_empty_result()
         
         logger.info(f"Best clustering method: {best_method} with silhouette score: {best_score:.3f}")
         return best_result
@@ -476,7 +481,7 @@ class ClusteringAnalyzer:
         characteristics = []
         
         # High differences cluster
-        if cluster_data['total_differences'].mean() > 50:
+        if 'total_differences' in cluster_data.columns and cluster_data['total_differences'].mean() > 50:
             characteristics.append('high_differences')
         
         # Performance cluster
@@ -500,7 +505,7 @@ class ClusteringAnalyzer:
             characteristics.append('high_database_differences')
         
         # Low differences cluster
-        if cluster_data['total_differences'].mean() < 10:
+        if 'total_differences' in cluster_data.columns and cluster_data['total_differences'].mean() < 10:
             characteristics.append('low_differences')
         
         return characteristics if characteristics else ['general']
@@ -511,6 +516,10 @@ class ClusteringAnalyzer:
         visualization = {}
         
         try:
+            # Check if we have enough samples for t-SNE
+            if len(X) < 4:
+                raise ValueError("Insufficient samples for visualization")
+            
             # If data is high-dimensional, apply t-SNE for visualization
             if X.shape[1] > 2:
                 tsne = TSNE(n_components=2, random_state=self.config.random_state, perplexity=min(30, len(X)-1))
@@ -552,7 +561,13 @@ class ClusteringAnalyzer:
             
         except Exception as e:
             logger.warning(f"Error generating cluster visualization: {e}")
-            visualization = {'error': str(e)}
+            visualization = {
+                'error': str(e),
+                'coordinates': X.tolist() if X.shape[1] <= 2 else [],
+                'cluster_labels': cluster_labels.tolist(),
+                'simulation_ids': features_df['simulation_id'].tolist(),
+                'cluster_boundaries': {}
+            }
         
         return visualization
     
@@ -628,7 +643,7 @@ class ClusteringAnalyzer:
     
     def _create_empty_result(self) -> ClusterResult:
         """Create empty clustering result."""
-        return ClusterResult(
+        empty_result = ClusterResult(
             clusters=[],
             cluster_labels=[],
             cluster_centers=[],
@@ -645,6 +660,9 @@ class ClusteringAnalyzer:
                 'analysis_timestamp': datetime.now().isoformat()
             }
         )
+        # Add clustering_quality as an attribute for backward compatibility
+        empty_result.clustering_quality = 'Poor'
+        return empty_result
     
     def export_clustering_results(self, result: ClusterResult, 
                                 output_path: Union[str, Path]) -> str:

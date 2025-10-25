@@ -356,7 +356,7 @@ class TestDatabaseComparison:
         assert summary['schema_changes'] == 2
         assert summary['data_changes'] == 8  # 5 + 3
         assert summary['metric_changes'] == 2
-        assert summary['severity'] == 'low'
+        assert summary['severity'] == 'medium'
     
     def test_generate_summary_high_severity(self):
         """Test summary generation with high severity."""

@@ -247,8 +247,13 @@ class KnowledgeBase:
                 await asyncio.sleep(self.config.cleanup_interval)
                 self._cleanup_expired_entries()
                 self._cleanup_cache()
-        
-        asyncio.create_task(cleanup())
+
+        try:
+            loop = asyncio.get_running_loop()
+            asyncio.create_task(cleanup())
+        except RuntimeError:
+            # No running event loop, skip async cleanup
+            logger.debug("No running event loop, skipping async cleanup task")
     
     def _cleanup_expired_entries(self):
         """Clean up expired entries."""

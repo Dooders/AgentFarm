@@ -38,7 +38,10 @@ class MetricsLoader:
         
         # Try to initialize AnalysisService, but don't fail if it's not available
         try:
-            self.analysis_service = AnalysisService()
+            # AnalysisService requires a config_service parameter
+            from farm.core.services import EnvConfigService
+            config_service = EnvConfigService()
+            self.analysis_service = AnalysisService(config_service)
         except Exception as e:
             logger.warning(f"Could not initialize AnalysisService: {e}")
             self.analysis_service = None
@@ -74,13 +77,12 @@ class MetricsLoader:
         # Run analysis modules
         analysis_results = {}
         for module_name in analysis_modules:
-            try:
-                result = self._run_analysis_module(module_name)
-                if result:
-                    analysis_results[module_name] = result
-            except Exception as e:
-                logger.warning(f"Failed to run analysis module {module_name}: {e}")
-                analysis_results[module_name] = {'error': str(e)}
+            result = self._run_analysis_module(module_name)
+            if result:
+                analysis_results[module_name] = result
+            else:
+                # Module failed, add error entry
+                analysis_results[module_name] = {'error': f'Module {module_name} failed to run'}
         
         # Extract metrics from analysis results
         metrics = self._extract_metrics_from_results(analysis_results)
@@ -138,38 +140,21 @@ class MetricsLoader:
             return None
             
         try:
-            # Create analysis request - try different parameter combinations
-            try:
-                request = AnalysisRequest(
-                    experiment_path=str(self.simulation_path),
-                    analysis_module=module_name,
-                    output_path=str(self.simulation_path / "analysis_output"),
-                    force_recompute=False
-                )
-            except TypeError:
-                # Try with different parameter names
-                try:
-                    request = AnalysisRequest(
-                        experiment_path=str(self.simulation_path),
-                        module_name=module_name,
-                        output_path=str(self.simulation_path / "analysis_output"),
-                        force_recompute=False
-                    )
-                except TypeError:
-                    # Try with minimal parameters
-                    request = AnalysisRequest(
-                        experiment_path=str(self.simulation_path),
-                        output_path=str(self.simulation_path / "analysis_output")
-                    )
+            # Create analysis request with correct parameters
+            request = AnalysisRequest(
+                module_name=module_name,
+                experiment_path=self.simulation_path,
+                output_path=self.simulation_path / "analysis_output"
+            )
             
             # Run analysis
-            result = self.analysis_service.run_analysis(request)
+            result = self.analysis_service.run(request)
             
             if result and result.success:
                 return {
                     'success': True,
-                    'data': result.data,
-                    'metrics': result.metrics,
+                    'data': result.dataframe.to_dict() if result.dataframe is not None else {},
+                    'metrics': result.metadata,  # Use metadata as metrics
                     'metadata': result.metadata
                 }
             else:
@@ -178,7 +163,7 @@ class MetricsLoader:
                 
         except Exception as e:
             logger.error(f"Error running analysis module {module_name}: {e}")
-            return None
+            return None  # Return None for individual module failures
     
     def _extract_metrics_from_results(self, analysis_results: Dict[str, Any]) -> Dict[str, Any]:
         """Extract metrics from analysis results."""

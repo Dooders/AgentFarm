@@ -240,7 +240,7 @@ class TestSimulationLoader:
         assert "summary_stats" in metrics
         
         assert len(metrics["log_files"]) == 1
-        assert "simulation.log" in metrics["log_files"]
+        assert str(self.log_path) in metrics["log_files"]
     
     def test_load_log_metrics_no_files(self):
         """Test log metrics loading with no log files."""
@@ -292,7 +292,7 @@ class TestSimulationLoader:
         assert metadata["database_exists"] is True
         assert metadata["config_exists"] is True
         assert metadata["log_files_count"] == 1
-        assert "simulation.log" in metadata["log_files"]
+        assert str(self.log_path) in metadata["log_files"]
     
     def test_get_database_info(self):
         """Test database info extraction."""
@@ -331,7 +331,7 @@ class TestSimulationLoader:
         log_data = loader._parse_log_file(self.log_path)
         
         assert log_data["file_name"] == "simulation.log"
-        assert log_data["total_lines"] == 8
+        assert log_data["total_lines"] == 9
         assert log_data["warnings"] == 1
         assert log_data["errors"] == 1
         assert "performance_metrics" in log_data

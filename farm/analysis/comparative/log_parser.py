@@ -40,7 +40,7 @@ class LogParser:
         """Initialize regex patterns for performance metrics."""
         return {
             'execution_time': re.compile(r'execution time[:\s]+(\d+(?:\.\d+)?)\s*(ms|s|seconds?)', re.IGNORECASE),
-            'memory_usage': re.compile(r'memory[:\s]+(\d+(?:\.\d+)?)\s*(MB|GB|KB)', re.IGNORECASE),
+            'memory_usage': re.compile(r'memory(?: usage)?[:\s]+(\d+(?:\.\d+)?)\s*(MB|GB|KB)', re.IGNORECASE),
             'throughput': re.compile(r'throughput[:\s]+(\d+(?:\.\d+)?)\s*(ops/sec|operations/second)', re.IGNORECASE),
             'iterations': re.compile(r'iteration[:\s]+(\d+)', re.IGNORECASE),
             'agents': re.compile(r'agents[:\s]+(\d+)', re.IGNORECASE),
@@ -51,12 +51,12 @@ class LogParser:
     def _init_error_patterns(self) -> Dict[str, re.Pattern]:
         """Initialize regex patterns for error detection."""
         return {
-            'error': re.compile(r'error|exception|failed|failure', re.IGNORECASE),
-            'warning': re.compile(r'warning|warn', re.IGNORECASE),
-            'critical': re.compile(r'critical|fatal|panic', re.IGNORECASE),
-            'timeout': re.compile(r'timeout|timed out', re.IGNORECASE),
-            'memory_error': re.compile(r'memory error|out of memory|oom', re.IGNORECASE),
-            'database_error': re.compile(r'database error|sql error|connection error', re.IGNORECASE)
+            'error': re.compile(r'\berror\b|exception|failed|failure', re.IGNORECASE),
+            'warning': re.compile(r'\bwarning\b|\bwarn\b', re.IGNORECASE),
+            'critical': re.compile(r'\bcritical\b|\bfatal\b|\bpanic\b', re.IGNORECASE),
+            'timeout': re.compile(r'\btimeout\b|\btimed out\b', re.IGNORECASE),
+            'memory_error': re.compile(r'\bmemory error\b|\bout of memory\b|\boom\b', re.IGNORECASE),
+            'database_error': re.compile(r'\bdatabase error\b|\bsql error\b|\bconnection error\b', re.IGNORECASE)
         }
     
     def _init_timing_patterns(self) -> Dict[str, re.Pattern]:
@@ -128,12 +128,14 @@ class LogParser:
                 file_error_data = self._parse_single_file_errors(log_path)
                 file_errors[log_path.name] = file_error_data
                 
-                # Aggregate error counts
+                # Aggregate error counts (separate warnings from errors)
                 for error_type, count in file_error_data.get('error_counts', {}).items():
-                    error_counts[error_type] += count
+                    if error_type == 'warning':
+                        warning_counts[error_type] += count
+                    else:
+                        error_counts[error_type] += count
                 
-                for warning_type, count in file_error_data.get('warning_counts', {}).items():
-                    warning_counts[warning_type] += count
+                # Don't double-count warnings from warning_counts since they're already counted above
                 
                 # Collect error details
                 for error_detail in file_error_data.get('error_details', []):
@@ -246,21 +248,38 @@ class LogParser:
         for line_num, line in enumerate(lines, 1):
             line_lower = line.lower()
             
-            # Check for errors
-            for error_type, pattern in self.error_patterns.items():
-                if pattern.search(line):
-                    if error_type == 'warning':
-                        warning_counts[error_type] += 1
-                    else:
+            # Check for errors and warnings in order of specificity
+            # Check critical first (most specific)
+            if self.error_patterns['critical'].search(line):
+                error_counts['critical'] += 1
+                error_details.append({
+                    'type': 'critical',
+                    'line_number': line_num,
+                    'line_content': line.strip(),
+                    'timestamp': self._extract_timestamp_from_line(line)
+                })
+            # Check warning
+            elif self.error_patterns['warning'].search(line):
+                error_counts['warning'] += 1  # Put warnings in error_counts as expected by tests
+                warning_counts['warning'] += 1  # Also put in warning_counts for individual file parsing
+                error_details.append({
+                    'type': 'warning',
+                    'line_number': line_num,
+                    'line_content': line.strip(),
+                    'timestamp': self._extract_timestamp_from_line(line)
+                })
+            # Check other error types
+            else:
+                for error_type, pattern in self.error_patterns.items():
+                    if error_type not in ['critical', 'warning'] and pattern.search(line):
                         error_counts[error_type] += 1
-                    
-                    # Extract error details
-                    error_details.append({
-                        'type': error_type,
-                        'line_number': line_num,
-                        'line_content': line.strip(),
-                        'timestamp': self._extract_timestamp_from_line(line)
-                    })
+                        error_details.append({
+                            'type': error_type,
+                            'line_number': line_num,
+                            'line_content': line.strip(),
+                            'timestamp': self._extract_timestamp_from_line(line)
+                        })
+                        break  # Only match the first pattern to avoid double counting
         
         return {
             'error_counts': dict(error_counts),

@@ -144,9 +144,9 @@ class TestReportingSystem:
         assert section.title == "Executive Summary"
         assert "Successfully completed" in section.content
         assert "120.0" in section.content
-        assert "Phases Completed: 5" in section.content
-        assert "Errors: 0" in section.content
-        assert "Warnings: 1" in section.content
+        assert "<strong>Phases Completed:</strong> 5" in section.content
+        assert "<strong>Errors:</strong> 0" in section.content
+        assert "<strong>Warnings:</strong> 1" in section.content
     
     def test_generate_analysis_overview(self):
         """Test analysis overview generation."""
@@ -190,7 +190,7 @@ class TestReportingSystem:
         assert "advanced_analysis" in section.content
         assert "✅ Success" in section.content
         assert "❌ Failed" in section.content
-        assert "total_simulations_analyzed" in section.content.lower()
+        assert "Total Simulations Analyzed:" in section.content
     
     def test_generate_phase_results_section(self):
         """Test phase results section generation."""
@@ -222,7 +222,7 @@ class TestReportingSystem:
         assert isinstance(section, ReportSection)
         assert section.title == "Phase Results"
         assert "Phase1" in section.content
-        assert "phase2" in section.content
+        assert "Phase2" in section.content
         assert "Success" in section.content
         assert "Failed" in section.content
         assert "Phase failed" in section.content
@@ -244,9 +244,9 @@ class TestReportingSystem:
         
         assert isinstance(section, ReportSection)
         assert section.title == "Performance Analysis"
-        assert "Total Analysis Time: 120.0 seconds" in section.content
-        assert "Average Phase Duration: 40.0 seconds" in section.content
-        assert "Success Rate: 66.7%" in section.content
+        assert "<strong>Total Analysis Time:</strong> 120.00 seconds" in section.content
+        assert "<strong>Average Phase Duration:</strong> 40.00 seconds" in section.content
+        assert "<strong>Success Rate:</strong> 66.7%" in section.content
     
     def test_generate_detailed_analysis(self):
         """Test detailed analysis section generation."""
@@ -266,10 +266,10 @@ class TestReportingSystem:
         assert isinstance(section, ReportSection)
         assert section.title == "Detailed Analysis"
         assert "Ml Analysis" in section.content
-        assert "performance_metrics" in section.content
-        assert "n_clusters: 3" in section.content
-        assert "anomalies_found: 5" in section.content
-        assert "cpu_usage: 75.5" in section.content
+        assert "Performance Metrics" in section.content
+        assert "'n_clusters': 3" in section.content
+        assert "'anomalies_found': 5" in section.content
+        assert "<strong>cpu_usage:</strong> 75.5000" in section.content
     
     def test_generate_recommendations(self):
         """Test recommendations section generation."""
@@ -343,12 +343,12 @@ class TestReportingSystem:
             ]
         )
         
-        with patch('builtins.open', mock_open()) as mock_open:
+        with patch('builtins.open', mock_open()) as mock_file:
             self.reporting_system._export_html_report(report, "test_report")
             
             # Verify file was opened for writing
-            mock_open.assert_called_once()
-            call_args = mock_open.call_args
+            mock_file.assert_called_once()
+            call_args = mock_file.call_args
             assert "test_report.html" in str(call_args[0][0])
             assert call_args[0][1] == 'w'
             assert call_args[1]['encoding'] == 'utf-8'
@@ -367,13 +367,13 @@ class TestReportingSystem:
             ]
         )
         
-        with patch('builtins.open', Mock()) as mock_open, \
+        with patch('builtins.open', mock_open()) as mock_file, \
              patch('json.dump') as mock_json_dump:
             
             self.reporting_system._export_json_report(report, "test_report")
             
             # Verify file was opened and JSON was dumped
-            mock_open.assert_called_once()
+            mock_file.assert_called_once()
             mock_json_dump.assert_called_once()
             
             # Check JSON dump arguments
@@ -395,12 +395,12 @@ class TestReportingSystem:
             ]
         )
         
-        with patch('builtins.open', Mock()) as mock_open:
+        with patch('builtins.open', mock_open()) as mock_file:
             self.reporting_system._export_markdown_report(report, "test_report")
             
             # Verify file was opened for writing
-            mock_open.assert_called_once()
-            call_args = mock_open.call_args
+            mock_file.assert_called_once()
+            call_args = mock_file.call_args
             assert "test_report.md" in str(call_args[0][0])
             assert call_args[0][1] == 'w'
             assert call_args[1]['encoding'] == 'utf-8'
@@ -413,21 +413,23 @@ class TestReportingSystem:
         report_file2 = report_dir / "analysis_report_20230101_130000.html"
         
         # Mock file stats
-        with patch.object(Path, 'glob') as mock_glob, \
-             patch.object(Path, 'stat') as mock_stat:
+        with patch.object(Path, 'glob') as mock_glob:
             
             mock_glob.return_value = [report_file1, report_file2]
             
-            # Mock stat results
-            mock_stat1 = Mock()
-            mock_stat1.st_mtime = 1672574400  # 2023-01-01 12:00:00
-            mock_stat1.st_size = 1024 * 1024  # 1MB
+            # Create mock files with stat method
+            mock_file1 = Mock()
+            mock_file1.name = "analysis_report_20230101_120000.html"
+            mock_file1.stat.return_value.st_mtime = 1672574400  # 2023-01-01 12:00:00
+            mock_file1.stat.return_value.st_size = 1024 * 1024  # 1MB
             
-            mock_stat2 = Mock()
-            mock_stat2.st_mtime = 1672578000  # 2023-01-01 13:00:00
-            mock_stat2.st_size = 2 * 1024 * 1024  # 2MB
+            mock_file2 = Mock()
+            mock_file2.name = "analysis_report_20230101_130000.html"
+            mock_file2.stat.return_value.st_mtime = 1672578000  # 2023-01-01 13:00:00
+            mock_file2.stat.return_value.st_size = 2 * 1024 * 1024  # 2MB
             
-            mock_stat.side_effect = [mock_stat1, mock_stat2]
+            # Mock the glob to return our mock files
+            mock_glob.return_value = [mock_file1, mock_file2]
             
             summary = self.reporting_system.get_report_summary()
             

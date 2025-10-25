@@ -39,10 +39,10 @@ class ConfigComparison:
             return {'status': 'both_empty', 'differences': {}}
         
         if not config1:
-            return {'status': 'config1_empty', 'differences': {'added': list(config2.keys())}}
+            return {'status': 'config1_empty', 'differences': {'added': [{'path': key, 'value': config2[key]} for key in config2.keys()]}}
         
         if not config2:
-            return {'status': 'config2_empty', 'differences': {'removed': list(config1.keys())}}
+            return {'status': 'config2_empty', 'differences': {'removed': [{'path': key, 'value': config1[key]} for key in config1.keys()]}}
         
         try:
             # Configure DeepDiff options
@@ -240,10 +240,15 @@ class ConfigComparison:
             Formatted string describing the differences
         """
         if not differences or differences.get('status') == 'both_empty':
-            return "No configuration differences found."
+            return "No configuration differences found"
         
         if differences.get('status') == 'error':
             return f"Error comparing configurations: {differences.get('error', 'Unknown error')}"
+        
+        # Check if there are actually no differences
+        summary = differences.get('summary', {})
+        if summary.get('total_changes', 0) == 0:
+            return "No configuration differences found"
         
         lines = []
         lines.append("Configuration Differences:")

@@ -227,23 +227,27 @@ class TestVisualizationEngine:
         assert Path(file_path).exists()
         assert file_path.endswith('.png')
     
-    @patch('importlib.import_module')
-    def test_create_interactive_plot(self, mock_import):
+    def test_create_interactive_plot(self):
         """Test creating interactive plot."""
-        # Mock plotly imports
-        mock_go = Mock()
-        mock_pyo = Mock()
-        mock_subplots = Mock()
+        # Temporarily replace the import mechanism to raise ImportError for plotly
+        import builtins
+        original_import = builtins.__import__
         
-        mock_import.side_effect = [
-            Mock(go=mock_go, offline=mock_pyo),
-            Mock(make_subplots=mock_subplots)
-        ]
+        def mock_import(name, *args, **kwargs):
+            if name.startswith('plotly'):
+                raise ImportError("Plotly not available")
+            return original_import(name, *args, **kwargs)
         
-        file_path = self.engine.create_interactive_plot(self.mock_result)
+        builtins.__import__ = mock_import
         
-        # Should return empty string when plotly is not available
-        assert file_path == ""
+        try:
+            file_path = self.engine.create_interactive_plot(self.mock_result)
+            
+            # Should return empty string when plotly is not available
+            assert file_path == ""
+        finally:
+            # Restore original import
+            builtins.__import__ = original_import
     
     def test_export_data_for_external_tools(self):
         """Test exporting data for external tools."""

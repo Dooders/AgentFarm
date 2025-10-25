@@ -298,11 +298,16 @@ class TestFileComparisonEngine:
         mock_metrics2 = MagicMock()
         mock_metrics2.metrics = {"metric1": 150, "metric2": 250}
         
-        # Mock metrics loader
-        mock_loader = MagicMock()
-        mock_metrics_loader_class.return_value = mock_loader
-        mock_loader.load_comprehensive_metrics.return_value = mock_metrics1
-        mock_loader.load_basic_metrics.return_value = mock_metrics2
+        # Mock metrics loader instances
+        mock_loader1 = MagicMock()
+        mock_loader2 = MagicMock()
+        mock_loader1.load_comprehensive_metrics.return_value = mock_metrics1
+        mock_loader1.load_basic_metrics.return_value = mock_metrics1
+        mock_loader2.load_comprehensive_metrics.return_value = mock_metrics2
+        mock_loader2.load_basic_metrics.return_value = mock_metrics2
+        
+        # Configure the class to return different instances
+        mock_metrics_loader_class.side_effect = [mock_loader1, mock_loader2]
         
         mock_sim1_data = MagicMock()
         mock_sim1_data.simulation_path = self.sim1_dir

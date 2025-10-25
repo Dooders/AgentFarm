@@ -92,7 +92,7 @@ class TestSimilarityAnalyzer(unittest.TestCase):
     def test_init(self):
         """Test SimilarityAnalyzer initialization."""
         analyzer = SimilarityAnalyzer()
-        self.assertIsNotNone(analyzer.scaler)
+        self.assertIsNotNone(analyzer.scalers)
         self.assertIsNotNone(analyzer.config)
     
     @patch('farm.analysis.comparative.similarity_analyzer.SKLEARN_AVAILABLE', True)
@@ -118,7 +118,7 @@ class TestSimilarityAnalyzer(unittest.TestCase):
              patch.object(analyzer, '_calculate_similarity_matrix') as mock_matrix, \
              patch.object(analyzer, '_find_similar_pairs') as mock_pairs, \
              patch.object(analyzer, '_generate_recommendations') as mock_recommend, \
-             patch.object(analyzer, '_perform_similarity_clustering') as mock_cluster, \
+             patch.object(analyzer, '_perform_clustering') as mock_cluster, \
              patch.object(analyzer, '_analyze_feature_importance') as mock_importance, \
              patch.object(analyzer, '_generate_similarity_summary') as mock_summary:
             
@@ -221,17 +221,9 @@ class TestSimilarityAnalyzer(unittest.TestCase):
             'feature2': [2, 4, 6, 8, 10]
         })
         
-        # Test cosine similarity
-        result_cosine = analyzer._calculate_similarity_matrix(features_df, metric='cosine')
-        self.assertIsInstance(result_cosine, np.ndarray)
-        
-        # Test euclidean distance
-        result_euclidean = analyzer._calculate_similarity_matrix(features_df, metric='euclidean')
-        self.assertIsInstance(result_euclidean, np.ndarray)
-        
-        # Test manhattan distance
-        result_manhattan = analyzer._calculate_similarity_matrix(features_df, metric='manhattan')
-        self.assertIsInstance(result_manhattan, np.ndarray)
+        # Test similarity matrix calculation
+        result = analyzer._calculate_similarity_matrix(features_df)
+        self.assertIsInstance(result, np.ndarray)
     
     @patch('farm.analysis.comparative.similarity_analyzer.SKLEARN_AVAILABLE', True)
     def test_find_similar_pairs(self):
@@ -254,13 +246,14 @@ class TestSimilarityAnalyzer(unittest.TestCase):
         
         self.assertIsInstance(result, list)
         for pair in result:
-            self.assertIn('simulation_1', pair)
-            self.assertIn('simulation_2', pair)
+            self.assertIn('sim1_id', pair)
+            self.assertIn('sim2_id', pair)
             self.assertIn('similarity_score', pair)
-            self.assertIn('euclidean_distance', pair)
-            self.assertIn('manhattan_distance', pair)
-            self.assertIn('feature_differences', pair)
-            self.assertIn('recommendations', pair)
+            self.assertIn('distance_metrics', pair)
+            self.assertIn('common_features', pair)
+            self.assertIn('different_features', pair)
+            self.assertIn('similarity_type', pair)
+            self.assertIn('recommendation', pair)
     
     @patch('farm.analysis.comparative.similarity_analyzer.SKLEARN_AVAILABLE', True)
     def test_find_similar_pairs_high_threshold(self):
@@ -298,10 +291,10 @@ class TestSimilarityAnalyzer(unittest.TestCase):
         
         similar_pairs = [
             {
-                'simulation_1': 0, 'simulation_2': 1,
-                'similarity_score': 0.9, 'euclidean_distance': 0.1,
-                'manhattan_distance': 0.2, 'feature_differences': {},
-                'recommendations': ['Recommendation 1']
+                'sim1_id': 0, 'sim2_id': 1,
+                'similarity_score': 0.9, 'distance_metrics': {'euclidean_distance': 0.1, 'manhattan_distance': 0.2},
+                'common_features': [], 'different_features': [],
+                'similarity_type': 'high', 'recommendation': 'Recommendation 1'
             }
         ]
         
@@ -312,37 +305,30 @@ class TestSimilarityAnalyzer(unittest.TestCase):
         
         for rec in result:
             self.assertIn('simulation_id', rec)
-            self.assertIn('similar_simulations', rec)
-            self.assertIn('recommendations', rec)
+            self.assertIn('recommended_simulations', rec)
+            self.assertIn('recommendation_type', rec)
+            self.assertIn('confidence', rec)
             self.assertIn('reasoning', rec)
     
     @patch('farm.analysis.comparative.similarity_analyzer.SKLEARN_AVAILABLE', True)
-    def test_generate_simulation_recommendations(self):
-        """Test _generate_simulation_recommendations method."""
+    def test_generate_recommendation_reasoning(self):
+        """Test _generate_recommendation_reasoning method."""
         analyzer = SimilarityAnalyzer()
         
-        features_df = pd.DataFrame({
-            'simulation_id': [0, 1, 2, 3, 4],
-            'feature1': [1, 2, 3, 4, 5],
-            'feature2': [2, 4, 6, 8, 10]
-        })
-        
-        similar_pairs = [
+        similar_sims = [
             {
-                'simulation_1': 0, 'simulation_2': 1,
-                'similarity_score': 0.9, 'euclidean_distance': 0.1,
-                'manhattan_distance': 0.2, 'feature_differences': {},
-                'recommendations': ['Recommendation 1']
+                'simulation_id': 1,
+                'similarity_score': 0.9,
+                'similarity_type': 'high',
+                'common_features': ['feature1'],
+                'different_features': ['feature2']
             }
         ]
         
-        result = analyzer._generate_simulation_recommendations(0, features_df, similar_pairs, self.mock_results)
+        result = analyzer._generate_recommendation_reasoning(0, similar_sims, 'very_similar')
         
-        self.assertIn('simulation_id', result)
-        self.assertIn('similar_simulations', result)
-        self.assertIn('recommendations', result)
-        self.assertIn('reasoning', result)
-        self.assertEqual(result['simulation_id'], 0)
+        self.assertIsInstance(result, str)
+        self.assertIn('Simulation 0', result)
     
     @patch('farm.analysis.comparative.similarity_analyzer.SKLEARN_AVAILABLE', True)
     def test_perform_similarity_clustering(self):
@@ -361,23 +347,19 @@ class TestSimilarityAnalyzer(unittest.TestCase):
                                     [0.4, 0.5, 0.8, 1.0, 0.6],
                                     [0.2, 0.3, 0.4, 0.6, 1.0]])
         
-        with patch.object(analyzer, '_cluster_by_similarity') as mock_cluster:
-            mock_cluster.return_value = {
-                'cluster_labels': [0, 0, 1, 1, 2],
-                'cluster_centers': [[1.5, 3], [3.5, 7], [5, 10]],
-                'silhouette_score': 0.7
-            }
-            
-            result = analyzer._perform_similarity_clustering(features_df, similarity_matrix)
-            
-            self.assertIsInstance(result, dict)
-            self.assertIn('cluster_labels', result)
-            self.assertIn('cluster_centers', result)
-            self.assertIn('silhouette_score', result)
+        result = analyzer._perform_clustering(features_df, similarity_matrix)
+        
+        self.assertIsInstance(result, list)
+        for cluster in result:
+            self.assertIn('cluster_id', cluster)
+            self.assertIn('simulation_ids', cluster)
+            self.assertIn('size', cluster)
+            self.assertIn('average_similarity', cluster)
+            self.assertIn('cohesion', cluster)
     
     @patch('farm.analysis.comparative.similarity_analyzer.SKLEARN_AVAILABLE', True)
-    def test_cluster_by_similarity(self):
-        """Test _cluster_by_similarity method."""
+    def test_perform_clustering(self):
+        """Test _perform_clustering method."""
         analyzer = SimilarityAnalyzer()
         
         features_df = pd.DataFrame({
@@ -392,12 +374,15 @@ class TestSimilarityAnalyzer(unittest.TestCase):
                                     [0.4, 0.5, 0.8, 1.0, 0.6],
                                     [0.2, 0.3, 0.4, 0.6, 1.0]])
         
-        result = analyzer._cluster_by_similarity(features_df, similarity_matrix)
+        result = analyzer._perform_clustering(features_df, similarity_matrix)
         
-        self.assertIsInstance(result, dict)
-        self.assertIn('cluster_labels', result)
-        self.assertIn('cluster_centers', result)
-        self.assertIn('silhouette_score', result)
+        self.assertIsInstance(result, list)
+        for cluster in result:
+            self.assertIn('cluster_id', cluster)
+            self.assertIn('simulation_ids', cluster)
+            self.assertIn('size', cluster)
+            self.assertIn('average_similarity', cluster)
+            self.assertIn('cohesion', cluster)
     
     @patch('farm.analysis.comparative.similarity_analyzer.SKLEARN_AVAILABLE', True)
     def test_analyze_feature_importance(self):
@@ -446,35 +431,34 @@ class TestSimilarityAnalyzer(unittest.TestCase):
         
         similar_pairs = [
             {
-                'simulation_1': 0, 'simulation_2': 1,
-                'similarity_score': 0.9, 'euclidean_distance': 0.1,
-                'manhattan_distance': 0.2, 'feature_differences': {},
-                'recommendations': ['Recommendation 1']
+                'sim1_id': 0, 'sim2_id': 1,
+                'similarity_score': 0.9, 'distance_metrics': {'euclidean_distance': 0.1, 'manhattan_distance': 0.2},
+                'common_features': [], 'different_features': [],
+                'similarity_type': 'high', 'recommendation': 'Recommendation 1'
             }
         ]
         
         recommendations = [
             {
-                'simulation_id': 0, 'similar_simulations': [1],
-                'recommendations': ['Recommendation 1'], 'reasoning': 'High similarity'
+                'simulation_id': 0, 'recommended_simulations': [1],
+                'recommendation_type': 'similar', 'confidence': 0.8, 'reasoning': 'High similarity'
             }
         ]
         
         feature_importance = {'feature1': 0.8, 'feature2': 0.6}
+        clusters = []
         
         result = analyzer._generate_similarity_summary(
-            features_df, similarity_matrix, similar_pairs, recommendations, feature_importance
+            similar_pairs, recommendations, clusters, feature_importance
         )
         
-        self.assertIn('total_simulations', result)
-        self.assertIn('similarity_threshold', result)
-        self.assertIn('similar_pairs_count', result)
-        self.assertIn('average_similarity', result)
-        self.assertIn('similarity_distribution', result)
-        self.assertIn('most_similar_pair', result)
-        self.assertIn('recommendations_count', result)
-        self.assertIn('feature_importance_summary', result)
-        self.assertIn('clustering_quality', result)
+        self.assertIn('total_similar_pairs', result)
+        self.assertIn('high_similarity_pairs', result)
+        self.assertIn('similarity_rate', result)
+        self.assertIn('recommendation_type_distribution', result)
+        self.assertIn('cluster_summary', result)
+        self.assertIn('top_important_features', result)
+        self.assertIn('analysis_timestamp', result)
     
     @patch('farm.analysis.comparative.similarity_analyzer.SKLEARN_AVAILABLE', True)
     def test_create_empty_result(self):
@@ -495,7 +479,7 @@ class TestSimilarityAnalyzer(unittest.TestCase):
         
         result = SimilarityResult(
             similarity_matrix=[], similar_pairs=[], recommendations=[],
-            similarity_clusters={}, feature_importance={}, summary={}
+            clusters=[], feature_importance={}, summary={}
         )
         
         with patch('builtins.open', unittest.mock.mock_open()) as mock_file:

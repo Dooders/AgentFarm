@@ -582,7 +582,7 @@ class TestKnowledgeBase:
         assert "total_tags" in stats
         assert stats["total_entries"] > 0
     
-    def test_get_learning_patterns(self):
+    async def test_get_learning_patterns(self):
         """Test getting learning patterns."""
         # Add some learning patterns
         await self.kb.learn_from_analysis(

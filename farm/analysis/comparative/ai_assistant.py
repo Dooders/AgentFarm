@@ -268,27 +268,27 @@ class AIAnalysisAssistant:
         query_type = QueryType.UNKNOWN
         confidence = 0.5
         
-        if any(word in query_lower for word in ["analyze", "analysis", "compare", "comparison"]):
-            query_type = QueryType.ANALYSIS_REQUEST
+        if any(word in query_lower for word in ["recommend", "suggest", "should", "advice", "do next"]):
+            query_type = QueryType.RECOMMENDATION_REQUEST
             confidence = 0.8
-        elif any(word in query_lower for word in ["what", "explain", "mean", "interpret"]):
+        elif any(word in query_lower for word in ["what", "explain", "mean", "interpret"]) and not any(word in query_lower for word in ["help", "understand", "can do", "should", "do next"]):
             query_type = QueryType.RESULT_INTERPRETATION
             confidence = 0.7
-        elif any(word in query_lower for word in ["recommend", "suggest", "should", "advice"]):
-            query_type = QueryType.RECOMMENDATION_REQUEST
+        elif any(word in query_lower for word in ["analyze", "analysis", "compare", "comparison"]) and not any(word in query_lower for word in ["what", "explain", "mean", "interpret"]):
+            query_type = QueryType.ANALYSIS_REQUEST
             confidence = 0.8
         elif any(word in query_lower for word in ["trend", "pattern", "change", "over time"]):
             query_type = QueryType.TREND_ANALYSIS
             confidence = 0.7
-        elif any(word in query_lower for word in ["anomaly", "outlier", "unusual", "strange"]):
+        elif any(word in query_lower for word in ["anomaly", "anomalies", "outlier", "outliers", "unusual", "strange", "find anomalies"]):
             query_type = QueryType.ANOMALY_INQUIRY
             confidence = 0.8
         elif any(word in query_lower for word in ["performance", "speed", "memory", "cpu"]):
             query_type = QueryType.PERFORMANCE_QUESTION
             confidence = 0.7
-        elif any(word in query_lower for word in ["help", "how", "what is", "guide"]):
+        elif any(word in query_lower for word in ["help", "how", "what is", "guide", "understand", "can do"]):
             query_type = QueryType.GENERAL_HELP
-            confidence = 0.6
+            confidence = 0.8
         
         # Extract entities using spaCy if available
         entities = []
@@ -706,6 +706,7 @@ Just ask me in natural language and I'll do my best to help!"""
         self.knowledge_base.append(entry)
         self._save_knowledge_base()
         logger.info(f"Added knowledge entry: {title}")
+        return entry.id
     
     def get_conversation_history(self) -> List[Dict[str, str]]:
         """Get the conversation history."""
