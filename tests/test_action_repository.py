@@ -25,10 +25,6 @@ class TestActionRepository(unittest.TestCase):
                 action_type="move",
                 step_number=1,
                 action_target_id=None,
-                resources_before=10,
-                resources_after=8,
-                state_before_id=1,
-                state_after_id=2,
                 reward=0.5,
                 details={"direction": "north"},
             )

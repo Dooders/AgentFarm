@@ -98,8 +98,6 @@ class DataLogger(DataLoggerProtocol):
         agent_id: str,
         action_type: str,
         action_target_id: Optional[str] = None,
-        resources_before: Optional[float] = None,
-        resources_after: Optional[float] = None,
         reward: Optional[float] = None,
         details: Optional[Dict] = None,
     ) -> None:
@@ -118,8 +116,6 @@ class DataLogger(DataLoggerProtocol):
                 "agent_id": agent_id,
                 "action_type": action_type,
                 "action_target_id": action_target_id,
-                "resources_before": resources_before,
-                "resources_after": resources_after,
                 "reward": reward,
                 "details": json.dumps(details) if details else None,
             }

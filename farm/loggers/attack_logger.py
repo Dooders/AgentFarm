@@ -25,8 +25,6 @@ class AttackLogger:
         self,
         step_number: int,
         agent: "AgentCore",
-        resources_before: float,
-        resources_after: float,
     ) -> None:
         """Log defensive stance action."""
         if self.db is None:
@@ -36,8 +34,6 @@ class AttackLogger:
             step_number=step_number,
             agent_id=agent.agent_id,
             action_type="defend",
-            resources_before=resources_before,
-            resources_after=resources_after,
             reward=0,
             details={
                 "is_defending": True,
@@ -64,8 +60,6 @@ class AttackLogger:
         agent: "AgentCore",
         action_target_id: Optional[str],
         target_position: Tuple[float, float],
-        resources_before: float,
-        resources_after: float,
         success: bool,
         targets_found: int = 0,
         damage_dealt: float = 0.0,
@@ -91,8 +85,6 @@ class AttackLogger:
             agent_id=agent.agent_id,
             action_type="attack",
             action_target_id=action_target_id,
-            resources_before=resources_before,
-            resources_after=resources_after,
             reward=0,  # Reward will be handled separately by the learning system
             details=details,
         )

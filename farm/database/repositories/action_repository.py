@@ -72,10 +72,6 @@ class ActionRepository(BaseRepository[ActionModel]):
                     action_type=action.action_type,
                     step_number=action.step_number,
                     action_target_id=action.action_target_id,
-                    resources_before=action.resources_before,
-                    resources_after=action.resources_after,
-                    state_before_id=action.state_before_id,
-                    state_after_id=action.state_after_id,
                     reward=action.reward,
                     details=action.details if action.details else None,
                 )

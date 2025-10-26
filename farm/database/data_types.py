@@ -2081,14 +2081,10 @@ class AgentActionData:
         ID of the acting agent
     action_type : str
         Type of action performed
-    action_target_id : Optional[int]
+    action_target_id : Optional[str]
         Target agent ID (if any)
     step_number : int
         Simulation step when action occurred
-    resources_before : float
-        Resource level before action
-    resources_after : float
-        Resource level after action
     reward : Optional[float]
         Reward received from action
     details : Optional[Dict[str, Any]]
@@ -2099,10 +2095,6 @@ class AgentActionData:
     action_type: str
     step_number: int
     action_target_id: Optional[str] = None
-    resources_before: Optional[float] = None
-    resources_after: Optional[float] = None
-    state_before_id: Optional[str] = None
-    state_after_id: Optional[str] = None
     reward: Optional[float] = None
     details: Optional[Dict[str, Any]] = field(default_factory=dict)
 
