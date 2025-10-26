@@ -208,26 +208,26 @@ class AgentCore:
     
     def _create_observation(self) -> torch.Tensor:
         """
-        Create observation tensor for decision-making.
+        Create observation tensor for decision-making using the perception component.
         
-        Delegates to perception component if available, otherwise returns environment observation.
+        This method now only uses the perception component to ensure a single,
+        consistent observation path through the agent.
         """
         perception_comp = self.get_component("perception")
         if perception_comp:
             try:
                 return perception_comp.get_observation_tensor(self.device)
-            except Exception:
-                pass
+            except Exception as e:
+                from farm.utils.logging import get_logger
+                logger = get_logger(__name__)
+                logger.error(f"Failed to get observation from perception component: {e}")
+                # Return a zero tensor as fallback
+                return torch.zeros((1, 11, 11), dtype=torch.float32, device=self.device)
         
-        # Fallback to environment if available
-        if self.environment:
-            try:
-                observation_np = self.environment.observe(self.agent_id)
-                return torch.from_numpy(observation_np).to(device=self.device, dtype=torch.float32)
-            except Exception:
-                pass
-        
-        # Final fallback
+        # If no perception component, return zero tensor
+        from farm.utils.logging import get_logger
+        logger = get_logger(__name__)
+        logger.warning("No perception component available for agent observation")
         return torch.zeros((1, 11, 11), dtype=torch.float32, device=self.device)
     
     def _get_enabled_actions(self) -> Optional[list[Action]]:
