@@ -68,8 +68,6 @@ class TestDataLoggerProtocolMethods(unittest.TestCase):
             agent_id="test_agent_health",
             action_type="move",
             action_target_id=None,
-            resources_before=50.0,
-            resources_after=49.0,
             reward=1.0,
             details={"position": (15.0, 25.0), "reason": "exploring"},
         )

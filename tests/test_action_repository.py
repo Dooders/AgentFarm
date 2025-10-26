@@ -162,10 +162,6 @@ class TestActionRepository(unittest.TestCase):
             action_type="move",
             step_number=1,
             action_target_id=2,
-            resources_before=100,
-            resources_after=90,
-            state_before_id=1,
-            state_after_id=2,
             reward=5.0,
             details={"distance": 10},
         )
@@ -186,8 +182,6 @@ class TestActionRepository(unittest.TestCase):
         self.assertIsInstance(action_data, AgentActionData)
         self.assertEqual(action_data.agent_id, mock_action.agent_id)
         self.assertEqual(action_data.action_type, mock_action.action_type)
-        self.assertEqual(action_data.resources_before, mock_action.resources_before)
-        self.assertEqual(action_data.resources_after, mock_action.resources_after)
         self.assertEqual(action_data.details, mock_action.details)
 
 

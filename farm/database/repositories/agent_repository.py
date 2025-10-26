@@ -333,8 +333,12 @@ class AgentRepository(BaseRepository[AgentModel]):
         """
 
         def query_actions_states(session: Session) -> List[Tuple[Any, Any]]:
+            # Since state_before_id was removed, we need to join on agent_id and step_number
+            # to find the corresponding state for each action
             q = session.query(ActionModel, AgentStateModel).join(
-                AgentStateModel, ActionModel.state_before_id == AgentStateModel.id
+                AgentStateModel, 
+                (ActionModel.agent_id == AgentStateModel.agent_id) & 
+                (ActionModel.step_number == AgentStateModel.step_number)
             )
             if agent_id:
                 q = q.filter(ActionModel.agent_id == agent_id)
