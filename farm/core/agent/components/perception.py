@@ -102,6 +102,10 @@ class PerceptionComponent(AgentComponent):
                 obs_config = ObservationConfig()
             
             self.agent_observation = AgentObservation(obs_config)
+        else:
+            # Create default observation config when no environment
+            obs_config = ObservationConfig()
+            self.agent_observation = AgentObservation(obs_config)
     
     def on_step_start(self) -> None:
         """Called at start of step."""
