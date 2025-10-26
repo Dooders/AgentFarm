@@ -315,22 +315,67 @@ class DataRetriever:
                 .all()
             )
 
-            # Get resource-related behaviors
-            resource_behaviors = (
-                base_query.filter(
-                    ActionModel.resources_before.isnot(None),
-                    ActionModel.resources_after.isnot(None),
-                )
+            # Get resource-related behaviors from details column
+            # Note: Resource data is now stored in the details JSON column
+            # This is a simplified approach - for complex resource analysis,
+            # consider moving to application layer or using a different approach
+            resource_behaviors = []
+            
+            # Get all actions with details to analyze resource changes
+            actions_with_details = (
+                base_query.filter(ActionModel.details.isnot(None))
                 .with_entities(
                     ActionModel.action_type,
-                    func.avg(
-                        ActionModel.resources_after - ActionModel.resources_before
-                    ).label("avg_resource_change"),
-                    func.count(ActionModel.id).label("resource_action_count"),
+                    ActionModel.details,
                 )
-                .group_by(ActionModel.action_type)
                 .all()
             )
+            
+            # Process resource data in application layer
+            resource_data = {}
+            for action_type, details in actions_with_details:
+                if action_type not in resource_data:
+                    resource_data[action_type] = {
+                        'total_change': 0,
+                        'count': 0,
+                        'valid_actions': 0
+                    }
+                
+                try:
+                    import json
+                    details_dict = json.loads(details) if isinstance(details, str) else details
+                    
+                    # Try different possible field names for resource data
+                    resources_before = (
+                        details_dict.get("agent_resources_before") or 
+                        details_dict.get("resources_before")
+                    )
+                    resources_after = (
+                        details_dict.get("agent_resources_after") or 
+                        details_dict.get("resources_after")
+                    )
+                    
+                    if resources_before is not None and resources_after is not None:
+                        resource_change = resources_after - resources_before
+                        resource_data[action_type]['total_change'] += resource_change
+                        resource_data[action_type]['valid_actions'] += 1
+                    
+                    resource_data[action_type]['count'] += 1
+                    
+                except (json.JSONDecodeError, TypeError, AttributeError):
+                    # Skip malformed JSON or missing data
+                    resource_data[action_type]['count'] += 1
+                    continue
+            
+            # Convert to the expected format
+            for action_type, data in resource_data.items():
+                if data['valid_actions'] > 0:
+                    avg_change = data['total_change'] / data['valid_actions']
+                    resource_behaviors.append((
+                        action_type,
+                        avg_change,
+                        data['count']
+                    ))
 
             # Format temporal patterns
             temporal_data = {}
@@ -732,22 +777,72 @@ class DataRetriever:
             - avg_resource_change: float
             - count: int
         """
-        return (
-            base_query.with_entities(
+        # Note: Resource data is now stored in the details JSON column
+        # This method now processes resource data in the application layer
+        # due to the schema changes that removed resources_before/resources_after columns
+        
+        # Get all actions with details
+        actions_with_details = (
+            base_query.filter(ActionModel.details.isnot(None))
+            .with_entities(
                 ActionModel.action_type,
-                func.avg(ActionModel.resources_before).label("avg_resources_before"),
-                func.avg(
-                    ActionModel.resources_after - ActionModel.resources_before
-                ).label("avg_resource_change"),
-                func.count(ActionModel.id).label("count"),
+                ActionModel.details,
             )
-            .filter(
-                ActionModel.resources_before.isnot(None),
-                ActionModel.resources_after.isnot(None),
-            )
-            .group_by(ActionModel.action_type)
             .all()
         )
+        
+        # Process resource data in application layer
+        resource_data = {}
+        for action_type, details in actions_with_details:
+            if action_type not in resource_data:
+                resource_data[action_type] = {
+                    'total_before': 0,
+                    'total_change': 0,
+                    'count': 0,
+                    'valid_actions': 0
+                }
+            
+            try:
+                import json
+                details_dict = json.loads(details) if isinstance(details, str) else details
+                
+                # Try different possible field names for resource data
+                resources_before = (
+                    details_dict.get("agent_resources_before") or 
+                    details_dict.get("resources_before")
+                )
+                resources_after = (
+                    details_dict.get("agent_resources_after") or 
+                    details_dict.get("resources_after")
+                )
+                
+                if resources_before is not None and resources_after is not None:
+                    resource_change = resources_after - resources_before
+                    resource_data[action_type]['total_before'] += resources_before
+                    resource_data[action_type]['total_change'] += resource_change
+                    resource_data[action_type]['valid_actions'] += 1
+                
+                resource_data[action_type]['count'] += 1
+                
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                # Skip malformed JSON or missing data
+                resource_data[action_type]['count'] += 1
+                continue
+        
+        # Convert to the expected format
+        results = []
+        for action_type, data in resource_data.items():
+            if data['valid_actions'] > 0:
+                avg_before = data['total_before'] / data['valid_actions']
+                avg_change = data['total_change'] / data['valid_actions']
+                results.append((
+                    action_type,
+                    avg_before,
+                    avg_change,
+                    data['count']
+                ))
+        
+        return results
 
     def _get_sequential_patterns(self, base_query) -> List[Tuple]:
         """Get sequential patterns of agent actions.
