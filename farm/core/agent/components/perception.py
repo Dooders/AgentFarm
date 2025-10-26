@@ -86,6 +86,13 @@ class PerceptionComponent(AgentComponent):
             "bilinear_points": 0,
             "nearest_points": 0,
         }
+        # Cache for spatial queries to avoid redundant calls
+        self._spatial_cache = {
+            "resources": None,
+            "agents": None,
+            "last_position": None,
+            "last_radius": None,
+        }
     
     def attach(self, core) -> None:
         """Attach to core and initialize observation system."""
@@ -119,6 +126,54 @@ class PerceptionComponent(AgentComponent):
         """Called when agent dies."""
         pass
     
+    def _get_cached_spatial_query(self, radius: float, index_names: List[str]) -> Dict[str, List]:
+        """
+        Get spatial query results with caching to avoid redundant calls.
+        
+        Args:
+            radius: Query radius
+            index_names: List of index names to query
+            
+        Returns:
+            Dictionary mapping index names to lists of entities
+        """
+        if not self.core or not self.spatial_service:
+            return {name: [] for name in index_names}
+        
+        current_position = self.core.position
+        current_radius = radius
+        
+        # Check if we can use cached results
+        cache_valid = (
+            self._spatial_cache["last_position"] == current_position and
+            self._spatial_cache["last_radius"] == current_radius
+        )
+        
+        if cache_valid:
+            # Return cached results for requested index names
+            result = {}
+            for name in index_names:
+                if name in self._spatial_cache:
+                    result[name] = self._spatial_cache[name] or []
+                else:
+                    result[name] = []
+            return result
+        
+        # Perform new spatial query
+        try:
+            nearby = self.spatial_service.get_nearby(current_position, current_radius, index_names)
+            
+            # Update cache
+            self._spatial_cache["last_position"] = current_position
+            self._spatial_cache["last_radius"] = current_radius
+            for name in index_names:
+                self._spatial_cache[name] = nearby.get(name, [])
+            
+            return nearby
+        except Exception as e:
+            logger.warning(f"Failed to query nearby entities: {e}")
+            return {name: [] for name in index_names}
+    
     def get_perception(self) -> PerceptionData:
         """
         Get agent's current perception of surrounding environment.
@@ -139,22 +194,10 @@ class PerceptionComponent(AgentComponent):
         size = 2 * radius + 1
         perception = np.zeros((size, size), dtype=np.int8)
         
-        # Get nearby entities
-        nearby_resources = []
-        nearby_agents = []
-        
-        if self.spatial_service:
-            try:
-                nearby = self.spatial_service.get_nearby(self.core.position, radius, ["resources"])
-                nearby_resources = nearby.get("resources", [])
-            except Exception as e:
-                logger.warning(f"Failed to query nearby resources: {e}")
-            
-            try:
-                nearby = self.spatial_service.get_nearby(self.core.position, radius, ["agents"])
-                nearby_agents = nearby.get("agents", [])
-            except Exception as e:
-                logger.warning(f"Failed to query nearby agents: {e}")
+        # Get nearby entities using cached spatial query
+        nearby = self._get_cached_spatial_query(radius, ["resources", "agents"])
+        nearby_resources = nearby.get("resources", [])
+        nearby_agents = nearby.get("agents", [])
         
         # Helper to convert world coords to grid
         def world_to_grid(wx: float, wy: float) -> tuple[int, int]:
@@ -276,7 +319,7 @@ class PerceptionComponent(AgentComponent):
                 expected_types=(int, float),
             )
         
-        # Query nearby resources
+        # Query nearby resources using cached spatial query
         nearby_resources = []
         used_memmap = False
         
@@ -308,11 +351,9 @@ class PerceptionComponent(AgentComponent):
                         copy=False,
                     )
             else:
-                _tq0 = _time.perf_counter()
-                nearby = env.spatial_index.get_nearby(self.core.position, R + 1, ["resources"])
+                # Use cached spatial query to avoid redundant calls
+                nearby = self._get_cached_spatial_query(R + 1, ["resources"])
                 nearby_resources = nearby.get("resources", [])
-                _tq1 = _time.perf_counter()
-                self._perception_profile["spatial_query_time_s"] += max(0.0, _tq1 - _tq0)
         except Exception as e:
             logger.warning(f"Failed to query nearby resources: {e}")
             nearby_resources = []
