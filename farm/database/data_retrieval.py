@@ -82,6 +82,36 @@ logger = get_logger(__name__)
 _func: Function = func
 
 
+def _parse_action_details(details: Union[str, dict, None]) -> Dict[str, Any]:
+    """
+    Parse action details from JSON string or dict with consistent error handling.
+    
+    Parameters
+    ----------
+    details : Union[str, dict, None]
+        Details to parse - can be JSON string, dict, or None
+        
+    Returns
+    -------
+    Dict[str, Any]
+        Parsed details dictionary, empty dict if parsing fails
+    """
+    if details is None:
+        return {}
+    
+    if isinstance(details, dict):
+        return details
+    
+    if isinstance(details, str):
+        try:
+            return json.loads(details)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("Failed to parse action details JSON: %s", details)
+            return {}
+    
+    return {}
+
+
 class DataRetriever:
     """Handles data retrieval operations for the simulation database."""
 
@@ -343,7 +373,7 @@ class DataRetriever:
                     }
                 
                 try:
-                    details_dict = json.loads(details) if isinstance(details, str) else details
+                    details_dict = _parse_action_details(details)
                     
                     # Try different possible field names for resource data
                     resources_before = (
@@ -803,7 +833,7 @@ class DataRetriever:
                 }
             
             try:
-                details_dict = json.loads(details) if isinstance(details, str) else details
+                details_dict = _parse_action_details(details)
                 
                 # Try different possible field names for resource data
                 resources_before = (

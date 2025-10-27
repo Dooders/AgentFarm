@@ -27,6 +27,40 @@ from farm.database.models import (
 
 logger = get_logger(__name__)
 
+# Constants for social behavior analysis
+ALTRUISM_THRESHOLD = 200  # Threshold for "low resources" in altruistic sharing
+MOCK_TUPLE_LENGTH = 6  # Length of mock tuple format with direct resource values
+
+
+def _parse_action_details(details: Union[str, dict, None]) -> Dict[str, Any]:
+    """
+    Parse action details from JSON string or dict with consistent error handling.
+    
+    Parameters
+    ----------
+    details : Union[str, dict, None]
+        Details to parse - can be JSON string, dict, or None
+        
+    Returns
+    -------
+    Dict[str, Any]
+        Parsed details dictionary, empty dict if parsing fails
+    """
+    if details is None:
+        return {}
+    
+    if isinstance(details, dict):
+        return details
+    
+    if isinstance(details, str):
+        try:
+            return json.loads(details)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("Failed to parse action details JSON: %s", details)
+            return {}
+    
+    return {}
+
 
 def compute_social_network_metrics(session: Session) -> Dict[str, Any]:
     """
@@ -195,7 +229,7 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
         # Handle both object and tuple results from mocks
         if hasattr(action, "details"):
             # Real database result - extract from details
-            details = json.loads(action.details) if isinstance(action.details, str) else action.details
+            details = _parse_action_details(action.details)
             resources_before = details.get("agent_resources_before", 0)
             resources_after = details.get("agent_resources_after", 0)
             action_target_id = action.action_target_id
@@ -204,7 +238,7 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
         else:
             # Mock tuple result: (agent_id, target_id, resources_before, resources_after, step_number, initiator_type)
             # Check if this is the mock format with direct resource values
-            if len(action) == 6 and isinstance(action[2], (int, float)):
+            if len(action) == MOCK_TUPLE_LENGTH and isinstance(action[2], (int, float)):
                 # Direct mock format: (agent_id, target_id, resources_before, resources_after, step_number, initiator_type)
                 resources_before = action[2]
                 resources_after = action[3]
@@ -213,7 +247,7 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
                 step_number = action[4]
             else:
                 # Original mock format: (agent_id, target_id, details, step, initiator_type)
-                details = json.loads(action[2]) if isinstance(action[2], str) else action[2]
+                details = _parse_action_details(action[2])
                 resources_before = details.get("agent_resources_before", 0)
                 resources_after = details.get("agent_resources_after", 0)
                 action_target_id = action[1]
@@ -253,6 +287,7 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
     results["time_distribution"] = dict(results["time_distribution"])
 
     # Calculate altruism metrics: sharing when own resources are low
+    # First get all sharing actions, then filter by resources_before < 200 in application layer
     altruistic_actions = (
         session.query(
             ActionModel.agent_id,
@@ -268,32 +303,36 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
     )
 
     results["altruistic_sharing"] = {
-        "count": len(altruistic_actions),
+        "count": 0,  # Will be updated after filtering
         "by_agent_type": defaultdict(int),
     }
 
+    altruistic_count = 0
     for action in altruistic_actions:
         # Handle both object and tuple results from mocks
         if hasattr(action, "agent_type"):
             # Real database result - extract from details
-            details = json.loads(action.details) if isinstance(action.details, str) else action.details
+            details = _parse_action_details(action.details)
             resources_before = details.get("agent_resources_before", 0)
             agent_type = action.agent_type
         else:
             # Mock tuple result - check if this is the same format as the first query
-            if len(action) == 6 and isinstance(action[2], (int, float)):
+            if len(action) == MOCK_TUPLE_LENGTH and isinstance(action[2], (int, float)):
                 # Same format as first query: (agent_id, target_id, resources_before, resources_after, step_number, initiator_type)
                 resources_before = action[2]
                 agent_type = action[5]  # initiator_type
             else:
                 # Original mock format: (agent_id, details, agent_type)
-                details = json.loads(action[1]) if isinstance(action[1], str) else action[1]
+                details = _parse_action_details(action[1])
                 resources_before = details.get("agent_resources_before", 0)
                 agent_type = action[2]
         
         # Only count as altruistic if resources were low before sharing
-        if resources_before < 200:  # Define "low resources" threshold
+        if resources_before < ALTRUISM_THRESHOLD:  # Define "low resources" threshold
+            altruistic_count += 1
             results["altruistic_sharing"]["by_agent_type"][agent_type] += 1
+
+    results["altruistic_sharing"]["count"] = altruistic_count
 
     results["altruistic_sharing"]["by_agent_type"] = dict(results["altruistic_sharing"]["by_agent_type"])
 
