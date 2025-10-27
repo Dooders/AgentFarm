@@ -160,10 +160,12 @@ class TestDataLoggerProtocolMethods(unittest.TestCase):
                 step_number=10 + i,
                 agent_id="test_agent_health",
                 action_type=action_type,
-                resources_before=50.0 - i,
-                resources_after=49.0 - i,
                 reward=1.0,
-                details={"action_sequence": i},
+                details={
+                    "action_sequence": i,
+                    "agent_resources_before": 50.0 - i,
+                    "agent_resources_after": 49.0 - i,
+                },
             )
 
         # Flush to ensure data is written
