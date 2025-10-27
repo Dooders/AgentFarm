@@ -1117,8 +1117,8 @@ class ResourceStates:
 
     Attributes
     ----------
-    resource_id : int
-        Unique identifier for the resource instance
+    resource_id : str
+        Unique identifier for the resource instance (format: resource_{shortid})
     amount : float
         Current amount of the resource available (0.0 to max_amount)
     position_x : float
@@ -1127,7 +1127,7 @@ class ResourceStates:
         Y coordinate of resource position in simulation grid (0.0 to grid_height)
     """
 
-    resource_id: int
+    resource_id: str
     amount: float
     position_x: float
     position_y: float
@@ -2081,14 +2081,10 @@ class AgentActionData:
         ID of the acting agent
     action_type : str
         Type of action performed
-    action_target_id : Optional[int]
+    action_target_id : Optional[str]
         Target agent ID (if any)
     step_number : int
         Simulation step when action occurred
-    resources_before : float
-        Resource level before action
-    resources_after : float
-        Resource level after action
     reward : Optional[float]
         Reward received from action
     details : Optional[Dict[str, Any]]
@@ -2099,10 +2095,6 @@ class AgentActionData:
     action_type: str
     step_number: int
     action_target_id: Optional[str] = None
-    resources_before: Optional[float] = None
-    resources_after: Optional[float] = None
-    state_before_id: Optional[str] = None
-    state_after_id: Optional[str] = None
     reward: Optional[float] = None
     details: Optional[Dict[str, Any]] = field(default_factory=dict)
 

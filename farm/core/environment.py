@@ -285,6 +285,7 @@ class Environment(AECEnv):
             database_logger=self.db.logger if self.db else None,
             spatial_index=self.spatial_index,
             simulation_id=self.simulation_id,
+            identity_service=self.identity,
         )
 
         # Initialize environment
@@ -1819,12 +1820,23 @@ class Environment(AECEnv):
                 # Log action to database if available
                 if self.db and agent:
                     try:
+                        # Extract target_id from action result if available
+                        action_target_id = None
+                        if isinstance(action_result, dict) and "details" in action_result:
+                            details = action_result["details"]
+                            if isinstance(details, dict):
+                                # For gather actions, use resource_id as target_id
+                                if action_name == "gather" and "resource_id" in details:
+                                    action_target_id = details["resource_id"]
+                                # For other actions, use target_id if available
+                                elif "target_id" in details:
+                                    action_target_id = details["target_id"]
+
                         self.db.logger.log_agent_action(
                             step_number=self.time,
                             agent_id=agent_id,
                             action_type=action_name,
-                            resources_before=resources_before,
-                            resources_after=agent.resource_level,
+                            action_target_id=action_target_id,
                             reward=0,  # Reward will be calculated later
                             details=(action_result.get("details", {}) if isinstance(action_result, dict) else {}),
                         )
