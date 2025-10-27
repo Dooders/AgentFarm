@@ -42,18 +42,33 @@ class TestPerceptionComponentInitialization:
         assert component.config.perception_radius == 7
         assert component.config.position_discretization_method == "ceil"
     
-    def test_attach_to_core(self):
-        """Test attaching component to agent core."""
+    def test_attach_to_core_no_environment(self):
+        """Test attaching component to agent core without environment."""
         services = Mock(spec=AgentServices)
         config = PerceptionConfig()
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.environment = None  # No environment for this test
         component.attach(core)
-        
+
         assert component.core == core
-        assert component.agent_observation is not None
+        assert component.agent_observation is None  # Should not initialize without observation config
+
+    def test_attach_to_core_with_environment(self):
+        """Test attaching component to agent core with environment observation config."""
+        services = Mock(spec=AgentServices)
+        config = PerceptionConfig()
+        component = PerceptionComponent(services, config)
+
+        core = Mock()
+        env = Mock()
+        env.observation_config = ObservationConfig(R=5)
+        core.environment = env
+        component.attach(core)
+
+        assert component.core == core
+        assert component.agent_observation is not None  # Should initialize with observation config
     
     def test_lifecycle_hooks(self):
         """Test that lifecycle hooks are callable."""
@@ -96,12 +111,13 @@ class TestGetPerceptionNoSpatialService:
         services.validation_service = None
         config = PerceptionConfig(perception_radius=3)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (10.0, 10.0)
         core.agent_id = "test_agent"
+        core.environment = None  # No environment for this test
         component.attach(core)
-        
+
         return component
     
     def test_get_perception_no_spatial_service(self, component_with_core):
@@ -138,15 +154,16 @@ class TestGetPerceptionWithEntities:
         services.spatial_service = Mock()
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=2)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (5.0, 5.0)
         core.agent_id = "test_agent"
+        core.environment = None  # No environment for this test
         component.attach(core)
-        
+
         return component
     
     def test_get_perception_with_resources(self, component_with_services):
@@ -252,14 +269,15 @@ class TestPositionDiscretization:
         services.spatial_service = Mock()
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=2, position_discretization_method="floor")
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (5.0, 5.0)
+        core.environment = None  # No environment for this test
         component.attach(core)
-        
+
         return component
     
     @pytest.fixture
@@ -269,14 +287,15 @@ class TestPositionDiscretization:
         services.spatial_service = Mock()
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=2, position_discretization_method="ceil")
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (5.0, 5.0)
+        core.environment = None  # No environment for this test
         component.attach(core)
-        
+
         return component
     
     @pytest.fixture
@@ -286,14 +305,15 @@ class TestPositionDiscretization:
         services.spatial_service = Mock()
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=2, position_discretization_method="round")
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (5.0, 5.0)
+        core.environment = None  # No environment for this test
         component.attach(core)
-        
+
         return component
     
     def test_floor_discretization(self, component_floor):
@@ -358,14 +378,15 @@ class TestBoundaryMarking:
         services.spatial_service = Mock()
         services.spatial_service.get_nearby.return_value = {"resources": [], "agents": []}
         services.validation_service = Mock()
-        
+
         config = PerceptionConfig(perception_radius=1)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (5.0, 5.0)
+        core.environment = None  # No environment for this test
         component.attach(core)
-        
+
         return component
     
     def test_boundary_marking_valid_positions(self, component_with_validation):
@@ -430,12 +451,13 @@ class TestObservationTensor:
         )
         config = PerceptionConfig(perception_radius=2)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (5.0, 5.0)
         core.agent_id = "test_agent"
+        core.environment = None  # No environment for basic tests
         component.attach(core)
-        
+
         return component
     
     def test_observation_tensor_no_core(self):
@@ -453,7 +475,7 @@ class TestObservationTensor:
         assert torch.all(result == 0)
     
     def test_observation_tensor_with_environment(self, component_with_core):
-        """Test observation tensor with environment observation."""
+        """Test observation tensor with environment observation config."""
         # Mock environment with observation config
         environment = Mock()
         environment.observation_config = ObservationConfig(R=2)
@@ -465,18 +487,20 @@ class TestObservationTensor:
         environment.config.environment.use_bilinear_interpolation = True
         environment.spatial_index = Mock()
         environment.max_resource = 10.0
-        
+
         component_with_core.core.environment = environment
         component_with_core.core.device = torch.device('cpu')
         component_with_core.core.current_health = 80.0
         component_with_core.core.starting_health = 100.0
-        
+
+        # Re-attach to initialize with observation config
+        component_with_core.attach(component_with_core.core)
+
         result = component_with_core.get_observation_tensor()
-        
-        # Should use full observation system (not environment.observe)
+
+        # Should use full observation system with environment's observation config
         assert isinstance(result, torch.Tensor)
         assert result.dtype == torch.float32
-        # Should fallback to simple perception grid due to mocking issues
     
     def test_observation_tensor_environment_error(self, component_with_core):
         """Test observation tensor when environment raises exception."""
@@ -535,13 +559,14 @@ class TestServiceIntegration:
         services.spatial_service = spatial_service
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=3)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (10.0, 10.0)
         core.agent_id = "test_agent"
+        core.environment = None  # No environment for this test
         component.attach(core)
         
         component.get_perception()
@@ -558,12 +583,13 @@ class TestServiceIntegration:
         validation_service = Mock()
         validation_service.is_valid_position.return_value = True
         services.validation_service = validation_service
-        
+
         config = PerceptionConfig(perception_radius=1)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (5.0, 5.0)
+        core.environment = None  # No environment for this test
         component.attach(core)
         
         component.get_perception()
@@ -581,13 +607,14 @@ class TestEdgeCases:
         services.spatial_service = Mock()
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=1)  # Small radius
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (5.0, 5.0)
         core.agent_id = "test_agent"
+        core.environment = None  # No environment for this test
         component.attach(core)
         
         # Entity far outside perception radius
@@ -610,13 +637,14 @@ class TestEdgeCases:
         services.spatial_service = Mock()
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=2)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (5.0, 5.0)
         core.agent_id = "test_agent"
+        core.environment = None  # No environment for this test
         component.attach(core)
         
         # Entities at exact boundary positions
@@ -648,13 +676,14 @@ class TestEdgeCases:
         services.spatial_service = Mock()
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=2)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (-5.0, -5.0)  # Negative position
         core.agent_id = "test_agent"
+        core.environment = None  # No environment for this test
         component.attach(core)
         
         resource = Mock()
@@ -677,13 +706,14 @@ class TestEdgeCases:
         services.spatial_service = Mock()
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=1)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (1e6, 1e6)  # Very large position
         core.agent_id = "test_agent"
+        core.environment = None  # No environment for this test
         component.attach(core)
         
         component.services.spatial_service.get_nearby.return_value = {
@@ -799,13 +829,13 @@ class TestConsolidatedObservationSystem:
         services.spatial_service.get_nearby.return_value = {"resources": [], "agents": []}
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=3)
         component = PerceptionComponent(services, config)
-        
+
         # Create environment mock with observation config
         env = Mock()
-        env.observation_config = ObservationConfig(R=3)
+        env.observation_config = ObservationConfig(R=3)  # Real ObservationConfig object
         env.height = 100
         env.width = 100
         env.config = Mock()
@@ -815,7 +845,7 @@ class TestConsolidatedObservationSystem:
         env.spatial_index = Mock()
         env.spatial_index.get_nearby.return_value = {"resources": [], "agents": []}
         env.max_resource = 10.0
-        
+
         core = Mock()
         core.position = (50.0, 50.0)
         core.agent_id = "test_agent"
@@ -823,14 +853,15 @@ class TestConsolidatedObservationSystem:
         core.current_health = 80.0
         core.starting_health = 100.0
         core.environment = env
-        
+
         component.attach(core)
         return component
     
     def test_agent_observation_initialization(self, component_with_environment):
-        """Test that AgentObservation is properly initialized."""
+        """Test that AgentObservation is properly initialized from environment config."""
         component = component_with_environment
-        
+
+        # AgentObservation should be initialized during attach() since environment has observation_config
         assert component.agent_observation is not None
         assert hasattr(component.agent_observation, 'perceive_world')
         assert hasattr(component.agent_observation, 'tensor')
@@ -983,14 +1014,15 @@ class TestErrorHandlingAndLogging:
         services.spatial_service.get_nearby.side_effect = Exception("Spatial service error")
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         config = PerceptionConfig(perception_radius=2)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (5.0, 5.0)
         core.agent_id = "test_agent"
         core.device = torch.device('cpu')
+        core.environment = None  # No environment for this test
         component.attach(core)
         
         # Should not raise exception, should log warning
@@ -1038,256 +1070,11 @@ class TestErrorHandlingAndLogging:
             assert isinstance(tensor, torch.Tensor)
 
 
-class TestObservationConfigConsistency:
-    """Test observation config consistency and dynamic updates."""
-    
-    def test_observation_config_initialization_with_environment(self):
-        """Test that observation config is properly initialized with environment."""
-        services = Mock(spec=AgentServices)
-        config = PerceptionConfig()
-        component = PerceptionComponent(services, config)
-        
-        # Create environment with observation config
-        env = Mock()
-        env.observation_config = ObservationConfig(R=5)
-        env.height = 100
-        env.width = 100
-        
-        core = Mock()
-        core.environment = env
-        component.attach(core)
-        
-        # Should initialize with default config, not environment config
-        assert component.agent_observation is not None
-        # The component now uses dynamic config retrieval
-    
-    def test_dynamic_observation_config_retrieval(self):
-        """Test that observation config is retrieved dynamically."""
-        services = Mock(spec=AgentServices)
-        config = PerceptionConfig()
-        component = PerceptionComponent(services, config)
-        
-        # Create environment with observation config
-        env = Mock()
-        env.observation_config = ObservationConfig(R=5)
-        env.height = 100
-        env.width = 100
-        env.config = Mock()
-        env.config.environment = Mock()
-        env.config.environment.position_discretization_method = "floor"
-        env.config.environment.use_bilinear_interpolation = True
-        env.spatial_index = Mock()
-        env.max_resource = 10.0
-        
-        core = Mock()
-        core.position = (50.0, 50.0)
-        core.agent_id = "test_agent"
-        core.device = torch.device('cpu')
-        core.current_health = 80.0
-        core.starting_health = 100.0
-        core.environment = env
-        component.attach(core)
-        
-        # Test dynamic config retrieval
-        current_config = component._get_current_observation_config()
-        assert isinstance(current_config, ObservationConfig)
-        assert current_config == env.observation_config
-    
-    def test_observation_config_update_on_change(self):
-        """Test that observation config is updated when environment changes."""
-        services = Mock(spec=AgentServices)
-        config = PerceptionConfig()
-        component = PerceptionComponent(services, config)
-        
-        # Create initial environment
-        env1 = Mock()
-        env1.observation_config = ObservationConfig(R=3)
-        env1.height = 100
-        env1.width = 100
-        env1.config = Mock()
-        env1.config.environment = Mock()
-        env1.config.environment.position_discretization_method = "floor"
-        env1.config.environment.use_bilinear_interpolation = True
-        env1.spatial_index = Mock()
-        env1.max_resource = 10.0
-        
-        core = Mock()
-        core.position = (50.0, 50.0)
-        core.agent_id = "test_agent"
-        core.device = torch.device('cpu')
-        core.current_health = 80.0
-        core.starting_health = 100.0
-        core.environment = env1
-        component.attach(core)
-        
-        # Change environment observation config
-        env2 = Mock()
-        env2.observation_config = ObservationConfig(R=7)  # Different R value
-        env2.height = 100
-        env2.width = 100
-        env2.config = Mock()
-        env2.config.environment = Mock()
-        env2.config.environment.position_discretization_method = "floor"
-        env2.config.environment.use_bilinear_interpolation = True
-        env2.spatial_index = Mock()
-        env2.max_resource = 10.0
-        
-        core.environment = env2
-        
-        # Ensure config is updated
-        component._ensure_observation_config_current()
-        
-        # Should now use the new config
-        current_config = component._get_current_observation_config()
-        assert current_config.R == 7
-    
-    def test_observation_config_consistency_validation(self):
-        """Test observation config consistency validation."""
-        services = Mock(spec=AgentServices)
-        services.spatial_service = Mock()
-        services.validation_service = Mock()
-        config = PerceptionConfig()
-        component = PerceptionComponent(services, config)
-        
-        # Create environment with observation config
-        env = Mock()
-        env.observation_config = ObservationConfig(R=5)
-        env.height = 100
-        env.width = 100
-        
-        core = Mock()
-        core.environment = env
-        component.attach(core)
-        
-        # Test consistency validation
-        is_consistent = component.validate_observation_config_consistency()
-        assert isinstance(is_consistent, bool)
-    
-    def test_observation_config_fallback_to_default(self):
-        """Test fallback to default config when environment has no observation config."""
-        services = Mock(spec=AgentServices)
-        config = PerceptionConfig()
-        component = PerceptionComponent(services, config)
-        
-        # Create environment without observation config
-        env = Mock()
-        env.observation_config = None
-        env.height = 100
-        env.width = 100
-        
-        core = Mock()
-        core.environment = env
-        component.attach(core)
-        
-        # Should fallback to default config
-        current_config = component._get_current_observation_config()
-        assert isinstance(current_config, ObservationConfig)
-        # Should be default config, not None
-    
-    def test_observation_config_no_environment(self):
-        """Test behavior when no environment is present."""
-        services = Mock(spec=AgentServices)
-        config = PerceptionConfig()
-        component = PerceptionComponent(services, config)
-        
-        core = Mock()
-        core.environment = None
-        component.attach(core)
-        
-        # Should use default config
-        current_config = component._get_current_observation_config()
-        assert isinstance(current_config, ObservationConfig)
-        
-        # Consistency validation should return True (no environment to validate against)
-        is_consistent = component.validate_observation_config_consistency()
-        assert is_consistent is True
-    
-    def test_observation_config_logging_on_change(self):
-        """Test that config changes are properly logged."""
-        services = Mock(spec=AgentServices)
-        config = PerceptionConfig()
-        component = PerceptionComponent(services, config)
-        
-        # Create environment
-        env = Mock()
-        env.observation_config = ObservationConfig(R=3)
-        env.height = 100
-        env.width = 100
-        env.config = Mock()
-        env.config.environment = Mock()
-        env.config.environment.position_discretization_method = "floor"
-        env.config.environment.use_bilinear_interpolation = True
-        env.spatial_index = Mock()
-        env.max_resource = 10.0
-        
-        core = Mock()
-        core.position = (50.0, 50.0)
-        core.agent_id = "test_agent"
-        core.device = torch.device('cpu')
-        core.current_health = 80.0
-        core.starting_health = 100.0
-        core.environment = env
-        component.attach(core)
-        
-        # Test that the component uses PerceptionConfig radius, not environment radius
-        obs_config = component._create_observation_config_from_perception_config()
-        assert obs_config.R == config.perception_radius  # Should use PerceptionConfig radius
-        assert obs_config.R != env.observation_config.R  # Should be different from environment
-        
-        # Test that ensure_observation_config_current works without logging changes
-        # since we now use PerceptionConfig consistently
-        component._ensure_observation_config_current()
-        
-        # Verify the observation config is still consistent with PerceptionConfig
-        assert component._last_obs_config.R == config.perception_radius
-    
-    def test_get_observation_tensor_uses_current_config(self):
-        """Test that get_observation_tensor uses the current observation config."""
-        services = Mock(spec=AgentServices)
-        services.spatial_service = Mock()
-        services.spatial_service.get_nearby.return_value = {"resources": [], "agents": []}
-        services.validation_service = Mock()
-        services.validation_service.is_valid_position.return_value = True
-        config = PerceptionConfig()
-        component = PerceptionComponent(services, config)
-        
-        # Create environment with observation config
-        env = Mock()
-        env.observation_config = ObservationConfig(R=5)
-        env.height = 100
-        env.width = 100
-        env.config = Mock()
-        env.config.environment = Mock()
-        env.config.environment.position_discretization_method = "floor"
-        env.config.environment.use_bilinear_interpolation = True
-        env.spatial_index = Mock()
-        env.max_resource = 10.0
-        
-        core = Mock()
-        core.position = (50.0, 50.0)
-        core.agent_id = "test_agent"
-        core.device = torch.device('cpu')
-        core.current_health = 80.0
-        core.starting_health = 100.0
-        core.environment = env
-        component.attach(core)
-        
-        # Test that the component uses PerceptionConfig radius, not environment radius
-        current_config = component._create_observation_config_from_perception_config()
-        assert isinstance(current_config, ObservationConfig)
-        assert current_config.R == config.perception_radius  # Should match PerceptionConfig, not environment
-        
-        # Test that ensure_observation_config_current works
-        component._ensure_observation_config_current()
-        
-        # Test that we can get an observation tensor (even if it falls back)
-        tensor = component.get_observation_tensor()
-        assert isinstance(tensor, torch.Tensor)
 
 
 class TestRadiusConsistency:
-    """Test that perception and observation systems use consistent radius."""
-    
+    """Test that perception uses consistent radius from PerceptionConfig."""
+
     def test_perception_config_radius_consistency(self):
         """Test that PerceptionConfig radius is used consistently across systems."""
         services = Mock(spec=AgentServices)
@@ -1295,12 +1082,12 @@ class TestRadiusConsistency:
         services.spatial_service.get_nearby.return_value = {"resources": [], "agents": []}
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         # Test with different perception radius
         perception_radius = 7
         config = PerceptionConfig(perception_radius=perception_radius)
         component = PerceptionComponent(services, config)
-        
+
         core = Mock()
         core.position = (50.0, 50.0)
         core.agent_id = "test_agent"
@@ -1309,22 +1096,17 @@ class TestRadiusConsistency:
         core.starting_health = 100.0
         core.environment = None  # No environment to avoid coupling
         component.attach(core)
-        
-        # Test that AgentObservation uses the same radius as PerceptionConfig
-        obs_config = component._create_observation_config_from_perception_config()
-        assert obs_config.R == perception_radius
-        assert obs_config.fov_radius == perception_radius
-        
+
         # Test that simple perception uses the correct radius
         perception = component.get_perception()
         expected_size = 2 * perception_radius + 1
         assert perception.grid.shape == (expected_size, expected_size)
-        
+
         # Test that world layers use the correct radius
         world_layers = component._create_world_layers()
         for layer_name, layer_tensor in world_layers.items():
             assert layer_tensor.shape == (expected_size, expected_size), f"Layer {layer_name} has wrong size"
-    
+
     def test_radius_independence_from_environment(self):
         """Test that perception radius is independent of environment observation config."""
         services = Mock(spec=AgentServices)
@@ -1332,12 +1114,12 @@ class TestRadiusConsistency:
         services.spatial_service.get_nearby.return_value = {"resources": [], "agents": []}
         services.validation_service = Mock()
         services.validation_service.is_valid_position.return_value = True
-        
+
         # PerceptionConfig with radius 5
         perception_radius = 5
         config = PerceptionConfig(perception_radius=perception_radius)
         component = PerceptionComponent(services, config)
-        
+
         # Environment with different observation radius
         env = Mock()
         env.observation_config = ObservationConfig(R=10)  # Different radius!
@@ -1349,7 +1131,7 @@ class TestRadiusConsistency:
         env.config.environment.use_bilinear_interpolation = True
         env.spatial_index = Mock()
         env.max_resource = 10.0
-        
+
         core = Mock()
         core.position = (50.0, 50.0)
         core.agent_id = "test_agent"
@@ -1358,51 +1140,13 @@ class TestRadiusConsistency:
         core.starting_health = 100.0
         core.environment = env
         component.attach(core)
-        
+
         # Test that perception still uses PerceptionConfig radius, not environment radius
         perception = component.get_perception()
         expected_size = 2 * perception_radius + 1  # Should be 11x11, not 21x21
         assert perception.grid.shape == (expected_size, expected_size)
-        
+
         # Test that world layers use PerceptionConfig radius
         world_layers = component._create_world_layers()
         for layer_name, layer_tensor in world_layers.items():
             assert layer_tensor.shape == (expected_size, expected_size), f"Layer {layer_name} should use perception radius, not environment radius"
-        
-        # Test that AgentObservation uses PerceptionConfig radius
-        obs_config = component._create_observation_config_from_perception_config()
-        assert obs_config.R == perception_radius
-        assert obs_config.R != env.observation_config.R  # Should be different!
-    
-    def test_observation_config_creation_from_perception_config(self):
-        """Test that ObservationConfig is properly created from PerceptionConfig."""
-        services = Mock(spec=AgentServices)
-        
-        # Test with custom perception config
-        perception_radius = 8
-        discretization_method = "ceil"
-        config = PerceptionConfig(
-            perception_radius=perception_radius,
-            position_discretization_method=discretization_method
-        )
-        component = PerceptionComponent(services, config)
-        
-        # Create observation config from perception config
-        obs_config = component._create_observation_config_from_perception_config()
-        
-        # Verify radius consistency
-        assert obs_config.R == perception_radius
-        assert obs_config.fov_radius == perception_radius
-        
-        # Verify other properties are set to reasonable defaults
-        assert obs_config.device == "cpu"
-        assert obs_config.dtype == torch.float32
-        assert obs_config.initialization == "zeros"
-        assert obs_config.storage_mode.value == "hybrid"
-        assert obs_config.enable_metrics is True
-        
-        # Verify decay rates are set
-        assert obs_config.gamma_trail == 0.90
-        assert obs_config.gamma_dmg == 0.85
-        assert obs_config.gamma_sig == 0.92
-        assert obs_config.gamma_known == 0.98

@@ -71,12 +71,12 @@ class PerceptionComponent(AgentComponent):
         """Attach to core and initialize observation system."""
         super().attach(core)
 
-        # Initialize AgentObservation using PerceptionConfig to maintain radius consistency
-        # This ensures the observation system uses the same radius as the perception component
-        # Use CPU as default device during initialization - will be updated on first observation
-        obs_config = self._create_observation_config_from_perception_config("cpu")
-        self.agent_observation = AgentObservation(obs_config)
-        self._last_obs_config = obs_config
+        # Initialize AgentObservation using the environment's observation config
+        if hasattr(core, "environment") and core.environment and hasattr(core.environment, "observation_config") and core.environment.observation_config:
+            self.agent_observation = AgentObservation(core.environment.observation_config)
+        else:
+            logger.warning("Environment has no observation_config - observation system not initialized")
+            self.agent_observation = None
 
     def on_step_start(self) -> None:
         """Called at start of step."""
@@ -90,114 +90,9 @@ class PerceptionComponent(AgentComponent):
         """Called when agent dies."""
         pass
 
-    def _create_observation_config_from_perception_config(self, device: str = "cpu") -> ObservationConfig:
-        """
-        Create an ObservationConfig from the PerceptionConfig to maintain radius consistency.
-        
-        This method ensures that the AgentObservation system uses the same radius
-        as the PerceptionComponent, eliminating inconsistencies between simple
-        perception grids and multi-channel observations.
-        
-        Args:
-            device: Device to use for observation tensors
-        
-        Returns:
-            ObservationConfig with radius matching PerceptionConfig.perception_radius
-        """
-        return ObservationConfig(
-            R=self.config.perception_radius,
-            fov_radius=self.config.perception_radius,
-            # Use other defaults from ObservationConfig
-            device=device,
-            dtype="float32",
-            initialization="zeros",
-            storage_mode="hybrid",
-            enable_metrics=True,
-            gamma_trail=0.90,
-            gamma_dmg=0.85,
-            gamma_sig=0.92,
-            gamma_known=0.98,
-            sparse_backend="scatter",
-            default_point_reduction="max",
-            channel_reduction_overrides={},
-            high_frequency_channels=[],
-            random_min=0.0,
-            random_max=1.0,
-        )
 
-    def _get_current_observation_config(self) -> ObservationConfig:
-        """
-        Get the current observation config from the environment.
 
-        This method ensures we always use the most up-to-date observation config,
-        even if the environment changes after component initialization.
 
-        Returns:
-            Current ObservationConfig from environment or default if not available
-        """
-        if (
-            self.core
-            and hasattr(self.core, "environment")
-            and self.core.environment
-            and hasattr(self.core.environment, "observation_config")
-            and self.core.environment.observation_config
-        ):
-            return self.core.environment.observation_config
-        else:
-            return ObservationConfig()
-
-    def _ensure_observation_config_current(self, device: str = "cpu") -> None:
-        """
-        Ensure the AgentObservation instance uses the current observation config.
-
-        This method updates the AgentObservation with the PerceptionConfig-based
-        observation config to maintain radius consistency.
-
-        Args:
-            device: Device to use for observation tensors
-        """
-        if not self.agent_observation:
-            return
-
-        current_config = self._create_observation_config_from_perception_config(device)
-
-        # Check if we need to update the observation config
-        # We'll compare key attributes to detect changes
-        if not hasattr(self, "_last_obs_config") or self._last_obs_config != current_config:
-            # Log config change for debugging
-            logger.debug(f"Updating observation config for agent {getattr(self.core, 'agent_id', 'unknown')}")
-
-            # Update the AgentObservation with current config
-            self.agent_observation = AgentObservation(current_config)
-            self._last_obs_config = current_config
-
-    def validate_observation_config_consistency(self) -> bool:
-        """
-        Validate that the current observation config is consistent with the environment.
-
-        This method can be called to check if there are any configuration mismatches
-        that could cause issues with observation generation.
-
-        Returns:
-            True if config is consistent, False otherwise
-        """
-        if not self.core or not hasattr(self.core, "environment") or not self.core.environment:
-            return True  # No environment to validate against
-
-        env = self.core.environment
-        current_config = self._get_current_observation_config()
-
-        # Check if environment has observation config
-        if not hasattr(env, "observation_config") or not env.observation_config:
-            logger.warning("Environment has no observation_config - using default")
-            return False
-
-        # Check if configs match
-        if self._last_obs_config != current_config:
-            logger.warning("Observation config mismatch detected - will be updated on next observation")
-            return False
-
-        return True
 
     def _get_cached_spatial_query(self, radius: float, index_names: List[str]) -> Dict[str, List]:
         """
@@ -496,9 +391,6 @@ class PerceptionComponent(AgentComponent):
         # Use the full observation system if available
         if self.agent_observation and hasattr(self.core, "environment") and self.core.environment:
             try:
-                # Ensure we're using the current observation config with correct device
-                self._ensure_observation_config_current(device_str)
-
                 # Create world layers with correct device
                 world_layers = self._create_world_layers(device_str)
 
