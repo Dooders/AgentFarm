@@ -271,7 +271,10 @@ class AgentCore:
         # Capture resource level after action execution
         resources_after = post_action_state.resource_level
         
-        # Log action to database if logger is available
+        # Calculate reward (simple: based on state changes)
+        reward = self._calculate_reward(pre_action_state, post_action_state, action)
+        
+        # Update the action logging with the calculated reward
         if (
             self.environment
             and hasattr(self.environment, "db")
@@ -282,14 +285,25 @@ class AgentCore:
                 # Get current time step
                 current_time = self.services.get_current_time()
 
-                # Log the agent action
+                # Extract target_id from action result if available
+                action_target_id = None
+                if isinstance(action_result, dict) and "details" in action_result:
+                    details = action_result["details"]
+                    if isinstance(details, dict):
+                        # For gather actions, use resource_id as target_id
+                        if action.name == "gather" and "resource_id" in details:
+                            action_target_id = details["resource_id"]
+                        # For other actions, use target_id if available
+                        elif "target_id" in details:
+                            action_target_id = details["target_id"]
+
+                # Log the agent action with calculated reward
                 self.environment.db.logger.log_agent_action(
                     step_number=current_time,
                     agent_id=self.agent_id,
                     action_type=action.name,
-                    resources_before=resources_before,
-                    resources_after=resources_after,
-                    reward=0,  # Reward will be calculated later
+                    action_target_id=action_target_id,
+                    reward=reward,
                     details=action_result.get("details", {}) if isinstance(action_result, dict) else {},
                 )
             except Exception as e:
@@ -297,9 +311,6 @@ class AgentCore:
                 from farm.utils.logging import get_logger
                 logger = get_logger(__name__)
                 logger.warning(f"Failed to log agent action {action.name}: {e}")
-        
-        # Calculate reward (simple: based on state changes)
-        reward = self._calculate_reward(pre_action_state, post_action_state, action)
         
         # Get next state
         next_state_tensor = self._create_observation()

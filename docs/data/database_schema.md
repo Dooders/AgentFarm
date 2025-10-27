@@ -268,10 +268,6 @@ Records actions taken by agents during simulation.
 | agent_id         | STRING(64)          | Agent that took action           |
 | action_type      | STRING(20)          | Type of action taken             |
 | action_target_id | STRING(64)          | Target of action (if any)        |
-| state_before_id  | STRING(128)         | Reference to state before action |
-| state_after_id   | STRING(128)         | Reference to state after action  |
-| resources_before | FLOAT               | Resources before action          |
-| resources_after  | FLOAT               | Resources after action           |
 | reward           | FLOAT               | Reward received for action       |
 | details          | STRING(1024)        | Additional action details        |
 

@@ -60,18 +60,16 @@ class TestAgentRepository(unittest.TestCase):
                 step_number=1,
                 agent_id="test_agent_1",
                 action_type="move",
-                resources_before=100,
-                resources_after=90,
                 reward=0.5,
+                details='{"agent_resources_before": 100, "agent_resources_after": 90}',
             ),
             ActionModel(
                 action_id=2,
                 step_number=2,
                 agent_id="test_agent_1",
                 action_type="gather",
-                resources_before=90,
-                resources_after=100,
                 reward=1.0,
+                details='{"agent_resources_before": 90, "agent_resources_after": 100}',
             ),
         ]
 

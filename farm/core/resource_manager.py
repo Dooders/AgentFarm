@@ -38,6 +38,7 @@ class ResourceManager:
         database_logger=None,
         spatial_index=None,
         simulation_id: Optional[str] = None,
+        identity_service=None,
     ):
         """
         Initialize the resource manager.
@@ -64,6 +65,7 @@ class ResourceManager:
         self.database_logger = database_logger
         self.spatial_index = spatial_index
         self.simulation_id = simulation_id
+        self.identity_service = identity_service
 
         # Resource tracking
         self.resources: List[Resource] = []
@@ -307,9 +309,15 @@ class ResourceManager:
             x = rng.uniform(0, self.width)
             y = rng.uniform(0, self.height)
 
+            # Generate resource ID using Identity service if available, otherwise use integer
+            if self.identity_service:
+                resource_id = self.identity_service.resource_id()
+            else:
+                resource_id = i
+
             # Create resource with regeneration parameters (same as original)
             resource = Resource(
-                resource_id=i,
+                resource_id=resource_id,
                 position=(x, y),
                 amount=(
                     self.config.resources.max_resource_amount if self.config else 10

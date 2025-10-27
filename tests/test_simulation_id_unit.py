@@ -184,9 +184,11 @@ class TestSimulationIDPropagation(unittest.TestCase):
             step_number=step_number,
             agent_id=agent_id,
             action_type="move",
-            resources_before=100.0,
-            resources_after=95.0,
             reward=5.0,
+            details={
+                "agent_resources_before": 100.0,
+                "agent_resources_after": 95.0,
+            },
         )
 
         # Flush data to database
