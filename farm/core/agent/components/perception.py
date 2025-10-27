@@ -314,12 +314,12 @@ class PerceptionComponent(AgentComponent):
                 window_np = env.resource_manager.get_resource_window(y0, y1, x0, x1, normalize=True)
                 # Convert to torch tensor of correct dtype/device with minimal copies
                 if window_np.dtype == np.float32:
-                    resource_local = torch.from_numpy(window_np)
+                    resource_local = torch.from_numpy(window_np).to(device=device)
                 else:
                     resource_local = torch.tensor(
                         window_np,
                         dtype=torch.float32,
-                        device="cpu",
+                        device=device,
                         copy=False,
                     )
             else:
