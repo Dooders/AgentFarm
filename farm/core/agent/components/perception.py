@@ -21,36 +21,8 @@ from farm.utils.logging import get_logger
 
 from .base import AgentComponent
 
-# Import bilinear_distribute_value from environment
-try:
-    from farm.core.environment import bilinear_distribute_value
-except ImportError:
-    # Fallback implementation if not available
-    def bilinear_distribute_value(
-        position: Tuple[float, float],
-        value: float,
-        grid: torch.Tensor,
-        grid_size: Tuple[int, int],
-    ) -> None:
-        """Distribute a value across grid cells using bilinear interpolation."""
-        x, y = position
-        width, height = grid_size
-
-        # Get the four nearest grid cells
-        x_floor = int(math.floor(x))
-        y_floor = int(math.floor(y))
-        x_ceil = min(x_floor + 1, width - 1)
-        y_ceil = min(y_floor + 1, height - 1)
-
-        # Calculate interpolation weights
-        wx = x - x_floor
-        wy = y - y_floor
-
-        # Distribute value across four cells
-        grid[y_floor, x_floor] += value * (1 - wx) * (1 - wy)
-        grid[y_floor, x_ceil] += value * wx * (1 - wy)
-        grid[y_ceil, x_floor] += value * (1 - wx) * wy
-        grid[y_ceil, x_ceil] += value * wx * wy
+# Import bilinear_distribute_value from spatial utilities
+from farm.utils.spatial import bilinear_distribute_value
 
 
 logger = get_logger(__name__)
