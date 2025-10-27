@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from sqlalchemy.sql.functions import Function
 from sqlalchemy.orm import Session, joinedload
 
@@ -337,8 +337,10 @@ class AgentRepository(BaseRepository[AgentModel]):
             # to find the corresponding state for each action
             q = session.query(ActionModel, AgentStateModel).join(
                 AgentStateModel, 
-                (ActionModel.agent_id == AgentStateModel.agent_id) & 
-                (ActionModel.step_number == AgentStateModel.step_number)
+                and_(
+                    ActionModel.agent_id == AgentStateModel.agent_id,
+                    ActionModel.step_number == AgentStateModel.step_number
+                )
             )
             if agent_id:
                 q = q.filter(ActionModel.agent_id == agent_id)

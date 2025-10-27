@@ -6,6 +6,7 @@ between agents, including cooperation, competition, and group dynamics.
 """
 
 from farm.utils.logging import get_logger
+import json
 import math
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
@@ -194,7 +195,6 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
         # Handle both object and tuple results from mocks
         if hasattr(action, "details"):
             # Real database result - extract from details
-            import json
             details = json.loads(action.details) if isinstance(action.details, str) else action.details
             resources_before = details.get("agent_resources_before", 0)
             resources_after = details.get("agent_resources_after", 0)
@@ -213,7 +213,6 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
                 step_number = action[4]
             else:
                 # Original mock format: (agent_id, target_id, details, step, initiator_type)
-                import json
                 details = json.loads(action[2]) if isinstance(action[2], str) else action[2]
                 resources_before = details.get("agent_resources_before", 0)
                 resources_after = details.get("agent_resources_after", 0)
@@ -277,7 +276,6 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
         # Handle both object and tuple results from mocks
         if hasattr(action, "agent_type"):
             # Real database result - extract from details
-            import json
             details = json.loads(action.details) if isinstance(action.details, str) else action.details
             resources_before = details.get("agent_resources_before", 0)
             agent_type = action.agent_type
@@ -289,7 +287,6 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
                 agent_type = action[5]  # initiator_type
             else:
                 # Original mock format: (agent_id, details, agent_type)
-                import json
                 details = json.loads(action[1]) if isinstance(action[1], str) else action[1]
                 resources_before = details.get("agent_resources_before", 0)
                 agent_type = action[2]

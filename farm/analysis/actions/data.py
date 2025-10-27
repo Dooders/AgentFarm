@@ -4,6 +4,7 @@ Actions data processing for analysis.
 
 from pathlib import Path
 from typing import Optional
+import json
 import pandas as pd
 
 from farm.database.database import SimulationDatabase
@@ -50,7 +51,6 @@ def process_action_data(
             resources_before = None
             resources_after = None
             if action.details:
-                import json
                 details = json.loads(action.details) if isinstance(action.details, str) else action.details
                 resources_before = details.get("agent_resources_before") or details.get("resources_before")
                 resources_after = details.get("agent_resources_after") or details.get("resources_after")

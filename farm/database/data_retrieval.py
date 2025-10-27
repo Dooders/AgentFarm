@@ -35,6 +35,7 @@ All database operations are executed within transactions to ensure data consiste
 Query optimization is implemented for handling large datasets efficiently.
 """
 
+import json
 import math
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -342,7 +343,6 @@ class DataRetriever:
                     }
                 
                 try:
-                    import json
                     details_dict = json.loads(details) if isinstance(details, str) else details
                     
                     # Try different possible field names for resource data
@@ -803,7 +803,6 @@ class DataRetriever:
                 }
             
             try:
-                import json
                 details_dict = json.loads(details) if isinstance(details, str) else details
                 
                 # Try different possible field names for resource data
