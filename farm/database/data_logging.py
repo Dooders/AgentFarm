@@ -98,8 +98,6 @@ class DataLogger(DataLoggerProtocol):
         agent_id: str,
         action_type: str,
         action_target_id: Optional[str] = None,
-        resources_before: Optional[float] = None,
-        resources_after: Optional[float] = None,
         reward: Optional[float] = None,
         details: Optional[Dict] = None,
     ) -> None:
@@ -118,8 +116,6 @@ class DataLogger(DataLoggerProtocol):
                 "agent_id": agent_id,
                 "action_type": action_type,
                 "action_target_id": action_target_id,
-                "resources_before": resources_before,
-                "resources_after": resources_after,
                 "reward": reward,
                 "details": json.dumps(details) if details else None,
             }
@@ -696,7 +692,7 @@ class DataLogger(DataLoggerProtocol):
             logger.error(f"Unexpected error in log_step: {e}")
             raise
 
-    def log_resource(self, resource_id: int, initial_amount: float, position: Tuple[float, float]) -> None:
+    def log_resource(self, resource_id: str, initial_amount: float, position: Tuple[float, float]) -> None:
         """Log a new resource in the simulation."""
         try:
             resource_data = [

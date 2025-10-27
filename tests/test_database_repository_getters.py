@@ -153,10 +153,8 @@ class TestDatabaseRepositoryGetters(unittest.TestCase):
             agent_id="test_agent_action",
             action_type="move",
             action_target_id=None,
-            resources_before=50.0,
-            resources_after=49.0,
             reward=1.0,
-            details='{"position": [15.0, 25.0]}',
+            details='{"position": [15.0, 25.0], "agent_resources_before": 50.0, "agent_resources_after": 49.0}',
         )
 
         # Add action

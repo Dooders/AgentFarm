@@ -88,6 +88,7 @@ class Identity:
             else DEFAULT_ALPHABET
         )
         self._agent_counter = 0
+        self._resource_counter = 0
 
     # ----- Core helpers -----
     def short(self, length: Optional[int] = None) -> str:
@@ -130,6 +131,14 @@ class Identity:
             self._agent_counter += 1
             return AgentId(f"agent_{value}")
         return AgentId(f"agent_{self.short()}")
+
+    def resource_id(self) -> str:
+        """Generate a unique resource identifier following the pattern resource_{shortid}."""
+        if self.config.deterministic_seed is not None:
+            value = self.short_deterministic(f"resource:{self._resource_counter}")
+            self._resource_counter += 1
+            return f"resource_{value}"
+        return f"resource_{self.short()}"
 
     @staticmethod
     def agent_state_id(agent_id: str, step_number: int) -> AgentStateId:
