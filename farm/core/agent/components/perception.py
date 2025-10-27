@@ -84,7 +84,13 @@ class PerceptionComponent(AgentComponent):
 
     def on_step_start(self) -> None:
         """Called at start of step."""
-        pass
+        # Invalidate spatial cache at the start of each step to ensure fresh data
+        self._spatial_cache = {
+            "resources": None,
+            "agents": None,
+            "last_position": None,
+            "last_radius": None,
+        }
 
     def on_step_end(self) -> None:
         """Called at end of step."""
@@ -219,7 +225,6 @@ class PerceptionComponent(AgentComponent):
         return self.last_perception
 
     def _create_world_layers(self, device: str = "cpu") -> Dict[str, torch.Tensor]:
-        # TODO: Validate this method
         """
         Create world layers for the observation system.
 
