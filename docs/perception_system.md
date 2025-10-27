@@ -2,7 +2,9 @@
 
 ## Executive Summary
 
-The AgentFarm perception system implements a sophisticated multi-agent observation framework that provides agents with **local, agent-centric views** of their environment. The system balances memory efficiency, computational performance, and neural network compatibility while enabling scalable multi-agent reinforcement learning simulations.
+The AgentFarm perception system implements a sophisticated multi-agent observation framework that provides agents with **local, agent-centric views** of their environment. The system operates through a single, unified perception component that balances memory efficiency, computational performance, and neural network compatibility while enabling scalable multi-agent reinforcement learning simulations.
+
+The perception system operates through a **single observation path** via the `PerceptionComponent`, providing consistent multi-channel perception across all agents.
 
 ---
 
@@ -11,10 +13,11 @@ The AgentFarm perception system implements a sophisticated multi-agent observati
 1. [System Overview](#system-overview)
 2. [Key Principles](#key-principles)
 3. [Core Components](#core-components)
-4. [Configuration](#configuration)
-5. [Performance Characteristics](#performance-characteristics)
-6. [Integration & Usage](#integration--usage)
-7. [References & Technical Details](#references--technical-details)
+4. [System Architecture](#system-architecture)
+5. [Configuration](#configuration)
+6. [Performance Characteristics](#performance-characteristics)
+7. [Integration & Usage](#integration--usage)
+8. [References & Technical Details](#references--technical-details)
 
 ---
 
@@ -158,6 +161,57 @@ The system uses **13 default channels** (indices 0-12) that can be extended:
 - **Named index system** supporting configurable entity types with custom filters
 - **Automatic position validation** with relaxed bounds checking
 - **Memory-efficient caching** with position hash tracking
+
+---
+
+## System Architecture
+
+### Single Observation Path
+
+The perception system provides a single, unified path for observation generation:
+
+```
+AgentCore.step() 
+  → AgentCore._create_observation()
+    → PerceptionComponent.get_observation_tensor()
+      → AgentObservation.perceive_world() [with full multi-channel system]
+        → DecisionModule.decide_action()
+```
+
+### Architecture Components
+
+**1. Unified Perception Component**
+- All perception logic integrated into `PerceptionComponent`
+- Direct integration with `AgentObservation` system
+- Single source of truth for observation generation
+- Consistent error handling and logging
+
+**2. Single Observation Path**
+- Single observation path through agent's perception component
+- Consistent multi-channel observation generation
+- Improved maintainability and debugging
+
+**3. Enhanced Error Handling**
+- Specific error logging instead of silent failures
+- Graceful fallback to simple perception grid
+- Better debugging and monitoring capabilities
+- Robust error recovery
+
+**4. Full Multi-Channel Integration**
+- Complete `AgentObservation` system integration
+- All 13+ observation channels available
+- Sparse/dense hybrid storage
+- Bilinear interpolation support
+- Spatial indexing integration
+
+### System Benefits
+
+- **Consistency**: All agents use identical observation generation
+- **Maintainability**: Single location for perception logic
+- **Performance**: Efficient computation without redundancy
+- **Debugging**: Clear error handling and logging
+- **Extensibility**: Easy to add new observation channels
+- **Reliability**: Robust error handling and fallbacks
 
 ---
 

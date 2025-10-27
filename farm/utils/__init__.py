@@ -4,6 +4,7 @@ This package provides common utilities including:
 - Structured logging configuration and helpers
 - Configuration utilities
 - Identity management
+- Spatial and mathematical utilities
 - And more
 """
 
@@ -29,6 +30,8 @@ from farm.utils.logging import (
     PerformanceMonitor,
 )
 
+from farm.utils.spatial import bilinear_distribute_value
+
 __all__ = [
     # Logging configuration
     "configure_logging",
@@ -47,4 +50,6 @@ __all__ = [
     "AgentLogger",
     "DatabaseLogger",
     "PerformanceMonitor",
+    # Spatial utilities
+    "bilinear_distribute_value",
 ]
