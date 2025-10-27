@@ -19,11 +19,10 @@ from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.perception import PerceptionData
 from farm.utils.logging import get_logger
 
-from .base import AgentComponent
-
 # Import bilinear_distribute_value from spatial utilities
 from farm.utils.spatial import bilinear_distribute_value
 
+from .base import AgentComponent
 
 logger = get_logger(__name__)
 
@@ -72,7 +71,12 @@ class PerceptionComponent(AgentComponent):
         super().attach(core)
 
         # Initialize AgentObservation using the environment's observation config
-        if hasattr(core, "environment") and core.environment and hasattr(core.environment, "observation_config") and core.environment.observation_config:
+        if (
+            hasattr(core, "environment")
+            and core.environment
+            and hasattr(core.environment, "observation_config")
+            and core.environment.observation_config
+        ):
             self.agent_observation = AgentObservation(core.environment.observation_config)
         else:
             logger.warning("Environment has no observation_config - observation system not initialized")
@@ -89,10 +93,6 @@ class PerceptionComponent(AgentComponent):
     def on_terminate(self) -> None:
         """Called when agent dies."""
         pass
-
-
-
-
 
     def _get_cached_spatial_query(self, radius: float, index_names: List[str]) -> Dict[str, List]:
         """
@@ -219,6 +219,7 @@ class PerceptionComponent(AgentComponent):
         return self.last_perception
 
     def _create_world_layers(self, device: str = "cpu") -> Dict[str, torch.Tensor]:
+        # TODO: Validate this method
         """
         Create world layers for the observation system.
 
@@ -247,7 +248,7 @@ class PerceptionComponent(AgentComponent):
         # Use PerceptionConfig radius for consistency with perception component
         R = self.config.perception_radius
         S = 2 * R + 1
-        
+
         # Get discretization method from config
         if env.config and getattr(env.config, "environment", None) is not None:
             discretization_method = getattr(env.config.environment, "position_discretization_method", "floor")
@@ -307,9 +308,7 @@ class PerceptionComponent(AgentComponent):
                 x1 = ax + R + 1
                 window_np = env.resource_manager.get_resource_window(y0, y1, x0, x1, normalize=True)
                 # Convert to torch tensor of correct dtype/device with minimal copies
-                if (
-                    window_np.dtype == np.float32
-                ):
+                if window_np.dtype == np.float32:
                     resource_local = torch.from_numpy(window_np)
                 else:
                     resource_local = torch.tensor(
@@ -384,7 +383,7 @@ class PerceptionComponent(AgentComponent):
         # Determine target device early to ensure consistency throughout the pipeline
         if device is None:
             device = getattr(self.core, "device", torch.device("cpu"))
-        
+
         # Convert device to string for consistency with ObservationConfig
         device_str = str(device)
 
