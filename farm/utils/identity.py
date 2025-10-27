@@ -131,6 +131,14 @@ class Identity:
             return AgentId(f"agent_{value}")
         return AgentId(f"agent_{self.short()}")
 
+    def resource_id(self) -> str:
+        """Generate a unique resource identifier following the pattern resource_{shortid}."""
+        if self.config.deterministic_seed is not None:
+            value = self.short_deterministic(f"resource:{self._agent_counter}")
+            self._agent_counter += 1
+            return f"resource_{value}"
+        return f"resource_{self.short()}"
+
     @staticmethod
     def agent_state_id(agent_id: str, step_number: int) -> AgentStateId:
         return AgentStateId(f"{agent_id}-{step_number}")

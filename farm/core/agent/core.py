@@ -289,8 +289,13 @@ class AgentCore:
                 action_target_id = None
                 if isinstance(action_result, dict) and "details" in action_result:
                     details = action_result["details"]
-                    if isinstance(details, dict) and "target_id" in details:
-                        action_target_id = details["target_id"]
+                    if isinstance(details, dict):
+                        # For gather actions, use resource_id as target_id
+                        if action.name == "gather" and "resource_id" in details:
+                            action_target_id = details["resource_id"]
+                        # For other actions, use target_id if available
+                        elif "target_id" in details:
+                            action_target_id = details["target_id"]
 
                 # Log the agent action with calculated reward
                 self.environment.db.logger.log_agent_action(

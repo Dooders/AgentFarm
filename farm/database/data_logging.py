@@ -692,7 +692,7 @@ class DataLogger(DataLoggerProtocol):
             logger.error(f"Unexpected error in log_step: {e}")
             raise
 
-    def log_resource(self, resource_id: int, initial_amount: float, position: Tuple[float, float]) -> None:
+    def log_resource(self, resource_id: str, initial_amount: float, position: Tuple[float, float]) -> None:
         """Log a new resource in the simulation."""
         try:
             resource_data = [

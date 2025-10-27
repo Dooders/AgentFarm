@@ -1179,13 +1179,18 @@ def reproduce_action(agent: "AgentCore") -> dict:
         success = agent.reproduce()
 
         if success:
+            # Determine target_id based on reproduction type
+            # For asexual reproduction, target is the agent itself
+            # For sexual reproduction, target would be the mate's ID
+            target_id = agent.agent_id  # Asexual reproduction - self-reproduction
+            
             # Log successful reproduction
             log_interaction_safely(
                 agent,
                 source_type="agent",
                 source_id=agent.agent_id,
                 target_type="agent",
-                target_id="offspring",  # Will be replaced with actual ID in reproduce method
+                target_id=target_id,
                 interaction_type="reproduce",
                 action_type="reproduce",
                 details={},  # Minimal details to avoid duplication with reproduction event logging

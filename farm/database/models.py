@@ -265,8 +265,8 @@ class ResourceModel(Base):
         Unique identifier for the resource state record
     step_number : int
         Simulation step this state represents
-    resource_id : int
-        Identifier for the specific resource
+    resource_id : str
+        Identifier for the specific resource (format: resource_{shortid})
     amount : float
         Quantity of resource available
     position_x : float
@@ -289,7 +289,7 @@ class ResourceModel(Base):
     id = Column(Integer, primary_key=True)
     simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     step_number = Column(Integer)
-    resource_id = Column(Integer)
+    resource_id = Column(String(64))
     amount = Column(Float)
     position_x = Column(Float)
     position_y = Column(Float)
@@ -487,7 +487,7 @@ class ActionModel(Base):
     action_type : str
         Type of action performed (e.g., 'move', 'attack', 'share')
     action_target_id : Optional[str]
-        ID of the target agent, if the action involved another agent
+        ID of the target (agent_id for agent-to-agent actions, resource_id for resource gathering)
     reward : float
         Reward received for the action
     details : Optional[str]
@@ -511,7 +511,7 @@ class ActionModel(Base):
     step_number = Column(Integer, nullable=False)
     agent_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=False)
     action_type = Column(String(20), nullable=False)
-    action_target_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=True)
+    action_target_id = Column(String(64), nullable=True)
     reward = Column(Float(precision=6), nullable=True)
     details = Column(String(1024), nullable=True)
 

@@ -1117,8 +1117,8 @@ class ResourceStates:
 
     Attributes
     ----------
-    resource_id : int
-        Unique identifier for the resource instance
+    resource_id : str
+        Unique identifier for the resource instance (format: resource_{shortid})
     amount : float
         Current amount of the resource available (0.0 to max_amount)
     position_x : float
@@ -1127,7 +1127,7 @@ class ResourceStates:
         Y coordinate of resource position in simulation grid (0.0 to grid_height)
     """
 
-    resource_id: int
+    resource_id: str
     amount: float
     position_x: float
     position_y: float
