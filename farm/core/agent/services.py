@@ -8,7 +8,7 @@ concrete service implementations.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from farm.core.services.interfaces import (
     IAgentLifecycleService,
@@ -18,6 +18,9 @@ from farm.core.services.interfaces import (
     ITimeService,
     IValidationService,
 )
+
+if TYPE_CHECKING:
+    from farm.core.seed_controller import SeedController
 
 
 @dataclass
@@ -44,6 +47,7 @@ class AgentServices:
     logging_service: Optional[ILoggingService] = None
     validation_service: Optional[IValidationService] = None
     lifecycle_service: Optional[IAgentLifecycleService] = None
+    seed_controller: Optional["SeedController"] = None
     
     def get_current_time(self) -> int:
         """Get current simulation time, with fallback to 0 if no time service."""

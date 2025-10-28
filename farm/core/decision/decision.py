@@ -386,31 +386,35 @@ class DecisionModule:
 
         # Simple epsilon-greedy random action selection
         class FallbackAlgorithm:
-            def __init__(self, num_actions, epsilon=0.1):
+            def __init__(self, num_actions, epsilon=0.1, agent=None):
                 self.num_actions = num_actions
                 self.epsilon = epsilon
+                self.agent = agent
                 # Store experiences for testing purposes
                 self.experiences = []
                 self._has_trained = False  # Track if we've already trained once
 
             def predict(self, observation, deterministic=False):
-                if np.random.random() < self.epsilon:
-                    action = np.random.randint(self.num_actions)
+                rng = getattr(self.agent, '_np_rng', np.random)
+                if rng.random() < self.epsilon:
+                    action = rng.integers(self.num_actions)
                 else:
-                    action = np.random.randint(self.num_actions)
+                    action = rng.integers(self.num_actions)
                 return action, None
 
             def select_action(self, observation):
                 """Select action for compatibility with Tianshou-style algorithms."""
-                return np.random.randint(self.num_actions)
+                rng = getattr(self.agent, '_np_rng', np.random)
+                return rng.integers(self.num_actions)
 
             def select_action_with_mask(self, observation, action_mask):
                 """Select action with mask for compatibility with Tianshou-style algorithms."""
                 # Get valid actions from mask
+                rng = getattr(self.agent, '_np_rng', np.random)
                 valid_actions = np.where(action_mask)[0]
                 if len(valid_actions) == 0:
                     return 0  # Fallback to first action
-                return np.random.choice(valid_actions)
+                return rng.choice(valid_actions)
 
             def predict_proba(self, observation):
                 """Return uniform probabilities for fallback algorithm."""
@@ -435,7 +439,7 @@ class DecisionModule:
                 # Store experiences for testing - this enables database logging tests
                 self.experiences.append(kwargs)
 
-        self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
+        self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start, self.agent)
 
     def decide_action(
         self,
@@ -504,7 +508,8 @@ class DecisionModule:
                                 return i
                         # Ultimate fallback: random valid action
                         # This should never be reached if enabled_actions is properly constructed
-                        return int(np.random.randint(len(enabled_actions)))
+                        rng = getattr(self.agent, '_np_rng', np.random)
+                        return int(rng.integers(len(enabled_actions)))
                 # No enabled_actions restriction: return full-space index
                 action = action_full
             elif self.algorithm is not None and hasattr(self.algorithm, "select_action"):
@@ -516,7 +521,8 @@ class DecisionModule:
                 action = self._filter_action_with_mask(action, enabled_actions)
             else:
                 # Fallback algorithm - respect enabled actions
-                action = self._filter_action_with_mask(np.random.randint(self.num_actions), enabled_actions)
+                rng = getattr(self.agent, '_np_rng', np.random)
+                action = self._filter_action_with_mask(rng.integers(self.num_actions), enabled_actions)
 
             # Ensure action is within valid range after masking
             action = int(action)
@@ -526,21 +532,24 @@ class DecisionModule:
                     return action
                 else:
                     # Fallback to random valid action
-                    return np.random.randint(len(enabled_actions))
+                    rng = getattr(self.agent, '_np_rng', np.random)
+                    return rng.integers(len(enabled_actions))
             else:
                 # Full action space - ensure valid range
                 if action < 0 or action >= self.num_actions:
                     logger.warning(f"Invalid action {action} for agent {self.agent_id}, using random")
-                    return np.random.randint(self.num_actions)
+                    rng = getattr(self.agent, '_np_rng', np.random)
+                    return rng.integers(self.num_actions)
                 return action
 
         except Exception as e:
             logger.error(f"Error in decide_action for agent {self.agent_id}: {e}")
             # Fallback to random action (respect enabled_actions if provided)
+            rng = getattr(self.agent, '_np_rng', np.random)
             if enabled_actions is not None and len(enabled_actions) > 0:
-                return np.random.randint(len(enabled_actions))
+                return rng.integers(len(enabled_actions))
             else:
-                return np.random.randint(self.num_actions)
+                return rng.integers(self.num_actions)
 
     def _create_action_mask(self, enabled_actions: Optional[List[int]] = None) -> np.ndarray:
         """Create a boolean mask for valid actions based on curriculum restrictions.
@@ -584,7 +593,8 @@ class DecisionModule:
                 f"Action {action} not in enabled actions {enabled_actions} for agent {self.agent_id}, "
                 "selecting random enabled action"
             )
-            selected_action = np.random.choice(enabled_actions)
+            rng = getattr(self.agent, '_np_rng', np.random)
+            selected_action = rng.choice(enabled_actions)
             return enabled_actions.index(selected_action)
 
     def _convert_to_full_action_space(self, action_index, enabled_actions: Optional[List[int]] = None) -> int:

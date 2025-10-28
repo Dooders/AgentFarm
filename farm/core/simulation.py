@@ -75,6 +75,12 @@ def create_services_from_environment(environment: Environment) -> AgentServices:
         EnvironmentAgentLifecycleService,
     )
     
+    # Create seed controller if environment has a seed
+    seed_controller = None
+    if hasattr(environment, 'seed_value') and environment.seed_value is not None:
+        from farm.core.seed_controller import SeedController
+        seed_controller = SeedController(environment.seed_value)
+    
     return AgentServices(
         spatial_service=environment.spatial_service,
         time_service=EnvironmentTimeService(environment),
@@ -82,6 +88,7 @@ def create_services_from_environment(environment: Environment) -> AgentServices:
         logging_service=EnvironmentLoggingService(environment),
         validation_service=EnvironmentValidationService(environment),
         lifecycle_service=EnvironmentAgentLifecycleService(environment),
+        seed_controller=seed_controller,
     )
 
 
@@ -441,8 +448,11 @@ def run_simulation(
             # Time the step processing
             step_start_time = time.time()
 
-            # Process agents in batches
+            # Process agents in batches with deterministic ordering
             alive_agents = [agent for agent in environment.agent_objects if agent.alive]
+            
+            # Sort agents deterministically by agent_id to ensure consistent processing order
+            alive_agents.sort(key=lambda agent: agent.agent_id)
 
             # Stop if no agents are alive
             if len(alive_agents) < 1:

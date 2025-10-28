@@ -98,6 +98,13 @@ class AgentFactory:
             agent_type=agent_type,
         )
 
+        # Inject agent-specific RNGs if seed controller is available
+        if self.services.seed_controller is not None:
+            py_rng, np_rng, torch_gen = self.services.seed_controller.get_agent_rng(agent_id)
+            agent._py_rng = py_rng
+            agent._np_rng = np_rng
+            agent._torch_gen = torch_gen
+
         return agent
 
     def create_learning_agent(
@@ -204,6 +211,13 @@ class AgentFactory:
         behavior = LearningAgentBehavior(decision_module)
         agent.behavior = behavior
 
+        # Inject agent-specific RNGs if seed controller is available
+        if self.services.seed_controller is not None:
+            py_rng, np_rng, torch_gen = self.services.seed_controller.get_agent_rng(agent_id)
+            agent._py_rng = py_rng
+            agent._np_rng = np_rng
+            agent._torch_gen = torch_gen
+
         return agent
 
     def create_minimal_agent(
@@ -255,6 +269,13 @@ class AgentFactory:
             environment=environment,
             initial_resources=initial_resources,
         )
+
+        # Inject agent-specific RNGs if seed controller is available
+        if self.services.seed_controller is not None:
+            py_rng, np_rng, torch_gen = self.services.seed_controller.get_agent_rng(agent_id)
+            agent._py_rng = py_rng
+            agent._np_rng = np_rng
+            agent._torch_gen = torch_gen
 
         return agent
 

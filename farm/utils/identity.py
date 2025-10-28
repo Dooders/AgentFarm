@@ -116,7 +116,11 @@ class Identity:
 
     # ----- Namespaced factories -----
     def simulation_id(self, prefix: str = "sim") -> SimulationId:
-        return SimulationId(f"{prefix}_{self.short()}")
+        # Use deterministic ID if seed is provided, otherwise random
+        if self.config.deterministic_seed is not None:
+            return SimulationId(f"{prefix}_{self.short_deterministic('simulation_id')}")
+        else:
+            return SimulationId(f"{prefix}_{self.short()}")
 
     def run_id(self, length: int = 8) -> RunId:
         return RunId(self.short(length))

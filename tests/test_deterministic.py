@@ -2,6 +2,8 @@
 """
 Script to test determinism in the AgentFarm simulation.
 This will run two identical simulations and compare their outcomes to validate determinism.
+
+Updated to test the centralized seed controller implementation.
 """
 
 import argparse
@@ -15,6 +17,7 @@ from datetime import datetime
 
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
+from farm.core.seed_controller import SeedController
 
 
 def get_simulation_state_hash(environment, debug=False):
@@ -157,8 +160,9 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
         True if the simulations were deterministic, False otherwise
     """
     print(f"Starting determinism test with seed {seed}")
+    print("Using centralized seed controller for per-agent RNG isolation")
 
-    # Set fixed seeds for all random generators
+    # Set fixed seeds for all random generators (global fallback)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

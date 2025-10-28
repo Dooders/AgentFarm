@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 warnings.filterwarnings("ignore", category=UserWarning, module="tianshou")
 
 
-def run_profiled_simulation(num_steps, config, output_dir, enable_console_logging=False):
+def run_profiled_simulation(num_steps, config, output_dir, enable_console_logging=False, seed=42):
     """
     Run the simulation with profiling and return the environment.
     """
@@ -32,6 +32,7 @@ def run_profiled_simulation(num_steps, config, output_dir, enable_console_loggin
         config=config,
         path=output_dir,
         save_config=True,
+        seed=seed,
         disable_console_logging=not enable_console_logging,
     )
 
@@ -152,7 +153,7 @@ def main():
     parser.add_argument(
         "--seed",
         type=int,
-        default=None,
+        default=42,
         help="Deterministic seed for the simulation (overrides config if provided)",
     )
     parser.add_argument(
@@ -270,7 +271,7 @@ def main():
             profiler = cProfile.Profile()
             profiler.enable()
 
-            environment = run_profiled_simulation(args.steps, config, output_dir, args.enable_console_logging)
+            environment = run_profiled_simulation(args.steps, config, output_dir, args.enable_console_logging, args.seed)
 
             profiler.disable()
 
@@ -322,6 +323,7 @@ def main():
                 config=config,
                 path=output_dir,
                 save_config=True,
+                seed=args.seed,
                 disable_console_logging=not args.enable_console_logging,
             )
 

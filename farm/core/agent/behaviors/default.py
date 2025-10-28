@@ -50,7 +50,12 @@ class DefaultAgentBehavior(IAgentBehavior):
         if not actions:
             raise ValueError("No actions available to choose from")
         
-        action = random.choice(actions)
+        # Use per-agent RNG if available, fallback to global random
+        if hasattr(core, '_py_rng'):
+            action = core._py_rng.choice(actions)
+        else:
+            action = random.choice(actions)
+        
         self.action_history.append(action.name)
         return action
     

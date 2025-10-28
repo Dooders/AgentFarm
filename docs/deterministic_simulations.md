@@ -137,39 +137,158 @@ To achieve determinism across different computing environments:
 
 We recently made several important improvements to ensure complete determinism in our simulations:
 
-### 1. Centralized Random Seed Management
+### 1. Centralized Seed Controller
+
+The most significant enhancement is the introduction of a **SeedController** system that provides per-agent random number generators:
+
+- **Per-Agent RNG Isolation**: Each agent gets its own deterministic RNG instances derived from the global seed plus agent ID
+- **Per-Agent Seed Derivation**: Agent-specific seeds are generated using `hash((global_seed, agent_id)) % (2**32)` for deterministic yet unique sequences
+- **Service-Based Architecture**: SeedController is injected via AgentServices, making it available to all components
+- **Backward Compatibility**: All RNG usage falls back to global random if SeedController is not present
+
+### 2. Deterministic Agent Processing Order
+
+To ensure complete determinism, **agents are sorted by agent_id before each processing step**:
+
+- **Sorted Processing**: `alive_agents.sort(key=lambda agent: agent.agent_id)` ensures consistent order
+- **Order Independence**: Agent behavior is now independent of dictionary iteration order
+- **Reproducible Results**: Same seed always produces same results, regardless of internal state changes
+- **No Race Conditions**: Eliminates non-determinism from agent addition/removal during simulation
+
+#### How SeedController Works
+
+```python
+from farm.core.seed_controller import SeedController
+
+# Create controller with global seed
+seed_controller = SeedController(42)
+
+# Get per-agent RNG instances
+py_rng, np_rng, torch_gen = seed_controller.get_agent_rng("agent_001")
+
+# Each agent gets unique but deterministic RNGs
+# Agent "agent_001" will always get the same RNG sequence
+# Agent "agent_002" will get a different but deterministic sequence
+```
+
+#### Integration with AgentFactory
+
+The SeedController is automatically integrated into the agent creation process:
+
+```python
+# When creating agents, SeedController is injected if available
+factory = AgentFactory(services)  # services includes seed_controller
+agent = factory.create_default_agent("agent_001", (0.0, 0.0))
+
+# Agent now has per-agent RNGs
+assert hasattr(agent, '_py_rng')
+assert hasattr(agent, '_np_rng') 
+assert hasattr(agent, '_torch_gen')
+```
+
+### 3. Deterministic Agent Behaviors
+
+- **DefaultAgentBehavior**: Now uses per-agent RNG for action selection
+- **DecisionModule**: Uses per-agent RNG for exploration and fallback algorithms
+- **FallbackAlgorithm**: All random operations use per-agent RNGs
+
+### 4. Centralized Random Seed Management
 
 - Added `init_random_seeds()` function in `farm/core/simulation.py` to properly initialize all random number generators:
   - Python's `random` module
   - NumPy's random generators
   - PyTorch's random generators (when available)
 
-### 2. Deterministic Environment Initialization
+### 5. Deterministic Environment Initialization
 
 - `Environment` class now accepts a `seed` parameter and uses it to:
   - Initialize random number generators
   - Generate consistent agent IDs
   - Create reproducible resource distributions
+  - Create SeedController for per-agent RNG management
 
-### 3. Deterministic Agent IDs
+### 6. Deterministic Agent IDs
 
 - Agent IDs are now generated deterministically based on a counter and the simulation seed
 - This ensures agents have the same IDs across simulation runs with the same seed
 
-### 4. Deterministic Resource Regeneration
+### 7. Deterministic Resource Regeneration
 
 - Resource regeneration decisions are now determined by hash-based seeding
 - Each resource has a unique hash based on its ID, position, and current simulation time
 - This enables consistent resource behaviors between runs
 
-### 5. Testing for Determinism
+### 8. Testing for Determinism
 
-We've added a new script `deterministic_test.py` that:
-- Runs two identical simulations with the same seed
-- Compares their final states to verify determinism
-- Provides detailed comparison of any differences
+We've added comprehensive tests for the SeedController system:
+- Unit tests for SeedController functionality
+- Integration tests with AgentFactory and behaviors
+- Updated deterministic test script that validates per-agent RNG isolation
 
 ## Implementation Details
+
+### SeedController Implementation
+
+The SeedController uses deterministic hashing to derive per-agent seeds:
+
+```python
+class SeedController:
+    def __init__(self, global_seed: int):
+        self.global_seed = global_seed
+    
+    def get_agent_rng(self, agent_id: str):
+        # Derive agent-specific seed using hash for determinism
+        agent_seed = hash((self.global_seed, agent_id)) % (2**32)
+        
+        # Create seeded RNG instances
+        py_rng = random.Random(agent_seed)
+        np_rng = np.random.default_rng(agent_seed)
+        torch_gen = torch.Generator().manual_seed(agent_seed)
+        
+        return py_rng, np_rng, torch_gen
+```
+
+This ensures:
+- Same agent ID + same global seed = same RNG sequence
+- Different agent IDs = different RNG sequences
+- Deterministic across simulation runs
+
+### AgentFactory Integration
+
+The AgentFactory automatically injects per-agent RNGs when SeedController is available:
+
+```python
+def create_default_agent(self, agent_id: str, ...):
+    # Create agent
+    agent = AgentCore(...)
+    
+    # Inject agent-specific RNGs if seed controller is available
+    if self.services.seed_controller is not None:
+        py_rng, np_rng, torch_gen = self.services.seed_controller.get_agent_rng(agent_id)
+        agent._py_rng = py_rng
+        agent._np_rng = np_rng
+        agent._torch_gen = torch_gen
+    
+    return agent
+```
+
+### Behavior Integration
+
+Behaviors now use per-agent RNGs when available:
+
+```python
+# DefaultAgentBehavior
+def decide_action(self, core, state, enabled_actions=None):
+    actions = enabled_actions if enabled_actions else core.actions
+    
+    # Use per-agent RNG if available, fallback to global random
+    if hasattr(core, '_py_rng'):
+        action = core._py_rng.choice(actions)
+    else:
+        action = random.choice(actions)
+    
+    return action
+```
 
 ### Generating Deterministic Agent IDs
 

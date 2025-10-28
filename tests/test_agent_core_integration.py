@@ -2,6 +2,7 @@
 
 Tests verify that all components work together correctly, the factory creates
 agents properly, and the system integrates with existing components like actions.
+Includes tests for the centralized seed controller implementation.
 """
 
 import pytest
@@ -23,6 +24,7 @@ from farm.core.agent.components import (
     ReproductionComponent,
 )
 from farm.core.agent.config import ResourceConfig
+from farm.core.seed_controller import SeedController
 
 
 class TestAgentCoreBasics:
@@ -532,6 +534,154 @@ class TestConsolidatedObservationSystem:
         # All calls should be with the same device
         for call in perception_comp.get_observation_tensor.call_args_list:
             assert call[0][0] == agent.device
+
+
+class TestSeedControllerIntegration:
+    """Test SeedController integration with AgentCore system."""
+
+    @pytest.fixture
+    def mock_services_with_seed_controller(self):
+        """Create mock services with SeedController."""
+        seed_controller = SeedController(42)
+        return AgentServices(
+            spatial_service=Mock(),
+            time_service=Mock(current_time=Mock(return_value=0)),
+            metrics_service=Mock(),
+            logging_service=Mock(),
+            validation_service=Mock(is_valid_position=Mock(return_value=True)),
+            lifecycle_service=Mock(),
+            seed_controller=seed_controller,
+        )
+
+    def test_agent_factory_injects_per_agent_rngs(self, mock_services_with_seed_controller):
+        """Test that AgentFactory injects per-agent RNGs when SeedController is available."""
+        factory = AgentFactory(mock_services_with_seed_controller)
+        
+        # Create multiple agents
+        agent1 = factory.create_default_agent("agent_001", (0.0, 0.0))
+        agent2 = factory.create_default_agent("agent_002", (0.0, 0.0))
+        
+        # Should have per-agent RNGs injected
+        assert hasattr(agent1, '_py_rng')
+        assert hasattr(agent1, '_np_rng')
+        assert hasattr(agent1, '_torch_gen')
+        
+        assert hasattr(agent2, '_py_rng')
+        assert hasattr(agent2, '_np_rng')
+        assert hasattr(agent2, '_torch_gen')
+        
+        # Different agents should have different RNG instances
+        assert agent1._py_rng is not agent2._py_rng
+        assert agent1._np_rng is not agent2._np_rng
+        assert agent1._torch_gen is not agent2._torch_gen
+
+    def test_agent_factory_without_seed_controller(self):
+        """Test that AgentFactory works without SeedController."""
+        services = AgentServices(
+            spatial_service=Mock(),
+            time_service=Mock(current_time=Mock(return_value=0)),
+            metrics_service=Mock(),
+            logging_service=Mock(),
+            validation_service=Mock(is_valid_position=Mock(return_value=True)),
+            lifecycle_service=Mock(),
+            seed_controller=None,
+        )
+        
+        factory = AgentFactory(services)
+        agent = factory.create_default_agent("agent_001", (0.0, 0.0))
+        
+        # Should not have per-agent RNGs
+        assert not hasattr(agent, '_py_rng')
+        assert not hasattr(agent, '_np_rng')
+        assert not hasattr(agent, '_torch_gen')
+
+    def test_default_behavior_uses_per_agent_rng(self, mock_services_with_seed_controller):
+        """Test that DefaultAgentBehavior uses per-agent RNG when available."""
+        import torch
+        
+        factory = AgentFactory(mock_services_with_seed_controller)
+        agent = factory.create_default_agent("agent_001", (0.0, 0.0))
+        
+        # Mock actions
+        agent.actions = [Mock(name="action1"), Mock(name="action2"), Mock(name="action3")]
+        
+        # Create behavior
+        behavior = DefaultAgentBehavior()
+        
+        # Test action selection
+        state = torch.zeros((1, 11, 11))
+        action = behavior.decide_action(agent, state)
+        
+        # Should select a valid action
+        assert action in agent.actions
+        
+        # Test deterministic behavior with same agent
+        actions = [behavior.decide_action(agent, state) for _ in range(10)]
+        # Should have some variation due to randomness
+        assert len(set(action.name for action in actions)) > 1
+
+    def test_learning_agent_gets_per_agent_rngs(self, mock_services_with_seed_controller):
+        """Test that learning agents get per-agent RNGs injected."""
+        factory = AgentFactory(mock_services_with_seed_controller)
+        agent = factory.create_learning_agent("learning_agent_001", (0.0, 0.0))
+        
+        # Should have per-agent RNGs
+        assert hasattr(agent, '_py_rng')
+        assert hasattr(agent, '_np_rng')
+        assert hasattr(agent, '_torch_gen')
+        
+        # Should be learning agent with decision module
+        assert isinstance(agent.behavior, LearningAgentBehavior)
+        assert agent.behavior.decision_module is not None
+
+    def test_minimal_agent_gets_per_agent_rngs(self, mock_services_with_seed_controller):
+        """Test that minimal agents get per-agent RNGs injected."""
+        factory = AgentFactory(mock_services_with_seed_controller)
+        agent = factory.create_minimal_agent("minimal_agent_001", (0.0, 0.0))
+        
+        # Should have per-agent RNGs
+        assert hasattr(agent, '_py_rng')
+        assert hasattr(agent, '_np_rng')
+        assert hasattr(agent, '_torch_gen')
+
+    def test_deterministic_agent_creation(self, mock_services_with_seed_controller):
+        """Test that agent creation is deterministic with SeedController."""
+        factory = AgentFactory(mock_services_with_seed_controller)
+        
+        # Create same agent twice
+        agent1 = factory.create_default_agent("deterministic_agent", (50.0, 50.0))
+        agent2 = factory.create_default_agent("deterministic_agent", (50.0, 50.0))
+        
+        # Should have same RNG seeds (but different instances)
+        # Test by generating sequences and comparing
+        py_values1 = [agent1._py_rng.random() for _ in range(10)]
+        py_values2 = [agent2._py_rng.random() for _ in range(10)]
+        
+        # Should produce identical sequences
+        assert py_values1 == py_values2
+        
+        np_values1 = [agent1._np_rng.random() for _ in range(10)]
+        np_values2 = [agent2._np_rng.random() for _ in range(10)]
+        
+        assert np_values1 == np_values2
+
+    def test_different_agents_different_rngs(self, mock_services_with_seed_controller):
+        """Test that different agents get different RNG sequences."""
+        factory = AgentFactory(mock_services_with_seed_controller)
+        
+        agent1 = factory.create_default_agent("agent_001", (0.0, 0.0))
+        agent2 = factory.create_default_agent("agent_002", (0.0, 0.0))
+        
+        # Should produce different sequences
+        py_values1 = [agent1._py_rng.random() for _ in range(10)]
+        py_values2 = [agent2._py_rng.random() for _ in range(10)]
+        
+        assert py_values1 != py_values2
+        
+        np_values1 = [agent1._np_rng.random() for _ in range(10)]
+        np_values2 = [agent2._np_rng.random() for _ in range(10)]
+        
+        assert np_values1 != np_values2
 
 
 if __name__ == "__main__":

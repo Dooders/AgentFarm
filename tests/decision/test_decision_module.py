@@ -6,6 +6,7 @@ This module tests the core DecisionModule functionality including:
 - Experience updates
 - Model persistence
 - Algorithm selection and fallbacks
+- Integration with centralized seed controller
 """
 
 import os
@@ -19,6 +20,7 @@ from pydantic import ValidationError
 
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import TIANSHOU_AVAILABLE, DecisionModule
+from farm.core.seed_controller import SeedController
 
 
 class TestDecisionModule(unittest.TestCase):
@@ -1067,6 +1069,155 @@ class TestDecisionModuleIntegration(unittest.TestCase):
             f"Performance test failed: {duration:.3f}s for {num_cycles} cycles",
         )
         self.assertTrue(module._is_trained)
+
+
+class TestDecisionModuleSeedController(unittest.TestCase):
+    """Test DecisionModule integration with SeedController."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        from gymnasium import spaces
+
+        # Create mock agent with per-agent RNG
+        self.mock_agent = Mock()
+        self.mock_agent.agent_id = "test_agent_seed"
+        
+        # Create per-agent RNG using SeedController
+        seed_controller = SeedController(42)
+        py_rng, np_rng, torch_gen = seed_controller.get_agent_rng("test_agent_seed")
+        self.mock_agent._np_rng = np_rng
+
+        # Create mock environment
+        self.mock_env = Mock()
+        self.mock_env.action_space = spaces.Discrete(7)
+        self.mock_agent.environment = self.mock_env
+
+        # Create mock observation space
+        self.observation_space = spaces.Box(
+            low=-1, high=1, shape=(8,), dtype=np.float32
+        )
+
+        # Default config
+        self.config = DecisionConfig()
+
+    def test_decide_action_uses_per_agent_rng(self):
+        """Test that decide_action uses per-agent RNG when available."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        # Test action decision
+        state = torch.zeros((1, 8))
+        action = module.decide_action(state)
+
+        # Should return valid action
+        self.assertGreaterEqual(action, 0)
+        self.assertLess(action, 7)
+
+        # Test deterministic behavior
+        actions1 = [module.decide_action(state) for _ in range(10)]
+        actions2 = [module.decide_action(state) for _ in range(10)]
+
+        # Should be deterministic (same sequence)
+        self.assertEqual(actions1, actions2)
+
+    def test_fallback_algorithm_uses_per_agent_rng(self):
+        """Test that fallback algorithm uses per-agent RNG."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        # Test fallback algorithm methods
+        state = torch.zeros((1, 8))
+        
+        # Test predict method
+        action, _ = module.algorithm.predict(state)
+        self.assertGreaterEqual(action, 0)
+        self.assertLess(action, 7)
+
+        # Test select_action method
+        action = module.algorithm.select_action(state)
+        self.assertGreaterEqual(action, 0)
+        self.assertLess(action, 7)
+
+        # Test select_action_with_mask method
+        action_mask = np.array([True, True, False, True, True, False, True])
+        action = module.algorithm.select_action_with_mask(state, action_mask)
+        self.assertIn(action, [0, 1, 3, 4, 6])  # Only valid actions
+
+    def test_decision_module_without_per_agent_rng(self):
+        """Test DecisionModule behavior when no per-agent RNG is available."""
+        # Create agent without per-agent RNG
+        mock_agent_no_rng = Mock()
+        mock_agent_no_rng.agent_id = "test_agent_no_rng"
+        # No _np_rng attribute
+
+        module = DecisionModule(
+            mock_agent_no_rng,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        # Should still work (fallback to global numpy random)
+        state = torch.zeros((1, 8))
+        action = module.decide_action(state)
+
+        self.assertGreaterEqual(action, 0)
+        self.assertLess(action, 7)
+
+    def test_different_agents_different_randomness(self):
+        """Test that different agents produce different random sequences."""
+        # Create two agents with different IDs
+        agent1 = Mock()
+        agent1.agent_id = "agent_001"
+        seed_controller = SeedController(42)
+        py_rng1, np_rng1, torch_gen1 = seed_controller.get_agent_rng("agent_001")
+        agent1._np_rng = np_rng1
+
+        agent2 = Mock()
+        agent2.agent_id = "agent_002"
+        py_rng2, np_rng2, torch_gen2 = seed_controller.get_agent_rng("agent_002")
+        agent2._np_rng = np_rng2
+
+        # Create decision modules for both agents
+        module1 = DecisionModule(
+            agent1, self.mock_env.action_space, self.observation_space, self.config
+        )
+        module2 = DecisionModule(
+            agent2, self.mock_env.action_space, self.observation_space, self.config
+        )
+
+        # Test that they produce different sequences
+        state = torch.zeros((1, 8))
+        actions1 = [module1.decide_action(state) for _ in range(10)]
+        actions2 = [module2.decide_action(state) for _ in range(10)]
+
+        # Should produce different sequences
+        self.assertNotEqual(actions1, actions2)
+
+    def test_error_handling_with_per_agent_rng(self):
+        """Test error handling when per-agent RNG is available."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        # Test with invalid state
+        invalid_state = torch.tensor([float('inf')])
+        
+        # Should handle gracefully and return valid action
+        action = module.decide_action(invalid_state)
+        self.assertGreaterEqual(action, 0)
+        self.assertLess(action, 7)
 
 
 if __name__ == "__main__":
