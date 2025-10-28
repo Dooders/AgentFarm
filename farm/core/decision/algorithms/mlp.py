@@ -25,6 +25,7 @@ class MLPActionSelector(ActionAlgorithm):
     ) -> None:
         super().__init__(num_actions=num_actions)
         self._random_state = random_state
+        self._rng = np.random.RandomState(random_state) if random_state is not None else None
         self.model = MLPClassifier(
             hidden_layer_sizes=hidden_layer_sizes,
             random_state=random_state,
@@ -63,5 +64,7 @@ class MLPActionSelector(ActionAlgorithm):
 
     def select_action(self, state: np.ndarray) -> int:
         probs = self.predict_proba(state)
-        rng = np.random.RandomState(self._random_state)
-        return int(rng.choice(self.num_actions, p=probs))
+        if self._rng is not None:
+            return int(self._rng.choice(self.num_actions, p=probs))
+        else:
+            return int(np.random.choice(self.num_actions, p=probs))
