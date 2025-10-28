@@ -657,7 +657,7 @@ class ResourceManager:
                 stats["regeneration_events"] += 1
                 stats["resources_regenerated"] += regenerated
 
-    def _update_resources_random(self, stats: Dict):
+    def _update_resources_random(self, time_step: int, stats: Dict):
         """Update resources using random regeneration logic."""
         regen_rate = (
             getattr(getattr(self.config, "resources", None), "resource_regen_rate", 0.1)
@@ -667,7 +667,7 @@ class ResourceManager:
 
         # Create regeneration mask using seeded RNG if available
         if self.seed_value is not None:
-            rng = np.random.default_rng(self.seed_value + self.time)
+            rng = np.random.default_rng(self.seed_value + time_step)
             regen_mask = rng.random(len(self.resources)) < regen_rate
         else:
             regen_mask = np.random.random(len(self.resources)) < regen_rate
