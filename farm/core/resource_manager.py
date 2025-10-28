@@ -665,8 +665,12 @@ class ResourceManager:
             else 0.1
         )
 
-        # Create regeneration mask
-        regen_mask = np.random.random(len(self.resources)) < regen_rate
+        # Create regeneration mask using seeded RNG if available
+        if self.seed_value is not None:
+            rng = np.random.default_rng(self.seed_value + self.time)
+            regen_mask = rng.random(len(self.resources)) < regen_rate
+        else:
+            regen_mask = np.random.random(len(self.resources)) < regen_rate
 
         for resource, should_regen in zip(self.resources, regen_mask):
             if should_regen and resource.amount < resource.max_amount:
