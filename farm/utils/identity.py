@@ -103,6 +103,7 @@ class Identity:
         Uses BLAKE2b for stable, fast hashing. The same seed and key yield the
         same output; different seeds or keys produce different outputs.
         """
+        target_len = length if length is not None else self.config.default_length
         seed_str = (
             ""
             if self.config.deterministic_seed is None
@@ -111,7 +112,6 @@ class Identity:
         digest = hashlib.blake2b(
             f"{seed_str}:{key}".encode("utf-8"), digest_size=16
         ).hexdigest()
-        target_len = length if length is not None else self.config.default_length
         return digest[:target_len]
 
     # ----- Namespaced factories -----

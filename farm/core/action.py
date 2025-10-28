@@ -1003,8 +1003,11 @@ def move_action(agent: "AgentCore") -> dict:
     ]
 
     try:
-        # Randomly select a direction
-        dx, dy = random.choice(directions)
+        # Randomly select a direction using per-agent RNG if available
+        if hasattr(agent, '_py_rng'):
+            dx, dy = agent._py_rng.choice(directions)
+        else:
+            dx, dy = random.choice(directions)
 
         # Get movement distance from config
         move_distance = getattr(agent.config, "max_movement", 1)

@@ -881,8 +881,11 @@ class TianshouWrapper(RLAlgorithm):
                         try:
                             action = self.policy(state_tensor, state=None)[0]
                         except Exception:
-                            # Fallback to random action
-                            action = np.random.randint(self.num_actions)
+                            # Fallback to random action using per-agent RNG if available
+                            if hasattr(self, 'agent') and hasattr(self.agent, '_np_rng'):
+                                action = self.agent._np_rng.integers(self.num_actions)
+                            else:
+                                action = np.random.randint(self.num_actions)
 
                     # Handle different action types
                     if isinstance(action, torch.Tensor):
@@ -1008,10 +1011,15 @@ class TianshouWrapper(RLAlgorithm):
 
             # Extract data from our simple replay buffer format
             if len(self.replay_buffer.buffer) >= self.batch_size:
-                # Sample from our buffer
-                indices = np.random.choice(
-                    len(self.replay_buffer.buffer), self.batch_size, replace=False
-                )
+                # Sample from our buffer using per-agent RNG if available
+                if hasattr(self, 'agent') and hasattr(self.agent, '_np_rng'):
+                    indices = self.agent._np_rng.choice(
+                        len(self.replay_buffer.buffer), self.batch_size, replace=False
+                    )
+                else:
+                    indices = np.random.choice(
+                        len(self.replay_buffer.buffer), self.batch_size, replace=False
+                    )
                 states = []
                 actions = []
                 rewards = []
