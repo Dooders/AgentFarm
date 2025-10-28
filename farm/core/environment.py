@@ -162,15 +162,10 @@ class Environment(AECEnv):
             If database setup fails or resource initialization fails
         """
         super().__init__()
-        # Set seed if provided
+        # Set seed if provided (but don't set global seeds to avoid interfering with per-agent RNGs)
         self.seed_value = seed if seed is not None else config.seed if config and config.seed else None
-        if self.seed_value is not None:
-            random.seed(self.seed_value)
-            np.random.seed(self.seed_value)
-            try:
-                torch.manual_seed(self.seed_value)
-            except RuntimeError as e:
-                logger.warning("Failed to seed torch with value %s: %s", self.seed_value, e)
+        # Note: Global random seeds are not set here to avoid interfering with per-agent RNGs
+        # The SeedController handles deterministic randomness for agents
 
         # Initialize basic attributes
         self.width = width
@@ -2012,12 +2007,8 @@ class Environment(AECEnv):
         """
         if seed is not None:
             self.seed_value = seed
-            random.seed(seed)
-            np.random.seed(seed)
-            try:
-                torch.manual_seed(seed)
-            except RuntimeError:
-                pass
+            # Note: Global random seeds are not set here to avoid interfering with per-agent RNGs
+            # The SeedController handles deterministic randomness for agents
 
         self.time = 0
         # Reset metrics tracker
