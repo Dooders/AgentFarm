@@ -71,7 +71,7 @@ def main():
     parser.add_argument(
         "--seed",
         type=int,
-        default=None,
+        default=42,
         help="Deterministic seed for the simulation (overrides config if provided)",
     )
     parser.add_argument(
