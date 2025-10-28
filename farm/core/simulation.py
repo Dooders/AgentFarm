@@ -144,8 +144,8 @@ def create_initial_agents(
     # Helper function to generate deterministic positions
     def get_random_position():
         return (
-            rng.randint(0, environment.width - 1),
-            rng.randint(0, environment.height - 1),
+            rng.randrange(0, environment.width),
+            rng.randrange(0, environment.height),
         )
 
     # Get initial resource level with fallback for when config is None

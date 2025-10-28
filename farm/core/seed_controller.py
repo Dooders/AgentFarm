@@ -5,6 +5,7 @@ Provides per-agent and per-component RNG instances derived from a global seed,
 ensuring deterministic behavior independent of agent processing order.
 """
 
+import hashlib
 import random
 from typing import Optional, Tuple
 
@@ -50,8 +51,11 @@ class SeedController:
             Tuple of (python_rng, numpy_rng, torch_generator) instances
             seeded with agent-specific values
         """
-        # Derive agent-specific seed using hash for determinism
-        agent_seed = hash((self.global_seed, agent_id)) % (2**32)
+        # Derive agent-specific seed using cryptographic hash for determinism
+        # Using hashlib instead of built-in hash() to ensure determinism across process runs
+        hash_input = f"{self.global_seed}:{agent_id}".encode('utf-8')
+        hash_digest = hashlib.blake2b(hash_input, digest_size=4).digest()
+        agent_seed = int.from_bytes(hash_digest, byteorder='big') % (2**32)
         
         # Create seeded RNG instances
         py_rng = random.Random(agent_seed)
@@ -82,8 +86,11 @@ class SeedController:
             Tuple of (python_rng, numpy_rng, torch_generator) instances
             seeded with component-specific values
         """
-        # Derive component-specific seed
-        component_seed = hash((self.global_seed, agent_id, component_name)) % (2**32)
+        # Derive component-specific seed using cryptographic hash for determinism
+        # Using hashlib instead of built-in hash() to ensure determinism across process runs
+        hash_input = f"{self.global_seed}:{agent_id}:{component_name}".encode('utf-8')
+        hash_digest = hashlib.blake2b(hash_input, digest_size=4).digest()
+        component_seed = int.from_bytes(hash_digest, byteorder='big') % (2**32)
         
         # Create seeded RNG instances
         py_rng = random.Random(component_seed)

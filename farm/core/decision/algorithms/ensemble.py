@@ -64,7 +64,13 @@ class RandomForestActionSelector(ActionAlgorithm):
 
 
 class NaiveBayesActionSelector(ActionAlgorithm):
-    """Naive Bayes probabilistic classifier for action selection."""
+    """Naive Bayes probabilistic classifier for action selection.
+    
+    Note:
+        The `random_state` parameter only affects the stochasticity of the action selection
+        process (i.e., sampling from the predicted probabilities). The underlying GaussianNB
+        model does not use `random_state` and is deterministic for the same input data.
+    """
 
     def __init__(self, num_actions: int, random_state: Optional[int] = None, **_: object) -> None:
         super().__init__(num_actions=num_actions)
@@ -100,7 +106,13 @@ class NaiveBayesActionSelector(ActionAlgorithm):
 
 
 class KNNActionSelector(ActionAlgorithm):
-    """K-Nearest Neighbors classifier for action selection."""
+    """K-Nearest Neighbors classifier for action selection.
+    
+    Note:
+        The `random_state` parameter only affects the stochasticity of the action selection
+        process (i.e., sampling from the predicted probabilities). The underlying KNeighborsClassifier
+        model does not use `random_state` and is deterministic for the same input data.
+    """
 
     def __init__(self, num_actions: int, n_neighbors: int = 5, random_state: Optional[int] = None, **_: object) -> None:
         super().__init__(num_actions=num_actions)
