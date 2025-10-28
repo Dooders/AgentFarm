@@ -80,10 +80,9 @@ class ResourceManager:
         self.regeneration_events = 0
         self.depletion_events = 0
 
-        # Set random seed if provided
-        if self.seed_value is not None:
-            random.seed(self.seed_value)
-            np.random.seed(self.seed_value)
+        # NOTE: We don't set global random seeds here because we use local
+        # Random instances for deterministic behavior. Setting global seeds
+        # would pollute the global random state and affect other parts of the code.
 
         # Memmap-backed resource grid (optional)
         self._use_memmap: bool = bool(
@@ -568,7 +567,7 @@ class ResourceManager:
                     stats["regeneration_events"] += 1
                     stats["resources_regenerated"] += regenerated
         else:
-            # Use standard random method if no seed is set (same as original)
+            # Use seeded random method for deterministic behavior
             regen_rate = (
                 getattr(
                     getattr(self.config, "resources", None), "resource_regen_rate", 0.1
@@ -580,8 +579,17 @@ class ResourceManager:
                 self.config.resources.max_resource_amount if self.config else None
             )
 
-            regen_mask = np.random.random(len(self.resources)) < regen_rate
-            for resource, should_regen in zip(self.resources, regen_mask):
+            # Sort resources deterministically by resource_id to ensure consistent processing order
+            sorted_resources = sorted(self.resources, key=lambda r: r.resource_id)
+
+            # Create seeded RNG if seed is available, otherwise use global random
+            if self.seed_value is not None:
+                rng = np.random.default_rng(self.seed_value + time_step)
+                regen_mask = rng.random(len(sorted_resources)) < regen_rate
+            else:
+                regen_mask = np.random.random(len(sorted_resources)) < regen_rate
+
+            for resource, should_regen in zip(sorted_resources, regen_mask):
                 if should_regen and (
                     max_resource is None or resource.amount < max_resource
                 ):

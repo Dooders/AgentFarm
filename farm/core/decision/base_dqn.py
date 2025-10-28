@@ -225,16 +225,17 @@ class BaseDQNModule:
         self._max_cache_size = getattr(learning_config, "dqn_state_cache_size", 100)
 
     def _set_seed(self, seed: int) -> None:
-        """Set seeds for all random number generators to ensure reproducibility.
+        """Set seeds for PyTorch random number generators to ensure reproducibility.
 
-        This method sets seeds for Python's random module, NumPy, and PyTorch
-        to ensure that training runs are reproducible when the same seed is used.
+        This method sets seeds for PyTorch to ensure that training runs are reproducible.
+        We intentionally do NOT set global Python random or NumPy seeds here because
+        that would pollute the global random state and affect other parts of the simulation.
+        Agents should use their per-agent RNGs (_py_rng, _np_rng, _torch_gen) for determinism.
 
         Parameters:
-            seed (int): The seed value to use for all random number generators
+            seed (int): The seed value to use for PyTorch random number generators
         """
-        random.seed(seed)
-        np.random.seed(seed)
+        # Only set torch seeds, not global random/numpy seeds
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
         # For completely deterministic results, uncomment the following:
@@ -601,8 +602,15 @@ class BaseDQNModule:
         # Use epsilon-greedy strategy
         # Type assertion to help linter understand epsilon is not None
         assert epsilon is not None
-        if random.random() < epsilon:
-            return random.randint(0, self.output_dim - 1)
+        
+        # Use per-agent RNG if available, otherwise fall back to global random
+        if hasattr(self.agent, '_py_rng'):
+            rng = self.agent._py_rng
+        else:
+            rng = random
+            
+        if rng.random() < epsilon:
+            return rng.randint(0, self.output_dim - 1)
 
         # Cache tensor hash for repeated states
         state_hash = hash(state_tensor.cpu().numpy().tobytes())

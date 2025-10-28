@@ -144,8 +144,8 @@ def create_initial_agents(
     # Helper function to generate deterministic positions
     def get_random_position():
         return (
-            int(rng.uniform(0, environment.width)),
-            int(rng.uniform(0, environment.height)),
+            rng.randint(0, environment.width - 1),
+            rng.randint(0, environment.height - 1),
         )
 
     # Get initial resource level with fallback for when config is None
@@ -153,11 +153,22 @@ def create_initial_agents(
     if environment.config is not None and hasattr(environment.config, 'agent_behavior'):
         initial_resource_level = environment.config.agent_behavior.initial_resource_level
 
+    # Generate all positions first to ensure deterministic order
+    all_positions = []
+    for _ in range(num_system_agents + num_independent_agents + num_control_agents):
+        all_positions.append(get_random_position())
+    
+    # Generate all agent IDs in order
+    all_agent_ids = []
+    for _ in range(num_system_agents + num_independent_agents + num_control_agents):
+        all_agent_ids.append(environment.get_next_agent_id())
+    
     # Create system agents with learning behavior
-    for _ in range(num_system_agents):
-        position = get_random_position()
+    for i in range(num_system_agents):
+        position = all_positions[i]
+        agent_id = all_agent_ids[i]
         agent = factory.create_learning_agent(
-            agent_id=environment.get_next_agent_id(),
+            agent_id=agent_id,
             position=position,
             initial_resources=int(initial_resource_level),
             config=agent_config,
@@ -168,10 +179,11 @@ def create_initial_agents(
         positions.append(position)
 
     # Create independent agents with learning behavior
-    for _ in range(num_independent_agents):
-        position = get_random_position()
+    for i in range(num_independent_agents):
+        position = all_positions[num_system_agents + i]
+        agent_id = all_agent_ids[num_system_agents + i]
         agent = factory.create_learning_agent(
-            agent_id=environment.get_next_agent_id(),
+            agent_id=agent_id,
             position=position,
             initial_resources=int(initial_resource_level),
             config=agent_config,
@@ -182,10 +194,11 @@ def create_initial_agents(
         positions.append(position)
 
     # Create control agents with learning behavior
-    for _ in range(num_control_agents):
-        position = get_random_position()
+    for i in range(num_control_agents):
+        position = all_positions[num_system_agents + num_independent_agents + i]
+        agent_id = all_agent_ids[num_system_agents + num_independent_agents + i]
         agent = factory.create_learning_agent(
-            agent_id=environment.get_next_agent_id(),
+            agent_id=agent_id,
             position=position,
             initial_resources=int(initial_resource_level),
             config=agent_config,

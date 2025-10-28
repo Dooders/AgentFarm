@@ -1155,7 +1155,11 @@ def reproduce_action(agent: "AgentCore") -> dict:
             }
 
         # Random chance to attempt reproduction
-        reproduction_roll = random.random()
+        # Use per-agent RNG if available, otherwise fall back to global random
+        if hasattr(agent, '_py_rng'):
+            reproduction_roll = agent._py_rng.random()
+        else:
+            reproduction_roll = random.random()
         if reproduction_roll >= reproduction_chance:
             logger.debug(
                 f"Agent {agent.agent_id} chose not to reproduce this turn (roll: {reproduction_roll:.3f} >= chance: {reproduction_chance})"
