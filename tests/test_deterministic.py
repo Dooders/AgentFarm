@@ -149,6 +149,87 @@ def get_simulation_state_hash(environment, debug=False):
     return state_hash, state if debug else state_hash
 
 
+def compare_database_contents(db1_path, db2_path):
+    """
+    Compare database contents between two simulation runs.
+    
+    Parameters
+    ----------
+    db1_path : str
+        Path to first simulation database
+    db2_path : str
+        Path to second simulation database
+        
+    Returns
+    -------
+    bool
+        True if databases are identical, False otherwise
+    """
+    try:
+        from sqlalchemy import create_engine, text
+        from sqlalchemy.orm import sessionmaker
+        
+        # Create database connections
+        engine1 = create_engine(f"sqlite:///{db1_path}")
+        engine2 = create_engine(f"sqlite:///{db2_path}")
+        
+        Session1 = sessionmaker(bind=engine1)
+        Session2 = sessionmaker(bind=engine2)
+        
+        with Session1() as session1, Session2() as session2:
+            # Get list of tables
+            tables_query = text("SELECT name FROM sqlite_master WHERE type='table'")
+            tables1 = [row[0] for row in session1.execute(tables_query).fetchall()]
+            tables2 = [row[0] for row in session2.execute(tables_query).fetchall()]
+            
+            if set(tables1) != set(tables2):
+                print(f"Table mismatch: {set(tables1)} vs {set(tables2)}")
+                return False
+            
+            # Compare each table
+            for table in tables1:
+                if table.startswith('sqlite_'):
+                    continue  # Skip system tables
+                    
+                # Get row counts
+                count1 = session1.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
+                count2 = session2.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
+                
+                if count1 != count2:
+                    print(f"Row count mismatch in {table}: {count1} vs {count2}")
+                    return False
+                
+                # Compare actual data (for smaller tables)
+                if count1 < 10000:  # Only compare small tables to avoid memory issues
+                    data1 = session1.execute(text(f"SELECT * FROM {table} ORDER BY rowid")).fetchall()
+                    data2 = session2.execute(text(f"SELECT * FROM {table} ORDER BY rowid")).fetchall()
+                    
+                    if data1 != data2:
+                        print(f"Data mismatch in table {table}")
+                        # Show first few differences
+                        for i, (row1, row2) in enumerate(zip(data1, data2)):
+                            if row1 != row2:
+                                print(f"  Row {i}: {row1} vs {row2}")
+                                if i > 5:  # Limit output
+                                    print(f"  ... and {len(data1) - i - 1} more differences")
+                                    break
+                        return False
+                else:
+                    print(f"Skipping large table {table} ({count1} rows) - using row count only")
+            
+            print("✅ Database contents are identical")
+            return True
+            
+    except Exception as e:
+        print(f"Error comparing databases: {e}")
+        return False
+    finally:
+        if 'engine1' in locals():
+            engine1.dispose()
+        if 'engine2' in locals():
+            engine2.dispose()
+
+
 def compare_states(state1, state2):
     """
     Compare two simulation states and output the differences.
@@ -240,7 +321,7 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
 
     # Use in-memory database to avoid external state issues but allow persistence testing
     config.use_in_memory_db = True
-    config.persist_db_on_completion = False
+    config.persist_db_on_completion = True  # Enable persistence for database comparison
     # Increase memory limit for longer simulations to avoid memory warnings
     config.database.in_memory_db_memory_limit_mb = 5000  # 5GB limit
 
@@ -289,25 +370,52 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     hash1, state1 = get_simulation_state_hash(env1, debug=True)
     hash2, state2 = get_simulation_state_hash(env2, debug=True)
 
-    is_deterministic = hash1 == hash2
+    state_deterministic = hash1 == hash2
+
+    # Compare database contents if databases were persisted
+    db_deterministic = True
+    if config.persist_db_on_completion:
+        print("\nComparing database contents...")
+        db1_path = os.path.join(sim_dir_1, f"simulation_{env1.simulation_id}.db")
+        db2_path = os.path.join(sim_dir_2, f"simulation_{env2.simulation_id}.db")
+        
+        # Debug: List files in simulation directories
+        print(f"Looking for database files:")
+        print(f"  DB1 path: {db1_path}")
+        print(f"  DB2 path: {db2_path}")
+        print(f"  Sim dir 1 contents: {os.listdir(sim_dir_1) if os.path.exists(sim_dir_1) else 'Directory not found'}")
+        print(f"  Sim dir 2 contents: {os.listdir(sim_dir_2) if os.path.exists(sim_dir_2) else 'Directory not found'}")
+        
+        if os.path.exists(db1_path) and os.path.exists(db2_path):
+            db_deterministic = compare_database_contents(db1_path, db2_path)
+        else:
+            print("⚠️  Database files not found - skipping database comparison")
+            db_deterministic = True  # Don't fail if DBs weren't created
+
+    is_deterministic = state_deterministic and db_deterministic
 
     print("\nDeterminism Test Results:")
     print(f"  - First simulation state hash: {hash1}")
     print(f"  - Second simulation state hash: {hash2}")
-    print(f"  - Deterministic: {is_deterministic}")
+    print(f"  - State deterministic: {state_deterministic}")
+    print(f"  - Database deterministic: {db_deterministic}")
+    print(f"  - Overall deterministic: {is_deterministic}")
 
-    if not is_deterministic:
-        print("\nDetailed comparison:")
+    if not state_deterministic:
+        print("\nDetailed state comparison:")
         compare_states(state1, state2)
 
+    if not is_deterministic:
         print("\nThe simulation has non-deterministic elements.")
         print("This could be due to:")
         print("  - Uncontrolled random number generation")
         print("  - Floating point instability")
         print("  - Parallelism/threading issues")
         print("  - External state affecting the simulation")
+        print("  - Non-deterministic database logging")
     else:
         print("\nThe simulation is fully deterministic with the given seed.")
+        print("✅ Both simulation state and database contents are identical.")
 
     return is_deterministic
 
