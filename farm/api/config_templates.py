@@ -181,6 +181,97 @@ class ConfigTemplateManager:
             ],
         )
 
+        # Ant colony simulation template
+        templates["ant_colony"] = ConfigTemplate(
+            name="ant_colony",
+            description="Realistic ant colony simulation with biologically accurate metabolism",
+            category=ConfigCategory.SIMULATION,
+            parameters={
+                "name": "Ant Colony Simulation",
+                "steps": 2000,
+                "environment": {
+                    "width": 200,
+                    "height": 200,
+                    "resources": 100,
+                    "resource_regen_rate": 0.2,
+                    "resource_regen_amount": 1,
+                    "max_resource_amount": 50,
+                },
+                "agents": {
+                    "system_agents": 30,
+                    "independent_agents": 20,
+                    "control_agents": 0,
+                },
+                "agent_behavior": {
+                    "base_consumption_rate": 0.03,  # Realistic ant metabolism
+                    "starvation_threshold": 100,    # ~3-4 days without food
+                    "initial_resource_level": 30,   # ~10 days of energy storage
+                    "max_movement": 5,              # Shorter movement range
+                    "gathering_range": 20,          # Smaller gathering range
+                    "max_gather_amount": 2,         # Smaller gathering amounts
+                    "perception_radius": 3,         # Limited perception
+                    "social_range": 15,             # Smaller social interaction range
+                    "offspring_cost": 15,           # Higher reproduction cost
+                    "min_reproduction_resources": 25,  # Higher reproduction threshold
+                    "offspring_initial_resources": 20, # More resources for offspring
+                },
+                "combat": {
+                    "starting_health": 50.0,        # Lower health (ants are fragile)
+                    "attack_range": 10.0,           # Shorter attack range
+                    "attack_base_damage": 5.0,      # Lower damage
+                },
+                "learning": {
+                    "enabled": True,
+                    "algorithm": "dqn",
+                    "learning_rate": 0.001,
+                    "epsilon_start": 0.9,           # Higher exploration
+                    "epsilon_min": 0.05,
+                    "epsilon_decay": 0.995,
+                },
+                "curriculum": {
+                    "curriculum_phases": [
+                        {
+                            "steps": 200,
+                            "enabled_actions": ["move", "gather"]
+                        },
+                        {
+                            "steps": 500,
+                            "enabled_actions": ["move", "gather", "share"]
+                        },
+                        {
+                            "steps": -1,
+                            "enabled_actions": ["move", "gather", "share", "attack", "reproduce"]
+                        }
+                    ]
+                },
+                "logging": {
+                    "detailed_logging": True,
+                    "save_observations": True,
+                    "save_actions": True,
+                },
+            },
+            required_fields=["name", "steps"],
+            optional_fields=["environment", "agents", "agent_behavior", "combat", "learning", "curriculum", "logging"],
+            examples=[
+                {
+                    "name": "Small Ant Colony",
+                    "steps": 1000,
+                    "agents": {"system_agents": 15, "independent_agents": 10},
+                },
+                {
+                    "name": "Large Ant Colony",
+                    "steps": 5000,
+                    "agents": {"system_agents": 50, "independent_agents": 30},
+                    "environment": {"width": 300, "height": 300, "resources": 200},
+                },
+                {
+                    "name": "Resource Scarcity Study",
+                    "steps": 3000,
+                    "environment": {"resources": 30, "resource_regen_rate": 0.1},
+                }
+            ],
+        )
+
         return templates
 
     def get_template(self, name: str) -> Optional[ConfigTemplate]:
