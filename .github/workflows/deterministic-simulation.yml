@@ -43,7 +43,3 @@ jobs:
     - name: Run extended deterministic test
       run: |
         python tests/test_deterministic.py --environment testing --steps 100 --seed 123
-        
-    - name: Run pytest deterministic tests
-      run: |
-        pytest tests/test_deterministic.py -v
