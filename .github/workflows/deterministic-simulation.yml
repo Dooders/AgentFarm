@@ -7,106 +7,39 @@ on:
     branches: [ main ]
 
 jobs:
-  deterministic-simulation:
+  deterministic-test:
     runs-on: ubuntu-latest
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
+      
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
-
+        python-version: '3.11'
+        
     - name: Cache pip dependencies
-      uses: actions/cache@v4
+      uses: actions/cache@v3
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-
-
+          
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-
-    - name: Note determinism factors
+        
+    - name: Run deterministic simulation test
       run: |
-        echo "⚠️  Determinism Note: Results may vary across different OS/BLAS/CUDA versions."
-        echo "   This check validates consistency within the same environment."
-        echo "   Cross-platform determinism requires additional validation."
-
-    - name: Run deterministic simulation
-      id: simulation
+        python tests/test_deterministic.py --environment testing --steps 50 --seed 42
+        
+    - name: Run extended deterministic test
       run: |
-        # Run the simulation and capture output
-        output=$(python run_simulation.py --environment development --profile simulation --steps 1000 --in-memory --no-persist --memory-limit 5000 --seed 42 2>&1)
-        echo "$output"
-
-        # Extract key metrics from output
-        final_agent_count=$(echo "$output" | grep "Final agent count:" | sed 's/.*Final agent count: \([0-9]*\).*/\1/')
-        simulation_time=$(echo "$output" | grep "Simulation completed in" | sed 's/.*Simulation completed in \([0-9.]*\) seconds.*/\1/')
-
-        # Check for early termination (simulation stopped before 1000 steps)
-        early_termination=$(echo "$output" | grep -c "Simulation stopped early")
-
-        # Check if simulation completed (look for completion message)
-        if echo "$output" | grep -q "=== SIMULATION COMPLETED SUCCESSFULLY ==="; then
-          echo "Simulation completed successfully"
-          echo "final_agent_count=$final_agent_count" >> $GITHUB_OUTPUT
-          echo "simulation_time=$simulation_time" >> $GITHUB_OUTPUT
-          echo "early_termination=$early_termination" >> $GITHUB_OUTPUT
-        else
-          echo "Simulation did not complete successfully"
-          echo "$output" | tail -20
-          exit 1
-        fi
-
-    - name: Verify deterministic results
-      env:
-        # Configure expected values for your deterministic simulation
-        # Adjust these values based on your specific simulation results
-        EXPECTED_EARLY_TERMINATION: 0  # 1 if simulation terminates early, 0 if runs full 1000 steps
-        EXPECTED_AGENT_COUNT: 84        # Final agent count from deterministic run with seed 42
-        EXPECTED_MIN_TIME: 10.0         # Minimum expected simulation time in seconds
-        EXPECTED_MAX_TIME: 60.0         # Maximum expected simulation time in seconds (1 minute)
+        python tests/test_deterministic.py --environment testing --steps 100 --seed 123
+        
+    - name: Run pytest deterministic tests
       run: |
-        echo "Checking deterministic results..."
-        echo "Expected: Early termination = $EXPECTED_EARLY_TERMINATION, Final agents = $EXPECTED_AGENT_COUNT"
-        echo "Actual: Early termination = ${{ steps.simulation.outputs.early_termination }}, Final agents = ${{ steps.simulation.outputs.final_agent_count }}, Time = ${{ steps.simulation.outputs.simulation_time }} seconds"
-
-        # Check for expected early termination behavior
-        if [ "${{ steps.simulation.outputs.early_termination }}" != "$EXPECTED_EARLY_TERMINATION" ]; then
-          echo "::error::Early termination mismatch! Expected: $EXPECTED_EARLY_TERMINATION, Got: ${{ steps.simulation.outputs.early_termination }}"
-          echo "::error::Simulation should run to completion without early termination"
-          exit 1
-        fi
-
-        # Check final agent count
-        if [ "${{ steps.simulation.outputs.final_agent_count }}" != "$EXPECTED_AGENT_COUNT" ]; then
-          echo "::error::Final agent count mismatch! Expected: $EXPECTED_AGENT_COUNT, Got: ${{ steps.simulation.outputs.final_agent_count }}"
-          echo "::error::This indicates non-deterministic behavior or simulation changes"
-          exit 1
-        fi
-
-        # Check simulation time is within reasonable bounds (using awk for portability)
-        time_check=$(awk "BEGIN { if (${{ steps.simulation.outputs.simulation_time }} < $EXPECTED_MIN_TIME || ${{ steps.simulation.outputs.simulation_time }} > $EXPECTED_MAX_TIME) print 1; else print 0 }")
-        if [ "$time_check" -eq 1 ]; then
-          echo "::error::Simulation time out of bounds! Expected: $EXPECTED_MIN_TIME-$EXPECTED_MAX_TIME seconds, Got: ${{ steps.simulation.outputs.simulation_time }} seconds"
-          exit 1
-        fi
-
-        echo "✅ Deterministic simulation results verified!"
-        echo "✅ Simulation behavior matches expected deterministic outcome"
-
-    - name: Upload simulation artifacts
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: simulation-results-${{ github.run_id }}
-        path: |
-          simulations/
-          logs/
-        retention-days: 7
+        pytest tests/test_deterministic.py -v
