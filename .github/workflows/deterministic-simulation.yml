@@ -32,6 +32,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         
+    - name: Install package
+      run: |
+        pip install -e .
+        
     - name: Run deterministic simulation test
       run: |
         python tests/test_deterministic.py --environment testing --steps 50 --seed 42
