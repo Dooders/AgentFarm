@@ -241,6 +241,8 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     # Use in-memory database to avoid external state issues but allow persistence testing
     config.use_in_memory_db = True
     config.persist_db_on_completion = False
+    # Increase memory limit for longer simulations to avoid memory warnings
+    config.database.in_memory_db_memory_limit_mb = 5000  # 5GB limit
 
     # Snapshot steps for comparison
     if use_snapshot_steps is None:

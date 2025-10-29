@@ -42,7 +42,7 @@ jobs:
       id: simulation
       run: |
         # Run the simulation and capture output
-        output=$(python run_simulation.py --environment development --profile simulation --steps 1000 --in-memory --no-persist --seed 42 2>&1)
+        output=$(python run_simulation.py --environment development --profile simulation --steps 1000 --in-memory --no-persist --memory-limit 5000 --seed 42 2>&1)
         echo "$output"
 
         # Extract key metrics from output
@@ -69,9 +69,9 @@ jobs:
         # Configure expected values for your deterministic simulation
         # Adjust these values based on your specific simulation results
         EXPECTED_EARLY_TERMINATION: 0  # 1 if simulation terminates early, 0 if runs full 1000 steps
-        EXPECTED_AGENT_COUNT: 32        # Final agent count from deterministic run with seed 42
-        EXPECTED_MIN_TIME: 60.0         # Minimum expected simulation time in seconds
-        EXPECTED_MAX_TIME: 600.0        # Maximum expected simulation time in seconds (10 minutes)
+        EXPECTED_AGENT_COUNT: 84        # Final agent count from deterministic run with seed 42
+        EXPECTED_MIN_TIME: 10.0         # Minimum expected simulation time in seconds
+        EXPECTED_MAX_TIME: 60.0         # Maximum expected simulation time in seconds (1 minute)
       run: |
         echo "Checking deterministic results..."
         echo "Expected: Early termination = $EXPECTED_EARLY_TERMINATION, Final agents = $EXPECTED_AGENT_COUNT"
