@@ -2,6 +2,8 @@
 """
 Script to test determinism in the AgentFarm simulation.
 This will run two identical simulations and compare their outcomes to validate determinism.
+
+This module can be used both as a standalone CLI script and imported by pytest tests.
 """
 
 import argparse
@@ -15,6 +17,22 @@ from datetime import datetime
 
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
+
+
+def seed_all_rngs(seed):
+    """
+    Comprehensive RNG seeding function for deterministic behavior.
+    
+    Parameters
+    ----------
+    seed : int
+        Seed value to use for all random number generators
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
 
 
 def get_simulation_state_hash(environment, debug=False):
@@ -37,8 +55,23 @@ def get_simulation_state_hash(environment, debug=False):
     state = {
         "time": environment.time,
         "agents": [],
-        "resources": []
+        "resources": [],
+        "spatial_index_state": None
     }
+
+    # Capture spatial index state if available
+    if hasattr(environment, 'spatial_index') and environment.spatial_index:
+        try:
+            # Get all agent positions in sorted order for deterministic spatial state
+            agent_positions = []
+            for agent in sorted(environment._agent_objects.values(), key=lambda a: a.agent_id):
+                agent_positions.append({
+                    "agent_id": agent.agent_id,
+                    "position": agent.position
+                })
+            state["spatial_index_state"] = agent_positions
+        except Exception:
+            state["spatial_index_state"] = None
 
     # Sort agents by ID for consistency
     for agent in sorted(environment._agent_objects.values(), key=lambda a: a.agent_id):
@@ -49,7 +82,44 @@ def get_simulation_state_hash(environment, debug=False):
             "resource_level": agent.resource_level,
             "alive": agent.alive,
             "generation": agent.generation,
+            "components": {},
+            "action_history": []
         }
+
+        # Capture component states for high-risk components
+        if hasattr(agent, '_components'):
+            for name, component in agent._components.items():
+                if name in ["movement", "resource", "reproduction"]:
+                    component_state = {}
+                    
+                    # Resource component state
+                    if name == "resource":
+                        component_state.update({
+                            "level": getattr(component, "level", None),
+                            "starvation_counter": getattr(component, "starvation_counter", None),
+                        })
+                    
+                    # Movement component state
+                    elif name == "movement":
+                        component_state.update({
+                            "target_position": getattr(component, "target_position", None),
+                            "last_position": getattr(component, "last_position", None),
+                        })
+                    
+                    # Reproduction component state
+                    elif name == "reproduction":
+                        component_state.update({
+                            "offspring_created": getattr(component, "offspring_created", None),
+                            "reproduction_cooldown": getattr(component, "reproduction_cooldown", None),
+                        })
+                    
+                    agent_state["components"][name] = component_state
+
+        # Capture behavior action history
+        if hasattr(agent, 'behavior') and hasattr(agent.behavior, 'action_history'):
+            # Keep last 10 actions for determinism testing
+            agent_state["action_history"] = agent.behavior.action_history[-10:]
+
         state["agents"].append(agent_state)
 
     # Sort resources by ID for consistency
@@ -69,6 +139,7 @@ def get_simulation_state_hash(environment, debug=False):
         print(f"Time: {state['time']}")
         print(f"Number of agents: {len(state['agents'])}")
         print(f"Number of resources: {len(state['resources'])}")
+        print(f"Spatial index state captured: {state['spatial_index_state'] is not None}")
         # Print the first agent and resource for debugging
         if state['agents']:
             print(f"First agent: {state['agents'][0]}")
@@ -159,14 +230,7 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     print(f"Starting determinism test with seed {seed}")
 
     # Set fixed seeds for all random generators
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    # Note: PyTorch CuDNN deterministic mode can be very slow and may not be necessary
-    # for current simulation determinism. Uncomment if needed for debugging:
-    # torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    seed_all_rngs(seed)
 
     # Load configuration
     config = SimulationConfig.from_centralized_config(environment=environment)
@@ -191,11 +255,7 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     os.makedirs(sim_dir_1, exist_ok=True)
 
     # Reset seeds again to ensure same initial state
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    # Keep CuDNN settings consistent
+    seed_all_rngs(seed)
 
     # Run first simulation and capture state snapshots
     env1 = run_simulation(
@@ -212,11 +272,7 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     os.makedirs(sim_dir_2, exist_ok=True)
 
     # Reset seeds again
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    # Keep CuDNN settings consistent
+    seed_all_rngs(seed)
 
     # Run second simulation
     env2 = run_simulation(
