@@ -3,9 +3,11 @@ import random
 import socket
 import time
 from contextlib import contextmanager
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pytest
+import torch
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -143,3 +145,106 @@ def env_vars(**overrides):
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = prev
+
+
+# Determinism Testing Helpers
+
+def seed_all_rngs(seed: int) -> None:
+    """
+    Comprehensive RNG seeding function for deterministic behavior.
+    
+    Parameters
+    ----------
+    seed : int
+        Seed value to use for all random number generators
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+
+
+def capture_component_state(component: Any) -> Dict[str, Any]:
+    """
+    Extract serializable state from agent components.
+    
+    Parameters
+    ----------
+    component : Any
+        Agent component to extract state from
+        
+    Returns
+    -------
+    Dict[str, Any]
+        Serializable component state
+    """
+    component_state = {}
+    component_name = component.__class__.__name__.lower()
+    
+    if "resource" in component_name:
+        component_state.update({
+            "level": getattr(component, "level", None),
+            "starvation_counter": getattr(component, "starvation_counter", None),
+        })
+    elif "movement" in component_name:
+        component_state.update({
+            "target_position": getattr(component, "target_position", None),
+            "last_position": getattr(component, "last_position", None),
+        })
+    elif "reproduction" in component_name:
+        component_state.update({
+            "offspring_created": getattr(component, "offspring_created", None),
+            "reproduction_cooldown": getattr(component, "reproduction_cooldown", None),
+        })
+    
+    return component_state
+
+
+def compare_states_detailed(state1: Dict[str, Any], state2: Dict[str, Any], tolerance: float = 1e-9) -> bool:
+    """
+    Enhanced comparison with floating-point tolerance.
+    
+    Parameters
+    ----------
+    state1 : Dict[str, Any]
+        First state to compare
+    state2 : Dict[str, Any]
+        Second state to compare
+    tolerance : float
+        Floating-point tolerance for numerical comparisons
+        
+    Returns
+    -------
+    bool
+        True if states are equivalent within tolerance
+    """
+    def _compare_values(v1, v2):
+        if isinstance(v1, (int, str, bool)) and isinstance(v2, (int, str, bool)):
+            return v1 == v2
+        elif isinstance(v1, (float, np.floating)) and isinstance(v2, (float, np.floating)):
+            return abs(v1 - v2) < tolerance
+        elif isinstance(v1, (list, tuple)) and isinstance(v2, (list, tuple)):
+            if len(v1) != len(v2):
+                return False
+            return all(_compare_values(a, b) for a, b in zip(v1, v2))
+        elif isinstance(v1, dict) and isinstance(v2, dict):
+            if set(v1.keys()) != set(v2.keys()):
+                return False
+            return all(_compare_values(v1[k], v2[k]) for k in v1.keys())
+        else:
+            return v1 == v2
+    
+    return _compare_values(state1, state2)
+
+
+@pytest.fixture
+def deterministic_seed():
+    """Provide a deterministic seed for determinism tests."""
+    return 42
+
+
+@pytest.fixture
+def multiple_test_seeds():
+    """Provide multiple seeds for comprehensive determinism testing."""
+    return [42, 123, 456, 789, 999]

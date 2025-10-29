@@ -1297,15 +1297,16 @@ def defend_action(agent: "AgentCore") -> dict:
 
         # Apply healing/recovery effect
         healing_applied = 0
-        if defense_healing > 0 and hasattr(agent, "current_health"):
-            max_health = getattr(agent, "starting_health", agent.current_health)
-            healing_amount = min(defense_healing, max_health - agent.current_health)
-            if healing_amount > 0:
-                agent.current_health += healing_amount
-                healing_applied = healing_amount
-                logger.debug(
-                    f"Agent {agent.agent_id} healed {healing_amount} health while defending"
-                )
+        if defense_healing > 0:
+            combat_comp = agent.get_component("combat")
+            if combat_comp:
+                health_before = combat_comp.health
+                combat_comp.heal(defense_healing)
+                healing_applied = combat_comp.health - health_before
+                if healing_applied > 0:
+                    logger.debug(
+                        f"Agent {agent.agent_id} healed {healing_applied} health while defending"
+                    )
 
         # Calculate simple reward for defensive action
         # Use config value if available, otherwise fall back to default

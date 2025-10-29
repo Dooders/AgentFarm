@@ -508,7 +508,8 @@ class TestAlgorithmBenchmark(unittest.TestCase):
     @patch("time.time")
     def test_run_single_algorithm(self, mock_time):
         """Test running benchmark for a single algorithm."""
-        mock_time.side_effect = [0.0, 1.5]  # Start and end times
+        # Provide enough time values for logging system and benchmark
+        mock_time.side_effect = [0.0, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
 
         result = self.benchmark.run_single_algorithm(
             "mlp", {"hidden_layer_sizes": (4,), "max_iter": 10}, seed=42
@@ -517,12 +518,14 @@ class TestAlgorithmBenchmark(unittest.TestCase):
         self.assertEqual(result.algorithm_name, "mlp")
         self.assertEqual(len(result.episode_rewards), self.num_episodes)
         self.assertEqual(len(result.episode_lengths), self.num_episodes)
-        self.assertEqual(result.training_time, 1.5)
+        self.assertEqual(result.training_time, 1.0)  # Updated to match new mock values
         self.assertGreater(result.total_steps, 0)
 
     def test_run_benchmark(self):
         """Test running full benchmark."""
-        with patch("time.time", side_effect=[0.0, 1.0, 2.0, 3.0]):
+        # Provide enough time values for logging system and benchmark
+        time_values = [float(i) for i in range(20)]  # More values for logging system
+        with patch("time.time", side_effect=time_values):
             results = self.benchmark.run_benchmark(seeds=[42, 43])
 
         self.assertEqual(len(results), 2)

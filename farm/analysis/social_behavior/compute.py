@@ -9,7 +9,7 @@ from farm.utils.logging import get_logger
 import json
 import math
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd

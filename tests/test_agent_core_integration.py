@@ -340,5 +340,200 @@ class TestActMethod:
         assert agent.resource_level < initial_resources
 
 
+class TestConsolidatedObservationSystem:
+    """Test the consolidated observation system in AgentCore."""
+    
+    @pytest.fixture
+    def mock_services_with_environment(self):
+        """Create mock services with environment for observation testing."""
+        from farm.core.observations import ObservationConfig
+        
+        # Create environment mock
+        env = Mock()
+        env.observation_config = ObservationConfig(R=3)
+        env.height = 100
+        env.width = 100
+        env.config = Mock()
+        env.config.environment = Mock()
+        env.config.environment.position_discretization_method = "floor"
+        env.config.environment.use_bilinear_interpolation = True
+        env.spatial_index = Mock()
+        env.spatial_index.get_nearby.return_value = {"resources": [], "agents": []}
+        env.max_resource = 10.0
+        
+        services = AgentServices(
+            spatial_service=Mock(),
+            time_service=Mock(current_time=Mock(return_value=0)),
+            metrics_service=Mock(),
+            logging_service=Mock(),
+            validation_service=Mock(is_valid_position=Mock(return_value=True)),
+            lifecycle_service=Mock(),
+        )
+        
+        return services, env
+    
+    def test_single_observation_path(self, mock_services_with_environment):
+        """Test that AgentCore uses only the perception component for observations."""
+        import torch
+        from unittest.mock import patch
+        
+        services, env = mock_services_with_environment
+        
+        factory = AgentFactory(services)
+        agent = factory.create_default_agent(
+            agent_id="test_obs_001",
+            position=(50.0, 50.0),
+            initial_resources=100.0,
+        )
+        
+        # Set up environment
+        agent.environment = env
+        
+        # Mock the perception component
+        perception_comp = agent.get_component("perception")
+        assert perception_comp is not None
+        
+        # Mock the observation tensor generation
+        expected_tensor = torch.zeros((1, 7, 7), dtype=torch.float32)
+        perception_comp.get_observation_tensor = Mock(return_value=expected_tensor)
+        
+        # Test that _create_observation uses perception component
+        observation = agent._create_observation()
+        
+        # Should call perception component
+        perception_comp.get_observation_tensor.assert_called_once_with(agent.device)
+        
+        # Should return the expected tensor
+        assert torch.equal(observation, expected_tensor)
+    
+    def test_observation_fallback_when_no_perception_component(self, mock_services_with_environment):
+        """Test fallback behavior when no perception component is available."""
+        import torch
+        
+        services, env = mock_services_with_environment
+        
+        factory = AgentFactory(services)
+        agent = factory.create_default_agent(
+            agent_id="test_obs_002",
+            position=(50.0, 50.0),
+            initial_resources=100.0,
+        )
+        
+        # Remove perception component
+        agent._components = {k: v for k, v in agent._components.items() if k != "perception"}
+        
+        # Test observation generation
+        observation = agent._create_observation()
+        
+        # Should return zero tensor as fallback
+        # Shape is computed from perception radius: (1, 2*R+1, 2*R+1) where R=5
+        perception_radius = 5  # Default perception radius
+        expected_shape = (1, 2 * perception_radius + 1, 2 * perception_radius + 1)
+        assert observation.shape == expected_shape
+        assert observation.dtype == torch.float32
+        assert torch.all(observation == 0)
+    
+    def test_observation_error_handling(self, mock_services_with_environment):
+        """Test error handling in observation generation."""
+        import torch
+        from unittest.mock import patch
+        
+        services, env = mock_services_with_environment
+        
+        factory = AgentFactory(services)
+        agent = factory.create_default_agent(
+            agent_id="test_obs_003",
+            position=(50.0, 50.0),
+            initial_resources=100.0,
+        )
+        
+        # Mock perception component to raise exception
+        perception_comp = agent.get_component("perception")
+        perception_comp.get_observation_tensor = Mock(side_effect=Exception("Perception error"))
+        
+        # Test observation generation with error
+        with patch('farm.core.agent.core.logger') as mock_logger:
+            observation = agent._create_observation()
+            
+            # Should log error
+            mock_logger.error.assert_called()
+            
+            # Should return zero tensor as fallback
+            # Shape is computed from perception radius: (1, 2*R+1, 2*R+1) where R=5
+            perception_radius = 5  # Default perception radius
+            expected_shape = (1, 2 * perception_radius + 1, 2 * perception_radius + 1)
+            assert observation.shape == expected_shape
+            assert observation.dtype == torch.float32
+            assert torch.all(observation == 0)
+    
+    def test_agent_step_uses_observation(self, mock_services_with_environment):
+        """Test that agent step process uses the observation system."""
+        import torch
+        
+        services, env = mock_services_with_environment
+        
+        factory = AgentFactory(services)
+        agent = factory.create_default_agent(
+            agent_id="test_obs_004",
+            position=(50.0, 50.0),
+            initial_resources=100.0,
+        )
+        
+        # Set up environment
+        agent.environment = env
+        
+        # Mock the behavior to track calls
+        behavior = agent.behavior
+        behavior.decide_action = Mock(return_value=agent.actions[0])
+        
+        # Mock perception component
+        perception_comp = agent.get_component("perception")
+        expected_tensor = torch.zeros((1, 7, 7), dtype=torch.float32)
+        perception_comp.get_observation_tensor = Mock(return_value=expected_tensor)
+        
+        # Execute agent step
+        agent.step()
+        
+        # Should have called perception component (may be called multiple times due to action execution)
+        assert perception_comp.get_observation_tensor.call_count >= 1
+        
+        # Should have called behavior with observation
+        behavior.decide_action.assert_called_once()
+        call_args = behavior.decide_action.call_args
+        assert torch.equal(call_args[0][1], expected_tensor)  # state_tensor argument
+    
+    def test_observation_consistency_across_steps(self, mock_services_with_environment):
+        """Test that observation generation is consistent across multiple steps."""
+        import torch
+        
+        services, env = mock_services_with_environment
+        
+        factory = AgentFactory(services)
+        agent = factory.create_default_agent(
+            agent_id="test_obs_005",
+            position=(50.0, 50.0),
+            initial_resources=100.0,
+        )
+        
+        # Set up environment
+        agent.environment = env
+        
+        # Mock perception component
+        perception_comp = agent.get_component("perception")
+        expected_tensor = torch.zeros((1, 7, 7), dtype=torch.float32)
+        perception_comp.get_observation_tensor = Mock(return_value=expected_tensor)
+        
+        # Execute multiple steps
+        for _ in range(5):
+            agent.step()
+        
+        # Should have called perception component for each step (may be called multiple times per step)
+        assert perception_comp.get_observation_tensor.call_count >= 5
+        
+        # All calls should be with the same device
+        for call in perception_comp.get_observation_tensor.call_args_list:
+            assert call[0][0] == agent.device
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
