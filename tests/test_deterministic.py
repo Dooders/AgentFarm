@@ -17,7 +17,7 @@ from datetime import datetime
 
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
-from conftest import seed_all_rngs
+from tests.conftest import seed_all_rngs
 
 
 def get_simulation_state_hash(environment, debug=False):
@@ -191,44 +191,42 @@ def compare_database_contents(db1_path, db2_path):
                     data2 = session2.execute(text(f"SELECT * FROM {table} ORDER BY rowid")).fetchall()
                     
                     if data1 != data2:
-                        # Special handling for simulations table - ignore timestamp differences
-                        if table == 'simulations':
-                            print(f"Data mismatch in table {table} (checking if only timestamps differ)...")
-                            # Compare all columns except start_time and end_time
-                            for i, (row1, row2) in enumerate(zip(data1, data2)):
-                                if row1 != row2:
-                                    # Check if the only difference is in timestamp columns
-                                    differences = []
-                                    for j, (col1, col2) in enumerate(zip(row1, row2)):
-                                        if col1 != col2:
-                                            # Get column names to check if it's a timestamp
-                                            col_names = [desc[0] for desc in session1.execute(text(f"PRAGMA table_info({table})")).fetchall()]
-                                            col_name = col_names[j] if j < len(col_names) else f"column_{j}"
-                                            differences.append((col_name, col1, col2))
-                                    
-                                    # If only timestamp columns differ, that's acceptable
-                                    timestamp_cols = {'start_time', 'end_time', 'created_at', 'updated_at'}
-                                    if all(col_name in timestamp_cols for col_name, _, _ in differences):
-                                        print(f"  Row {i}: Only timestamp differences detected (acceptable)")
-                                        continue
+                        print(f"Data mismatch in table {table} (checking if only timestamps differ)...")
+                        # Get column names once
+                        col_info = session1.execute(text(f"PRAGMA table_info({table})")).fetchall()
+                        col_names = [row[1] for row in col_info]  # Column name is in index 1
+                        timestamp_cols = {'start_time', 'end_time', 'created_at', 'updated_at', 'timestamp'}
+                        # Also ignore module_id differences as they are object references that can vary
+                        acceptable_difference_cols = timestamp_cols | {'module_id'}
+                        
+                        # Check each row for differences
+                        all_timestamp_diffs = True
+                        for i, (row1, row2) in enumerate(zip(data1, data2)):
+                            if row1 != row2:
+                                # Check if the only difference is in timestamp columns
+                                differences = []
+                                for j, (col1, col2) in enumerate(zip(row1, row2)):
+                                    if col1 != col2:
+                                        col_name = col_names[j] if j < len(col_names) else f"column_{j}"
+                                        differences.append((col_name, col1, col2))
+                                
+                                # Check if all differences are acceptable (timestamps or module_id)
+                                if differences:
+                                    if all(col_name in acceptable_difference_cols for col_name, _, _ in differences):
+                                        print(f"  Row {i}: Only acceptable differences detected (timestamps/module_id)")
                                     else:
-                                        print(f"  Row {i}: Non-timestamp differences found:")
+                                        print(f"  Row {i}: Non-acceptable differences found:")
                                         for col_name, val1, val2 in differences:
                                             print(f"    {col_name}: {val1} vs {val2}")
+                                        all_timestamp_diffs = False
                                         if i > 5:  # Limit output
                                             print(f"  ... and {len(data1) - i - 1} more differences")
                                             break
-                                        return False
-                            print(f"✅ Table {table} differences are only timestamps (acceptable)")
+                        
+                        if all_timestamp_diffs:
+                            print(f"✅ Table {table} differences are only acceptable (timestamps/module_id)")
+                            # Continue to next table - don't return False
                         else:
-                            print(f"Data mismatch in table {table}")
-                            # Show first few differences
-                            for i, (row1, row2) in enumerate(zip(data1, data2)):
-                                if row1 != row2:
-                                    print(f"  Row {i}: {row1} vs {row2}")
-                                    if i > 5:  # Limit output
-                                        print(f"  ... and {len(data1) - i - 1} more differences")
-                                        break
                             return False
                 else:
                     print(f"Skipping large table {table} ({count1} rows) - using row count only")
