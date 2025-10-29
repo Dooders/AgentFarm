@@ -1828,37 +1828,9 @@ class Environment(AECEnv):
                 # Execute the action
                 action_result = action_obj.execute(agent)
 
-                # Log action to database if available
-                if self.db and agent:
-                    try:
-                        # Extract target_id from action result if available
-                        action_target_id = None
-                        if isinstance(action_result, dict) and "details" in action_result:
-                            details = action_result["details"]
-                            if isinstance(details, dict):
-                                # For gather actions, use resource_id as target_id
-                                if action_name == "gather" and "resource_id" in details:
-                                    action_target_id = details["resource_id"]
-                                # For other actions, use target_id if available
-                                elif "target_id" in details:
-                                    action_target_id = details["target_id"]
-
-                        self.db.logger.log_agent_action(
-                            step_number=self.time,
-                            agent_id=agent_id,
-                            action_type=action_name,
-                            action_target_id=action_target_id,
-                            reward=0,  # Reward will be calculated later
-                            details=(action_result.get("details", {}) if isinstance(action_result, dict) else {}),
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            "failed_to_log_agent_action",
-                            action_name=action_name,
-                            error=str(e),
-                            exc_info=True,
-                        )
-                        logger.warning(f"Failed to log agent action {action_name}: {e}")
+                # Note: Action logging is handled by the agent's _execute_action method
+                # which provides more complete logging including calculated rewards and
+                # proper target_id extraction. This avoids duplicate logging entries.
             else:
                 logger.warning("action_not_found_in_action_registry", action_name=action_name)
         else:
