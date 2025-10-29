@@ -450,10 +450,7 @@ class TestConsolidatedObservationSystem:
         perception_comp.get_observation_tensor = Mock(side_effect=Exception("Perception error"))
         
         # Test observation generation with error
-        with patch('farm.utils.logging.get_logger') as mock_get_logger:
-            mock_logger = Mock()
-            mock_get_logger.return_value = mock_logger
-            
+        with patch('farm.core.agent.core.logger') as mock_logger:
             observation = agent._create_observation()
             
             # Should log error
