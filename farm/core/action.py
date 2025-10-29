@@ -30,6 +30,7 @@ from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Constants
 
 # Helper Functions for Common Action Patterns
 
@@ -578,14 +579,8 @@ def attack_action(agent: "AgentCore") -> dict:
         health_ratio = agent.current_health / agent.starting_health
         base_damage = agent.attack_strength * health_ratio
 
-        # Apply defensive damage reduction if target is defending
-        if closest_target.is_defending:
-            combat_comp = closest_target.get_component("combat")
-            if combat_comp:
-                defense_reduction = combat_comp.config.defense_damage_reduction
-            else:
-                defense_reduction = 0.5  # Default fallback
-            base_damage *= 1.0 - defense_reduction
+        # Note: Defense damage reduction is handled in the combat component's take_damage method
+        # No need to apply it here as it would result in double-reduction
 
         # Apply damage to target
         actual_damage = closest_target.take_damage(base_damage)

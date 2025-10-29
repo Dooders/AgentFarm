@@ -1282,7 +1282,8 @@ class Environment(AECEnv):
             agent_type=agent.__class__.__name__,
             position=agent.position,
             initial_resources=agent.resource_level,
-            initial_health=agent.get_component("combat").health if agent.get_component("combat") else 0.0,
+            # Avoid redundant lookups for combat component
+            initial_health=(agent.get_component("combat").health if agent.get_component("combat") else 0.0),
             generation=getattr(agent, "generation", 0),
             genome_id=getattr(agent, "genome_id", None),
             step=self.time,
