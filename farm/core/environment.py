@@ -949,9 +949,15 @@ class Environment(AECEnv):
             if self.time % 100 == 0 and self.time > 0:
                 # Calculate agent statistics
                 agents_alive = len(self.agents)
-                avg_health = (
-                    np.mean([a.current_health for a in self._agent_objects.values()]) if self._agent_objects else 0
-                )
+                # Get health from combat component to ensure proper capping
+                health_values = []
+                for a in self._agent_objects.values():
+                    combat_comp = a.get_component("combat")
+                    if combat_comp:
+                        health_values.append(combat_comp.health)
+                    else:
+                        health_values.append(0.0)
+                avg_health = np.mean(health_values) if health_values else 0
                 avg_resources = (
                     np.mean([a.resource_level for a in self._agent_objects.values()]) if self._agent_objects else 0
                 )
@@ -1276,7 +1282,8 @@ class Environment(AECEnv):
             agent_type=agent.__class__.__name__,
             position=agent.position,
             initial_resources=agent.resource_level,
-            initial_health=agent.current_health,
+            # Avoid redundant lookups for combat component
+            initial_health=(agent.get_component("combat").health if agent.get_component("combat") else 0.0),
             generation=getattr(agent, "generation", 0),
             genome_id=getattr(agent, "genome_id", None),
             step=self.time,
@@ -1735,7 +1742,11 @@ class Environment(AECEnv):
             "TERRAIN_COST": terrain_cost_local,
         }
 
-        self_hp01 = agent.current_health / agent.starting_health
+        # Get health from combat component to ensure proper capping
+        combat_comp = agent.get_component("combat")
+        current_health = combat_comp.health if combat_comp else 0.0
+        starting_health = combat_comp.config.starting_health if combat_comp else 100.0
+        self_hp01 = current_health / starting_health
 
         obs = self.agent_observations[agent_id]
         obs.perceive_world(

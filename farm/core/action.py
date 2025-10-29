@@ -30,6 +30,7 @@ from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Constants
 
 # Helper Functions for Common Action Patterns
 
@@ -45,9 +46,7 @@ def validate_agent_config(agent: "AgentCore", action_name: str) -> bool:
         bool: True if config is valid, False otherwise
     """
     if agent.config is None:
-        logger.error(
-            f"Agent {agent.agent_id} has no config, skipping {action_name} action"
-        )
+        logger.error(f"Agent {agent.agent_id} has no config, skipping {action_name} action")
         return False
     return True
 
@@ -67,9 +66,7 @@ def calculate_euclidean_distance(pos1: tuple, pos2: tuple) -> float:
     return math.sqrt(dx * dx + dy * dy)
 
 
-def find_closest_entity(
-    agent: "AgentCore", entities: list, entity_type: str = "target"
-) -> tuple:
+def find_closest_entity(agent: "AgentCore", entities: list, entity_type: str = "target") -> tuple:
     """Find the closest entity to the agent from a list of entities.
 
     Args:
@@ -194,15 +191,11 @@ def _validate_move_action(agent: "AgentCore", result: dict) -> dict:
 
         # Position should have changed if move was successful
         if old_pos == new_pos and old_pos == actual_pos:
-            validation["warnings"].append(
-                "Agent position did not change after successful move"
-            )
+            validation["warnings"].append("Agent position did not change after successful move")
 
         # Current position should match reported new position
         if actual_pos != new_pos:
-            validation["issues"].append(
-                f"Agent position mismatch: expected {new_pos}, got {actual_pos}"
-            )
+            validation["issues"].append(f"Agent position mismatch: expected {new_pos}, got {actual_pos}")
             validation["valid"] = False
 
     return validation
@@ -221,17 +214,11 @@ def _validate_gather_action(agent: "AgentCore", result: dict) -> dict:
 
     # Check resource increase
     if "agent_resources_before" in details and "amount_gathered" in details:
-        expected_resources = (
-            details["agent_resources_before"] + details["amount_gathered"]
-        )
+        expected_resources = details["agent_resources_before"] + details["amount_gathered"]
         actual_resources = agent.resource_level
 
-        if (
-            abs(actual_resources - expected_resources) > 0.01
-        ):  # Allow small floating point differences
-            validation["issues"].append(
-                f"Resource mismatch: expected {expected_resources}, got {actual_resources}"
-            )
+        if abs(actual_resources - expected_resources) > 0.01:  # Allow small floating point differences
+            validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
             validation["valid"] = False
 
     return validation
@@ -270,15 +257,11 @@ def _validate_share_action(agent: "AgentCore", result: dict) -> dict:
 
     # Check resource decrease
     if "agent_resources_before" in details and "amount_shared" in details:
-        expected_resources = (
-            details["agent_resources_before"] - details["amount_shared"]
-        )
+        expected_resources = details["agent_resources_before"] - details["amount_shared"]
         actual_resources = agent.resource_level
 
         if abs(actual_resources - expected_resources) > 0.01:
-            validation["issues"].append(
-                f"Resource mismatch: expected {expected_resources}, got {actual_resources}"
-            )
+            validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
             validation["valid"] = False
 
     return validation
@@ -297,9 +280,7 @@ def _validate_defend_action(agent: "AgentCore", result: dict) -> dict:
 
     # Check defensive state
     if not getattr(agent, "is_defending", False):
-        validation["issues"].append(
-            "Agent is not in defensive state after defend action"
-        )
+        validation["issues"].append("Agent is not in defensive state after defend action")
         validation["valid"] = False
 
     # Check resource cost
@@ -308,9 +289,7 @@ def _validate_defend_action(agent: "AgentCore", result: dict) -> dict:
         actual_resources = agent.resource_level
 
         if abs(actual_resources - expected_resources) > 0.01:
-            validation["issues"].append(
-                f"Resource mismatch: expected {expected_resources}, got {actual_resources}"
-            )
+            validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
             validation["valid"] = False
 
     return validation
@@ -334,9 +313,7 @@ def _validate_reproduce_action(agent: "AgentCore", result: dict) -> dict:
         actual_resources = agent.resource_level
 
         if abs(actual_resources - expected_resources) > 0.01:
-            validation["issues"].append(
-                f"Resource mismatch: expected {expected_resources}, got {actual_resources}"
-            )
+            validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
             validation["valid"] = False
     elif "resources_before" in details and "offspring_cost" in details:
         # Fallback to old logic if resources_after is not available
@@ -344,9 +321,7 @@ def _validate_reproduce_action(agent: "AgentCore", result: dict) -> dict:
         actual_resources = agent.resource_level
 
         if abs(actual_resources - expected_resources) > 0.01:
-            validation["issues"].append(
-                f"Resource mismatch: expected {expected_resources}, got {actual_resources}"
-            )
+            validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
             validation["valid"] = False
 
     return validation
@@ -482,9 +457,7 @@ class Action:
                 return {"success": True, "error": None, "details": {}}
 
         except Exception as e:
-            logger.error(
-                f"Action {self.name} failed for agent {agent.agent_id}: {str(e)}"
-            )
+            logger.error(f"Action {self.name} failed for agent {agent.agent_id}: {str(e)}")
             return {
                 "success": False,
                 "error": str(e),
@@ -568,22 +541,14 @@ def attack_action(agent: "AgentCore") -> dict:
 
     try:
         # Find nearby agents using spatial index
-        nearby = agent.spatial_service.get_nearby(
-            agent.position, attack_range, ["agents"]
-        )
+        nearby = agent.spatial_service.get_nearby(agent.position, attack_range, ["agents"])
         nearby_agents = nearby.get("agents", [])
 
         # Filter out self and find valid targets
-        valid_targets = [
-            target
-            for target in nearby_agents
-            if target.agent_id != agent.agent_id and target.alive
-        ]
+        valid_targets = [target for target in nearby_agents if target.agent_id != agent.agent_id and target.alive]
 
         if not valid_targets:
-            logger.debug(
-                f"Agent {agent.agent_id} found no valid targets within range {attack_range}"
-            )
+            logger.debug(f"Agent {agent.agent_id} found no valid targets within range {attack_range}")
             return {
                 "success": False,
                 "error": "No valid targets found within attack range",
@@ -591,9 +556,7 @@ def attack_action(agent: "AgentCore") -> dict:
             }
 
         # Find the closest target using helper function
-        closest_target, min_distance = find_closest_entity(
-            agent, valid_targets, "target"
-        )
+        closest_target, min_distance = find_closest_entity(agent, valid_targets, "target")
 
         if closest_target is None:
             return {
@@ -616,20 +579,14 @@ def attack_action(agent: "AgentCore") -> dict:
         health_ratio = agent.current_health / agent.starting_health
         base_damage = agent.attack_strength * health_ratio
 
-        # Apply defensive damage reduction if target is defending
-        if closest_target.is_defending:
-            defense_reduction = getattr(closest_target, "defense_strength", 0.5)
-            base_damage *= 1.0 - defense_reduction
+        # Note: Defense damage reduction is handled in the combat component's take_damage method
+        # No need to apply it here as it would result in double-reduction
 
         # Apply damage to target
         actual_damage = closest_target.take_damage(base_damage)
 
         # Update combat statistics
-        if (
-            actual_damage > 0
-            and hasattr(agent, "metrics_service")
-            and agent.metrics_service
-        ):
+        if actual_damage > 0 and hasattr(agent, "metrics_service") and agent.metrics_service:
             try:
                 agent.metrics_service.record_combat_encounter()
                 agent.metrics_service.record_successful_attack()
@@ -710,20 +667,14 @@ def gather_action(agent: "AgentCore") -> dict:
 
     try:
         # Find nearby resources using spatial index
-        nearby = agent.spatial_service.get_nearby(
-            agent.position, gathering_range, ["resources"]
-        )
+        nearby = agent.spatial_service.get_nearby(agent.position, gathering_range, ["resources"])
         nearby_resources = nearby.get("resources", [])
 
         # Filter out depleted resources
-        available_resources = [
-            r for r in nearby_resources if not r.is_depleted() and r.amount > 0
-        ]
+        available_resources = [r for r in nearby_resources if not r.is_depleted() and r.amount > 0]
 
         if not available_resources:
-            logger.debug(
-                f"Agent {agent.agent_id} found no available resources within range {gathering_range}"
-            )
+            logger.debug(f"Agent {agent.agent_id} found no available resources within range {gathering_range}")
             return {
                 "success": False,
                 "error": "No available resources found within gathering range",
@@ -731,9 +682,7 @@ def gather_action(agent: "AgentCore") -> dict:
             }
 
         # Find the closest resource using helper function
-        closest_resource, min_distance = find_closest_entity(
-            agent, available_resources, "resource"
-        )
+        closest_resource, min_distance = find_closest_entity(agent, available_resources, "resource")
 
         if closest_resource is None:
             return {
@@ -785,15 +734,11 @@ def gather_action(agent: "AgentCore") -> dict:
             details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
-        logger.debug(
-            f"Agent {agent.agent_id} gathered {actual_gathered} resources from {min_distance:.2f} units away"
-        )
+        logger.debug(f"Agent {agent.agent_id} gathered {actual_gathered} resources from {min_distance:.2f} units away")
 
         return {
             "success": actual_gathered > 0,
-            "error": (
-                None if actual_gathered > 0 else "No resources were actually gathered"
-            ),
+            "error": (None if actual_gathered > 0 else "No resources were actually gathered"),
             "details": {
                 "amount_gathered": actual_gathered,
                 "resource_before": resource_amount_before,
@@ -862,22 +807,14 @@ def share_action(agent: "AgentCore") -> dict:
 
     try:
         # Find nearby agents using spatial index
-        nearby = agent.spatial_service.get_nearby(
-            agent.position, share_range, ["agents"]
-        )
+        nearby = agent.spatial_service.get_nearby(agent.position, share_range, ["agents"])
         nearby_agents = nearby.get("agents", [])
 
         # Filter out self and find valid targets
-        valid_targets = [
-            target
-            for target in nearby_agents
-            if target.agent_id != agent.agent_id and target.alive
-        ]
+        valid_targets = [target for target in nearby_agents if target.agent_id != agent.agent_id and target.alive]
 
         if not valid_targets:
-            logger.debug(
-                f"Agent {agent.agent_id} found no valid targets within range {share_range}"
-            )
+            logger.debug(f"Agent {agent.agent_id} found no valid targets within range {share_range}")
             return {
                 "success": False,
                 "error": "No valid targets found within sharing range",
@@ -892,9 +829,7 @@ def share_action(agent: "AgentCore") -> dict:
         min_keep = getattr(agent.config, "min_keep_resources", 5)
 
         # Only share if agent has enough resources to keep minimum and share
-        if not check_resource_requirement(
-            agent, min_keep + share_amount, "share", "resources to share"
-        ):
+        if not check_resource_requirement(agent, min_keep + share_amount, "share", "resources to share"):
             return {
                 "success": False,
                 "error": f"Insufficient resources to share while maintaining minimum of {min_keep}",
@@ -1048,9 +983,7 @@ def move_action(agent: "AgentCore") -> dict:
                 details={},  # Minimal details to avoid duplication with action-specific logging
             )
 
-            logger.debug(
-                f"Agent {agent.agent_id} moved from {original_position} to {new_position}"
-            )
+            logger.debug(f"Agent {agent.agent_id} moved from {original_position} to {new_position}")
 
             return {
                 "success": True,
@@ -1077,9 +1010,7 @@ def move_action(agent: "AgentCore") -> dict:
                 details={},  # Minimal details to avoid duplication
             )
 
-            logger.debug(
-                f"Agent {agent.agent_id} could not move to invalid position {new_position}"
-            )
+            logger.debug(f"Agent {agent.agent_id} could not move to invalid position {new_position}")
 
             return {
                 "success": False,
@@ -1183,7 +1114,7 @@ def reproduce_action(agent: "AgentCore") -> dict:
             # For asexual reproduction, target is the agent itself
             # For sexual reproduction, target would be the mate's ID
             target_id = agent.agent_id  # Asexual reproduction - self-reproduction
-            
+
             # Log successful reproduction
             log_interaction_safely(
                 agent,
@@ -1304,15 +1235,11 @@ def defend_action(agent: "AgentCore") -> dict:
                 combat_comp.heal(defense_healing)
                 healing_applied = combat_comp.health - health_before
                 if healing_applied > 0:
-                    logger.debug(
-                        f"Agent {agent.agent_id} healed {healing_applied} health while defending"
-                    )
+                    logger.debug(f"Agent {agent.agent_id} healed {healing_applied} health while defending")
 
         # Calculate simple reward for defensive action
         # Use config value if available, otherwise fall back to default
-        reward = getattr(
-            getattr(agent.config, "action_rewards", None), "defend_success_reward", 0.02
-        )
+        reward = getattr(getattr(agent.config, "action_rewards", None), "defend_success_reward", 0.02)
         agent.total_reward += reward
 
         # Log the defend action using helper function
@@ -1388,9 +1315,7 @@ def pass_action(agent: "AgentCore") -> dict:
     try:
         # Calculate small reward for strategic inaction
         # Use config value if available, otherwise fall back to default
-        reward = getattr(
-            getattr(agent.config, "action_rewards", None), "pass_action_reward", 0.01
-        )
+        reward = getattr(getattr(agent.config, "action_rewards", None), "pass_action_reward", 0.01)
         agent.total_reward += reward
 
         # Log the pass action using helper function

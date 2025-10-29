@@ -337,13 +337,18 @@ class MetricsTracker:
                 exc_info=True
             )
         
+        # Get health from combat component to ensure proper capping
+        combat_comp = agent.get_component("combat")
+        current_health = combat_comp.health if combat_comp else 0.0
+        starting_health = combat_comp.config.starting_health if combat_comp else 100.0
+        
         return (
             agent.agent_id,
             agent.position[0],  # x coordinate
             agent.position[1],  # y coordinate
             agent.resource_level,
-            agent.current_health,
-            agent.starting_health,
+            current_health,
+            starting_health,
             starvation_counter,
             int(agent.is_defending),
             agent.total_reward,
@@ -399,7 +404,15 @@ class MetricsTracker:
             current_max_generation = max([a.generation for a in alive_agents]) if alive_agents else 0
 
             # Calculate health and age metrics
-            average_health = sum(a.current_health for a in alive_agents) / total_agents if total_agents > 0 else 0
+            # Get health from combat component to ensure proper capping
+            health_values = []
+            for a in alive_agents:
+                combat_comp = a.get_component("combat")
+                if combat_comp:
+                    health_values.append(combat_comp.health)
+                else:
+                    health_values.append(0.0)
+            average_health = sum(health_values) / total_agents if total_agents > 0 else 0
             average_age = sum(time - a.birth_time for a in alive_agents) / total_agents if total_agents > 0 else 0
             average_reward = sum(a.total_reward for a in alive_agents) / total_agents if total_agents > 0 else 0
 
