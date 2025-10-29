@@ -35,17 +35,17 @@ def bilinear_distribute_value(
     x_floor = int(math.floor(x))
     y_floor = int(math.floor(y))
 
-    # Ensure we don't go out of bounds first
+    # Calculate fractional parts before clamping
+    x_frac = x - x_floor
+    y_frac = y - y_floor
+
+    # Ensure we don't go out of bounds
     x_floor = max(0, min(x_floor, width - 1))
     y_floor = max(0, min(y_floor, height - 1))
 
     # Calculate ceil positions after clamping floor
     x_ceil = min(x_floor + 1, width - 1)
     y_ceil = min(y_floor + 1, height - 1)
-
-    # Calculate interpolation weights using clamped floor positions
-    x_frac = x - x_floor
-    y_frac = y - y_floor
 
     # Bilinear interpolation weights
     w00 = (1 - x_frac) * (1 - y_frac)  # bottom-left

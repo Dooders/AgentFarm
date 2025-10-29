@@ -324,6 +324,8 @@ class PerceptionComponent(AgentComponent):
                     )
             else:
                 # Use cached spatial query to avoid redundant calls
+                # Note: Using R+1 radius to ensure we capture resources at the edge of perception
+                # This accounts for discretization and ensures complete coverage
                 nearby = self._get_cached_spatial_query(R + 1, ["resources"])
                 nearby_resources = nearby.get("resources", [])
         except Exception as e:
@@ -390,7 +392,8 @@ class PerceptionComponent(AgentComponent):
             device = getattr(self.core, "device", torch.device("cpu"))
 
         # Convert device to string for consistency with ObservationConfig
-        device_str = str(device)
+        # Use device.type for consistent format ('cuda' or 'cpu')
+        device_str = device.type if hasattr(device, 'type') else str(device)
 
         # Use the full observation system if available
         if self.agent_observation and hasattr(self.core, "environment") and self.core.environment:

@@ -17,22 +17,7 @@ from datetime import datetime
 
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
-
-
-def seed_all_rngs(seed):
-    """
-    Comprehensive RNG seeding function for deterministic behavior.
-    
-    Parameters
-    ----------
-    seed : int
-        Seed value to use for all random number generators
-    """
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.benchmark = False
+from conftest import seed_all_rngs
 
 
 def get_simulation_state_hash(environment, debug=False):

@@ -7,13 +7,9 @@ randomness, focusing on high-risk components: Movement, Resource, Reproduction,
 and DefaultAgentBehavior.
 """
 
-import random
-from typing import List, Tuple
-
 import pytest
-import torch
 
-from farm.core.agent import AgentCore, AgentServices, DefaultAgentBehavior
+from farm.core.agent import AgentCore, DefaultAgentBehavior
 from farm.core.agent.components import (
     CombatComponent,
     MovementComponent,

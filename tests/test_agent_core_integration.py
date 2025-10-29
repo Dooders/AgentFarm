@@ -426,7 +426,9 @@ class TestConsolidatedObservationSystem:
         observation = agent._create_observation()
         
         # Should return zero tensor as fallback
-        expected_shape = (1, 11, 11)
+        # Shape is computed from perception radius: (1, 2*R+1, 2*R+1) where R=5
+        perception_radius = 5  # Default perception radius
+        expected_shape = (1, 2 * perception_radius + 1, 2 * perception_radius + 1)
         assert observation.shape == expected_shape
         assert observation.dtype == torch.float32
         assert torch.all(observation == 0)
@@ -457,7 +459,9 @@ class TestConsolidatedObservationSystem:
             mock_logger.error.assert_called()
             
             # Should return zero tensor as fallback
-            expected_shape = (1, 11, 11)
+            # Shape is computed from perception radius: (1, 2*R+1, 2*R+1) where R=5
+            perception_radius = 5  # Default perception radius
+            expected_shape = (1, 2 * perception_radius + 1, 2 * perception_radius + 1)
             assert observation.shape == expected_shape
             assert observation.dtype == torch.float32
             assert torch.all(observation == 0)
