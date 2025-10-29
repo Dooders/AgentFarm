@@ -417,7 +417,16 @@ class BaseDQNModule:
 
         # Compute target Q values using Double Q-Learning
         with torch.no_grad():
-            next_actions = self.q_network(next_states).argmax(1, keepdim=True)
+            # Use deterministic argmax for tie-breaking
+            q_vals = self.q_network(next_states)
+            # For each sample in batch, find first occurrence of max value
+            next_actions = []
+            for i in range(q_vals.shape[0]):
+                max_val = q_vals[i].max()
+                first_max_idx = (q_vals[i] == max_val).nonzero(as_tuple=True)[0][0]
+                next_actions.append(first_max_idx)
+            next_actions = torch.tensor(next_actions, device=q_vals.device).unsqueeze(1)
+            
             next_q_values = self.target_network(next_states).gather(1, next_actions)
             target_q_values = (
                 rewards.unsqueeze(1)
@@ -619,12 +628,18 @@ class BaseDQNModule:
             return self._state_cache[state_hash]
 
         with torch.no_grad():
-            action = self.q_network(state_tensor).argmax().item()
+            q_values = self.q_network(state_tensor)
+            # Use deterministic argmax: when there are ties, always pick the first (lowest index)
+            # This is important for determinism since early in training many Q-values are equal
+            max_q = q_values.max()
+            # Find all indices with max value and pick the first one deterministically
+            action = (q_values == max_q).nonzero(as_tuple=True)[0][0].item()
 
         # Update cache with LRU behavior
         if len(self._state_cache) >= self._max_cache_size:
-            # Remove a random item if cache is full
-            self._state_cache.pop(next(iter(self._state_cache)))
+            # Remove the first item (oldest) deterministically
+            first_key = next(iter(self._state_cache))
+            self._state_cache.pop(first_key)
 
         self._state_cache[state_hash] = action
         return action

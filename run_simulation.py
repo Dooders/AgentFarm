@@ -13,6 +13,17 @@ import time
 import warnings
 from io import StringIO
 
+# CRITICAL: Ensure PYTHONHASHSEED is set for deterministic simulations
+# This must be set before Python starts, so we restart if needed
+if 'PYTHONHASHSEED' not in os.environ or os.environ['PYTHONHASHSEED'] != '0':
+    print("⚠️  PYTHONHASHSEED not set - restarting with PYTHONHASHSEED=0 for determinism...", flush=True)
+    os.environ['PYTHONHASHSEED'] = '0'
+    # Restart the script with the same arguments
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+# If we reach here, PYTHONHASHSEED is set correctly
+# Note: We don't print this during normal operation to avoid cluttering output
+
 # Local imports
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation

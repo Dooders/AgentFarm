@@ -91,6 +91,12 @@ def find_closest_entity(
         if distance < min_distance:
             min_distance = distance
             closest_entity = entity
+        elif distance == min_distance and closest_entity is not None:
+            # Break ties deterministically by entity ID
+            entity_id = getattr(entity, 'agent_id', None) or getattr(entity, 'resource_id', None)
+            closest_id = getattr(closest_entity, 'agent_id', None) or getattr(closest_entity, 'resource_id', None)
+            if entity_id and closest_id and entity_id < closest_id:
+                closest_entity = entity
 
     if closest_entity is None:
         logger.debug(f"Agent {agent.agent_id} could not find a closest {entity_type}")
@@ -885,7 +891,8 @@ def share_action(agent: "AgentCore") -> dict:
             }
 
         # Find the agent with the lowest resource level (simple need-based selection)
-        target = min(valid_targets, key=lambda a: a.resource_level)
+        # Break ties deterministically by agent_id to ensure consistent behavior
+        target = min(valid_targets, key=lambda a: (a.resource_level, a.agent_id))
 
         # Determine share amount (simple fixed amount if agent has enough resources)
         share_amount = getattr(agent.config, "share_amount", 2)

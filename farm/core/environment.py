@@ -301,8 +301,9 @@ class Environment(AECEnv):
                 self.add_agent(agent)
 
         # Update spatial index references now that resources and agents are initialized
-        # Pass a live view of agent objects to avoid accidental string ID lists
-        self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
+        # Sort agents by ID for deterministic ordering
+        sorted_agents = sorted(self._agent_objects.values(), key=lambda a: a.agent_id)
+        self.spatial_index.set_references(sorted_agents, self.resources)
         self.spatial_index.update()
 
         # Quadtree and spatial hash indices are already initialized above
@@ -467,7 +468,9 @@ class Environment(AECEnv):
         """
         # Use generic method with "agents" index
         nearby = self.spatial_index.get_nearby(position, radius, ["agents"])
-        return nearby.get("agents", [])
+        # Sort agents by ID for deterministic order
+        agents_list = nearby.get("agents", [])
+        return sorted(agents_list, key=lambda a: a.agent_id)
 
     def get_nearby_resources(self, position: Tuple[float, float], radius: float) -> List[Any]:
         """Find all resources within radius of position.
@@ -486,7 +489,9 @@ class Environment(AECEnv):
         """
         # Use generic method with "resources" index
         nearby = self.spatial_index.get_nearby(position, radius, ["resources"])
-        return nearby.get("resources", [])
+        # Sort resources by ID for deterministic order
+        resources_list = nearby.get("resources", [])
+        return sorted(resources_list, key=lambda r: r.resource_id)
 
     def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Any]:
         """Find nearest resource to position.
@@ -1248,7 +1253,9 @@ class Environment(AECEnv):
         self.spatial_index.mark_positions_dirty()
 
         # Update spatial index references to include the new agent
-        self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
+        # Sort agents by ID for deterministic ordering
+        sorted_agents = sorted(self._agent_objects.values(), key=lambda a: a.agent_id)
+        self.spatial_index.set_references(sorted_agents, self.resources)
 
         # Batch log to database using SQLAlchemy
         if self.db is not None:
@@ -2031,7 +2038,9 @@ class Environment(AECEnv):
             for agent in self._agent_objects.values():
                 self.agent_observations[agent.agent_id] = AgentObservation(self.observation_config)
 
-        self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
+        # Sort agents by ID for deterministic spatial index ordering
+        sorted_agents = sorted(self._agent_objects.values(), key=lambda a: a.agent_id)
+        self.spatial_index.set_references(sorted_agents, self.resources)
         self.spatial_index.update()
 
         # Reset cycle tracking for proper timestep semantics
@@ -2039,7 +2048,8 @@ class Environment(AECEnv):
         self._cycle_complete = False
 
         # Rebuild PettingZoo agent lists from current alive agents
-        self.agents = [a.agent_id for a in self._agent_objects.values() if a.alive]
+        # Sort by agent_id to ensure deterministic order
+        self.agents = sorted([a.agent_id for a in self._agent_objects.values() if a.alive])
         self.agent_selection = self.agents[0] if self.agents else None
         self.rewards = {a: 0 for a in self.agents}
         self._cumulative_rewards = {a: 0 for a in self.agents}

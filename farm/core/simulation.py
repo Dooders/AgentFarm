@@ -223,6 +223,10 @@ def init_random_seeds(seed=None):
         The seed value to use, by default None
     """
     if seed is not None:
+        # Set PYTHONHASHSEED for deterministic hash-based operations
+        # This must be set before Python starts, but we set it here for subprocess compatibility
+        os.environ['PYTHONHASHSEED'] = '0'
+        
         # Set the Python random module seed
         random.seed(seed)
 
@@ -235,13 +239,13 @@ def init_random_seeds(seed=None):
             if torch.cuda.is_available():
                 torch.cuda.manual_seed(seed)
                 torch.cuda.manual_seed_all(seed)
-                # Uncomment for full determinism (may affect performance)
-                # torch.backends.cudnn.deterministic = True
-                # torch.backends.cudnn.benchmark = False
+                # Enable full determinism for CUDA operations
+                torch.backends.cudnn.deterministic = True
+                torch.backends.cudnn.benchmark = False
         except ImportError:
             logger.info("pytorch_unavailable", message="Skipping torch seed initialization")
 
-        logger.info("random_seeds_initialized", seed=seed, deterministic=True)
+        logger.info("random_seeds_initialized", seed=seed, deterministic=True, pythonhashseed="0")
 
 
 def run_simulation(
