@@ -263,6 +263,9 @@ class AgentCore:
         except Exception:
             action_result = {"success": False, "error": "Action execution failed"}
 
+        # Update state snapshot to reflect any changes from action execution
+        self._update_state_snapshot()
+
         # Get post-action state
         post_action_state = self.state.snapshot(self.services.get_current_time())
 

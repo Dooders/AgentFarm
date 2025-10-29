@@ -148,8 +148,16 @@ class Genome:
                 if hasattr(module, "load_state_dict"):
                     module.load_state_dict(state_dict)
 
-        # Set health
-        agent.current_health = genome["current_health"]
+        # Set health through combat component to ensure proper capping
+        combat_comp = agent.get_component("combat")
+        if combat_comp:
+            # Set health directly but ensure it's capped at starting_health
+            combat_comp.health = min(genome["current_health"], combat_comp.config.starting_health)
+            # Update agent state to reflect the health change
+            agent.state.update_health(combat_comp.health)
+        else:
+            # Fallback if no combat component (shouldn't happen in normal operation)
+            agent.state.update_health(genome["current_health"])
 
         return agent
 
