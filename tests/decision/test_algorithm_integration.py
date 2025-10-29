@@ -201,9 +201,13 @@ class TestAlgorithmRegistryIntegration(unittest.TestCase):
 
         num_actions = 3
 
-        # Provide enough time values for logging system and benchmark
-        time_values = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
-        with patch("time.time", side_effect=time_values):
+        # Mock time to avoid delays - use a counter that increments on each call
+        time_counter = [0.0]
+        def mock_time():
+            time_counter[0] += 0.1
+            return time_counter[0]
+        
+        with patch("time.time", side_effect=mock_time):
             benchmark = AlgorithmBenchmark(
                 algorithms=algorithms,
                 num_actions=num_actions,
@@ -251,9 +255,13 @@ class TestAlgorithmBenchmarkingIntegration(unittest.TestCase):
             state_dim=4,
         )
 
-        # Mock time to avoid delays - provide enough values for logging system
-        time_values = [float(i) for i in range(20)]  # More values for logging system
-        with patch("time.time", side_effect=time_values):
+        # Mock time to avoid delays - use a counter that increments on each call
+        time_counter = [0.0]
+        def mock_time():
+            time_counter[0] += 0.1
+            return time_counter[0]
+        
+        with patch("time.time", side_effect=mock_time):
             results = benchmark.run_benchmark()
 
         self.assertEqual(len(results), 3)
