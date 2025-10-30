@@ -199,7 +199,9 @@ class RewardComponent(AgentComponent):
                 self.core.state_manager.add_reward(reward)
             elif hasattr(self.core, "total_reward"):
                 # Fallback to direct attribute access for backward compatibility
-                self.core.total_reward = self.cumulative_reward
+                # Add the reward delta instead of overwriting with cumulative
+                # This ensures cumulative behavior and avoids conflicts with action-level rewards
+                self.core.total_reward += reward
 
         # Keep history within limits
         if len(self.reward_history) > self.config.max_history_length:
