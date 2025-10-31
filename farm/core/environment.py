@@ -1850,6 +1850,7 @@ class Environment(AECEnv):
                 if (
                     self.db
                     and hasattr(self.db, "logger")
+                    and self.db.logger
                     and action_result
                     and isinstance(action_result, dict)
                 ):
@@ -1872,8 +1873,8 @@ class Environment(AECEnv):
                             agent_id=agent_id,
                             action_type=action_name,
                             action_target_id=action_target_id,
-                            reward=None,  # Reward calculation is handled elsewhere in the learning system
-                            details=action_result.get("details", {}) if isinstance(action_result, dict) else {},
+                            reward=None,  # Reward is not available at this point; it will be calculated elsewhere in the learning system. None indicates the value is not yet available.
+                            details=action_result.get("details", {}),
                         )
                     except Exception as e:
                         # Log warning but don't crash on database logging failure

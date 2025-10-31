@@ -7,7 +7,6 @@ with realistic ant metabolism, behavior, and colony dynamics.
 """
 
 import sys
-import os
 import json
 from pathlib import Path
 

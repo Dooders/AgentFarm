@@ -199,6 +199,9 @@ class RewardComponent(AgentComponent):
                 self.core.state_manager.add_reward(reward)
             elif hasattr(self.core, "total_reward"):
                 # Fallback to direct attribute access for backward compatibility
+                # NOTE: This contradicts the refactoring plan in docs/refactoring/total_reward_refactoring.md,
+                # which recommends all updates go through state_manager.add_reward(). This fallback maintains
+                # the problematic dual-storage pattern. Consider removing once refactoring is complete.
                 # Add the reward delta instead of overwriting with cumulative
                 # This ensures cumulative behavior and avoids conflicts with action-level rewards
                 self.core.total_reward += reward

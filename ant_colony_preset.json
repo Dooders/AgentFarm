@@ -1,5 +1,5 @@
 {
-    "simulation_steps": 100,
+    "simulation_steps": 2000,
     "max_steps": 2000,
     "seed": 1234567890,
     "agent_parameters": {
