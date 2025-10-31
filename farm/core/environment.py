@@ -666,9 +666,9 @@ class Environment(AECEnv):
         agent_id = agent.agent_id
         death_time = self.time
         death_cause = getattr(agent, "death_cause", "unknown")
-        
+
         self.record_death()
-        
+
         # Update agent death in database
         if hasattr(self, "db") and self.db is not None:
             try:
@@ -680,7 +680,7 @@ class Environment(AECEnv):
                     death_time=death_time,
                     error=str(e),
                 )
-        
+
         if agent_id in self._agent_objects:
             del self._agent_objects[agent_id]
         if agent_id in self.agents:
