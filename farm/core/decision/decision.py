@@ -604,21 +604,24 @@ class DecisionModule:
                         selected_idx = int(np.random.choice(len(probabilities), p=probabilities))
                         return selected_idx
                 
+                # If action_weights provided but no probabilities, use weighted random
+                if action_weights is not None:
+                    return self._weighted_random_action(action_weights, enabled_actions)
+                
                 # Otherwise use algorithm's selection (may include epsilon-greedy exploration)
-                # For exploration, we'll use weighted random as fallback if needed
+                # Note: action_weights handling already done above, so this path is only for no weights
                 action_full = self.algorithm.select_action_with_mask(state_np, action_mask)
                 
-                # If algorithm returned action but we have weights, we can't modify it
-                # But we can use weighted random for the fallback cases
+                # Handle enabled_actions restrictions
                 if enabled_actions is not None and len(enabled_actions) > 0:
                     if action_full in enabled_actions:
                         return enabled_actions.index(action_full)
                     else:
-                        # Fallback to weighted random
+                        # Fallback to random enabled action (action_weights already handled above)
                         logger.debug(
-                            f"Algorithm returned action {action_full} not in enabled_actions, using weighted random"
+                            f"Algorithm returned action {action_full} not in enabled_actions, selecting random enabled action"
                         )
-                        return self._weighted_random_action(action_weights, enabled_actions)
+                        return int(np.random.randint(len(enabled_actions)))
                 # No enabled_actions restriction: return full-space index
                 action = action_full
             elif self.algorithm is not None and hasattr(self.algorithm, "select_action"):
@@ -638,6 +641,10 @@ class DecisionModule:
                                 return int(np.random.choice(len(enabled_probs), p=enabled_probs))
                     else:
                         return int(np.random.choice(len(probabilities), p=probabilities))
+                
+                # If action_weights provided but no probabilities, use weighted random
+                if action_weights is not None:
+                    return self._weighted_random_action(action_weights, enabled_actions)
                 
                 action = self.algorithm.select_action(state_np)
                 action = self._filter_action_with_mask(action, enabled_actions)

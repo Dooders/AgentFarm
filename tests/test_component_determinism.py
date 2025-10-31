@@ -79,9 +79,15 @@ class TestDefaultAgentBehaviorDeterminism:
     
     def test_action_history_consistency(self, deterministic_seed):
         """Test that action history is consistent across runs."""
-        from farm.core.action import ActionType
+        from farm.core.action import Action
+        from unittest.mock import Mock
         
-        actions = [ActionType.MOVE, ActionType.GATHER, ActionType.ATTACK]
+        # Create Action objects with weights (matching ActionType names)
+        actions = [
+            Action("move", 0.4, Mock()),
+            Action("gather", 0.3, Mock()),
+            Action("attack", 0.3, Mock()),
+        ]
         
         # Create two behaviors with same seed
         seed_all_rngs(deterministic_seed)

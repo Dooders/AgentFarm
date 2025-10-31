@@ -612,12 +612,28 @@ class BaseDQNModule:
         # Exploration: use weighted random if weights provided
         if random.random() < epsilon:
             if action_weights is not None and len(action_weights) == self.output_dim:
+                # Normalize weights for probability distribution
+                weights = action_weights.copy()
+                # Handle negative or zero weights
+                weights = np.maximum(weights, 0.0)
+                total_weight = np.sum(weights)
+                if total_weight > 0 and not np.isclose(total_weight, 0):
+                    weights = weights / total_weight
+                else:
+                    # Fallback to uniform if all weights are zero
+                    weights = np.ones(self.output_dim) / self.output_dim
                 # Weighted random selection
-                return int(np.random.choice(self.output_dim, p=action_weights))
+                return int(np.random.choice(self.output_dim, p=weights))
             return random.randint(0, self.output_dim - 1)
 
         # Cache tensor hash for repeated states
         state_hash = hash(state_tensor.cpu().numpy().tobytes())
+        
+        # Check cache first when action_weights is None (cached actions are valid)
+        # When action_weights is provided, weights affect selection so we can't use cache
+        if action_weights is None:
+            if state_hash in self._state_cache:
+                return self._state_cache[state_hash]
 
         # Exploitation: scale Q-values by weights before argmax
         with torch.no_grad():
@@ -632,8 +648,9 @@ class BaseDQNModule:
             else:
                 action = q_values.argmax().item()
             
-            # Cache the action
-            if state_hash not in self._state_cache:
+            # Cache the action only when action_weights is None
+            # (when weights are provided, cached action might be invalid for future calls)
+            if action_weights is None and state_hash not in self._state_cache:
                 # Update cache with LRU behavior
                 if len(self._state_cache) >= self._max_cache_size:
                     # Remove a random item if cache is full

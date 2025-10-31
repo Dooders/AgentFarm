@@ -37,14 +37,25 @@ class DefaultAgentBehavior(IAgentBehavior):
         Select an action using weighted random selection based on action weights.
         
         Args:
-            core: Agent core
+            core: Agent core (can be None if enabled_actions is provided)
             state: Current state (unused)
             enabled_actions: Optional list of allowed actions
         
         Returns:
             Weighted randomly selected Action
         """
-        action = weighted_random_choice(core.actions, enabled_actions)
+        # Use enabled_actions if provided, otherwise use core.actions
+        if enabled_actions is not None:
+            actions_list = enabled_actions
+        elif core is not None:
+            actions_list = core.actions
+        else:
+            raise ValueError("Either core or enabled_actions must be provided")
+        
+        # Pass actions_list as the actions parameter
+        # If enabled_actions was provided, weighted_random_choice will use it directly
+        # Otherwise, it uses actions_list (from core.actions)
+        action = weighted_random_choice(actions_list, enabled_actions)
         self.action_history.append(action.name)
         return action
     
