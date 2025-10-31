@@ -1244,14 +1244,32 @@ class Environment(AECEnv):
 
         # Generate and set genome_id if not already set
         if not agent.genome_id or agent.genome_id == "":
-            agent_type = getattr(agent, "agent_type", agent.__class__.__name__)
-            generation = getattr(agent, "generation", 0)
             parent_ids = agent.state.parent_ids
+            
+            # Create database checker callback to query existing genome IDs
+            def check_genome_id_exists(genome_id: str) -> bool:
+                """Check if a genome_id exists in the database for this simulation."""
+                if not hasattr(self, "db") or self.db is None:
+                    return False
+                try:
+                    from farm.database.models import AgentModel
+                    result = self.db._execute_in_transaction(
+                        lambda session: session.query(AgentModel)
+                        .filter(
+                            AgentModel.simulation_id == self.simulation_id,
+                            AgentModel.genome_id == genome_id,
+                        )
+                        .first()
+                        is not None
+                    )
+                    return result
+                except Exception:
+                    # If database query fails, assume it doesn't exist
+                    return False
+            
             genome_id = self.identity.genome_id(
-                agent_type=agent_type,
-                generation=generation,
-                parents=parent_ids,
-                time_step=self.time,
+                parent_ids=parent_ids,
+                existing_genome_checker=check_genome_id_exists,
             )
             # Update genome_id in agent state
             agent.state._state = agent.state._state.model_copy(update={"genome_id": str(genome_id)})

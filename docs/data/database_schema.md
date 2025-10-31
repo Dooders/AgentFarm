@@ -187,7 +187,7 @@ Stores metadata and lifecycle information for each agent.
 | initial_resources  | FLOAT                  | Starting resource amount                          |
 | starting_health    | FLOAT                  | Starting health points                            |
 | starvation_counter | INTEGER                | Counter for consecutive steps with zero resources |
-| genome_id          | STRING(64)             | Unique identifier for agent's genome              |
+| genome_id          | STRING(64)             | Unique identifier for agent's genome. Format: `parent1:parent2[:counter]`. Examples: `::` (initial), `agent_a:` (cloning), `agent_a:agent_b` (sexual reproduction), `agent_a:agent_b:0` (with counter) |
 | generation         | INTEGER                | Generation number in evolutionary lineage         |
 | action_weights     | JSON                   | Dictionary of action names to their weights       |
 

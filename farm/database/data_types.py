@@ -2130,28 +2130,90 @@ class DecisionSummary_3:
 class GenomeId(BaseModel):
     """Structured representation of a genome identifier.
 
-    Format: 'AgentType:generation:parents:time'
-    where parents is either 'none' or parent IDs joined by '_'
+    Format (preferred): 'parent1:parent2[:counter]'
+    - No parents (initial agents): '::' or '::counter'
+    - Single parent (cloning): 'agent_a:' or 'agent_a:counter'
+    - Two parents (sexual reproduction): 'agent_a:agent_b' or 'agent_a:agent_b:counter'
     """
 
-    agent_type: str
-    generation: int
     parent_ids: list[str]
-    creation_time: int
+    counter: Optional[int] = None
 
     @classmethod
     def from_string(cls, genome_id: str) -> "GenomeId":
-        """Parse a genome ID string into a structured object."""
-        agent_type, generation, parents, time = genome_id.split(":")
-        parent_ids = [] if parents == "none" else parents.split("_")
-        return cls(
-            agent_type=agent_type,
-            generation=int(generation),
-            parent_ids=parent_ids,
-            creation_time=int(time),
-        )
+        """Parse a genome ID string into a structured object.
+        
+        Format: parent1:parent2[:counter]
+        """
+        parts = genome_id.split(":")
+        if len(parts) == 2:
+            # Format: parent1:parent2 or :: (no counter)
+            parent1, parent2 = parts
+            if parent1 == "" and parent2 == "":
+                # Initial agent: ::
+                parent_ids = []
+            elif parent2 == "":
+                # Single parent: agent_a:
+                parent_ids = [parent1] if parent1 else []
+            else:
+                # Two parents: agent_a:agent_b
+                parent_ids = [parent1, parent2] if parent1 else [parent2]
+            return cls(parent_ids=parent_ids, counter=None)
+        
+        elif len(parts) == 3:
+            # Format: parent1:parent2:counter or :::counter
+            parent1, parent2, counter_str = parts
+            try:
+                counter = int(counter_str)
+            except ValueError:
+                # If counter part is not a number, treat as two parents with non-numeric suffix
+                # This shouldn't happen in normal operation
+                counter = None
+                parent_ids = [parent1, parent2] if parent1 and parent2 else [p for p in [parent1, parent2] if p]
+                return cls(parent_ids=parent_ids, counter=counter)
+            
+            # Counter successfully parsed
+            if parent1 == "" and parent2 == "":
+                # Initial agent: ::counter
+                parent_ids = []
+            elif parent2 == "":
+                # Single parent: agent_a:counter
+                parent_ids = [parent1] if parent1 else []
+            else:
+                # Two parents: agent_a:agent_b:counter
+                parent_ids = [parent1, parent2] if parent1 else [parent2]
+            return cls(parent_ids=parent_ids, counter=counter)
+        
+        else:
+            # Unexpected format - try to handle gracefully
+            # Assume it's trying to be new format and take first two parts as parents
+            if len(parts) >= 2:
+                parent1, parent2 = parts[0], parts[1]
+                parent_ids = [parent1, parent2] if parent1 and parent2 else [p for p in [parent1, parent2] if p]
+                counter = int(parts[-1]) if len(parts) > 2 and parts[-1].isdigit() else None
+                return cls(parent_ids=parent_ids, counter=counter)
+            else:
+                # Fallback to empty
+                return cls(parent_ids=[])
 
     def to_string(self) -> str:
-        """Convert the genome ID object back to string format."""
-        parent_str = "_".join(self.parent_ids) if self.parent_ids else "none"
-        return f"{self.agent_type}:{self.generation}:{parent_str}:{self.creation_time}"
+        """Convert the genome ID object back to string format.
+        
+        Uses new format: parent1:parent2[:counter]
+        """
+        if not self.parent_ids:
+            # No parents: ::
+            base = "::"
+        elif len(self.parent_ids) == 1:
+            # Single parent: agent_a:
+            base = f"{self.parent_ids[0]}:"
+        elif len(self.parent_ids) >= 2:
+            # Two parents: agent_a:agent_b
+            base = f"{self.parent_ids[0]}:{self.parent_ids[1]}"
+        else:
+            base = "::"
+        
+        if self.counter is not None:
+            return f"{base}{self.counter}"
+        else:
+            return base

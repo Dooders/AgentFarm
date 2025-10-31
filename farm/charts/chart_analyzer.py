@@ -682,7 +682,21 @@ Lifespan Distribution Analysis:
     def _analyze_lineage_size(self, df: pd.DataFrame) -> str:
         """Analyze the distribution of lineage sizes."""
         try:
-            lineage_sizes = df["genome_id"].value_counts()
+            # Extract base genome_id (without counter) for lineage grouping
+            # Format: parent1:parent2[:counter] -> group by parent1:parent2
+            def get_base_genome_id(genome_id: str) -> str:
+                """Extract base genome_id without counter."""
+                if pd.isna(genome_id) or genome_id == "":
+                    return "::"
+                parts = str(genome_id).split(":")
+                # If has counter (3 parts), return first 2 parts joined
+                if len(parts) == 3 and parts[2].isdigit():
+                    return f"{parts[0]}:{parts[1]}"
+                # Otherwise return as-is (already base or malformed)
+                return ":".join(parts[:2]) if len(parts) >= 2 else str(genome_id)
+            
+            df["base_genome_id"] = df["genome_id"].apply(get_base_genome_id)
+            lineage_sizes = df["base_genome_id"].value_counts()
             avg_lineage = float(lineage_sizes.mean())
             max_lineage = lineage_sizes.max()
             successful_lineages = lineage_sizes.gt(avg_lineage).sum()

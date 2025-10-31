@@ -52,32 +52,66 @@ class TestIdentity(unittest.TestCase):
         seq3 = [str(identity3.agent_id()) for _ in range(5)]
         self.assertNotEqual(seq1, seq3)
 
-    def test_genome_id_format(self):
+    def test_genome_id_format_no_parents(self):
+        """Test genome ID format for initial agents (no parents)."""
         identity = Identity()
-        gid = str(identity.genome_id("SystemAgent", 2, ["p1", "p2"], 100))
-        self.assertEqual(gid, "SystemAgent:2:p1_p2:100")
-        gid_none = str(identity.genome_id("Sys", 0, [], 0))
-        self.assertEqual(gid_none, "Sys:0:none:0")
+        gid = str(identity.genome_id([]))
+        self.assertEqual(gid, "::")
 
-    def test_genome_id_with_single_parent(self):
+    def test_genome_id_format_single_parent(self):
+        """Test genome ID format for cloning (single parent)."""
         identity = Identity()
-        gid = str(identity.genome_id("system", 1, ["agent_abc123"], 50))
-        self.assertEqual(gid, "system:1:agent_abc123:50")
+        gid = str(identity.genome_id(["agent_p1"]))
+        self.assertEqual(gid, "agent_p1:")
 
-    def test_genome_id_with_multiple_parents(self):
+    def test_genome_id_format_two_parents(self):
+        """Test genome ID format for sexual reproduction (two parents)."""
         identity = Identity()
-        gid = str(identity.genome_id("independent", 3, ["parent1", "parent2", "parent3"], 200))
-        self.assertEqual(gid, "independent:3:parent1_parent2_parent3:200")
+        gid = str(identity.genome_id(["agent_p1", "agent_p2"]))
+        self.assertEqual(gid, "agent_p1:agent_p2")
 
-    def test_genome_id_deterministic(self):
-        identity1 = Identity(IdentityConfig(deterministic_seed=123))
-        identity2 = Identity(IdentityConfig(deterministic_seed=123))
+    def test_genome_id_counter_increments(self):
+        """Test that genome ID counter increments for duplicate base IDs."""
+        identity = Identity()
+        # First occurrence - no counter
+        gid1 = str(identity.genome_id(["agent_p1", "agent_p2"]))
+        self.assertEqual(gid1, "agent_p1:agent_p2")
         
-        gid1 = str(identity1.genome_id("system", 0, [], 0))
-        gid2 = str(identity2.genome_id("system", 0, [], 0))
-        # Note: genome_id format doesn't use deterministic generation, 
-        # it's just string formatting, so they should match
-        self.assertEqual(gid1, gid2)
+        # Simulate registry having the base - manually add it
+        identity._genome_id_registry["agent_p1:agent_p2"] = -1
+        
+        # Second occurrence - should get counter 0
+        gid2 = str(identity.genome_id(["agent_p1", "agent_p2"]))
+        self.assertEqual(gid2, "agent_p1:agent_p2:0")
+        
+        # Third occurrence - should get counter 1
+        gid3 = str(identity.genome_id(["agent_p1", "agent_p2"]))
+        self.assertEqual(gid3, "agent_p1:agent_p2:1")
+
+    def test_genome_id_registry_tracking(self):
+        """Test that registry correctly tracks genome IDs."""
+        identity = Identity()
+        
+        # Create first genome ID (no parents)
+        gid1 = str(identity.genome_id([]))
+        self.assertEqual(gid1, "::")
+        self.assertIn("::", identity._genome_id_registry)
+        
+        # Create second with same base - should get counter
+        gid2 = str(identity.genome_id([]))
+        self.assertEqual(gid2, "::0")
+
+    def test_genome_id_with_existing_checker(self):
+        """Test genome ID generation with database checker callback."""
+        identity = Identity()
+        
+        # Create a mock checker that says base exists
+        def checker(genome_id: str) -> bool:
+            return genome_id == "agent_p1:agent_p2"
+        
+        # First call - checker says base exists, so should get counter 0
+        gid = str(identity.genome_id(["agent_p1", "agent_p2"], existing_genome_checker=checker))
+        self.assertEqual(gid, "agent_p1:agent_p2:0")
 
 
 if __name__ == "__main__":

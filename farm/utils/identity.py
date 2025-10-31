@@ -11,7 +11,7 @@ import hashlib
 import math
 import uuid as _uu
 from dataclasses import dataclass
-from typing import NewType, Optional, Sequence, Tuple
+from typing import Callable, NewType, Optional, Sequence, Tuple
 
 # Default alphabet for short ID generation (same as ShortUUID)
 DEFAULT_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -89,6 +89,9 @@ class Identity:
         )
         self._agent_counter = 0
         self._resource_counter = 0
+        # Registry to track base genome IDs and their counters
+        # Format: base_genome_id (e.g., "agent_a:", "agent_a:agent_b", "::") -> max_counter (int)
+        self._genome_id_registry: dict[str, int] = {}
 
     # ----- Core helpers -----
     def short(self, length: Optional[int] = None) -> str:
@@ -150,13 +153,82 @@ class Identity:
 
     def genome_id(
         self,
-        agent_type: str,
-        generation: int,
-        parents: Sequence[str],
-        time_step: int,
+        parent_ids: Sequence[str],
+        existing_genome_checker: Optional[Callable[[str], bool]] = None,
     ) -> GenomeIdStr:
-        parents_part = "none" if not parents else "_".join(parents)
-        return GenomeIdStr(f"{agent_type}:{generation}:{parents_part}:{time_step}")
+        """Generate a genome ID based on parent agent IDs.
+        
+        Format:
+        - No parents (initial agents): `::`
+        - Single parent (cloning): `{parent_id}:`
+        - Two parents (sexual reproduction): `{parent1}:{parent2}`
+        - With counter for duplicates: `base:counter` (e.g., `agent_a:agent_b:0`)
+        
+        Args:
+            parent_ids: List of parent agent IDs. Empty for initial agents.
+            existing_genome_checker: Optional callback to check if a genome_id exists
+                in the database. Should return True if genome_id exists, False otherwise.
+        
+        Returns:
+            GenomeIdStr in the format `parent1:parent2[:counter]`
+        """
+        # Generate base genome ID from parent IDs
+        if not parent_ids:
+            # No parents: initial agent
+            base_genome_id = "::"
+        elif len(parent_ids) == 1:
+            # Single parent: cloning
+            base_genome_id = f"{parent_ids[0]}:"
+        elif len(parent_ids) == 2:
+            # Two parents: sexual reproduction
+            base_genome_id = f"{parent_ids[0]}:{parent_ids[1]}"
+        else:
+            # More than 2 parents (shouldn't happen normally, but handle gracefully)
+            # Use first two parents
+            base_genome_id = f"{parent_ids[0]}:{parent_ids[1]}"
+        
+        # Check if this base genome ID already exists
+        # First check the in-memory registry
+        base_exists_in_registry = base_genome_id in self._genome_id_registry
+        max_counter_in_registry = self._genome_id_registry.get(base_genome_id, -1)
+        
+        # Check database if checker provided
+        base_exists_in_db = False
+        max_counter_in_db = -1
+        
+        if existing_genome_checker:
+            # Check if base exists (without counter)
+            base_exists_in_db = existing_genome_checker(base_genome_id)
+            
+            # Find highest counter in database
+            # Base genome_id may end with ':' (:: or agent_a:) or not (agent_a:agent_b)
+            # Format with counter: base:counter if base doesn't end with ':', else basecounter
+            separator = "" if base_genome_id.endswith(":") else ":"
+            counter = 0
+            while existing_genome_checker(f"{base_genome_id}{separator}{counter}"):
+                max_counter_in_db = counter
+                counter += 1
+        
+        # Determine if base already exists (either in registry or database)
+        base_exists = base_exists_in_registry or base_exists_in_db
+        
+        # Determine max counter from both sources
+        max_counter = max(max_counter_in_registry, max_counter_in_db)
+        
+        if base_exists:
+            # Base exists - need to use counter
+            # Next counter is max_counter + 1, or 0 if max_counter is -1
+            next_counter = max_counter + 1 if max_counter >= 0 else 0
+            self._genome_id_registry[base_genome_id] = next_counter
+            # Base genome_id may end with ':' (:: or agent_a:) or not (agent_a:agent_b)
+            # Format with counter: base:counter if base doesn't end with ':', else basecounter
+            separator = "" if base_genome_id.endswith(":") else ":"
+            return GenomeIdStr(f"{base_genome_id}{separator}{next_counter}")
+        else:
+            # First occurrence - no counter needed
+            # Register with -1 to indicate base exists but no counter yet
+            self._genome_id_registry[base_genome_id] = -1
+            return GenomeIdStr(base_genome_id)
 
     # ----- Parsers/validators -----
     @staticmethod
