@@ -1242,6 +1242,20 @@ class Environment(AECEnv):
             )
             raise
 
+        # Generate and set genome_id if not already set
+        if not agent.genome_id or agent.genome_id == "":
+            agent_type = getattr(agent, "agent_type", agent.__class__.__name__)
+            generation = getattr(agent, "generation", 0)
+            parent_ids = agent.state.parent_ids
+            genome_id = self.identity.genome_id(
+                agent_type=agent_type,
+                generation=generation,
+                parents=parent_ids,
+                time_step=self.time,
+            )
+            # Update genome_id in agent state
+            agent.state._state = agent.state._state.model_copy(update={"genome_id": str(genome_id)})
+
         agent_data = [
             {
                 "simulation_id": self.simulation_id,
@@ -1251,7 +1265,7 @@ class Environment(AECEnv):
                 "position": agent.position,
                 "initial_resources": agent.resource_level,
                 "starting_health": self._get_agent_starting_health(agent),
-                "genome_id": getattr(agent, "genome_id", None),
+                "genome_id": agent.genome_id,
                 "generation": getattr(agent, "generation", 0),
                 "action_weights": self._get_agent_action_weights(agent),
             }

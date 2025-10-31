@@ -59,6 +59,26 @@ class TestIdentity(unittest.TestCase):
         gid_none = str(identity.genome_id("Sys", 0, [], 0))
         self.assertEqual(gid_none, "Sys:0:none:0")
 
+    def test_genome_id_with_single_parent(self):
+        identity = Identity()
+        gid = str(identity.genome_id("system", 1, ["agent_abc123"], 50))
+        self.assertEqual(gid, "system:1:agent_abc123:50")
+
+    def test_genome_id_with_multiple_parents(self):
+        identity = Identity()
+        gid = str(identity.genome_id("independent", 3, ["parent1", "parent2", "parent3"], 200))
+        self.assertEqual(gid, "independent:3:parent1_parent2_parent3:200")
+
+    def test_genome_id_deterministic(self):
+        identity1 = Identity(IdentityConfig(deterministic_seed=123))
+        identity2 = Identity(IdentityConfig(deterministic_seed=123))
+        
+        gid1 = str(identity1.genome_id("system", 0, [], 0))
+        gid2 = str(identity2.genome_id("system", 0, [], 0))
+        # Note: genome_id format doesn't use deterministic generation, 
+        # it's just string formatting, so they should match
+        self.assertEqual(gid1, gid2)
+
 
 if __name__ == "__main__":
     unittest.main()

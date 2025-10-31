@@ -568,8 +568,14 @@ class AgentCore:
 
             # Set offspring generation
             offspring.generation = self.generation + 1
+            
+            # Set offspring parent IDs (genome_id will be generated in add_agent() using parent info)
+            offspring.state._state = offspring.state._state.model_copy(
+                update={"parent_ids": [self.agent_id]}
+            )
 
             # Add offspring to environment with immediate flush to ensure it's in database
+            # Genome ID will be generated in add_agent() using parent info
             self.environment.add_agent(offspring, flush_immediately=True)
 
             # Update reproduction component tracking
