@@ -17,6 +17,8 @@ import numpy as np
 import torch
 from pydantic import ValidationError
 
+np.random.seed(42)  # For reproducibility in tests
+
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import TIANSHOU_AVAILABLE, DecisionModule
 
@@ -191,6 +193,119 @@ class TestDecisionModule(unittest.TestCase):
         action = module.decide_action(state, None)
         self.assertIsInstance(action, int)
         self.assertTrue(0 <= action < module.num_actions)
+
+    def test_decide_action_with_action_weights(self):
+        """Test decide_action with action_weights parameter."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        state = torch.randn(8)
+        
+        # Create action weights favoring action 0
+        action_weights = np.array([0.7, 0.1, 0.1, 0.05, 0.03, 0.01, 0.01], dtype=np.float64)
+
+        # Test multiple selections to verify weighted random
+        selection_counts = {i: 0 for i in range(7)}
+        num_selections = 1000
+        
+        np.random.seed(42)
+        for _ in range(num_selections):
+            action = module.decide_action(state, action_weights=action_weights)
+            selection_counts[action] += 1
+
+        # Action 0 should be selected most often
+        self.assertGreater(selection_counts[0], selection_counts[1])
+        self.assertGreater(selection_counts[0], 600)  # Roughly 70%
+
+    def test_decide_action_with_weights_and_enabled_actions(self):
+        """Test decide_action with both action_weights and enabled_actions."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        state = torch.randn(8)
+        
+        # Weights for all actions
+        action_weights = np.array([0.1, 0.5, 0.3, 0.05, 0.03, 0.01, 0.01], dtype=np.float64)
+        # Only enable actions 1 and 2
+        enabled_actions = [1, 2]
+
+        # Test multiple selections
+        selection_counts = {1: 0, 2: 0}
+        num_selections = 1000
+        
+        np.random.seed(42)
+        for _ in range(num_selections):
+            action = module.decide_action(state, enabled_actions, action_weights=action_weights)
+            # Action is relative index (0 or 1) in enabled_actions
+            self.assertIn(action, [0, 1])
+            # Map to actual action index
+            actual_action = enabled_actions[action]
+            selection_counts[actual_action] += 1
+
+        # Action 1 (weight 0.5) should be selected more than action 2 (weight 0.3)
+        self.assertGreater(selection_counts[1], selection_counts[2])
+
+    def test_decide_action_with_weights_exploitation_probabilities(self):
+        """Test that weights scale probabilities during exploitation."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        state = torch.randn(8)
+        
+        # Create weights
+        action_weights = np.array([0.1, 0.1, 0.8, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
+
+        # Mock algorithm to provide probabilities
+        mock_probs = np.array([[0.25, 0.25, 0.25, 0.25, 0.0, 0.0, 0.0]], dtype=np.float32)
+        with patch.object(module.algorithm, "predict_proba", return_value=mock_probs):
+            # Test multiple selections
+            selection_counts = {i: 0 for i in range(7)}
+            num_selections = 1000
+            
+            np.random.seed(42)
+            for _ in range(num_selections):
+                action = module.decide_action(state, action_weights=action_weights)
+                selection_counts[action] += 1
+
+            # After scaling probabilities by weights, action 2 should dominate
+            # Original probs: [0.25, 0.25, 0.25, 0.25]
+            # After weights: [0.1*0.25, 0.1*0.25, 0.8*0.25, 0.0*0.25] = [0.025, 0.025, 0.2, 0.0]
+            # Normalized: [0.1, 0.1, 0.8, 0.0]
+            self.assertGreater(selection_counts[2], selection_counts[0])
+            self.assertGreater(selection_counts[2], selection_counts[1])
+
+    def test_decide_action_with_weights_backward_compatibility(self):
+        """Test that decide_action works without weights (backward compatibility)."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        state = torch.randn(8)
+
+        # Should work without weights parameter
+        action = module.decide_action(state)
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < module.num_actions)
+
+        # Should also work with None weights
+        action2 = module.decide_action(state, action_weights=None)
+        self.assertIsInstance(action2, int)
+        self.assertTrue(0 <= action2 < module.num_actions)
 
     @patch("farm.core.decision.decision.logger")
     def test_decide_action_exception_handling(self, mock_logger):

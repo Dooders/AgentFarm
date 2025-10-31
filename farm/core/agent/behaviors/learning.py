@@ -6,6 +6,7 @@ Wraps the DecisionModule for RL-based action selection and learning.
 
 from typing import Optional
 
+import numpy as np
 import torch
 
 from farm.core.action import Action, action_registry, action_name_to_index
@@ -66,8 +67,25 @@ class LearningAgentBehavior(IAgentBehavior):
         else:
             enabled_action_indices = None
         
-        # Use DecisionModule to select action
-        action_index = self.decision_module.decide_action(state, enabled_action_indices)
+        # Extract action weights for all actions in core.actions
+        # Map to indices matching DecisionModule's action space (0 to num_actions-1)
+        action_weights = np.zeros(self.decision_module.num_actions, dtype=np.float64)
+        for i, action in enumerate(core.actions):
+            if i < len(action_weights):
+                action_weights[i] = action.weight
+        
+        # Normalize weights
+        total_weight = np.sum(action_weights)
+        if total_weight > 0:
+            action_weights = action_weights / total_weight
+        else:
+            # Fallback to uniform if all weights are zero
+            action_weights = np.ones(self.decision_module.num_actions) / self.decision_module.num_actions
+        
+        # Use DecisionModule to select action with weights
+        action_index = self.decision_module.decide_action(
+            state, enabled_action_indices, action_weights=action_weights
+        )
         
         # Handle curriculum case - action_index is relative to enabled_actions
         if enabled_actions:

@@ -54,9 +54,9 @@ import torch.optim as optim
 from farm.core.device_utils import get_device
 from farm.utils.logging import get_logger
 
-logger = get_logger(__name__)
-
 from .config import BaseDQNConfig
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from farm.database.database import SimulationDatabase
@@ -574,18 +574,25 @@ class BaseDQNModule:
         self.cleanup()
 
     def select_action(
-        self, state_tensor: torch.Tensor, epsilon: Optional[float] = None
+        self,
+        state_tensor: torch.Tensor,
+        epsilon: Optional[float] = None,
+        action_weights: Optional[np.ndarray] = None,
     ) -> int:
         """Select an action using epsilon-greedy strategy with state caching.
 
         This method implements epsilon-greedy action selection with performance
         optimizations including state caching to avoid redundant network
-        evaluations for repeated states.
+        evaluations for repeated states. Action weights influence both
+        exploration (weighted random) and exploitation (scaled Q-values).
 
         Parameters:
             state_tensor (torch.Tensor): Current state observation
             epsilon (Optional[float]): Exploration rate override. If None, uses
                 the module's current epsilon value
+            action_weights (Optional[np.ndarray]): Normalized action weights array.
+                Used for weighted random during exploration and to scale Q-values
+                during exploitation.
 
         Returns:
             int: Selected action index (0 to output_dim - 1)
@@ -601,22 +608,56 @@ class BaseDQNModule:
         # Use epsilon-greedy strategy
         # Type assertion to help linter understand epsilon is not None
         assert epsilon is not None
+        
+        # Exploration: use weighted random if weights provided
         if random.random() < epsilon:
+            if action_weights is not None and len(action_weights) == self.output_dim:
+                # Normalize weights for probability distribution
+                weights = action_weights.copy()
+                # Handle negative or zero weights
+                weights = np.maximum(weights, 0.0)
+                total_weight = np.sum(weights)
+                if not np.isclose(total_weight, 0):
+                    weights = weights / total_weight
+                else:
+                    # Fallback to uniform if all weights are zero
+                    weights = np.ones(self.output_dim) / self.output_dim
+                # Weighted random selection
+                return int(np.random.choice(self.output_dim, p=weights))
             return random.randint(0, self.output_dim - 1)
 
         # Cache tensor hash for repeated states
         state_hash = hash(state_tensor.cpu().numpy().tobytes())
+        
+        # Check cache first when action_weights is None (cached actions are valid)
+        # When action_weights is provided, weights affect selection so we can't use cache
+        if action_weights is None:
+            if state_hash in self._state_cache:
+                return self._state_cache[state_hash]
 
-        if state_hash in self._state_cache:
-            return self._state_cache[state_hash]
-
+        # Exploitation: scale Q-values by weights before argmax
         with torch.no_grad():
-            action = self.q_network(state_tensor).argmax().item()
+            q_values = self.q_network(state_tensor)
+            
+            # Apply action weights to Q-values if provided
+            if action_weights is not None and len(action_weights) == self.output_dim:
+                # Convert weights to tensor and scale Q-values
+                weights_tensor = torch.from_numpy(action_weights).to(q_values.device).to(q_values.dtype)
+                scaled_q_values = q_values * weights_tensor
+                action = scaled_q_values.argmax().item()
+            else:
+                action = q_values.argmax().item()
+            
+            # Cache the action only when action_weights is None
+            # (when weights are provided, cached action might be invalid for future calls)
+            # Always update cache to reflect current Q-network state (important for training)
+            if action_weights is None:
+                # Only evict if adding a new entry and cache is full
+                if state_hash not in self._state_cache:
+                    if len(self._state_cache) >= self._max_cache_size:
+                        # Remove a random item if cache is full
+                        self._state_cache.pop(next(iter(self._state_cache)))
+                # Update cache (new entry or updating existing to reflect Q-network updates)
+                self._state_cache[state_hash] = action
 
-        # Update cache with LRU behavior
-        if len(self._state_cache) >= self._max_cache_size:
-            # Remove a random item if cache is full
-            self._state_cache.pop(next(iter(self._state_cache)))
-
-        self._state_cache[state_hash] = action
         return action
