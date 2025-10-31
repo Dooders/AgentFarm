@@ -11,6 +11,8 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import torch
 
+np.random.seed(42)  # For reproducibility in tests
+
 from farm.core.decision.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
 
 
@@ -275,6 +277,87 @@ class TestBaseDQNModule(unittest.TestCase):
         action2 = module.select_action(state)
 
         self.assertEqual(action1, action2)
+
+    def test_select_action_exploration_with_weights(self):
+        """Test action selection during exploration with action weights."""
+        module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
+        module.epsilon = 1.0  # Always explore
+
+        state = torch.randn(8).to(module.device)
+        
+        # Create action weights favoring action 0
+        action_weights = np.array([0.7, 0.1, 0.1, 0.1], dtype=np.float64)
+
+        # Test multiple selections
+        selection_counts = {0: 0, 1: 0, 2: 0, 3: 0}
+        num_selections = 1000
+        
+        np.random.seed(42)
+        for _ in range(num_selections):
+            action = module.select_action(state, action_weights=action_weights)
+            selection_counts[action] += 1
+
+        # Action 0 should be selected most often due to higher weight
+        self.assertGreater(selection_counts[0], selection_counts[1])
+        self.assertGreater(selection_counts[0], selection_counts[2])
+        self.assertGreater(selection_counts[0], selection_counts[3])
+        # Should be roughly 70% of selections
+        self.assertGreater(selection_counts[0], 600)
+
+    def test_select_action_exploitation_with_weights(self):
+        """Test action selection during exploitation with action weights scaling Q-values."""
+        module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
+        module.epsilon = 0.0  # Always exploit
+
+        state = torch.randn(8).to(module.device)
+        
+        # Create action weights that favor action 2
+        # Even if Q-network prefers action 0, weights should bias toward action 2
+        action_weights = np.array([0.1, 0.1, 0.8, 0.0], dtype=np.float64)
+
+        # With high weight on action 2, it should be selected
+        # Run multiple times with same state
+        actions = []
+        for _ in range(10):
+            action = module.select_action(state, action_weights=action_weights)
+            actions.append(action)
+
+        # Action 2 should be selected due to high weight (even if Q-values prefer others)
+        # Note: If Q-network strongly prefers another action, the weight scaling
+        # should still influence the selection
+        self.assertIn(2, actions)
+
+    def test_select_action_with_weights_backward_compatibility(self):
+        """Test that select_action works without weights (backward compatibility)."""
+        module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
+        module.epsilon = 1.0  # Always explore
+
+        state = torch.randn(8).to(module.device)
+
+        # Should work without weights parameter
+        action = module.select_action(state)
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < 4)
+
+        # Should also work with None weights
+        action2 = module.select_action(state, action_weights=None)
+        self.assertIsInstance(action2, int)
+        self.assertTrue(0 <= action2 < 4)
+
+    def test_select_action_weights_normalized(self):
+        """Test that unnormalized weights are handled correctly."""
+        module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
+        module.epsilon = 1.0  # Always explore
+
+        state = torch.randn(8).to(module.device)
+        
+        # Unnormalized weights (don't sum to 1)
+        action_weights = np.array([4.0, 2.0, 1.0, 1.0], dtype=np.float64)
+
+        # Should not raise error
+        action = module.select_action(state, action_weights=action_weights)
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < 4)
 
     def test_epsilon_decay(self):
         """Test epsilon decay during training."""

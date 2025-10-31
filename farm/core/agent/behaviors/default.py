@@ -4,12 +4,11 @@ Default agent behavior - random action selection.
 Simple behavior for testing and baseline comparison.
 """
 
-import random
 from typing import Optional
 
 import torch
 
-from farm.core.action import Action
+from farm.core.action import Action, weighted_random_choice
 
 from .base import IAgentBehavior
 
@@ -35,7 +34,7 @@ class DefaultAgentBehavior(IAgentBehavior):
         enabled_actions: Optional[list[Action]] = None,
     ) -> Action:
         """
-        Select a random action.
+        Select an action using weighted random selection based on action weights.
         
         Args:
             core: Agent core
@@ -43,14 +42,9 @@ class DefaultAgentBehavior(IAgentBehavior):
             enabled_actions: Optional list of allowed actions
         
         Returns:
-            Randomly selected Action
+            Weighted randomly selected Action
         """
-        actions = enabled_actions if enabled_actions else core.actions
-        
-        if not actions:
-            raise ValueError("No actions available to choose from")
-        
-        action = random.choice(actions)
+        action = weighted_random_choice(core.actions, enabled_actions)
         self.action_history.append(action.name)
         return action
     

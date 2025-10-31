@@ -90,8 +90,11 @@ class AgentCore:
         else:
             self.device = create_device_from_config(config)
 
-        # Actions
-        self.actions = action_registry.get_all(normalized=True)
+        # Actions - get base actions from registry
+        base_actions = action_registry.get_all(normalized=False)
+        
+        # Customize action weights based on agent type
+        self.actions = self._customize_action_weights(base_actions, agent_type, environment)
 
         # State management
         current_time = services.get_current_time()
@@ -128,6 +131,67 @@ class AgentCore:
         if movement_comp:
             movement_comp.position = position
             self.state.update_position(position)
+
+    def _customize_action_weights(
+        self, base_actions: list[Action], agent_type: str, environment: Optional["Environment"]
+    ) -> list[Action]:
+        """
+        Customize action weights based on agent type from configuration.
+        
+        Args:
+            base_actions: List of base actions from registry
+            agent_type: Agent type (e.g., 'system', 'independent', 'control')
+            environment: Environment instance that may contain config
+            
+        Returns:
+            List of Action objects with customized weights
+        """
+        # Map agent_type to config key
+        agent_type_map = {
+            "system": "SystemAgent",
+            "independent": "IndependentAgent",
+            "control": "ControlAgent",
+        }
+        config_key = agent_type_map.get(agent_type.lower())
+        
+        # Default weights (from global registry)
+        custom_actions = []
+        share_weight = None
+        attack_weight = None
+        
+        # Try to get agent-specific weights from config
+        if environment and hasattr(environment, "config") and environment.config:
+            agent_params = getattr(environment.config, "agent_parameters", None)
+            if agent_params and config_key and config_key in agent_params:
+                params = agent_params[config_key]
+                share_weight = params.get("share_weight")
+                attack_weight = params.get("attack_weight")
+        
+        # Create new Action objects with customized weights
+        for action in base_actions:
+            new_weight = action.weight  # Keep default weight
+            
+            # Override share and attack weights if specified in config
+            if action.name == "share" and share_weight is not None:
+                new_weight = share_weight
+            elif action.name == "attack" and attack_weight is not None:
+                new_weight = attack_weight
+            
+            # Create new Action with same name and function but updated weight
+            custom_actions.append(Action(action.name, new_weight, action.function))
+        
+        # Normalize weights
+        total_weight = sum(action.weight for action in custom_actions)
+        if total_weight > 0:
+            for action in custom_actions:
+                action.weight /= total_weight
+        else:
+            # Fallback to uniform if all weights are zero
+            uniform_weight = 1.0 / len(custom_actions)
+            for action in custom_actions:
+                action.weight = uniform_weight
+        
+        return custom_actions
 
     def attach_component(self, component: AgentComponent) -> None:
         """
@@ -481,6 +545,18 @@ class AgentCore:
     def get_state(self) -> AgentState:
         """Get complete state snapshot."""
         return self.state.snapshot(self.services.get_current_time())
+
+    def get_action_weights(self) -> Dict[str, float]:
+        """
+        Get action weights for this agent.
+
+        Returns a dictionary mapping action names to their selection weights.
+        These weights represent the initial probability/weight for each action type.
+
+        Returns:
+            Dictionary mapping action names (str) to weights (float)
+        """
+        return {action.name: action.weight for action in self.actions}
 
     @property
     def step_reward(self) -> float:

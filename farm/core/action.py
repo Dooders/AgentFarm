@@ -21,7 +21,9 @@ Technical Details:
 
 import math
 from enum import IntEnum
-from typing import TYPE_CHECKING, Callable, List, Union
+from typing import TYPE_CHECKING, Callable, List, Optional, Union
+
+import numpy as np
 
 if TYPE_CHECKING:
     from farm.core.agent import AgentCore
@@ -463,6 +465,49 @@ class Action:
                 "error": str(e),
                 "details": {"exception_type": type(e).__name__},
             }
+
+
+def weighted_random_choice(
+    actions: List["Action"], enabled_actions: Optional[List["Action"]] = None
+) -> "Action":
+    """Select an action using weighted random selection based on action weights.
+    
+    Args:
+        actions: List of all available actions
+        enabled_actions: Optional list of enabled actions (if None, uses all actions)
+    
+    Returns:
+        Selected Action based on normalized weights
+    
+    Raises:
+        ValueError: If no actions available or all weights are invalid
+    """
+    selection_pool = enabled_actions if enabled_actions else actions
+    
+    if not selection_pool:
+        raise ValueError("No actions available to choose from")
+    
+    # Extract weights
+    weights = np.array([action.weight for action in selection_pool], dtype=np.float64)
+    
+    # Check for zero or negative weights
+    if np.any(weights < 0):
+        logger.warning("Negative weights detected, setting to zero")
+        weights = np.maximum(weights, 0.0)
+    
+    # Normalize weights
+    total_weight = np.sum(weights)
+    
+    if total_weight <= 0 or np.isclose(total_weight, 0):
+        # Fallback to uniform distribution if all weights are zero
+        logger.debug("All weights are zero or invalid, using uniform random selection")
+        probabilities = np.ones(len(selection_pool)) / len(selection_pool)
+    else:
+        probabilities = weights / total_weight
+    
+    # Select action using weighted random
+    selected_idx = np.random.choice(len(selection_pool), p=probabilities)
+    return selection_pool[selected_idx]
 
 
 class action_registry:

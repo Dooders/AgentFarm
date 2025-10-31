@@ -35,19 +35,24 @@ class TestDefaultAgentBehaviorDeterminism:
     """Test deterministic behavior of DefaultAgentBehavior."""
     
     def test_action_selection_determinism(self, deterministic_seed):
-        """Test that random action selection is deterministic with same seed."""
-        from farm.core.action import ActionType
+        """Test that weighted random action selection is deterministic with same seed."""
+        from farm.core.action import Action
+        from unittest.mock import Mock
         
-        # Create mock actions using correct ActionType values
+        # Create Action objects with weights (DefaultAgentBehavior now uses weighted selection)
         actions = [
-            ActionType.DEFEND,
-            ActionType.ATTACK,
-            ActionType.GATHER,
-            ActionType.SHARE,
-            ActionType.MOVE,
-            ActionType.REPRODUCE,
-            ActionType.PASS,
+            Action("defend", 0.25, Mock()),
+            Action("attack", 0.1, Mock()),
+            Action("gather", 0.3, Mock()),
+            Action("share", 0.2, Mock()),
+            Action("move", 0.4, Mock()),
+            Action("reproduce", 0.15, Mock()),
+            Action("pass", 0.05, Mock()),
         ]
+        
+        # Create mock core with actions
+        mock_core = Mock()
+        mock_core.actions = actions
         
         # Test with same seed multiple times
         seed_all_rngs(deterministic_seed)
@@ -62,14 +67,14 @@ class TestDefaultAgentBehaviorDeterminism:
         
         for _ in range(20):
             seed_all_rngs(deterministic_seed)
-            action1 = behavior1.decide_action(None, None, actions)
-            actions1.append(action1)
+            action1 = behavior1.decide_action(mock_core, None, None)
+            actions1.append(action1.name)
             
             seed_all_rngs(deterministic_seed)
-            action2 = behavior2.decide_action(None, None, actions)
-            actions2.append(action2)
+            action2 = behavior2.decide_action(mock_core, None, None)
+            actions2.append(action2.name)
         
-        # Action sequences should be identical
+        # Action sequences should be identical (weighted selection is deterministic with same seed)
         assert actions1 == actions2, "DefaultAgentBehavior action selection is not deterministic"
     
     def test_action_history_consistency(self, deterministic_seed):
