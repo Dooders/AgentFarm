@@ -23,6 +23,7 @@ from farm.core.agent.config.component_configs import (
 )
 from farm.core.agent.config.component_configs import ResourceConfig as ComponentResourceConfig
 from farm.core.environment import Environment
+from farm.core.services.implementations import EnvironmentTimeService
 from farm.database.models import AgentModel, Simulation
 from farm.database.database import SimulationDatabase
 
@@ -66,7 +67,7 @@ class TestGenomeIdGeneration(unittest.TestCase):
         """Helper to create a test agent."""
         services = AgentServices(
             spatial_service=self.env.spatial_service,
-            time_service=self.env.time_service,
+            time_service=EnvironmentTimeService(self.env),
             metrics_service=Mock(),
             logging_service=Mock(),
             validation_service=Mock(is_valid_position=Mock(return_value=True)),
@@ -123,16 +124,23 @@ class TestGenomeIdGeneration(unittest.TestCase):
 
     def test_genome_id_saved_to_database(self):
         """Test that genome_id is saved to database when agent is logged."""
-        # Ensure simulation record exists
-        def create_simulation_record(session):
-            simulation = Simulation(
-                simulation_id=self.env.simulation_id,
-                parameters={"test": True},
-                simulation_db_path=self.db_path,
+        # Simulation record should already exist from environment initialization
+        # If it doesn't exist, create it (but this shouldn't normally be needed)
+        def ensure_simulation_record(session):
+            existing = (
+                session.query(Simulation)
+                .filter(Simulation.simulation_id == self.env.simulation_id)
+                .first()
             )
-            session.add(simulation)
+            if not existing:
+                simulation = Simulation(
+                    simulation_id=self.env.simulation_id,
+                    parameters={"test": True},
+                    simulation_db_path=self.db_path,
+                )
+                session.add(simulation)
 
-        self.env.db._execute_in_transaction(create_simulation_record)
+        self.env.db._execute_in_transaction(ensure_simulation_record)
 
         agent = self.create_test_agent("test_agent_db", "independent", generation=0)
         self.env.add_agent(agent)
