@@ -114,8 +114,8 @@ class TestGenomeIdGeneration(unittest.TestCase):
         self.assertNotEqual(agent.genome_id, "")
         self.assertIsInstance(agent.genome_id, str)
         
-        # Check format: new format is :: for initial agents (no parents)
-        self.assertEqual(agent.genome_id, "::")
+        # Check format: new format is ::1 for initial agents (first of kind, counter starts at 1)
+        self.assertEqual(agent.genome_id, "::1")
 
     def test_genome_id_saved_to_database(self):
         """Test that genome_id is saved to database when agent is logged."""
@@ -169,10 +169,10 @@ class TestGenomeIdGeneration(unittest.TestCase):
 
         # All should have the same genome_id format (::) for initial agents with no parents
         # They will be differentiated by counters if multiple are created
-        # First should be ::, second ::0, third ::1
-        self.assertEqual(genome_ids[0], "::")
-        self.assertEqual(genome_ids[1], "::0")
-        self.assertEqual(genome_ids[2], "::1")
+        # First should be ::1, second ::2, third ::3 (counters start at 1)
+        self.assertEqual(genome_ids[0], "::1")
+        self.assertEqual(genome_ids[1], "::2")
+        self.assertEqual(genome_ids[2], "::3")
 
     def test_genome_id_for_different_generations(self):
         """Test genome_id generation (generation no longer part of format)."""
@@ -187,10 +187,9 @@ class TestGenomeIdGeneration(unittest.TestCase):
             genome_ids.append(agent.genome_id)
 
         # All initial agents with no parents should get :: format with counters
-        # First gets ::, subsequent get ::0, ::1, ::2
-        self.assertEqual(genome_ids[0], "::")
-        for i in range(1, len(generations)):
-            self.assertEqual(genome_ids[i], f"::{i-1}")
+        # First gets ::1, subsequent get ::2, ::3, ::4 (counters start at 1)
+        for i in range(len(generations)):
+            self.assertEqual(genome_ids[i], f"::{i+1}")
 
     def test_genome_id_for_offspring_with_parent(self):
         """Test genome_id generation for offspring with parent information."""
@@ -208,9 +207,9 @@ class TestGenomeIdGeneration(unittest.TestCase):
         
         self.env.add_agent(offspring)
 
-        # Check offspring genome_id format: should be parent_id: for cloning
+        # Check offspring genome_id format: should be parent_id:1 for cloning (first offspring, counter starts at 1)
         self.assertNotEqual(offspring.genome_id, "")
-        self.assertEqual(offspring.genome_id, f"{parent.agent_id}:")
+        self.assertEqual(offspring.genome_id, f"{parent.agent_id}:1")
 
     def test_genome_id_no_longer_uses_time_step(self):
         """Test that genome_id no longer includes time step in new format."""
@@ -218,16 +217,16 @@ class TestGenomeIdGeneration(unittest.TestCase):
         agent1 = self.create_test_agent("agent_time_0", "system", generation=0)
         self.env.add_agent(agent1)
         genome_id_0 = agent1.genome_id
-        # Should be :: for initial agent with no parents
-        self.assertEqual(genome_id_0, "::")
+        # Should be ::1 for initial agent with no parents (first of kind, counter starts at 1)
+        self.assertEqual(genome_id_0, "::1")
 
         # Advance time and add another agent
         self.env.time = 10
         agent2 = self.create_test_agent("agent_time_10", "system", generation=0)
         self.env.add_agent(agent2)
         genome_id_10 = agent2.genome_id
-        # Should be ::0 (counter for second initial agent)
-        self.assertEqual(genome_id_10, "::0")
+        # Should be ::2 (counter for second initial agent, counters start at 1)
+        self.assertEqual(genome_id_10, "::2")
 
     def test_genome_id_not_overwritten_if_already_set(self):
         """Test that genome_id is not overwritten if already set."""
@@ -264,11 +263,11 @@ class TestGenomeIdGeneration(unittest.TestCase):
             offspring_ids.append(offspring.genome_id)
 
         # All offspring should have different genome_ids with counters
-        # First: parent_id:, second: parent_id:0, third: parent_id:1
+        # First: parent_id:1, second: parent_id:2, third: parent_id:3 (counters start at 1)
         self.assertEqual(len(set(offspring_ids)), len(offspring_ids))
-        self.assertEqual(offspring_ids[0], f"{parent.agent_id}:")
-        self.assertEqual(offspring_ids[1], f"{parent.agent_id}:0")
-        self.assertEqual(offspring_ids[2], f"{parent.agent_id}:1")
+        self.assertEqual(offspring_ids[0], f"{parent.agent_id}:1")
+        self.assertEqual(offspring_ids[1], f"{parent.agent_id}:2")
+        self.assertEqual(offspring_ids[2], f"{parent.agent_id}:3")
 
         # All should reference the parent
         for genome_id in offspring_ids:
@@ -313,8 +312,10 @@ class TestGenomeIdGeneration(unittest.TestCase):
                         self.assertNotEqual(offspring.genome_id, parent_genome_id)
                         
                         # Verify genome_id format includes parent
-                        # Should be parent_id: for cloning
+                        # Should be parent_id:1 for cloning (first offspring, counter starts at 1)
                         self.assertTrue(offspring.genome_id.startswith(f"{parent.agent_id}:"))
+                        # Should have counter starting from 1
+                        self.assertIn(":1", offspring.genome_id)
 
 
 if __name__ == "__main__":

@@ -125,7 +125,7 @@ The fundamental metrics that define an agent's characteristics and state:
 - **Agent Identification**
   - `agent_id`: Unique identifier for the agent
   - `agent_type`: Classification of agent's primary role (e.g., harvester, defender)
-  - `genome_id`: Identifier for agent's genetic template. Format: `parent1:parent2[:counter]` where parents are agent IDs and counter distinguishes multiple offspring from the same parent(s)
+  - `genome_id`: Identifier for agent's genetic template. Format: `parent1:parent2:counter` where parents are agent IDs and counter (>= 1) distinguishes multiple offspring from the same parent(s). First offspring is :1, second is :2, etc.
 
 - **Temporal Metrics**
   - `birth_time`: When agent was created/spawned

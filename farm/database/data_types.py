@@ -2130,10 +2130,10 @@ class DecisionSummary_3:
 class GenomeId(BaseModel):
     """Structured representation of a genome identifier.
 
-    Format (preferred): 'parent1:parent2[:counter]'
-    - No parents (initial agents): '::' or '::counter'
-    - Single parent (cloning): 'agent_a:' or 'agent_a:counter'
-    - Two parents (sexual reproduction): 'agent_a:agent_b' or 'agent_a:agent_b:counter'
+    Format: 'parent1:parent2:counter' where counter >= 1
+    - No parents (initial agents): '::1', '::2', etc.
+    - Single parent (cloning): 'agent_a:1', 'agent_a:2', etc.
+    - Two parents (sexual reproduction): 'agent_a:agent_b:1', 'agent_a:agent_b:2', etc.
     """
 
     parent_ids: list[str]
