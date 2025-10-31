@@ -20,7 +20,12 @@ identity = Identity(IdentityConfig(deterministic_seed=123))
 - `experiment_id() -> ExperimentId`
 - `agent_id() -> AgentId` (deterministic sequence when `deterministic_seed` set)
 - `agent_state_id(agent_id: str, step: int) -> AgentStateId`
-- `genome_id(agent_type: str, generation: int, parents: Sequence[str], time_step: int) -> GenomeIdStr`
+- `genome_id(parent_ids: Sequence[str], existing_genome_checker: Optional[Callable[[str], bool]] = None) -> GenomeIdStr`
+  - Format: `parent1:parent2:counter` where counter >= 1
+  - No parents (initial agents): `::1`, `::2`, etc.
+  - Single parent (cloning): `agent_a:1`, `agent_a:2`, etc.
+  - Two parents (sexual reproduction): `agent_a:agent_b:1`, `agent_a:agent_b:2`, etc.
+  - Counter starts at 1 (first offspring is :1, second is :2, etc.)
 - `parse_agent_state_id(agent_state_id: str) -> tuple[str, int]`
 
 #### Usage in Environment

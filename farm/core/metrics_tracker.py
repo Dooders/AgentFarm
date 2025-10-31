@@ -428,9 +428,23 @@ class MetricsTracker:
             )
 
             # Calculate genetic diversity
+            # Group by base genome_id (without counter) for lineage analysis
+            # Format: parent1:parent2[:counter] -> group by parent1:parent2
+            def get_base_genome_id(genome_id: str) -> str:
+                """Extract base genome_id without counter."""
+                if not genome_id or genome_id == "":
+                    return "::"
+                parts = str(genome_id).split(":")
+                # If has counter (3 parts), return first 2 parts joined
+                if len(parts) == 3 and parts[2].isdigit():
+                    return f"{parts[0]}:{parts[1]}"
+                # Otherwise return as-is (already base or malformed)
+                return ":".join(parts[:2]) if len(parts) >= 2 else str(genome_id)
+            
             genome_counts = {}
             for agent in alive_agents:
-                genome_counts[agent.genome_id] = genome_counts.get(agent.genome_id, 0) + 1
+                base_genome_id = get_base_genome_id(agent.genome_id)
+                genome_counts[base_genome_id] = genome_counts.get(base_genome_id, 0) + 1
             genetic_diversity = len(genome_counts) / total_agents if total_agents > 0 else 0
             dominant_genome_ratio = max(genome_counts.values()) / total_agents if genome_counts else 0
 

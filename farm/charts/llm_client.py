@@ -256,6 +256,14 @@ Resource Evolution Analysis:
     def _analyze_starvation_counters(self) -> str:
         if self.agents_df is None:
             return "Error: Agents data not available"
+        # Check if starvation_counter column exists (it may come from agent_states, not agents table)
+        if "starvation_counter" not in self.agents_df.columns:
+            return """
+Starvation Counter Analysis:
+- Data not available from agents table
+- Starvation counter tracking has been moved to agent_states table
+- Recommendation: Query agent_states table for starvation counter data"""
+        
         thresholds = self.agents_df.groupby("agent_type")["starvation_counter"].agg(
             ["mean", "count"]
         )
@@ -342,7 +350,45 @@ Population Evolution Analysis:
         try:
             if self.agents_df is None:
                 return "Error: Agents data not available"
-            lineage_sizes = self.agents_df["genome_id"].value_counts()
+            
+            # Extract base genome_id (without counter) for lineage grouping
+            # Format: parent1:parent2[:counter] -> group by parent1:parent2
+            def get_base_genome_id(genome_id: str) -> str:
+                """Extract base genome_id without counter."""
+                if pd.isna(genome_id) or genome_id == "":
+                    return "::"
+                parts = str(genome_id).split(":")
+                # If has counter (3 parts with digit in third), return first 2 parts joined
+                if len(parts) == 3 and parts[2].isdigit():
+                    # Preserve trailing colon for empty parents case (::counter -> ::)
+                    if parts[0] == "" and parts[1] == "":
+                        return "::"
+                    elif parts[1] == "":
+                        # Single parent with counter: agent_a:counter -> agent_a:
+                        return f"{parts[0]}:"
+                    else:
+                        # Two parents with counter: agent_a:agent_b:counter -> agent_a:agent_b
+                        return f"{parts[0]}:{parts[1]}"
+                elif len(parts) == 2:
+                    # Could be ::, agent_a:, agent_a:counter, or agent_a:agent_b
+                    parent1, parent2 = parts
+                    if parent1 == "" and parent2 == "":
+                        # Initial agent: ::
+                        return "::"
+                    elif parent2.isdigit():
+                        # Single parent with counter: agent_a:counter -> agent_a:
+                        return f"{parent1}:"
+                    elif parent2 == "":
+                        # Single parent without counter: agent_a:
+                        return f"{parent1}:"
+                    else:
+                        # Two parents without counter: agent_a:agent_b
+                        return f"{parent1}:{parent2}"
+                # Otherwise return as-is (already base or malformed)
+                return ":".join(parts[:2]) if len(parts) >= 2 else str(genome_id)
+            
+            self.agents_df["base_genome_id"] = self.agents_df["genome_id"].apply(get_base_genome_id)
+            lineage_sizes = self.agents_df["base_genome_id"].value_counts()
             successful_lineages = (lineage_sizes > 1).sum()
 
             return f"""

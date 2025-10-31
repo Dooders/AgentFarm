@@ -666,9 +666,9 @@ class Environment(AECEnv):
         agent_id = agent.agent_id
         death_time = self.time
         death_cause = getattr(agent, "death_cause", "unknown")
-        
+
         self.record_death()
-        
+
         # Update agent death in database
         if hasattr(self, "db") and self.db is not None:
             try:
@@ -680,7 +680,7 @@ class Environment(AECEnv):
                     death_time=death_time,
                     error=str(e),
                 )
-        
+
         if agent_id in self._agent_objects:
             del self._agent_objects[agent_id]
         if agent_id in self.agents:
@@ -1242,6 +1242,38 @@ class Environment(AECEnv):
             )
             raise
 
+        # Generate and set genome_id if not already set
+        if not agent.genome_id or agent.genome_id == "":
+            parent_ids = agent.state.parent_ids
+            
+            # Create database checker callback to query existing genome IDs
+            def check_genome_id_exists(genome_id: str) -> bool:
+                """Check if a genome_id exists in the database for this simulation."""
+                if not hasattr(self, "db") or self.db is None:
+                    return False
+                try:
+                    from farm.database.models import AgentModel
+                    result = self.db._execute_in_transaction(
+                        lambda session: session.query(AgentModel)
+                        .filter(
+                            AgentModel.simulation_id == self.simulation_id,
+                            AgentModel.genome_id == genome_id,
+                        )
+                        .first()
+                        is not None
+                    )
+                    return result
+                except Exception:
+                    # If database query fails, assume it doesn't exist
+                    return False
+            
+            genome_id = self.identity.genome_id(
+                parent_ids=parent_ids,
+                existing_genome_checker=check_genome_id_exists,
+            )
+            # Update genome_id in agent state
+            agent.state._state = agent.state._state.model_copy(update={"genome_id": str(genome_id)})
+
         agent_data = [
             {
                 "simulation_id": self.simulation_id,
@@ -1251,8 +1283,7 @@ class Environment(AECEnv):
                 "position": agent.position,
                 "initial_resources": agent.resource_level,
                 "starting_health": self._get_agent_starting_health(agent),
-                "starvation_counter": self._get_agent_starvation_counter(agent),
-                "genome_id": getattr(agent, "genome_id", None),
+                "genome_id": agent.genome_id,
                 "generation": getattr(agent, "generation", 0),
                 "action_weights": self._get_agent_action_weights(agent),
             }

@@ -682,7 +682,44 @@ Lifespan Distribution Analysis:
     def _analyze_lineage_size(self, df: pd.DataFrame) -> str:
         """Analyze the distribution of lineage sizes."""
         try:
-            lineage_sizes = df["genome_id"].value_counts()
+            # Extract base genome_id (without counter) for lineage grouping
+            # Format: parent1:parent2:counter (counter >= 1) -> group by parent1:parent2
+            def get_base_genome_id(genome_id: str) -> str:
+                """Extract base genome_id without counter."""
+                if pd.isna(genome_id) or genome_id == "":
+                    return "::"
+                parts = str(genome_id).split(":")
+                # If has counter (3 parts with digit in third), return first 2 parts joined
+                if len(parts) == 3 and parts[2].isdigit():
+                    # Preserve trailing colon for empty parents case (::counter -> ::)
+                    if parts[0] == "" and parts[1] == "":
+                        return "::"
+                    elif parts[1] == "":
+                        # Single parent with counter: agent_a:counter -> agent_a:
+                        return f"{parts[0]}:"
+                    else:
+                        # Two parents with counter: agent_a:agent_b:counter -> agent_a:agent_b
+                        return f"{parts[0]}:{parts[1]}"
+                elif len(parts) == 2:
+                    # Could be ::, agent_a:, agent_a:counter, or agent_a:agent_b
+                    parent1, parent2 = parts
+                    if parent1 == "" and parent2 == "":
+                        # Initial agent: ::
+                        return "::"
+                    elif parent2.isdigit():
+                        # Single parent with counter: agent_a:counter -> agent_a:
+                        return f"{parent1}:"
+                    elif parent2 == "":
+                        # Single parent without counter: agent_a:
+                        return f"{parent1}:"
+                    else:
+                        # Two parents without counter: agent_a:agent_b
+                        return f"{parent1}:{parent2}"
+                # Otherwise return as-is (already base or malformed, possibly legacy format)
+                return ":".join(parts[:2]) if len(parts) >= 2 else str(genome_id)
+            
+            df["base_genome_id"] = df["genome_id"].apply(get_base_genome_id)
+            lineage_sizes = df["base_genome_id"].value_counts()
             avg_lineage = float(lineage_sizes.mean())
             max_lineage = lineage_sizes.max()
             successful_lineages = lineage_sizes.gt(avg_lineage).sum()

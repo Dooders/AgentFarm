@@ -54,7 +54,6 @@ class TestDataLoggerProtocolMethods(unittest.TestCase):
             "position": (10.0, 20.0),
             "initial_resources": 50.0,
             "starting_health": 100.0,
-            "starvation_counter": 0,
             "genome_id": "test_genome",
             "generation": 1,
         }

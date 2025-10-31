@@ -294,7 +294,6 @@ class DataLoggerProtocol(Protocol):
         position: Tuple[float, float],
         initial_resources: float,
         starting_health: float,
-        starvation_counter: int,
         genome_id: Optional[str] = None,
         generation: int = 0,
         action_weights: Optional[Dict[str, float]] = None,
@@ -315,8 +314,6 @@ class DataLoggerProtocol(Protocol):
             Starting resource level
         starting_health : float
             Maximum health points
-        starvation_counter : int
-            Current starvation counter value
         genome_id : Optional[str]
             Genome identifier
         generation : int

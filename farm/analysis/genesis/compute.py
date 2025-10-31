@@ -151,7 +151,6 @@ def compute_initial_state_metrics(session: Session) -> Dict[str, Any]:
             AgentModel.position_y,
             AgentModel.initial_resources,
             AgentModel.starting_health,
-            AgentModel.starvation_counter,
             AgentModel.action_weights,
         )
         .filter(AgentModel.birth_time == 0)
@@ -167,8 +166,7 @@ def compute_initial_state_metrics(session: Session) -> Dict[str, Any]:
             "position_y": row[3],
             "initial_resources": row[4],
             "starting_health": row[5],
-            "starvation_counter": row[6],
-            "action_weights": row[7],
+            "action_weights": row[6],
         }
         for row in initial_agents_data
     ]

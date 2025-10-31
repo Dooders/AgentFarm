@@ -2,7 +2,8 @@
 Agent core - the coordinator for component-based agents.
 
 AgentCore is the minimal agent that coordinates components and behaviors.
-It has no agent-specific logic - all capabilities are provided by components.
+Most capabilities are provided by components, but it contains some agent-specific
+logic for reward calculation, lifecycle management, and orchestration.
 """
 
 from typing import TYPE_CHECKING, Dict, Optional
@@ -271,10 +272,10 @@ class AgentCore:
 
         # Capture resource level after action execution
         resources_after = post_action_state.resource_level
-        
+
         # Calculate reward (simple: based on state changes)
         reward = self._calculate_reward(pre_action_state, post_action_state, action)
-        
+
         # Update the action logging with the calculated reward
         if (
             self.environment
@@ -310,7 +311,7 @@ class AgentCore:
             except Exception as e:
                 # Log warning but don't crash on database logging failure
                 logger.warning(f"Failed to log agent action {action.name}: {e}")
-        
+
         # Get next state
         next_state_tensor = self._create_observation()
 
@@ -569,7 +570,11 @@ class AgentCore:
             # Set offspring generation
             offspring.generation = self.generation + 1
 
+            # Set offspring parent IDs (genome_id will be generated in add_agent() using parent info)
+            offspring.state._state = offspring.state._state.model_copy(update={"parent_ids": [self.agent_id]})
+
             # Add offspring to environment with immediate flush to ensure it's in database
+            # Genome ID will be generated in add_agent() using parent info
             self.environment.add_agent(offspring, flush_immediately=True)
 
             # Update reproduction component tracking

@@ -75,8 +75,6 @@ class AgentModel(Base):
         Starting resource level of the agent
     starting_health : float
         Maximum health capacity of the agent
-    starvation_counter : int
-        Counter for consecutive steps agent has had zero resources
     genome_id : str
         Unique identifier for agent's genetic code
     generation : int
@@ -114,7 +112,6 @@ class AgentModel(Base):
     position_y = Column(Float(precision=6))
     initial_resources = Column(Float(precision=6))
     starting_health = Column(Float(precision=4))
-    starvation_counter = Column(Integer)
     genome_id = Column(String(64))
     generation = Column(Integer)
     action_weights = Column(JSON, nullable=True)

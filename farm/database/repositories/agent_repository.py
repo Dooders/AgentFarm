@@ -583,11 +583,28 @@ class AgentRepository(BaseRepository[AgentModel]):
                 return []
 
             # Find children by checking genome parent IDs
+            # Format: parent1:parent2[:counter]
+            # agent_id can appear as:
+            # - First parent: "agent_id:" or "agent_id:other" or "agent_id:other:counter"
+            # - Second parent: ":agent_id:" or "other:agent_id" or "other:agent_id:counter"
+            
+            from sqlalchemy import or_
+            
+            # Pattern 1: Starts with agent_id: (first parent in cloning or sexual reproduction)
+            pattern1 = f"{agent_id}:"
+            # Pattern 2: Contains :agent_id: or :agent_id followed by end/counter (second parent)
+            pattern2 = f":{agent_id}:"
+            pattern3 = f":{agent_id}"
+            
             children = (
                 session.query(AgentModel)
                 .filter(
-                    AgentModel.genome_id.like(f"%{agent_id}%")
-                )  # Check if parent ID is in genome
+                    or_(
+                        AgentModel.genome_id.like(f"{pattern1}%"),  # Starts with agent_id:
+                        AgentModel.genome_id.like(f"%{pattern2}%"),  # Contains :agent_id:
+                        AgentModel.genome_id.like(f"%{pattern3}"),  # Ends with :agent_id
+                    )
+                )
                 .order_by(AgentModel.birth_time)
                 .all()
             )
