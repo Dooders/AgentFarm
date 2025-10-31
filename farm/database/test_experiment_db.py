@@ -200,7 +200,6 @@ def run_simulation(
             position=(random.uniform(0, 100), random.uniform(0, 100)),
             initial_resources=random.uniform(50, 100),
             starting_health=100,
-            starvation_counter=10,
             genome_id=f"genome_{random.randint(0, 5)}",
             generation=0,
             action_weights={

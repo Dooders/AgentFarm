@@ -442,7 +442,6 @@ class DataLogger(DataLoggerProtocol):
         position: Tuple[float, float],
         initial_resources: float,
         starting_health: float,
-        starvation_counter: int,
         genome_id: Optional[str] = None,
         generation: int = 0,
         action_weights: Optional[Dict[str, float]] = None,
@@ -463,8 +462,6 @@ class DataLogger(DataLoggerProtocol):
             Starting resource level
         starting_health : float
             Maximum health points
-        starvation_counter : int
-            Current count of consecutive steps with zero resources
         genome_id : Optional[str]
             Unique identifier for agent's genome
         generation : int
@@ -504,7 +501,6 @@ class DataLogger(DataLoggerProtocol):
             "position": position,
             "initial_resources": initial_resources,
             "starting_health": starting_health,
-            "starvation_counter": starvation_counter,
             "genome_id": genome_id,
             "generation": generation,
             "action_weights": serialized_action_weights,
@@ -524,7 +520,6 @@ class DataLogger(DataLoggerProtocol):
             - position: Tuple[float, float]
             - initial_resources: float
             - starting_health: float
-            - starvation_counter: int
             - genome_id: Optional[str]
             - generation: int
             - action_weights: Optional[Dict[str, float]]
@@ -549,7 +544,6 @@ class DataLogger(DataLoggerProtocol):
                         "position",
                         "initial_resources",
                         "starting_health",
-                        "starvation_counter",
                     ]
                     for field in required_fields:
                         if field not in data:
@@ -573,7 +567,6 @@ class DataLogger(DataLoggerProtocol):
                         "position_y": data["position"][1],
                         "initial_resources": data["initial_resources"],
                         "starting_health": data["starting_health"],
-                        "starvation_counter": data["starvation_counter"],
                         "genome_id": data.get("genome_id"),
                         "generation": data.get("generation", 0),
                         "action_weights": action_weights,

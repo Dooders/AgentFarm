@@ -1251,7 +1251,6 @@ class Environment(AECEnv):
                 "position": agent.position,
                 "initial_resources": agent.resource_level,
                 "starting_health": self._get_agent_starting_health(agent),
-                "starvation_counter": self._get_agent_starvation_counter(agent),
                 "genome_id": getattr(agent, "genome_id", None),
                 "generation": getattr(agent, "generation", 0),
                 "action_weights": self._get_agent_action_weights(agent),

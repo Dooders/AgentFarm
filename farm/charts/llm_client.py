@@ -256,6 +256,14 @@ Resource Evolution Analysis:
     def _analyze_starvation_counters(self) -> str:
         if self.agents_df is None:
             return "Error: Agents data not available"
+        # Check if starvation_counter column exists (it may come from agent_states, not agents table)
+        if "starvation_counter" not in self.agents_df.columns:
+            return """
+Starvation Counter Analysis:
+- Data not available from agents table
+- Starvation counter tracking has been moved to agent_states table
+- Recommendation: Query agent_states table for starvation counter data"""
+        
         thresholds = self.agents_df.groupby("agent_type")["starvation_counter"].agg(
             ["mean", "count"]
         )

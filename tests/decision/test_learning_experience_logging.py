@@ -48,7 +48,6 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
             position=(0.0, 0.0),
             initial_resources=10.0,
             starting_health=100.0,
-            starvation_counter=0,
             genome_id="test_genome",
             generation=1,
         )

@@ -36,7 +36,6 @@ def test_update_agent_state_persists_simulation_id_and_columns():
                 position_y=0.0,
                 initial_resources=10.0,
                 starting_health=100.0,
-                starvation_counter=0,
                 genome_id="g1",
                 generation=0,
             )

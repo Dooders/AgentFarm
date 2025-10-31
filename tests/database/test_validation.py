@@ -217,7 +217,6 @@ class TestIntegrityValidator(unittest.TestCase):
             position_y=0.0,
             initial_resources=100.0,
             starting_health=100.0,
-            starvation_counter=0
         )
         self.session.add(agent)
         self.session.commit()
@@ -260,7 +259,6 @@ class TestIntegrityValidator(unittest.TestCase):
             position_y=0.0,
             initial_resources=100.0,
             starting_health=100.0,
-            starvation_counter=0
         )
         self.session.add(agent)
         self.session.commit()
@@ -313,7 +311,6 @@ class TestIntegrityValidator(unittest.TestCase):
             position_y=0.0,
             initial_resources=100.0,
             starting_health=100.0,
-            starvation_counter=0
         )
         self.session.add(agent)
         self.session.commit()
@@ -416,7 +413,6 @@ class TestStatisticalValidator(unittest.TestCase):
             position_y=0.0,
             initial_resources=100.0,
             starting_health=100.0,
-            starvation_counter=0,
             generation=1
         )
         self.session.add(parent)
@@ -429,7 +425,6 @@ class TestStatisticalValidator(unittest.TestCase):
             position_y=0.0,
             initial_resources=50.0,
             starting_health=100.0,
-            starvation_counter=0,
             generation=2  # Valid: parent + 1
         )
         self.session.add(offspring)
@@ -478,7 +473,6 @@ class TestStatisticalValidator(unittest.TestCase):
             position_y=0.0,
             initial_resources=100.0,
             starting_health=100.0,
-            starvation_counter=0
         )
         self.session.add(agent)
         
