@@ -2147,18 +2147,25 @@ class GenomeId(BaseModel):
         """
         parts = genome_id.split(":")
         if len(parts) == 2:
-            # Format: parent1:parent2 or :: (no counter)
+            # Format: parent1:parent2 or :: or agent_a:counter
             parent1, parent2 = parts
             if parent1 == "" and parent2 == "":
                 # Initial agent: ::
                 parent_ids = []
+                counter = None
             elif parent2 == "":
                 # Single parent: agent_a:
                 parent_ids = [parent1] if parent1 else []
+                counter = None
+            elif parent2.isdigit():
+                # Single parent with counter: agent_a:counter
+                parent_ids = [parent1] if parent1 else []
+                counter = int(parent2)
             else:
                 # Two parents: agent_a:agent_b
                 parent_ids = [parent1, parent2] if parent1 else [parent2]
-            return cls(parent_ids=parent_ids, counter=None)
+                counter = None
+            return cls(parent_ids=parent_ids, counter=counter)
         
         elif len(parts) == 3:
             # Format: parent1:parent2:counter or :::counter
@@ -2214,6 +2221,10 @@ class GenomeId(BaseModel):
             base = "::"
         
         if self.counter is not None:
-            return f"{base}{self.counter}"
+            # Add separator only if base doesn't end with ':'
+            if base.endswith(":"):
+                return f"{base}{self.counter}"
+            else:
+                return f"{base}:{self.counter}"
         else:
             return base

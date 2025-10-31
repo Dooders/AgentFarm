@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
-from farm.core.agent import AgentCore, AgentFactory, AgentServices, DefaultAgentBehavior
+from farm.core.agent import AgentCore, AgentServices, DefaultAgentBehavior
 from farm.core.agent.components import (
     CombatComponent,
     MovementComponent,
@@ -24,8 +24,7 @@ from farm.core.agent.config.component_configs import (
 from farm.core.agent.config.component_configs import ResourceConfig as ComponentResourceConfig
 from farm.core.environment import Environment
 from farm.core.services.implementations import EnvironmentTimeService
-from farm.database.models import AgentModel, Simulation
-from farm.database.database import SimulationDatabase
+from farm.database.models import Simulation
 
 
 class TestGenomeIdGeneration(unittest.TestCase):
@@ -196,7 +195,6 @@ class TestGenomeIdGeneration(unittest.TestCase):
         # Create parent agent
         parent = self.create_test_agent("parent_agent", "system", generation=0)
         self.env.add_agent(parent)
-        parent_genome_id = parent.genome_id
 
         # Create offspring (simulating reproduction)
         offspring = self.create_test_agent("offspring_agent", "system", generation=1)
