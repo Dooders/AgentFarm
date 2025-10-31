@@ -617,7 +617,7 @@ class BaseDQNModule:
                 # Handle negative or zero weights
                 weights = np.maximum(weights, 0.0)
                 total_weight = np.sum(weights)
-                if total_weight > 0 and not np.isclose(total_weight, 0):
+                if not np.isclose(total_weight, 0):
                     weights = weights / total_weight
                 else:
                     # Fallback to uniform if all weights are zero
@@ -650,11 +650,14 @@ class BaseDQNModule:
             
             # Cache the action only when action_weights is None
             # (when weights are provided, cached action might be invalid for future calls)
-            if action_weights is None and state_hash not in self._state_cache:
-                # Update cache with LRU behavior
-                if len(self._state_cache) >= self._max_cache_size:
-                    # Remove a random item if cache is full
-                    self._state_cache.pop(next(iter(self._state_cache)))
+            # Always update cache to reflect current Q-network state (important for training)
+            if action_weights is None:
+                # Only evict if adding a new entry and cache is full
+                if state_hash not in self._state_cache:
+                    if len(self._state_cache) >= self._max_cache_size:
+                        # Remove a random item if cache is full
+                        self._state_cache.pop(next(iter(self._state_cache)))
+                # Update cache (new entry or updating existing to reflect Q-network updates)
                 self._state_cache[state_hash] = action
 
         return action

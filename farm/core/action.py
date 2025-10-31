@@ -21,7 +21,7 @@ Technical Details:
 
 import math
 from enum import IntEnum
-from typing import TYPE_CHECKING, Callable, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, List, Optional
 
 import numpy as np
 
@@ -498,7 +498,7 @@ def weighted_random_choice(
     # Normalize weights
     total_weight = np.sum(weights)
     
-    if total_weight <= 0 or np.isclose(total_weight, 0):
+    if np.isclose(total_weight, 0) or total_weight < 0:
         # Fallback to uniform distribution if all weights are zero
         logger.debug("All weights are zero or invalid, using uniform random selection")
         probabilities = np.ones(len(selection_pool)) / len(selection_pool)

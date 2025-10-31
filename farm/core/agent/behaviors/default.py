@@ -53,9 +53,8 @@ class DefaultAgentBehavior(IAgentBehavior):
             raise ValueError("Either core or enabled_actions must be provided")
         
         # Pass actions_list as the actions parameter
-        # If enabled_actions was provided, weighted_random_choice will use it directly
-        # Otherwise, it uses actions_list (from core.actions)
-        action = weighted_random_choice(actions_list, enabled_actions)
+        # weighted_random_choice uses the first parameter when the second is None
+        action = weighted_random_choice(actions_list)
         self.action_history.append(action.name)
         return action
     

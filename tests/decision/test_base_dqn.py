@@ -311,9 +311,6 @@ class TestBaseDQNModule(unittest.TestCase):
 
         state = torch.randn(8).to(module.device)
         
-        # Get action without weights
-        action_no_weights = module.select_action(state)
-        
         # Create action weights that favor action 2
         action_weights = np.array([0.1, 0.1, 0.8, 0.0], dtype=np.float64)
 
@@ -516,13 +513,13 @@ class TestBaseDQNModule(unittest.TestCase):
         state_hash = hash(state.cpu().numpy().tobytes())
         
         # Call without weights - should cache
-        action_no_weights = module.select_action(state)
+        module.select_action(state)
         self.assertIn(state_hash, module._state_cache)
         cached_action = module._state_cache[state_hash]
         
         # Call with weights - should bypass cache and recompute
         action_weights = np.array([0.5, 0.2, 0.2, 0.1], dtype=np.float64)
-        action_with_weights = module.select_action(state, action_weights=action_weights)
+        module.select_action(state, action_weights=action_weights)
         
         # Cache should still exist (wasn't cleared by weights call)
         self.assertIn(state_hash, module._state_cache)
