@@ -264,4 +264,8 @@ class AgentComponentConfig:
                 base_attack_strength=base_attack_strength,
                 base_defense_strength=base_defense_strength,
             ),
+            reproduction=ReproductionConfig(
+                offspring_cost=offspring_cost,
+                offspring_initial_resources=offspring_initial_resources,
+            ),
         )

@@ -664,7 +664,23 @@ class Environment(AECEnv):
         )
 
         agent_id = agent.agent_id
+        death_time = self.time
+        death_cause = getattr(agent, "death_cause", "unknown")
+        
         self.record_death()
+        
+        # Update agent death in database
+        if hasattr(self, "db") and self.db is not None:
+            try:
+                self.db.update_agent_death(agent_id=agent_id, death_time=death_time, cause=death_cause)
+            except Exception as e:
+                logger.warning(
+                    "Failed to update agent death in database",
+                    agent_id=agent_id,
+                    death_time=death_time,
+                    error=str(e),
+                )
+        
         if agent_id in self._agent_objects:
             del self._agent_objects[agent_id]
         if agent_id in self.agents:
@@ -1828,12 +1844,20 @@ class Environment(AECEnv):
                 # Execute the action
                 action_result = action_obj.execute(agent)
 
-                # Log action to database if available
-                if self.db and agent:
+                # Log the action to the database
+                # Note: This is necessary because _process_action directly calls action_obj.execute()
+                # which bypasses agent._execute_action() where logging would normally occur
+                if (
+                    self.db
+                    and hasattr(self.db, "logger")
+                    and self.db.logger
+                    and action_result
+                    and isinstance(action_result, dict)
+                ):
                     try:
                         # Extract target_id from action result if available
                         action_target_id = None
-                        if isinstance(action_result, dict) and "details" in action_result:
+                        if "details" in action_result:
                             details = action_result["details"]
                             if isinstance(details, dict):
                                 # For gather actions, use resource_id as target_id
@@ -1843,22 +1867,18 @@ class Environment(AECEnv):
                                 elif "target_id" in details:
                                     action_target_id = details["target_id"]
 
+                        # Log the agent action
                         self.db.logger.log_agent_action(
                             step_number=self.time,
                             agent_id=agent_id,
                             action_type=action_name,
                             action_target_id=action_target_id,
-                            reward=0,  # Reward will be calculated later
-                            details=(action_result.get("details", {}) if isinstance(action_result, dict) else {}),
+                            reward=None,  # Reward is not available at this point; it will be calculated elsewhere in the learning system. None indicates the value is not yet available.
+                            details=action_result.get("details", {}),
                         )
                     except Exception as e:
-                        logger.warning(
-                            "failed_to_log_agent_action",
-                            action_name=action_name,
-                            error=str(e),
-                            exc_info=True,
-                        )
-                        logger.warning(f"Failed to log agent action {action_name}: {e}")
+                        # Log warning but don't crash on database logging failure
+                        logger.warning(f"Failed to log agent action {action_name} for agent {agent_id}: {e}")
             else:
                 logger.warning("action_not_found_in_action_registry", action_name=action_name)
         else:

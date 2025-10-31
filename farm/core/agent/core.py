@@ -539,7 +539,8 @@ class AgentCore:
             if resource_comp:
                 resource_comp.remove(repro_comp.config.offspring_cost)
 
-            # Get offspring initial resources from config
+            # Get offspring initial resources from reproduction component config
+            # This uses offspring_initial_resources (not initial_resource_level which is for initial population)
             offspring_resources = repro_comp.config.offspring_initial_resources
 
             # Create offspring using environment's factory/lifecycle
@@ -555,8 +556,8 @@ class AgentCore:
             # Generate new agent ID
             offspring_id = self.environment.get_next_agent_id()
 
-            # Create offspring at same position as parent
-            offspring = factory.create_default_agent(
+            # Create offspring at same position as parent - use create_learning_agent to match initial agents
+            offspring = factory.create_learning_agent(
                 agent_id=offspring_id,
                 position=self.position,
                 initial_resources=offspring_resources,
