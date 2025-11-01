@@ -734,48 +734,6 @@ class Environment(AECEnv):
         if agent_id in self.agent_observations:
             del self.agent_observations[agent_id]
 
-    def log_interaction_edge(
-        self,
-        source_id: str,
-        target_id: str,
-        interaction_type: str,
-    ) -> None:
-        """Log an interaction as an edge between nodes if database is enabled.
-
-        Records interactions between agents and other entities (agents, resources)
-        as graph edges in the database for network analysis and relationship tracking.
-
-        Parameters
-        ----------
-        source_id : str
-            Unique identifier of the source entity
-        target_id : str
-            Unique identifier of the target entity
-        interaction_type : str
-            Type of interaction (e.g., 'attack', 'share', 'gather', 'attack_failed', 'gather_failed')
-
-        Notes
-        -----
-        If no database is configured, this method returns silently without logging.
-        Errors during logging are caught and logged as warnings to prevent
-        simulation disruption.
-        """
-        if self.db is None:
-            return
-        try:
-            self.db.logger.log_interaction_edge(
-                step_number=self.time,
-                source_id=source_id,
-                target_id=target_id,
-                interaction_type=interaction_type,
-            )
-        except (ValueError, TypeError, AttributeError) as e:
-            logger.error(
-                "interaction_logging_failed",
-                error_type=type(e).__name__,
-                error_message=str(e),
-            )
-
     def log_reproduction_event(
         self,
         step_number: int,

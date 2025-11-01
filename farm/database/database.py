@@ -69,7 +69,6 @@ from .models import (
     AgentStateModel,
     Base,
     HealthIncident,
-    InteractionModel,
     ReproductionEventModel,
     ResourceModel,
     Simulation,
@@ -1209,23 +1208,6 @@ class SimulationDatabase(DatabaseProtocol):
                 timestamp=datetime.now(),
             )
             session.add(event)
-
-            # Also log as interaction for comprehensive tracking
-            interaction_type = "reproduce" if success else "reproduce_failed"
-            target_id = (
-                offspring_id
-                if offspring_id and success
-                else (f"{parent_position[0]},{parent_position[1]}" if parent_position else "unknown")
-            )
-
-            interaction = InteractionModel(
-                simulation_id=self.simulation_id,
-                step_number=step_number,
-                source_id=parent_id,
-                target_id=target_id,
-                interaction_type=interaction_type,
-            )
-            session.add(interaction)
 
         self._execute_in_transaction(_log)
 

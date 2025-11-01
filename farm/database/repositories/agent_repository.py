@@ -70,7 +70,6 @@ class AgentRepository(BaseRepository[AgentModel]):
             - states: List[AgentStateModel]
             - actions: List[ActionModel]
             - health_incidents: List[HealthIncident]
-            - learning_experiences: List[LearningExperience]
             - targeted_actions: List[ActionModel]
         """
 

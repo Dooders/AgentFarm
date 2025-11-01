@@ -90,8 +90,6 @@ class AgentModel(Base):
         History of actions taken by the agent
     health_incidents : List[HealthIncident]
         Record of health-affecting events
-    learning_experiences : List[LearningExperience]
-        History of learning events and outcomes
     targeted_actions : List[AgentAction]
         Actions where this agent is the target
     """
@@ -125,9 +123,6 @@ class AgentModel(Base):
         primaryjoin="AgentModel.agent_id==ActionModel.agent_id",
     )
     health_incidents = relationship("HealthIncident", back_populates="agent")
-    learning_experiences = relationship(
-        "LearningExperienceModel", back_populates="agent"
-    )
     targeted_actions = relationship(
         "ActionModel",
         foreign_keys="[ActionModel.action_target_id]",
@@ -300,40 +295,6 @@ class ResourceModel(Base):
         }
 
 
-class InteractionModel(Base):
-    """Generic interaction edges between nodes in the environment.
-
-    This table captures interactions as edges between source and target nodes
-    with consistent metadata for downstream analytics and visualization.
-    """
-
-    __tablename__ = "interactions"
-    __table_args__ = (
-        Index("idx_interactions_step_number", "step_number"),
-        Index("idx_interactions_source", "source_id"),
-        Index("idx_interactions_target", "target_id"),
-        Index("idx_interactions_type", "interaction_type"),
-    )
-
-    interaction_id = Column(Integer, primary_key=True)
-    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
-    step_number = Column(Integer, nullable=False)
-
-    # Source node
-    source_id = Column(String(64), nullable=False)
-
-    # Target node
-    target_id = Column(String(64), nullable=False)
-
-    # Semantics
-    interaction_type = Column(
-        String(50), nullable=False
-    )  # e.g., 'share', 'attack', 'gather', 'reproduce', 'attack_failed', 'gather_failed'
-    timestamp = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
-    )
-
-
 class SimulationStepModel(Base):
     """Records simulation-wide metrics for each time step.
 
@@ -484,6 +445,10 @@ class ActionModel(Base):
         Reward received for the action
     details : Optional[str]
         JSON string containing additional action details
+    module_type : Optional[str]
+        Type of learning module that generated this action (e.g., 'dqn', 'ppo')
+    module_id : Optional[str]
+        Unique identifier for the specific learning module instance
 
     Relationships
     ------------
@@ -496,6 +461,7 @@ class ActionModel(Base):
         Index("idx_agent_actions_step_number", "step_number"),
         Index("idx_agent_actions_agent_id", "agent_id"),
         Index("idx_agent_actions_action_type", "action_type"),
+        Index("idx_agent_actions_module_type", "module_type"),
     )
 
     action_id = Column(Integer, primary_key=True)
@@ -506,33 +472,12 @@ class ActionModel(Base):
     action_target_id = Column(String(64), nullable=True)
     reward = Column(Float(precision=6), nullable=True)
     details = Column(String(1024), nullable=True)
+    module_type = Column(String(50), nullable=True)
+    module_id = Column(String(64), nullable=True)
 
     agent = relationship(
         "AgentModel", back_populates="actions", foreign_keys=[agent_id]
     )
-
-
-class LearningExperienceModel(Base):
-    """Learning experience records."""
-
-    __tablename__ = "learning_experiences"
-    __table_args__ = (
-        Index("idx_learning_experiences_step_number", "step_number"),
-        Index("idx_learning_experiences_agent_id", "agent_id"),
-        Index("idx_learning_experiences_module_type", "module_type"),
-    )
-
-    experience_id = Column(Integer, primary_key=True)
-    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
-    step_number = Column(Integer)
-    agent_id = Column(String(64), ForeignKey("agents.agent_id"))
-    module_type = Column(String(50))
-    module_id = Column(String(64))
-    action_taken = Column(Integer)
-    action_taken_mapped = Column(String(20))
-    reward = Column(Float(precision=6))
-
-    agent = relationship("AgentModel", back_populates="learning_experiences")
 
 
 class HealthIncident(Base):

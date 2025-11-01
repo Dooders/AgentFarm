@@ -832,19 +832,23 @@ class DecisionModule:
                             # Fallback: use the action index as string if actions list is not available
                             action_taken_mapped = f"action_{full_action_index}"
 
-                        # Log the learning experience - be more permissive
+                        # Log the action with learning module metadata - be more permissive
                         if step_number is not None:
-                            self.agent.environment.db.logger.log_learning_experience(
+                            # Use action_taken_mapped as the action_type for logging
+                            action_type_for_log = action_taken_mapped if action_taken_mapped else f"action_{full_action_index}"
+                            
+                            self.agent.environment.db.logger.log_agent_action(
                                 step_number=step_number,
                                 agent_id=self.agent_id,
+                                action_type=action_type_for_log,
+                                reward=reward,
                                 module_type=self.config.algorithm_type,
-                                module_id=id(self.algorithm),
+                                module_id=str(id(self.algorithm)),
                                 action_taken=full_action_index,
                                 action_taken_mapped=action_taken_mapped,
-                                reward=reward,
                             )
                             logger.debug(
-                                "Logged learning experience for agent %s: step=%s, action=%s, reward=%s",
+                                "Logged action with learning metadata for agent %s: step=%s, action=%s, reward=%s",
                                 self.agent_id,
                                 step_number,
                                 action_taken_mapped,
@@ -852,7 +856,7 @@ class DecisionModule:
                             )
                         else:
                             logger.warning(
-                                f"Could not log learning experience for agent {self.agent_id}: step_number is None"
+                                f"Could not log action with learning metadata for agent {self.agent_id}: step_number is None"
                             )
                     except Exception as e:
                         logger.warning(f"Failed to log learning experience for agent {self.agent_id}: {e}")

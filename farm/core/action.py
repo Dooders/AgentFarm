@@ -98,25 +98,6 @@ def find_closest_entity(agent: "AgentCore", entities: list, entity_type: str = "
     return closest_entity, min_distance
 
 
-def log_interaction_safely(agent: "AgentCore", **kwargs) -> None:
-    """Safely log an interaction edge, handling environments without logging infrastructure.
-
-    Args:
-        agent: The agent performing the action
-        **kwargs: Arguments to pass to log_interaction_edge
-    """
-    try:
-        if hasattr(agent, "logging_service") and agent.logging_service:
-            agent.logging_service.log_interaction_edge(**kwargs)
-    except Exception as e:
-        logger.debug(
-            "interaction_logging_failed",
-            agent_id=getattr(agent, "agent_id", "unknown"),
-            error_type=type(e).__name__,
-            error_message=str(e),
-        )
-
-
 def validate_action_result(agent: "AgentCore", action_name: str, result: dict) -> dict:
     """Validate the results of an action execution to ensure intended effects occurred.
 
@@ -638,14 +619,6 @@ def attack_action(agent: "AgentCore") -> dict:
             except Exception as e:
                 logger.warning(f"Failed to record combat metrics: {e}")
 
-        # Log the attack interaction using helper function
-        log_interaction_safely(
-            agent,
-            source_id=agent.agent_id,
-            target_id=closest_target.agent_id,
-            interaction_type="attack" if actual_damage > 0 else "attack_failed",
-        )
-
         logger.debug(
             f"Agent {agent.agent_id} attacked {closest_target.agent_id} "
             f"at distance {min_distance:.2f}, dealt {actual_damage:.2f} damage"
@@ -763,14 +736,6 @@ def gather_action(agent: "AgentCore") -> dict:
         reward = actual_gathered * 0.1  # Simple reward per unit gathered
         agent.total_reward += reward
 
-        # Log successful gather action using helper function
-        log_interaction_safely(
-            agent,
-            source_id=agent.agent_id,
-            target_id=str(getattr(closest_resource, "resource_id", "unknown")),
-            interaction_type="gather",
-        )
-
         logger.debug(f"Agent {agent.agent_id} gathered {actual_gathered} resources from {min_distance:.2f} units away")
 
         return {
@@ -791,14 +756,6 @@ def gather_action(agent: "AgentCore") -> dict:
 
     except Exception as e:
         logger.error(f"Gathering failed for agent {agent.agent_id}: {str(e)}")
-
-        # Log failed gather action using helper function
-        log_interaction_safely(
-            agent,
-            source_id=agent.agent_id,
-            target_id="unknown",
-            interaction_type="gather_failed",
-        )
 
         return {
             "success": False,
@@ -892,14 +849,6 @@ def share_action(agent: "AgentCore") -> dict:
                 agent.metrics_service.record_resources_shared(share_amount)
             except Exception as e:
                 logger.warning(f"Failed to record sharing metrics: {e}")
-
-        # Log the share interaction using helper function
-        log_interaction_safely(
-            agent,
-            source_id=agent.agent_id,
-            target_id=target.agent_id,
-            interaction_type="share",
-        )
 
         logger.debug(
             f"Agent {agent.agent_id} shared {share_amount} resources with {target.agent_id} "
@@ -1000,14 +949,6 @@ def move_action(agent: "AgentCore") -> dict:
             # Move the agent
             agent.update_position(new_position)
 
-            # Log successful move
-            log_interaction_safely(
-                agent,
-                source_id=agent.agent_id,
-                target_id=f"{new_position[0]},{new_position[1]}",
-                interaction_type="move",
-            )
-
             logger.debug(f"Agent {agent.agent_id} moved from {original_position} to {new_position}")
 
             return {
@@ -1023,14 +964,6 @@ def move_action(agent: "AgentCore") -> dict:
                 },
             }
         else:
-            # Log failed move
-            log_interaction_safely(
-                agent,
-                source_id=agent.agent_id,
-                target_id=f"{new_position[0]},{new_position[1]}",
-                interaction_type="move_failed",
-            )
-
             logger.debug(f"Agent {agent.agent_id} could not move to invalid position {new_position}")
 
             return {
@@ -1135,14 +1068,6 @@ def reproduce_action(agent: "AgentCore") -> dict:
             # For asexual reproduction, target is the agent itself
             # For sexual reproduction, target would be the mate's ID
             target_id = agent.agent_id  # Asexual reproduction - self-reproduction
-
-            # Log successful reproduction
-            log_interaction_safely(
-                agent,
-                source_id=agent.agent_id,
-                target_id=target_id,
-                interaction_type="reproduce",
-            )
 
             logger.debug(f"Agent {agent.agent_id} successfully reproduced")
             return {
@@ -1259,14 +1184,6 @@ def defend_action(agent: "AgentCore") -> dict:
         reward = getattr(getattr(agent.config, "action_rewards", None), "defend_success_reward", 0.02)
         agent.total_reward += reward
 
-        # Log the defend action using helper function
-        log_interaction_safely(
-            agent,
-            source_id=agent.agent_id,
-            target_id=agent.agent_id,  # Self-targeted for defense
-            interaction_type="defend",
-        )
-
         logger.debug(
             f"Agent {agent.agent_id} entered defensive stance for {defense_duration} turns "
             f"(cost: {defense_cost}, healing: {healing_applied})"
@@ -1330,14 +1247,6 @@ def pass_action(agent: "AgentCore") -> dict:
         # Use config value if available, otherwise fall back to default
         reward = getattr(getattr(agent.config, "action_rewards", None), "pass_action_reward", 0.01)
         agent.total_reward += reward
-
-        # Log the pass action using helper function
-        log_interaction_safely(
-            agent,
-            source_id=agent.agent_id,
-            target_id=agent.agent_id,  # Self-targeted for pass
-            interaction_type="pass",
-        )
 
         logger.debug(f"Agent {agent.agent_id} chose to pass this turn")
 

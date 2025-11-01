@@ -288,27 +288,6 @@ class ILoggingService(ABC):
     """
 
     @abstractmethod
-    def log_interaction_edge(
-        self,
-        source_id: str,
-        target_id: str,
-        interaction_type: str,
-    ) -> None:
-        """Log an interaction between two simulation entities.
-
-        Args:
-            source_id: Unique identifier of the initiating entity.
-            target_id: Unique identifier of the target entity.
-            interaction_type: The category of interaction (e.g., "attack", "share", "gather",
-                "attack_failed", "gather_failed").
-
-        Note:
-            This method is useful for building interaction networks and analyzing
-            behavioral patterns in the simulation.
-        """
-        pass
-
-    @abstractmethod
     def log_reproduction_event(
         self,
         step_number: int,

@@ -390,9 +390,6 @@ class SimulationContext:
         """Log a health incident with the correct simulation_id."""
         return self.logger.log_health_incident(**kwargs)
 
-    def log_learning_experience(self, **kwargs):
-        """Log a learning experience with the correct simulation_id."""
-        return self.logger.log_learning_experience(**kwargs)
 
     def flush_all_buffers(self):
         """Flush all data buffers to the database."""

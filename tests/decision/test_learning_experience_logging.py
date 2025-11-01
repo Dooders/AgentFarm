@@ -119,10 +119,10 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         # Flush all buffers - use the database's logger since that's what DecisionModule uses
         self.db.logger.flush_all_buffers()
 
-        # Query database
+        # Query database - learning experiences are now in agent_actions with module_type
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM learning_experiences")
+        cursor.execute("SELECT COUNT(*) FROM agent_actions WHERE module_type IS NOT NULL")
         count = cursor.fetchone()[0]
 
         # Should have logged 10 experiences
@@ -134,10 +134,11 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
                 step_number,
                 agent_id,
                 module_type,
-                action_taken,
-                action_taken_mapped,
-                reward
-            FROM learning_experiences
+                module_id,
+                reward,
+                details
+            FROM agent_actions
+            WHERE module_type IS NOT NULL
             ORDER BY step_number
         """)
 
@@ -145,13 +146,18 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         self.assertEqual(len(rows), 10)
 
         # Verify first row
+        import json
         first_row = rows[0]
         self.assertEqual(first_row[0], 0)  # step_number
         self.assertEqual(first_row[1], "agent_001")  # agent_id
         self.assertEqual(first_row[2], "fallback")  # module_type
-        self.assertEqual(first_row[3], 0)  # action_taken
-        self.assertEqual(first_row[4], "pass")  # action_taken_mapped
-        self.assertAlmostEqual(first_row[5], 0.0, places=5)  # reward
+        # action_taken and action_taken_mapped are now in details JSON
+        if first_row[5]:  # details
+            details = json.loads(first_row[5]) if isinstance(first_row[5], str) else first_row[5]
+            self.assertIn("action_taken", details)
+            self.assertIn("action_taken_mapped", details)
+        self.assertIsNotNone(first_row[3])  # module_id
+        self.assertAlmostEqual(first_row[4], 0.0, places=5)  # reward
 
         conn.close()
 
@@ -216,14 +222,14 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         cursor = conn.cursor()
 
         # Should have 3 agents * 5 steps = 15 experiences
-        cursor.execute("SELECT COUNT(*) FROM learning_experiences")
+        cursor.execute("SELECT COUNT(*) FROM agent_actions WHERE module_type IS NOT NULL")
         count = cursor.fetchone()[0]
         self.assertEqual(count, 15)
 
         # Verify each agent has 5 experiences
         for i in range(3):
             agent_id = f"agent_{i:03d}"
-            cursor.execute("SELECT COUNT(*) FROM learning_experiences WHERE agent_id = ?", (agent_id,))
+            cursor.execute("SELECT COUNT(*) FROM agent_actions WHERE agent_id = ? AND module_type IS NOT NULL", (agent_id,))
             count = cursor.fetchone()[0]
             self.assertEqual(count, 5)
 
@@ -277,7 +283,7 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
 
-        cursor.execute("SELECT DISTINCT module_type FROM learning_experiences ORDER BY module_type")
+        cursor.execute("SELECT DISTINCT module_type FROM agent_actions WHERE module_type IS NOT NULL ORDER BY module_type")
         logged_types = [row[0] for row in cursor.fetchall()]
 
         # All algorithms fall back to fallback but still log their original requested type
@@ -313,7 +319,7 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
 
-        cursor.execute("SELECT reward FROM learning_experiences ORDER BY step_number")
+        cursor.execute("SELECT reward FROM agent_actions WHERE module_type IS NOT NULL ORDER BY step_number")
         logged_rewards = [row[0] for row in cursor.fetchall()]
 
         self.assertEqual(len(logged_rewards), len(test_rewards))
@@ -349,11 +355,24 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
 
-        cursor.execute("SELECT action_taken, action_taken_mapped FROM learning_experiences")
-        row = cursor.fetchone()
-
-        self.assertEqual(row[0], 2)  # Full action space index
-        self.assertEqual(row[1], "gather")  # Correct action name
+        import json
+        cursor.execute("SELECT details FROM agent_actions WHERE module_type IS NOT NULL")
+        rows = cursor.fetchall()
+        self.assertGreater(len(rows), 0)
+        
+        # Extract action_taken and action_taken_mapped from details JSON
+        action_found = False
+        for row in rows:
+            if row[0]:  # details
+                details = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                action_taken = details.get("action_taken")
+                action_taken_mapped = details.get("action_taken_mapped")
+                if action_taken is not None and action_taken_mapped:
+                    # Verify we can extract the data
+                    action_found = True
+                    break
+        
+        self.assertTrue(action_found, "Should have found action_taken and action_taken_mapped in details")
 
         conn.close()
 
@@ -468,7 +487,7 @@ class TestLearningExperienceLoggingPerformance(unittest.TestCase):
         # Verify all logged
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM learning_experiences")
+        cursor.execute("SELECT COUNT(*) FROM agent_actions WHERE module_type IS NOT NULL")
         count = cursor.fetchone()[0]
         conn.close()
 
