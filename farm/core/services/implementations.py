@@ -161,34 +161,23 @@ class EnvironmentLoggingService(ILoggingService):
 
     def log_interaction_edge(
         self,
-        source_type: str,
         source_id: str,
-        target_type: str,
         target_id: str,
         interaction_type: str,
-        action_type: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Log an interaction between two entities in the simulation.
 
         Args:
-            source_type: The type of the source entity (e.g., "agent", "resource").
             source_id: The identifier of the source entity.
-            target_type: The type of the target entity (e.g., "agent", "resource").
             target_id: The identifier of the target entity.
-            interaction_type: The type of interaction (e.g., "combat", "sharing").
-            action_type: Optional specific action type within the interaction.
-            details: Optional dictionary of additional details about the interaction.
+            interaction_type: The type of interaction (e.g., "attack", "share", "gather",
+                "attack_failed", "gather_failed").
         """
         # delegate to environment's method which already checks DB presence
         self._env.log_interaction_edge(
-            source_type=source_type,
             source_id=source_id,
-            target_type=target_type,
             target_id=target_id,
             interaction_type=interaction_type,
-            action_type=action_type,
-            details=details,
         )
 
     def log_reproduction_event(

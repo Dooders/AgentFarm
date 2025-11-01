@@ -641,13 +641,9 @@ def attack_action(agent: "AgentCore") -> dict:
         # Log the attack interaction using helper function
         log_interaction_safely(
             agent,
-            source_type="agent",
             source_id=agent.agent_id,
-            target_type="agent",
             target_id=closest_target.agent_id,
             interaction_type="attack" if actual_damage > 0 else "attack_failed",
-            action_type="attack",
-            details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
         logger.debug(
@@ -770,13 +766,9 @@ def gather_action(agent: "AgentCore") -> dict:
         # Log successful gather action using helper function
         log_interaction_safely(
             agent,
-            source_type="agent",
             source_id=agent.agent_id,
-            target_type="resource",
             target_id=str(getattr(closest_resource, "resource_id", "unknown")),
             interaction_type="gather",
-            action_type="gather",
-            details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
         logger.debug(f"Agent {agent.agent_id} gathered {actual_gathered} resources from {min_distance:.2f} units away")
@@ -803,13 +795,9 @@ def gather_action(agent: "AgentCore") -> dict:
         # Log failed gather action using helper function
         log_interaction_safely(
             agent,
-            source_type="agent",
             source_id=agent.agent_id,
-            target_type="resource",
             target_id="unknown",
             interaction_type="gather_failed",
-            action_type="gather",
-            details={},  # Minimal details to avoid duplication
         )
 
         return {
@@ -908,13 +896,9 @@ def share_action(agent: "AgentCore") -> dict:
         # Log the share interaction using helper function
         log_interaction_safely(
             agent,
-            source_type="agent",
             source_id=agent.agent_id,
-            target_type="agent",
             target_id=target.agent_id,
             interaction_type="share",
-            action_type="share",
-            details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
         logger.debug(
@@ -1019,13 +1003,9 @@ def move_action(agent: "AgentCore") -> dict:
             # Log successful move
             log_interaction_safely(
                 agent,
-                source_type="agent",
                 source_id=agent.agent_id,
-                target_type="position",
                 target_id=f"{new_position[0]},{new_position[1]}",
                 interaction_type="move",
-                action_type="move",
-                details={},  # Minimal details to avoid duplication with action-specific logging
             )
 
             logger.debug(f"Agent {agent.agent_id} moved from {original_position} to {new_position}")
@@ -1046,13 +1026,9 @@ def move_action(agent: "AgentCore") -> dict:
             # Log failed move
             log_interaction_safely(
                 agent,
-                source_type="agent",
                 source_id=agent.agent_id,
-                target_type="position",
                 target_id=f"{new_position[0]},{new_position[1]}",
                 interaction_type="move_failed",
-                action_type="move",
-                details={},  # Minimal details to avoid duplication
             )
 
             logger.debug(f"Agent {agent.agent_id} could not move to invalid position {new_position}")
@@ -1163,13 +1139,9 @@ def reproduce_action(agent: "AgentCore") -> dict:
             # Log successful reproduction
             log_interaction_safely(
                 agent,
-                source_type="agent",
                 source_id=agent.agent_id,
-                target_type="agent",
                 target_id=target_id,
                 interaction_type="reproduce",
-                action_type="reproduce",
-                details={},  # Minimal details to avoid duplication with reproduction event logging
             )
 
             logger.debug(f"Agent {agent.agent_id} successfully reproduced")
@@ -1290,13 +1262,9 @@ def defend_action(agent: "AgentCore") -> dict:
         # Log the defend action using helper function
         log_interaction_safely(
             agent,
-            source_type="agent",
             source_id=agent.agent_id,
-            target_type="agent",
             target_id=agent.agent_id,  # Self-targeted for defense
             interaction_type="defend",
-            action_type="defend",
-            details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
         logger.debug(
@@ -1366,13 +1334,9 @@ def pass_action(agent: "AgentCore") -> dict:
         # Log the pass action using helper function
         log_interaction_safely(
             agent,
-            source_type="agent",
             source_id=agent.agent_id,
-            target_type="agent",
             target_id=agent.agent_id,  # Self-targeted for pass
             interaction_type="pass",
-            action_type="pass",
-            details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
         logger.debug(f"Agent {agent.agent_id} chose to pass this turn")

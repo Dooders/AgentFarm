@@ -1210,30 +1210,20 @@ class SimulationDatabase(DatabaseProtocol):
             )
             session.add(event)
 
-            # Also log as interaction for comprehensive tracking (minimal data to avoid duplication)
+            # Also log as interaction for comprehensive tracking
             interaction_type = "reproduce" if success else "reproduce_failed"
-            target_type = "agent" if offspring_id and success else "position"
             target_id = (
                 offspring_id
                 if offspring_id and success
                 else (f"{parent_position[0]},{parent_position[1]}" if parent_position else "unknown")
             )
 
-            # Only store essential relationship data - full details already in ReproductionEventModel
-            interaction_details = {}
-            if not success and failure_reason:
-                interaction_details["failure_reason"] = failure_reason
-
             interaction = InteractionModel(
                 simulation_id=self.simulation_id,
                 step_number=step_number,
-                source_type="agent",
                 source_id=parent_id,
-                target_type=target_type,
                 target_id=target_id,
                 interaction_type=interaction_type,
-                action_type="reproduce",
-                details=interaction_details,  # Minimal details to avoid duplication
             )
             session.add(interaction)
 

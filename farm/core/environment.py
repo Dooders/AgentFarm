@@ -736,13 +736,9 @@ class Environment(AECEnv):
 
     def log_interaction_edge(
         self,
-        source_type: str,
         source_id: str,
-        target_type: str,
         target_id: str,
         interaction_type: str,
-        action_type: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Log an interaction as an edge between nodes if database is enabled.
 
@@ -751,20 +747,12 @@ class Environment(AECEnv):
 
         Parameters
         ----------
-        source_type : str
-            Type of the source entity (e.g., 'agent', 'resource')
         source_id : str
             Unique identifier of the source entity
-        target_type : str
-            Type of the target entity (e.g., 'agent', 'resource')
         target_id : str
             Unique identifier of the target entity
         interaction_type : str
-            Type of interaction (e.g., 'attack', 'share', 'gather')
-        action_type : str, optional
-            Specific action type if different from interaction_type
-        details : dict, optional
-            Additional interaction details (e.g., amount transferred, damage dealt)
+            Type of interaction (e.g., 'attack', 'share', 'gather', 'attack_failed', 'gather_failed')
 
         Notes
         -----
@@ -777,13 +765,9 @@ class Environment(AECEnv):
         try:
             self.db.logger.log_interaction_edge(
                 step_number=self.time,
-                source_type=source_type,
                 source_id=source_id,
-                target_type=target_type,
                 target_id=target_id,
                 interaction_type=interaction_type,
-                action_type=action_type,
-                details=details,
             )
         except (ValueError, TypeError, AttributeError) as e:
             logger.error(
