@@ -240,6 +240,10 @@ class DataLoggerProtocol(Protocol):
         action_target_id: Optional[str] = None,
         reward: Optional[float] = None,
         details: Optional[Dict] = None,
+        module_type: Optional[str] = None,
+        module_id: Optional[str] = None,
+        action_taken: Optional[int] = None,
+        action_taken_mapped: Optional[str] = None,
     ) -> None:
         """Log an agent action.
 
@@ -253,14 +257,18 @@ class DataLoggerProtocol(Protocol):
             Type of action being performed
         action_target_id : Optional[str]
             ID of the target (if any)
-        resources_before : Optional[float]
-            Resource level before action
-        resources_after : Optional[float]
-            Resource level after action
         reward : Optional[float]
             Reward received for action
         details : Optional[Dict]
             Additional action details
+        module_type : Optional[str]
+            Type of learning module that generated this action (e.g., 'dqn', 'ppo')
+        module_id : Optional[str]
+            Unique identifier for the specific learning module instance
+        action_taken : Optional[int]
+            Action index from learning module's perspective
+        action_taken_mapped : Optional[str]
+            Human-readable action name from learning module
         """
         ...
 

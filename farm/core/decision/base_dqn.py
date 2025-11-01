@@ -306,14 +306,15 @@ class BaseDQNModule:
             reward (float): Reward received for this experience
         """
         if self.db is not None:
-            self.db.logger.log_learning_experience(
+            self.db.logger.log_agent_action(
                 step_number=step_number,
                 agent_id=agent_id,
+                action_type=action_taken_mapped if action_taken_mapped else f"action_{action_taken}",
+                reward=reward,
                 module_type=module_type,
-                module_id=self.module_id,
+                module_id=str(self.module_id),
                 action_taken=action_taken,
                 action_taken_mapped=action_taken_mapped,
-                reward=reward,
             )
 
     def store_experience(
@@ -358,14 +359,15 @@ class BaseDQNModule:
             and module_id is not None
             and action_taken_mapped is not None
         ):
-            self.logger.log_learning_experience(
+            self.logger.log_agent_action(
                 step_number=step_number,
                 agent_id=agent_id,
+                action_type=str(action_taken_mapped),
+                reward=reward,
                 module_type=module_type,
-                module_id=module_id,
+                module_id=str(module_id),
                 action_taken=action,
                 action_taken_mapped=str(action_taken_mapped),
-                reward=reward,
             )
 
     def train(

@@ -36,8 +36,6 @@ from farm.database.models import (
     AgentModel,
     AgentStateModel,
     HealthIncident,
-    InteractionModel,
-    LearningExperienceModel,
     ReproductionEventModel,
     ResourceModel,
     Simulation,
@@ -225,9 +223,7 @@ class IntegrityValidator:
             "resource_states",
             "reproduction_events",
             "health_incidents",
-            "learning_experiences",
             "social_interactions",
-            "interactions",
             "simulation_config",
             "simulations",
         }

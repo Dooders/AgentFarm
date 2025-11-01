@@ -250,11 +250,11 @@ analysis = resource_repo.execute(session)
 **Key Methods**:
 
 ```python
-class LearningRepository(BaseRepository[LearningExperienceModel]):
+class LearningRepository(BaseRepository[ActionModel]):
     def get_learning_progress(self, session, scope: str, ...) -> List[LearningProgress]
     def get_module_performance(self, session, scope: str, ...) -> Dict[str, ModulePerformance]
     def get_agent_learning_stats(self, session, agent_id: Optional[int], ...) -> Dict[str, AgentLearningStats]
-    def get_learning_experiences(self, session, scope: str, ...) -> List[LearningExperienceModel]
+    def get_learning_experiences(self, session, scope: str, ...) -> List[ActionModel]
 ```
 
 **Features**:

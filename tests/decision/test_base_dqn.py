@@ -205,7 +205,7 @@ class TestBaseDQNModule(unittest.TestCase):
         )
 
         # Check that logger was called
-        mock_logger.log_learning_experience.assert_called_once()
+        mock_logger.log_agent_action.assert_called_once()
 
     def test_train_with_small_batch(self):
         """Test training with batch smaller than batch_size."""

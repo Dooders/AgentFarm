@@ -549,13 +549,6 @@ class TestEnvironment(unittest.TestCase):
         # Test with real database path (in-memory is already used in setUp)
         self.assertIsNotNone(self.env.db)
 
-        # Test interaction edge logging
-        self.env.log_interaction_edge(
-            source_id="test_agent_1",
-            target_id="test_agent_2",
-            interaction_type="attack",
-        )
-
         # Test logging with missing database (should not raise)
         env_no_db = Environment(
             width=50,
@@ -568,11 +561,7 @@ class TestEnvironment(unittest.TestCase):
         # Simulate missing database by setting db to None
         original_db = env_no_db.db
         env_no_db.db = None
-        env_no_db.log_interaction_edge(
-            source_id="test",
-            target_id="res1",
-            interaction_type="gather",
-        )
+        # Test that operations don't crash when db is None
         env_no_db.db = original_db  # Restore for cleanup
         env_no_db.cleanup()
 

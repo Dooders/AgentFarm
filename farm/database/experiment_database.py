@@ -108,10 +108,12 @@ class ExperimentDataLogger(DataLogger):
         agent_id,
         action_type,
         action_target_id=None,
-        resources_before=None,
-        resources_after=None,
         reward=None,
         details=None,
+        module_type=None,
+        module_id=None,
+        action_taken=None,
+        action_taken_mapped=None,
     ):
         """Log an agent action with the correct simulation_id and prefixed agent_ids."""
         # Prefix agent_ids with simulation_id
@@ -127,10 +129,12 @@ class ExperimentDataLogger(DataLogger):
             agent_id=unique_agent_id,
             action_type=action_type,
             action_target_id=unique_target_id,
-            resources_before=resources_before,
-            resources_after=resources_after,
             reward=reward,
             details=details,
+            module_type=module_type,
+            module_id=module_id,
+            action_taken=action_taken,
+            action_taken_mapped=action_taken_mapped,
         )
 
     def log_health_incident(
@@ -390,9 +394,6 @@ class SimulationContext:
         """Log a health incident with the correct simulation_id."""
         return self.logger.log_health_incident(**kwargs)
 
-    def log_learning_experience(self, **kwargs):
-        """Log a learning experience with the correct simulation_id."""
-        return self.logger.log_learning_experience(**kwargs)
 
     def flush_all_buffers(self):
         """Flush all data buffers to the database."""

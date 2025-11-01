@@ -41,13 +41,6 @@ class AttackLogger:
             },
         )
 
-        # Also log as interaction for comprehensive tracking
-        self.db.logger.log_interaction_edge(
-            step_number=step_number,
-            source_id=agent.agent_id,
-            target_id=agent.agent_id,
-            interaction_type="defend",
-        )
         logger.debug("agent_defensive_stance", agent_id=agent.agent_id)
 
     def log_attack_attempt(
@@ -83,18 +76,6 @@ class AttackLogger:
             action_target_id=action_target_id,
             reward=0,  # Reward will be handled separately by the learning system
             details=details,
-        )
-
-        # Also log as interaction for comprehensive tracking
-        interaction_type = "attack" if success else "attack_failed"
-        # If the target is an agent, use their agent ID; if the target is a position, use the coordinate string "x,y".
-        target_id = action_target_id if action_target_id else f"{target_position[0]},{target_position[1]}"
-
-        self.db.logger.log_interaction_edge(
-            step_number=step_number,
-            source_id=agent.agent_id,
-            target_id=target_id,
-            interaction_type=interaction_type,
         )
 
         if success:

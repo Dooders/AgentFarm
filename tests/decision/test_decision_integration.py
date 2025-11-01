@@ -55,7 +55,7 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         # Add mock database logger to prevent logging errors
         self.mock_agent.environment.db = Mock()
         self.mock_agent.environment.db.logger = Mock()
-        self.mock_agent.environment.db.logger.log_learning_experience = Mock()
+        self.mock_agent.environment.db.logger.log_agent_action = Mock()
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", False)
     def test_decision_module_with_fallback_algorithm(self):
@@ -671,7 +671,7 @@ class TestDecisionSystemPerformance(unittest.TestCase):
         # Add mock database logger to prevent logging errors
         self.mock_agent.environment.db = Mock()
         self.mock_agent.environment.db.logger = Mock()
-        self.mock_agent.environment.db.logger.log_learning_experience = Mock()
+        self.mock_agent.environment.db.logger.log_agent_action = Mock()
 
     def test_decision_speed(self):
         """Test the speed of decision making."""

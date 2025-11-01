@@ -130,13 +130,6 @@ class TestCoreIntegration(unittest.TestCase):
         # Ensure DB exists for in-memory path
         self.assertIsNotNone(self.env.db)
 
-        # Log an interaction edge (should not raise)
-        self.env.log_interaction_edge(
-            source_id=self.env.agents[0],
-            target_id="r1",
-            interaction_type="gather",
-        )
-
         # Process an action and ensure DB logging path is exercised
         obs, info = self.env.reset()
         action = int(self.env.action_space().sample())

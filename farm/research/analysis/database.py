@@ -9,7 +9,6 @@ from farm.database.database import SimulationDatabase
 from farm.database.models import (
     ActionModel,
     AgentModel,
-    LearningExperienceModel,
     SimulationStepModel,
 )
 from farm.research.analysis.util import (
@@ -313,22 +312,21 @@ def get_rewards_by_generation(experiment_db_path: str) -> Dict[int, float]:
         session = db.Session()
 
         # Query to get average reward by generation
-        # Join agents with their learning experiences
+        # Join agents with their actions that have learning module metadata
         query = (
             session.query(
                 AgentModel.generation,
-                func.avg(LearningExperienceModel.reward).label("avg_reward"),
-                func.count(LearningExperienceModel.experience_id).label(
-                    "experience_count"
-                ),
+                func.avg(ActionModel.reward).label("avg_reward"),
+                func.count(ActionModel.action_id).label("experience_count"),
             )
             .join(
-                LearningExperienceModel,
-                LearningExperienceModel.agent_id == AgentModel.agent_id,
+                ActionModel,
+                ActionModel.agent_id == AgentModel.agent_id,
             )
+            .filter(ActionModel.module_type.isnot(None))
             .group_by(AgentModel.generation)
             .having(
-                func.count(LearningExperienceModel.experience_id) > 0
+                func.count(ActionModel.action_id) > 0
             )  # Only include generations with data
             .order_by(AgentModel.generation)
             .all()

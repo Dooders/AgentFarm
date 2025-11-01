@@ -2,6 +2,7 @@
 Learning data processing for analysis.
 """
 
+import json
 from pathlib import Path
 from typing import Optional
 import pandas as pd
@@ -40,7 +41,7 @@ def process_learning_data(experiment_path: Path, use_database: bool = True, **kw
             session_manager = SessionManager(db_uri)
             repository = LearningRepository(session_manager)
 
-            # Get learning experiences
+            # Get learning experiences (now ActionModel instances with module_type)
             experiences = repository.get_learning_experiences(session_manager.create_session(), scope="simulation")
 
             if not experiences:
@@ -58,8 +59,37 @@ def process_learning_data(experiment_path: Path, use_database: bool = True, **kw
                     ]
                 )
             else:
-                # Convert to DataFrame
-                df = pd.DataFrame(experiences)
+                # Convert ActionModel instances to dict with proper column mapping
+                rows = []
+                for exp in experiences:
+                    row = {
+                        "step": exp.step_number,
+                        "agent_id": exp.agent_id,
+                        "module_type": exp.module_type,
+                        "module_id": exp.module_id,
+                        "reward": exp.reward,
+                        "action_type": exp.action_type,
+                        "action_taken": None,
+                        "action_taken_mapped": None,
+                    }
+                    # Extract action_taken and action_taken_mapped from details JSON
+                    if exp.details:
+                        try:
+                            details = json.loads(exp.details) if isinstance(exp.details, str) else exp.details
+                            row["action_taken"] = details.get("action_taken")
+                            row["action_taken_mapped"] = details.get("action_taken_mapped")
+                        except (json.JSONDecodeError, TypeError) as json_error:
+                            logger.warning(
+                                "learning_data_json_parse_failed",
+                                agent_id=exp.agent_id,
+                                step=exp.step_number,
+                                details=exp.details,
+                                error_type=type(json_error).__name__,
+                                error_message=str(json_error),
+                            )
+                    rows.append(row)
+                
+                df = pd.DataFrame(rows)
 
                 # Ensure required columns exist
                 required_cols = ["step", "agent_id", "module_type", "reward", "action_taken"]

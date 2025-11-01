@@ -12,6 +12,7 @@ Features:
 - Comprehensive error handling
 """
 
+import copy
 import json
 import time
 from dataclasses import dataclass
@@ -25,8 +26,6 @@ from farm.database.models import (
     AgentModel,
     AgentStateModel,
     HealthIncident,
-    InteractionModel,
-    LearningExperienceModel,
     ReproductionEventModel,
     ResourceModel,
     SimulationStepModel,
@@ -78,10 +77,8 @@ class DataLogger(DataLoggerProtocol):
         self._last_commit_time = time.time()
         #! Is there a better way to manage all these buffers?
         self._action_buffer = []
-        self._learning_exp_buffer = []
         self._health_incident_buffer = []
         self._resource_buffer = []
-        self._interaction_buffer = []
         self.reproduction_buffer = []
         self._step_buffer = []
 
@@ -100,14 +97,49 @@ class DataLogger(DataLoggerProtocol):
         action_target_id: Optional[str] = None,
         reward: Optional[float] = None,
         details: Optional[Dict] = None,
+        module_type: Optional[str] = None,
+        module_id: Optional[str] = None,
+        action_taken: Optional[int] = None,
+        action_taken_mapped: Optional[str] = None,
     ) -> None:
-        """Buffer an agent action with enhanced validation and error handling."""
+        """Buffer an agent action with enhanced validation and error handling.
+        
+        Parameters
+        ----------
+        step_number : int
+            Simulation step when action occurred
+        agent_id : str
+            ID of agent performing the action
+        action_type : str
+            Type of action (e.g., 'move', 'attack', 'share')
+        action_target_id : Optional[str]
+            ID of target entity (agent or resource)
+        reward : Optional[float]
+            Reward received for this action
+        details : Optional[Dict]
+            Additional action details as JSON-serializable dict
+        module_type : Optional[str]
+            Type of learning module that generated this action (e.g., 'dqn', 'ppo')
+        module_id : Optional[str]
+            Unique identifier for the specific learning module instance
+        action_taken : Optional[int]
+            Action index from learning module's perspective
+        action_taken_mapped : Optional[str]
+            Human-readable action name from learning module
+        """
         try:
             # Input validation
             if step_number < 0:
                 raise ValueError("step_number must be non-negative")
             if not isinstance(action_type, str):
                 action_type = str(action_type)
+
+            # Prepare details dict, including learning-specific fields if provided
+            details_dict = copy.deepcopy(details) if details else {}
+            if action_taken is not None:
+                details_dict["action_taken"] = action_taken
+            if action_taken_mapped is not None:
+                details_dict["action_taken_mapped"] = action_taken_mapped
 
             #! Shouldnt this be a dataclass?
             action_data = {
@@ -117,7 +149,9 @@ class DataLogger(DataLoggerProtocol):
                 "action_type": action_type,
                 "action_target_id": action_target_id,
                 "reward": reward,
-                "details": json.dumps(details) if details else None,
+                "details": json.dumps(details_dict) if details_dict else None,
+                "module_type": module_type,
+                "module_id": str(module_id) if module_id is not None else None,
             }
 
             self._action_buffer.append(action_data)
@@ -142,78 +176,6 @@ class DataLogger(DataLoggerProtocol):
         except Exception as e:
             logger.error(
                 "agent_action_logging_error",
-                error_type=type(e).__name__,
-                error_message=str(e),
-            )
-            raise
-
-    def log_interaction_edge(
-        self,
-        step_number: int,
-        source_id: str,
-        target_id: str,
-        interaction_type: str,
-    ) -> None:
-        """Buffer an interaction as an edge between nodes.
-
-        Ensures consistent structure for downstream analytics and visualization.
-        """
-        try:
-            if step_number < 0:
-                raise ValueError("step_number must be non-negative")
-
-            edge = {
-                "simulation_id": self.simulation_id,
-                "step_number": step_number,
-                "source_id": str(source_id),
-                "target_id": str(target_id),
-                "interaction_type": str(interaction_type),
-            }
-
-            self._interaction_buffer.append(edge)
-
-            if len(self._interaction_buffer) >= self._buffer_size:
-                self.flush_interaction_buffer()
-
-        except Exception as e:
-            logger.error(
-                "interaction_edge_logging_error",
-                error_type=type(e).__name__,
-                error_message=str(e),
-            )
-            raise
-
-    def log_learning_experience(
-        self,
-        step_number: int,
-        agent_id: str,
-        module_type: str,
-        module_id: int,
-        action_taken: int,
-        action_taken_mapped: str,
-        reward: float,
-    ) -> None:
-        """Buffer a learning experience."""
-        try:
-            exp_data = {
-                "simulation_id": self.simulation_id,
-                "step_number": step_number,
-                "agent_id": agent_id,
-                "module_type": module_type,
-                "module_id": module_id,
-                "action_taken": action_taken,
-                "action_taken_mapped": action_taken_mapped,
-                "reward": reward,
-            }
-
-            self._learning_exp_buffer.append(exp_data)
-
-            if len(self._learning_exp_buffer) >= self._buffer_size:
-                self.flush_learning_buffer()
-
-        except Exception as e:
-            logger.error(
-                "learning_experience_logging_error",
                 error_type=type(e).__name__,
                 error_message=str(e),
             )
@@ -310,50 +272,6 @@ class DataLogger(DataLoggerProtocol):
             )
             raise
 
-    def flush_interaction_buffer(self) -> None:
-        """Flush buffered interaction edges to the database."""
-        if not self._interaction_buffer:
-            return
-
-        buffer_copy = list(self._interaction_buffer)
-        try:
-
-            def _insert(session):
-                session.bulk_insert_mappings(InteractionModel, buffer_copy)
-
-            self.db._execute_in_transaction(_insert)
-            self._interaction_buffer.clear()
-        except SQLAlchemyError as e:
-            logger.error(
-                "interaction_buffer_flush_failed",
-                buffer_size=len(self._interaction_buffer),
-                error_type=type(e).__name__,
-                error_message=str(e),
-            )
-            raise
-
-    def flush_learning_buffer(self) -> None:
-        """Flush the learning experience buffer with transaction safety."""
-        if not self._learning_exp_buffer:
-            return
-
-        buffer_copy = list(self._learning_exp_buffer)
-        try:
-
-            def _insert(session):
-                session.bulk_insert_mappings(LearningExperienceModel, buffer_copy)
-
-            self.db._execute_in_transaction(_insert)
-            self._learning_exp_buffer.clear()
-        except SQLAlchemyError as e:
-            logger.error(
-                "learning_buffer_flush_failed",
-                buffer_size=len(self._learning_exp_buffer),
-                error_type=type(e).__name__,
-                error_message=str(e),
-            )
-            raise
-
     def flush_health_buffer(self) -> None:
         """Flush the health incident buffer with transaction safety."""
         if not self._health_incident_buffer:
@@ -398,10 +316,6 @@ class DataLogger(DataLoggerProtocol):
                     session.bulk_insert_mappings(ActionModel, self._action_buffer)
                     self._action_buffer.clear()
 
-                if self._learning_exp_buffer:
-                    session.bulk_insert_mappings(LearningExperienceModel, self._learning_exp_buffer)
-                    self._learning_exp_buffer.clear()
-
                 if self._health_incident_buffer:
                     session.bulk_insert_mappings(HealthIncident, self._health_incident_buffer)
                     self._health_incident_buffer.clear()
@@ -409,10 +323,6 @@ class DataLogger(DataLoggerProtocol):
                 if self.reproduction_buffer:
                     session.bulk_insert_mappings(ReproductionEventModel, self.reproduction_buffer)
                     self.reproduction_buffer.clear()
-
-                if self._interaction_buffer:
-                    session.bulk_insert_mappings(InteractionModel, self._interaction_buffer)
-                    self._interaction_buffer.clear()
 
                 if self._step_buffer:
                     session.bulk_insert_mappings(SimulationStepModel, self._step_buffer)

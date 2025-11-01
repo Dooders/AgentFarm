@@ -392,17 +392,19 @@ class TestDecisionModule(unittest.TestCase):
         # Call update
         module.update(state, action, reward, next_state, done)
 
-        # Verify log_learning_experience was called with correct parameters
-        mock_logger.log_learning_experience.assert_called_once()
-        call_args = mock_logger.log_learning_experience.call_args
+        # Verify log_agent_action was called with correct parameters including learning metadata
+        mock_logger.log_agent_action.assert_called_once()
+        call_args = mock_logger.log_agent_action.call_args
 
         self.assertEqual(call_args.kwargs['step_number'], 42)
+        self.assertIsNotNone(call_args.kwargs.get('module_type'))
+        self.assertIsNotNone(call_args.kwargs.get('module_id'))
         self.assertEqual(call_args.kwargs['agent_id'], 'test_agent_1')
         self.assertEqual(call_args.kwargs['module_type'], self.config.algorithm_type)
         self.assertEqual(call_args.kwargs['action_taken'], 0)
         self.assertEqual(call_args.kwargs['action_taken_mapped'], 'move')
         self.assertEqual(call_args.kwargs['reward'], 1.5)
-        self.assertIsInstance(call_args.kwargs['module_id'], int)
+        self.assertIsInstance(call_args.kwargs['module_id'], str)
 
     def test_update_without_database_does_not_crash(self):
         """Test that update works when database is not available."""
@@ -454,8 +456,8 @@ class TestDecisionModule(unittest.TestCase):
         # Call update
         module.update(state, action, reward, next_state, done)
 
-        # Should not call log_learning_experience when time service is missing
-        mock_logger.log_learning_experience.assert_not_called()
+        # Should not call log_agent_action when time service is missing
+        mock_logger.log_agent_action.assert_not_called()
 
     def test_update_without_actions_uses_fallback_logging(self):
         """Test that update uses fallback action name when actions list is empty."""
@@ -490,17 +492,18 @@ class TestDecisionModule(unittest.TestCase):
         # Call update
         module.update(state, action, reward, next_state, done)
 
-        # Should call log_learning_experience with fallback action name when actions are empty
-        mock_logger.log_learning_experience.assert_called_once()
-        call_args = mock_logger.log_learning_experience.call_args
-        assert call_args[1]['action_taken_mapped'] == 'action_0'  # Fallback action name
+        # Should call log_agent_action with fallback action name when actions are empty
+        mock_logger.log_agent_action.assert_called_once()
+        call_args = mock_logger.log_agent_action.call_args
+        # action_taken_mapped should be passed as a keyword argument
+        assert call_args.kwargs.get('action_taken_mapped') == 'action_0'
 
     def test_update_logging_exception_does_not_crash(self):
         """Test that logging exceptions are handled gracefully."""
         # Set up mock agent with database that raises exception
         mock_db = Mock()
         mock_logger = Mock()
-        mock_logger.log_learning_experience.side_effect = Exception("Database error")
+        mock_logger.log_agent_action.side_effect = Exception("Database error")
         mock_db.logger = mock_logger
 
         mock_env = Mock()
@@ -566,7 +569,7 @@ class TestDecisionModule(unittest.TestCase):
                 module.update(state, 0, 1.0, torch.randn(8), False)
 
                 # Verify correct algorithm type was logged
-                call_args = mock_logger.log_learning_experience.call_args
+                call_args = mock_logger.log_agent_action.call_args
                 self.assertEqual(call_args.kwargs['module_type'], algo_type)
 
     def test_update_logs_different_rewards(self):
@@ -604,7 +607,7 @@ class TestDecisionModule(unittest.TestCase):
                 module.update(state, 0, reward_value, torch.randn(8), False)
 
                 # Verify correct reward was logged
-                call_args = mock_logger.log_learning_experience.call_args
+                call_args = mock_logger.log_agent_action.call_args
                 self.assertEqual(call_args.kwargs['reward'], reward_value)
 
     def test_update_with_curriculum_logs_correct_action(self):
@@ -645,7 +648,7 @@ class TestDecisionModule(unittest.TestCase):
         module.update(state, 1, 1.0, torch.randn(8), False, enabled_actions=enabled_actions)
 
         # Verify the logged action is 2 (full action space index)
-        call_args = mock_logger.log_learning_experience.call_args
+        call_args = mock_logger.log_agent_action.call_args
         self.assertEqual(call_args.kwargs['action_taken'], 2)
         self.assertEqual(call_args.kwargs['action_taken_mapped'], 'action_2')
 

@@ -8,19 +8,19 @@ from farm.database.data_types import (
     LearningProgress,
     ModulePerformance,
 )
-from farm.database.models import LearningExperienceModel
+from farm.database.models import ActionModel
 from farm.database.repositories.base_repository import BaseRepository
 from farm.database.scope_utils import filter_scope
 from farm.database.session_manager import SessionManager
 
 
-class LearningRepository(BaseRepository[LearningExperienceModel]):
+class LearningRepository(BaseRepository[ActionModel]):
     """
     Repository for managing and querying learning experience data.
 
     This class provides methods to access and aggregate learning-related data including
-    progress metrics, module performance, and agent learning statistics. It handles the
-    persistence and retrieval of learning experiences from the database.
+    progress metrics, module performance, and agent learning statistics. It queries
+    the agent_actions table filtering by module_type to get learning-specific actions.
 
     Attributes:
         session_manager (SessionManager): Manager for database sessions and transactions
@@ -32,7 +32,7 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
 
     def __init__(self, session_manager: SessionManager):
         """Initialize repository with session manager."""
-        super().__init__(session_manager, LearningExperienceModel)
+        super().__init__(session_manager, ActionModel)
 
     def get_learning_progress(
         self,
@@ -68,16 +68,14 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
             >>> print(f"Step {progress[0].step}: Reward={progress[0].reward}")
         """
         query = session.query(
-            LearningExperienceModel.step_number,
-            func.avg(LearningExperienceModel.reward).label("avg_reward"),
-            func.count(LearningExperienceModel.action_taken).label("action_count"),
-            func.count(distinct(LearningExperienceModel.action_taken_mapped)).label(
-                "unique_actions"
-            ),
-        ).group_by(LearningExperienceModel.step_number)
+            ActionModel.step_number,
+            func.avg(ActionModel.reward).label("avg_reward"),
+            func.count(ActionModel.action_id).label("action_count"),
+            func.count(distinct(ActionModel.action_type)).label("unique_actions"),
+        ).filter(ActionModel.module_type.isnot(None)).group_by(ActionModel.step_number)
 
         query = filter_scope(query, scope, str(agent_id), step, step_range)
-        results = query.order_by(LearningExperienceModel.step_number).all()
+        results = query.order_by(ActionModel.step_number).all()
 
         return [
             LearningProgress(
@@ -125,16 +123,14 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
             ...     print(f"{module}: avg_reward={stats.avg_reward:.2f}")
         """
         query = session.query(
-            LearningExperienceModel.module_type,
-            LearningExperienceModel.module_id,
-            func.avg(LearningExperienceModel.reward).label("avg_reward"),
-            func.count(LearningExperienceModel.action_taken).label("total_actions"),
-            func.count(distinct(LearningExperienceModel.action_taken_mapped)).label(
-                "unique_actions"
-            ),
-        ).group_by(
-            LearningExperienceModel.module_type,
-            LearningExperienceModel.module_id,
+            ActionModel.module_type,
+            ActionModel.module_id,
+            func.avg(ActionModel.reward).label("avg_reward"),
+            func.count(ActionModel.action_id).label("total_actions"),
+            func.count(distinct(ActionModel.action_type)).label("unique_actions"),
+        ).filter(ActionModel.module_type.isnot(None)).group_by(
+            ActionModel.module_type,
+            ActionModel.module_id,
         )
 
         query = filter_scope(query, scope, str(agent_id), step, step_range)
@@ -185,16 +181,14 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
             ...     print(f"{module}: {len(agent_stats.actions_used)} unique actions")
         """
         query = session.query(
-            LearningExperienceModel.agent_id,
-            LearningExperienceModel.module_type,
-            func.avg(LearningExperienceModel.reward).label("reward_mean"),
-            func.count(LearningExperienceModel.action_taken).label("total_actions"),
-            func.group_concat(
-                distinct(LearningExperienceModel.action_taken_mapped)
-            ).label("actions_used"),
-        ).group_by(
-            LearningExperienceModel.agent_id,
-            LearningExperienceModel.module_type,
+            ActionModel.agent_id,
+            ActionModel.module_type,
+            func.avg(ActionModel.reward).label("reward_mean"),
+            func.count(ActionModel.action_id).label("total_actions"),
+            func.group_concat(distinct(ActionModel.action_type)).label("actions_used"),
+        ).filter(ActionModel.module_type.isnot(None)).group_by(
+            ActionModel.agent_id,
+            ActionModel.module_type,
         )
 
         query = filter_scope(query, scope, str(agent_id), step, step_range)
@@ -217,7 +211,7 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
         agent_id: Optional[int] = None,
         step: Optional[int] = None,
         step_range: Optional[Tuple[int, int]] = None,
-    ) -> List[LearningExperienceModel]:
+    ) -> List[ActionModel]:
         """
         Retrieve learning experiences with filtering.
 
@@ -229,8 +223,8 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
             step_range: Filter for step range
 
         Returns:
-            List[LearningExperienceModel]: Filtered learning experiences
+            List[ActionModel]: Filtered actions that have learning module metadata
         """
-        query = session.query(LearningExperienceModel)
+        query = session.query(ActionModel).filter(ActionModel.module_type.isnot(None))
         query = filter_scope(query, scope, str(agent_id), step, step_range)
         return query.all()

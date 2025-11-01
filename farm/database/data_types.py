@@ -1478,7 +1478,7 @@ class BasicAgentInfo:
     total_health_incidents : int
         Number of health-affecting events
     learning_experiences_count : int
-        Number of learning experiences recorded
+        Number of actions with learning module metadata (module_type IS NOT NULL)
     times_targeted : int
         Number of times this agent was targeted by others
     """

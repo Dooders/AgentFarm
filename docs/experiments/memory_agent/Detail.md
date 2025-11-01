@@ -82,7 +82,7 @@
 4. **Database Integration**:
    - Add `AgentMemoryModel` to track memory entries in database
    - Implement memory consolidation metrics in `SimulationStepModel`
-   - Track memory retrieval success in `LearningExperienceModel`
+   - Track memory retrieval success in agent_actions table with module_type metadata
 
 ## Implementation Phases
 
