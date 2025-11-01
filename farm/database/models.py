@@ -310,8 +310,8 @@ class InteractionModel(Base):
     __tablename__ = "interactions"
     __table_args__ = (
         Index("idx_interactions_step_number", "step_number"),
-        Index("idx_interactions_source_id", "source_id"),
-        Index("idx_interactions_target_id", "target_id"),
+        Index("idx_interactions_source", "source_id"),
+        Index("idx_interactions_target", "target_id"),
         Index("idx_interactions_type", "interaction_type"),
     )
 

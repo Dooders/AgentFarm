@@ -87,6 +87,7 @@ class AttackLogger:
 
         # Also log as interaction for comprehensive tracking
         interaction_type = "attack" if success else "attack_failed"
+        # If the target is an agent, use their agent ID; if the target is a position, use the coordinate string "x,y".
         target_id = action_target_id if action_target_id else f"{target_position[0]},{target_position[1]}"
 
         self.db.logger.log_interaction_edge(
