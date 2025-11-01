@@ -12,6 +12,7 @@ Features:
 - Comprehensive error handling
 """
 
+import copy
 import json
 import time
 from dataclasses import dataclass
@@ -134,7 +135,7 @@ class DataLogger(DataLoggerProtocol):
                 action_type = str(action_type)
 
             # Prepare details dict, including learning-specific fields if provided
-            details_dict = details.copy() if details else {}
+            details_dict = copy.deepcopy(details) if details else {}
             if action_taken is not None:
                 details_dict["action_taken"] = action_taken
             if action_taken_mapped is not None:

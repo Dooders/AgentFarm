@@ -495,8 +495,8 @@ class TestDecisionModule(unittest.TestCase):
         # Should call log_agent_action with fallback action name when actions are empty
         mock_logger.log_agent_action.assert_called_once()
         call_args = mock_logger.log_agent_action.call_args
-        # action_taken_mapped is passed as a keyword argument
-        assert call_args.kwargs.get('action_taken_mapped') == 'action_0' or call_args[1].get('action_taken_mapped') == 'action_0'
+        # action_taken_mapped should be passed as a keyword argument
+        assert call_args.kwargs.get('action_taken_mapped') == 'action_0'
 
     def test_update_logging_exception_does_not_crash(self):
         """Test that logging exceptions are handled gracefully."""

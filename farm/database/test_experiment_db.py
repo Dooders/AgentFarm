@@ -161,10 +161,12 @@ def log_agent_actions(
             agent_id=agent_id,
             action_type=action_type,
             action_target_id=target_id,
-            resources_before=resources_before,
-            resources_after=resources_after,
             reward=random.uniform(-10, 10),
-            details={"success": random.choice([True, False])},
+            details={
+                "success": random.choice([True, False]),
+                "resources_before": resources_before,
+                "resources_after": resources_after,
+            },
         )
 
 

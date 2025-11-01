@@ -7,6 +7,7 @@ These tests verify the fix for Issue #481 where learning experiences were not
 being logged to the database.
 """
 
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -87,6 +88,22 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         # Create observation space
         self.observation_space = spaces.Box(low=-1, high=1, shape=(8,), dtype=np.float32)
 
+    def _parse_details_json(self, details_str):
+        """Helper function to parse details JSON string consistently.
+        
+        Args:
+            details_str: JSON string or dict to parse
+            
+        Returns:
+            dict: Parsed details dictionary, or None if parsing fails
+        """
+        if not details_str:
+            return None
+        try:
+            return json.loads(details_str) if isinstance(details_str, str) else details_str
+        except (json.JSONDecodeError, TypeError):
+            return None
+
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
@@ -146,14 +163,13 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         self.assertEqual(len(rows), 10)
 
         # Verify first row
-        import json
         first_row = rows[0]
         self.assertEqual(first_row[0], 0)  # step_number
         self.assertEqual(first_row[1], "agent_001")  # agent_id
         self.assertEqual(first_row[2], "fallback")  # module_type
         # action_taken and action_taken_mapped are now in details JSON
-        if first_row[5]:  # details
-            details = json.loads(first_row[5]) if isinstance(first_row[5], str) else first_row[5]
+        details = self._parse_details_json(first_row[5])
+        if details:
             self.assertIn("action_taken", details)
             self.assertIn("action_taken_mapped", details)
         self.assertIsNotNone(first_row[3])  # module_id
@@ -355,7 +371,6 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
 
-        import json
         cursor.execute("SELECT details FROM agent_actions WHERE module_type IS NOT NULL")
         rows = cursor.fetchall()
         self.assertGreater(len(rows), 0)
@@ -363,8 +378,8 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         # Extract action_taken and action_taken_mapped from details JSON
         action_found = False
         for row in rows:
-            if row[0]:  # details
-                details = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+            details = self._parse_details_json(row[0])
+            if details:
                 action_taken = details.get("action_taken")
                 action_taken_mapped = details.get("action_taken_mapped")
                 if action_taken is not None and action_taken_mapped:

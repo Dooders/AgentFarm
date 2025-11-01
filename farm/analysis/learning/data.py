@@ -78,8 +78,15 @@ def process_learning_data(experiment_path: Path, use_database: bool = True, **kw
                             details = json.loads(exp.details) if isinstance(exp.details, str) else exp.details
                             row["action_taken"] = details.get("action_taken")
                             row["action_taken_mapped"] = details.get("action_taken_mapped")
-                        except (json.JSONDecodeError, TypeError):
-                            pass
+                        except (json.JSONDecodeError, TypeError) as json_error:
+                            logger.warning(
+                                "learning_data_json_parse_failed",
+                                agent_id=exp.agent_id,
+                                step=exp.step_number,
+                                details=exp.details,
+                                error_type=type(json_error).__name__,
+                                error_message=str(json_error),
+                            )
                     rows.append(row)
                 
                 df = pd.DataFrame(rows)
