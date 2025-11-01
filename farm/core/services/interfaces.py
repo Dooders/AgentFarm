@@ -290,32 +290,21 @@ class ILoggingService(ABC):
     @abstractmethod
     def log_interaction_edge(
         self,
-        source_type: str,
         source_id: str,
-        target_type: str,
         target_id: str,
         interaction_type: str,
-        action_type: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Log an interaction between two simulation entities.
 
         Args:
-            source_type: The type of the initiating entity (e.g., "agent", "resource").
             source_id: Unique identifier of the initiating entity.
-            target_type: The type of the target entity (e.g., "agent", "resource").
             target_id: Unique identifier of the target entity.
-            interaction_type: The category of interaction (e.g., "combat", "sharing",
-                "communication").
-            action_type: Optional specific action within the interaction type
-                (e.g., "attack", "defend", "share_resources").
-            details: Optional dictionary containing additional context-specific
-                information about the interaction (e.g., damage dealt, resources shared).
+            interaction_type: The category of interaction (e.g., "attack", "share", "gather",
+                "attack_failed", "gather_failed").
 
         Note:
             This method is useful for building interaction networks and analyzing
-            behavioral patterns in the simulation. The details parameter allows
-            for flexible extension without changing the interface.
+            behavioral patterns in the simulation.
         """
         pass
 

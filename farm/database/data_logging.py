@@ -150,13 +150,9 @@ class DataLogger(DataLoggerProtocol):
     def log_interaction_edge(
         self,
         step_number: int,
-        source_type: str,
         source_id: str,
-        target_type: str,
         target_id: str,
         interaction_type: str,
-        action_type: Optional[str] = None,
-        details: Optional[Dict] = None,
     ) -> None:
         """Buffer an interaction as an edge between nodes.
 
@@ -169,13 +165,9 @@ class DataLogger(DataLoggerProtocol):
             edge = {
                 "simulation_id": self.simulation_id,
                 "step_number": step_number,
-                "source_type": str(source_type),
                 "source_id": str(source_id),
-                "target_type": str(target_type),
                 "target_id": str(target_id),
                 "interaction_type": str(interaction_type),
-                "action_type": str(action_type) if action_type else None,
-                "details": details if details is not None else None,
             }
 
             self._interaction_buffer.append(edge)

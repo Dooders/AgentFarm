@@ -132,12 +132,9 @@ class TestCoreIntegration(unittest.TestCase):
 
         # Log an interaction edge (should not raise)
         self.env.log_interaction_edge(
-            source_type="agent",
             source_id=self.env.agents[0],
-            target_type="resource",
             target_id="r1",
             interaction_type="gather",
-            details={"amount": 1.0},
         )
 
         # Process an action and ensure DB logging path is exercised

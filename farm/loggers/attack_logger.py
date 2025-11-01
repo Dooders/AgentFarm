@@ -44,13 +44,9 @@ class AttackLogger:
         # Also log as interaction for comprehensive tracking
         self.db.logger.log_interaction_edge(
             step_number=step_number,
-            source_type="agent",
             source_id=agent.agent_id,
-            target_type="agent",  # Self-targeted defense
             target_id=agent.agent_id,
             interaction_type="defend",
-            action_type="defend",
-            details={},  # Minimal details - full data already in ActionModel
         )
         logger.debug("agent_defensive_stance", agent_id=agent.agent_id)
 
@@ -91,18 +87,13 @@ class AttackLogger:
 
         # Also log as interaction for comprehensive tracking
         interaction_type = "attack" if success else "attack_failed"
-        target_type = "agent" if action_target_id else "position"
         target_id = action_target_id if action_target_id else f"{target_position[0]},{target_position[1]}"
 
         self.db.logger.log_interaction_edge(
             step_number=step_number,
-            source_type="agent",
             source_id=agent.agent_id,
-            target_type=target_type,
             target_id=target_id,
             interaction_type=interaction_type,
-            action_type="attack",
-            details={},  # Minimal details - full data already in ActionModel
         )
 
         if success:

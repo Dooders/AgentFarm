@@ -551,12 +551,9 @@ class TestEnvironment(unittest.TestCase):
 
         # Test interaction edge logging
         self.env.log_interaction_edge(
-            source_type="agent",
             source_id="test_agent_1",
-            target_type="agent",
             target_id="test_agent_2",
             interaction_type="attack",
-            details={"damage": 10},
         )
 
         # Test logging with missing database (should not raise)
@@ -572,9 +569,7 @@ class TestEnvironment(unittest.TestCase):
         original_db = env_no_db.db
         env_no_db.db = None
         env_no_db.log_interaction_edge(
-            source_type="agent",
             source_id="test",
-            target_type="resource",
             target_id="res1",
             interaction_type="gather",
         )
