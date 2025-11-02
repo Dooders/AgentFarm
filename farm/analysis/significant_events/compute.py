@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import func, case
 
 from farm.analysis.common.utils import calculate_statistics
 from farm.database.models import (
@@ -334,23 +334,55 @@ def _detect_critical_health_incidents(query_func, start_step: int, end_step: Opt
 
 
 def _detect_mass_combat_events(query_func, start_step: int, end_step: Optional[int]) -> List[Dict[str, Any]]:
-    """Detect mass combat events."""
+    """Detect mass combat events.
+    
+    Derives combat metrics from the actions table instead of simulation_steps.
+    """
 
     def query(session: Session) -> List[Dict[str, Any]]:
-        q = session.query(
-            SimulationStepModel.step_number,
-            SimulationStepModel.combat_encounters_this_step,
-            SimulationStepModel.successful_attacks_this_step,
-            SimulationStepModel.total_agents,
-        ).filter(SimulationStepModel.step_number >= start_step, SimulationStepModel.combat_encounters_this_step > 0)
-
+        # Query attack actions grouped by step
+        attack_query = (
+            session.query(
+                ActionModel.step_number,
+                func.count(ActionModel.action_id).label("combat_encounters"),
+                func.sum(
+                    case((ActionModel.reward > 0, 1), else_=0)
+                ).label("successful_attacks"),
+            )
+            .filter(
+                ActionModel.action_type == "attack",
+                ActionModel.step_number >= start_step,
+            )
+        )
+        
         if end_step is not None:
-            q = q.filter(SimulationStepModel.step_number <= end_step)
+            attack_query = attack_query.filter(ActionModel.step_number <= end_step)
+        
+        attack_query = attack_query.group_by(ActionModel.step_number)
 
-        results = q.all()
+        attack_results = attack_query.all()
+
+        # Get total agents per step for rate calculation
+        step_numbers = [row.step_number for row in attack_results]
+        if not step_numbers:
+            return []
+
+        agents_query = (
+            session.query(
+                SimulationStepModel.step_number,
+                SimulationStepModel.total_agents,
+            )
+            .filter(SimulationStepModel.step_number.in_(step_numbers))
+        )
+        agents_by_step = {row.step_number: row.total_agents for row in agents_query.all()}
 
         events = []
-        for step_number, combat_encounters, successful_attacks, total_agents in results:
+        for row in attack_results:
+            step_number = row.step_number
+            combat_encounters = row.combat_encounters or 0
+            successful_attacks = row.successful_attacks or 0
+            total_agents = agents_by_step.get(step_number, 0)
+
             # Detect mass combat (>20% of population involved or >10 encounters)
             if total_agents and total_agents > 0:
                 combat_rate = combat_encounters / total_agents

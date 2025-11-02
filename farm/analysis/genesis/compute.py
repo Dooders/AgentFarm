@@ -6,6 +6,7 @@ in simulations, and analyze how these genesis factors impact simulation outcomes
 """
 
 from farm.utils.logging import get_logger
+from farm.analysis.common.utils import map_action_to_interaction_type
 import math
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
@@ -25,7 +26,6 @@ from farm.database.models import (
     AgentStateModel,
     ResourceModel,
     SimulationStepModel,
-    SocialInteractionModel,
 )
 from farm.analysis.config import get_config
 
@@ -1246,32 +1246,27 @@ def compute_critical_period_metrics(
     else:
         metrics["resource_efficiency"] = 0.0
 
-    # Early social interactions
-    social_interactions = (
-        session.query(SocialInteractionModel)
-        .filter(SocialInteractionModel.step_number <= critical_period_end)
+    # Early social interactions - derived from actions table
+    # Social interactions are actions that target other agents (have action_target_id)
+    social_actions = (
+        session.query(ActionModel, AgentModel.agent_type)
+        .join(AgentModel, ActionModel.agent_id == AgentModel.agent_id)
+        .filter(
+            ActionModel.step_number <= critical_period_end,
+            ActionModel.action_target_id.isnot(None),
+        )
         .all()
     )
 
-    if social_interactions:
+    if social_actions:
         interaction_counts = defaultdict(lambda: defaultdict(int))
 
-        for interaction in social_interactions:
-            initiator = (
-                session.query(AgentModel)
-                .filter(AgentModel.agent_id == interaction.initiator_id)
-                .first()
-            )
-            recipient = (
-                session.query(AgentModel)
-                .filter(AgentModel.agent_id == interaction.recipient_id)
-                .first()
-            )
+        for action, initiator_type in social_actions:
+            # Map action types to social interaction types using shared utility
+            action_type = action.action_type
+            interaction_type = map_action_to_interaction_type(action_type)
 
-            if initiator and recipient:
-                interaction_counts[initiator.agent_type][
-                    interaction.interaction_type
-                ] += 1
+            interaction_counts[initiator_type][interaction_type] += 1
 
         metrics["early_social_interactions"] = {
             agent_type: dict(type_counts)

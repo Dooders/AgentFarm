@@ -40,7 +40,6 @@ from farm.database.models import (
     Simulation,
     SimulationConfig,
     SimulationStepModel,
-    SocialInteractionModel,
 )
 from farm.database.utils import extract_agent_counts_from_json
 from farm.utils.logging import get_logger
@@ -222,7 +221,6 @@ class IntegrityValidator:
             "agent_actions",
             "resource_states",
             "health_incidents",
-            "social_interactions",
             "simulation_config",
             "simulations",
         }

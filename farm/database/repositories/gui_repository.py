@@ -253,8 +253,7 @@ class GUIRepository(BaseRepository[SimulationStepModel]):
                     "births": metrics.births,
                     "deaths": metrics.deaths,
                     "average_agent_health": metrics.average_agent_health,
-                    "combat_encounters": metrics.combat_encounters,
-                    "resources_shared": metrics.resources_shared,
+                    # Note: combat_encounters and resources_shared are now derived from actions table
                 }
             else:
                 metrics_dict = {
@@ -267,8 +266,7 @@ class GUIRepository(BaseRepository[SimulationStepModel]):
                     "births": 0,
                     "deaths": 0,
                     "average_agent_health": 0,
-                    "combat_encounters": 0,
-                    "resources_shared": 0,
+                    # Note: combat_encounters and resources_shared are now derived from actions table
                 }
 
             return {

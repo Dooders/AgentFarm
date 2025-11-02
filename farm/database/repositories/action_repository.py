@@ -35,6 +35,7 @@ class ActionRepository(BaseRepository[ActionModel]):
         agent_id: Optional[str] = None,
         step: Optional[int] = None,
         step_range: Optional[Tuple[int, int]] = None,
+        action_type: Optional[str] = None,
     ) -> List[AgentActionData]:
         """Retrieve agent actions filtered by scope and other optional parameters.
 
@@ -48,6 +49,8 @@ class ActionRepository(BaseRepository[ActionModel]):
             Specific step number to filter by. Defaults to None.
         step_range : Optional[Tuple[int, int]], optional
             Range of step numbers to filter by. Defaults to None.
+        action_type : Optional[str], optional
+            Specific action type to filter by (e.g., 'attack', 'share'). Defaults to None.
 
         Returns
         -------
@@ -64,6 +67,9 @@ class ActionRepository(BaseRepository[ActionModel]):
             )
 
             query = filter_scope(query, scope, agent_id, step, step_range)
+            
+            if action_type is not None:
+                query = query.filter(ActionModel.action_type == action_type)
 
             actions = query.all()
             return [

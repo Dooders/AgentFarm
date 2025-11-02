@@ -101,7 +101,6 @@ erDiagram
     Agent ||--o{ Action : performs
     Agent ||--o{ HealthIncident : experiences
     Agent ||--o{ ReproductionEvent : attempts
-    Agent ||--o{ SocialInteraction : participates
 ```
 
 ### Usage Patterns
@@ -246,15 +245,14 @@ Stores aggregate metrics for each simulation step.
 | average_agent_health          | FLOAT      | Mean health across agents                 |
 | average_agent_age             | INTEGER    | Mean age of agents                        |
 | average_reward                | FLOAT      | Mean reward accumulated                   |
-| combat_encounters             | INTEGER    | Number of combat interactions             |
-| successful_attacks            | INTEGER    | Number of successful attacks              |
-| resources_shared              | FLOAT      | Amount of resources shared                |
-| resources_shared_this_step    | FLOAT      | Resources shared in current step          |
-| combat_encounters_this_step   | INTEGER    | Combat encounters in current step         |
-| successful_attacks_this_step  | INTEGER    | Successful attacks in current step        |
 | genetic_diversity             | FLOAT      | Measure of genome variety (0-1)           |
 | dominant_genome_ratio         | FLOAT      | Prevalence of most common genome (0-1)    |
 | resources_consumed            | FLOAT      | Total resources consumed                  |
+
+**Note**: Combat encounters, successful attacks, and resources shared metrics are no longer stored in `simulation_steps`. These can be derived from the `agent_actions` table:
+- Combat encounters: Count of actions where `action_type = 'attack'`
+- Successful attacks: Count of attack actions where `reward > 0`
+- Resources shared: Sum of resources from actions where `action_type = 'share'` (extract from `details` JSON field)
 
 ### AgentActions Table
 
@@ -323,29 +321,9 @@ Records reproduction attempts and outcomes in the simulation.
 | parent_position_y           | FLOAT               | Y-coordinate where reproduction occurred       |
 | timestamp                   | DATETIME            | When the event occurred                        |
 
-### SocialInteractions Table
-
-Records social interactions between agents in the simulation.
-
-| Column                     | Type                | Description                                    |
-| -------------------------- | ------------------- | ---------------------------------------------- |
-| simulation_id              | STRING(64)          | Reference to Simulations table                 |
-| interaction_id             | INTEGER PRIMARY KEY | Unique identifier for the social interaction   |
-| step_number                | INTEGER             | Simulation step when the interaction occurred  |
-| initiator_id               | STRING(64)          | ID of the agent that initiated the interaction |
-| recipient_id               | STRING(64)          | ID of the agent that received the interaction  |
-| interaction_type           | STRING(50)          | Type of social interaction                     |
-| subtype                    | STRING(50)          | Specific subtype of the interaction            |
-| outcome                    | STRING(50)          | Outcome of the interaction                     |
-| resources_transferred      | FLOAT               | Amount of resources exchanged                  |
-| distance                   | FLOAT               | Distance between agents during interaction     |
-| initiator_resources_before | FLOAT               | Initiator's resource level before interaction  |
-| initiator_resources_after  | FLOAT               | Initiator's resource level after interaction   |
-| recipient_resources_before | FLOAT               | Recipient's resource level before interaction  |
-| recipient_resources_after  | FLOAT               | Recipient's resource level after interaction   |
-| group_id                   | STRING(64)          | Identifier for group/cluster behavior          |
-| details                    | JSON                | Additional interaction-specific details        |
-| timestamp                  | DATETIME            | When the interaction occurred                  |
+**Note**: The `social_interactions` table has been removed. Social interactions can be derived from the `agent_actions` table by filtering for actions that have a target agent (where `action_target_id` is not null). For example:
+- Cooperation interactions: actions where `action_type = 'share'` and `action_target_id` is not null
+- Competition interactions: actions where `action_type = 'attack'` and `action_target_id` is not null
 
 ## Relationships
 
@@ -359,8 +337,6 @@ Records social interactions between agents in the simulation.
 - `LearningExperiences.agent_id` → `Agents.agent_id`: Links learning experiences to agents
 - `ReproductionEvents.parent_id` → `Agents.agent_id`: Links reproduction events to parent agents
 - `ReproductionEvents.offspring_id` → `Agents.agent_id`: Links reproduction events to offspring agents
-- `SocialInteractions.initiator_id` → `Agents.agent_id`: Links social interactions to initiating agents
-- `SocialInteractions.recipient_id` → `Agents.agent_id`: Links social interactions to recipient agents
 
 ## Indexes
 
@@ -373,7 +349,6 @@ The schema includes optimized indexes for common queries:
 - LearningExperiences: step_number, agent_id, module_type, simulation_id
 - HealthIncidents: step_number, agent_id, simulation_id
 - ReproductionEvents: step_number, parent_id, success, simulation_id
-- SocialInteractions: step_number, initiator_id, recipient_id, interaction_type, simulation_id
 
 ## Notes
 

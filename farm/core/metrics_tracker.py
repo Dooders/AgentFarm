@@ -373,15 +373,15 @@ class MetricsTracker:
         based on the change in total resource amount since the last call.
 
         Returns a dict with keys like:
-        - total_agents, system_agents
+        - total_agents, agent_type_counts
         - total_resources, resources_consumed
         - average_agent_resources, average_agent_health, average_agent_age, average_reward
         - resource_efficiency, resource_distribution_entropy
         - births, deaths
         - genetic_diversity, dominant_genome_ratio
-        - combat_encounters, successful_attacks
-        - resources_shared (step aggregate), resources_shared_this_step
-        - combat_encounters_this_step, successful_attacks_this_step
+        
+        Note: Combat encounters, successful attacks, and resources shared metrics
+        are no longer included as they can be derived from the actions table.
         """
         # Step-level aggregates are sourced from the internal tracker
         try:
@@ -450,15 +450,9 @@ class MetricsTracker:
             genetic_diversity = len(genome_counts) / total_agents if total_agents > 0 else 0
             dominant_genome_ratio = max(genome_counts.values()) / total_agents if genome_counts else 0
 
-            # Get combat and sharing metrics from tracker
-            combat_encounters = tracker_metrics["combat_encounters"]
-            successful_attacks = tracker_metrics["successful_attacks"]
-            resources_shared = tracker_metrics["resources_shared"]
-            resources_shared_this_step = tracker_metrics["resources_shared_this_step"]
-            combat_encounters_this_step = tracker_metrics["combat_encounters_this_step"]
-            successful_attacks_this_step = tracker_metrics["successful_attacks_this_step"]
-
             # Calculate resource distribution entropy
+            # Note: Combat encounters, successful attacks, and resources shared are now derived
+            # from the actions table rather than stored in simulation_steps
             resource_amounts = [r.amount for r in resources]
             if resource_amounts:
                 total = sum(resource_amounts)
@@ -491,14 +485,8 @@ class MetricsTracker:
                 "average_agent_health": average_health,
                 "average_agent_age": average_age,
                 "average_reward": average_reward,
-                "combat_encounters": combat_encounters,
-                "successful_attacks": successful_attacks,
-                "resources_shared": resources_shared,
-                "resources_shared_this_step": resources_shared_this_step,
                 "genetic_diversity": genetic_diversity,
                 "dominant_genome_ratio": dominant_genome_ratio,
-                "combat_encounters_this_step": combat_encounters_this_step,
-                "successful_attacks_this_step": successful_attacks_this_step,
             }
 
             # End step in tracker (resets step metrics and updates cumulative)
