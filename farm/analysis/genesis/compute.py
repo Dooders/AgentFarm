@@ -1187,10 +1187,11 @@ def compute_critical_period_metrics(
                 )
                 if parent:
                     agent_type = parent.agent_type
+                    # Count total offspring (not just unique agent types)
+                    reproduction_count += 1
                     # Track first reproduction per agent_type
                     if agent_type not in first_reproductions:
                         first_reproductions[agent_type] = offspring.birth_time
-                        reproduction_count += 1
         except Exception:
             # If parsing fails, skip this offspring
             pass
