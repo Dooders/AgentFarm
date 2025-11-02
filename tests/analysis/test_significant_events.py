@@ -153,7 +153,7 @@ def mock_db_with_events(request):
                 (160, "agent_3", 100.0, 15.0, "combat"),
             ]
             mock_query.filter.return_value = mock_filter1
-        # Query 5: mass combat - attack actions query (uses filter().group_by().filter())
+        # Query 5: mass combat - attack actions query (uses filter().filter().group_by().all())
         elif query_num == 5:
             from types import SimpleNamespace
             mock_result = SimpleNamespace(
@@ -161,13 +161,14 @@ def mock_db_with_events(request):
                 combat_encounters=25,
                 successful_attacks=15
             )
-            # Handle filter().group_by().filter().all() chain (or filter().group_by().all())
-            mock_filter_after_group = MagicMock()
-            mock_filter_after_group.all.return_value = [mock_result]
+            # Handle filter().filter().group_by().all() chain
+            # When end_step is provided, there are two filter() calls before group_by()
             mock_group_by = MagicMock()
-            mock_group_by.filter.return_value = mock_filter_after_group
-            mock_group_by.all.return_value = [mock_result]  # In case there's no second filter
+            mock_group_by.all.return_value = [mock_result]
             mock_filter = MagicMock()
+            # First filter() returns mock_filter, second filter() also returns mock_filter
+            # (SQLAlchemy allows chaining where filter() returns self)
+            mock_filter.filter.return_value = mock_filter
             mock_filter.group_by.return_value = mock_group_by
             mock_query.filter.return_value = mock_filter
         # Query 6: mass combat - agents query (uses filter().all())
@@ -176,17 +177,21 @@ def mock_db_with_events(request):
             mock_query.filter.return_value.all.return_value = [
                 SimpleNamespace(step_number=180, total_agents=100)
             ]
-        # Query 7: resource depletion (uses filter().filter().order_by())
+        # Query 7: resource depletion (uses filter().filter().order_by().all())
         elif query_num == 7:
             # Handle the chained filters
-            mock_filter1 = MagicMock()
-            mock_filter2 = MagicMock()
-            mock_filter2.order_by.return_value.all.return_value = [
+            # When end_step is provided, there are two filter() calls before order_by()
+            mock_order_by = MagicMock()
+            mock_order_by.all.return_value = [
                 (100, 1000.0, 10.0, 100),
                 (135, 100.0, 1.0, 100),  # resource depletion
             ]
-            mock_filter1.filter.return_value = mock_filter2
-            mock_query.filter.return_value = mock_filter1
+            mock_filter = MagicMock()
+            # First filter() returns mock_filter, second filter() also returns mock_filter
+            # (SQLAlchemy allows chaining where filter() returns self)
+            mock_filter.filter.return_value = mock_filter
+            mock_filter.order_by.return_value = mock_order_by
+            mock_query.filter.return_value = mock_filter
         else:
             # Default empty results
             mock_query.all.return_value = []
