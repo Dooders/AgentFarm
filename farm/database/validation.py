@@ -42,6 +42,7 @@ from farm.database.models import (
     SimulationStepModel,
     SocialInteractionModel,
 )
+from farm.database.utils import extract_agent_counts_from_json
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -648,17 +649,17 @@ class StatisticalValidator:
             )
             return
 
-        # Get population counts from simulation_steps
-        step_counts = self.session.execute(
+        # Get population counts from simulation_steps (using JSON column)
+        step_row = self.session.execute(
             text("""
-            SELECT total_agents, system_agents, independent_agents, control_agents
+            SELECT total_agents, agent_type_counts
             FROM simulation_steps 
             WHERE step_number = :step
         """),
             {"step": latest_step},
         ).fetchone()
-
-        if step_counts is None:
+        
+        if step_row is None:
             self.report.add_result(
                 ValidationResult(
                     check_name="population_consistency",
@@ -668,6 +669,14 @@ class StatisticalValidator:
                 )
             )
             return
+        
+        agent_type_counts = extract_agent_counts_from_json(step_row[1])
+        step_counts = (
+            step_row[0],  # total_agents
+            agent_type_counts.get("system", 0),
+            agent_type_counts.get("independent", 0),
+            agent_type_counts.get("control", 0),
+        )
 
         # Get actual agent counts
         actual_total = self.session.execute(

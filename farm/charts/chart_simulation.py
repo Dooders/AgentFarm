@@ -15,6 +15,10 @@ CONNECTION_STRING = "sqlite:///simulations/simulation.db"
 
 def plot_population_dynamics(dataframe):
     """Plot total agents, system agents, and independent agents over time."""
+    # Normalize DataFrame to extract agent counts from JSON if needed
+    from farm.database.utils import normalize_simulation_steps_dataframe
+    dataframe = normalize_simulation_steps_dataframe(dataframe)
+    
     plt.figure(figsize=(10, 6))
     plt.plot(
         dataframe["step_number"],
@@ -393,6 +397,10 @@ def plot_agent_type_comparison(dataframe, connection_string=None):
     if connection_string is None:
         connection_string = CONNECTION_STRING
 
+    # Normalize DataFrame to extract agent counts from JSON if needed
+    from farm.database.utils import normalize_simulation_steps_dataframe
+    dataframe = normalize_simulation_steps_dataframe(dataframe)
+
     # Get the last step's data
     final_step = dataframe.iloc[-1]
 
@@ -592,5 +600,8 @@ if __name__ == "__main__":
     engine = create_engine(CONNECTION_STRING)
 
     df = pd.read_sql("SELECT * FROM Simulation_Steps", engine)
+    # Normalize DataFrame to extract agent counts from JSON
+    from farm.database.utils import normalize_simulation_steps_dataframe
+    df = normalize_simulation_steps_dataframe(df)
 
     main(df)

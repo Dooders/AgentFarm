@@ -5,6 +5,7 @@ This module contains tests to validate the behavior of the in-memory database,
 including creation, operations, persistence, and memory monitoring.
 """
 
+import json
 import os
 import shutil
 import tempfile
@@ -59,9 +60,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         self.sample_step_data = {
             "step_number": 1,
             "total_agents": 30,
-            "system_agents": 10,
-            "independent_agents": 10,
-            "control_agents": 10,
+            "agent_type_counts": {"system": 10, "independent": 10, "control": 10},
             "total_resources": 100,
             "average_agent_resources": 5.0,
         }
@@ -187,12 +186,11 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             self.assertEqual(
                 step_row.total_agents, self.sample_step_data["total_agents"]
             )
-            self.assertEqual(
-                step_row.system_agents, self.sample_step_data["system_agents"]
-            )
-            self.assertEqual(
-                step_row.independent_agents, self.sample_step_data["independent_agents"]
-            )
+            # Check agent_type_counts JSON column
+            agent_counts = json.loads(step_row.agent_type_counts) if isinstance(step_row.agent_type_counts, str) else step_row.agent_type_counts
+            self.assertEqual(agent_counts.get("system"), self.sample_step_data["agent_type_counts"]["system"])
+            self.assertEqual(agent_counts.get("independent"), self.sample_step_data["agent_type_counts"]["independent"])
+            self.assertEqual(agent_counts.get("control"), self.sample_step_data["agent_type_counts"]["control"])
         finally:
             session.close()
 

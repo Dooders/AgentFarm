@@ -47,6 +47,13 @@ def mock_simulation_steps():
     for i in range(100):
         step = MagicMock()
         step.step_number = i
+        # Use new JSON structure for agent type counts
+        step.agent_type_counts = {
+            "system": 10 + i % 5,
+            "independent": 8 - i % 4,
+            "control": 5 + i % 3,
+        }
+        # Keep old attributes for backwards compatibility in tests that still use them
         step.system_agents = 10 + i % 5
         step.independent_agents = 8 - i % 4
         step.control_agents = 5 + i % 3
@@ -171,6 +178,7 @@ class TestDominanceComputations:
             step.system_agents = 20
             step.independent_agents = 5
             step.control_agents = 3
+            step.agent_type_counts = {"system": 20, "independent": 5, "control": 3}
             steps.append(step)
 
         mock_session.query.return_value.order_by.return_value.all.return_value = steps
@@ -209,14 +217,17 @@ class TestDominanceComputations:
                 step.system_agents = 20
                 step.independent_agents = 5
                 step.control_agents = 3
+                step.agent_type_counts = {"system": 20, "independent": 5, "control": 3}
             elif i < 60:
                 step.system_agents = 5
                 step.independent_agents = 20
                 step.control_agents = 3
+                step.agent_type_counts = {"system": 5, "independent": 20, "control": 3}
             else:
                 step.system_agents = 3
                 step.independent_agents = 5
                 step.control_agents = 20
+                step.agent_type_counts = {"system": 3, "independent": 5, "control": 20}
             steps.append(step)
 
         mock_session.query.return_value.order_by.return_value.all.return_value = steps
@@ -786,6 +797,7 @@ class TestEdgeCases:
         step.system_agents = 10
         step.independent_agents = 10
         step.control_agents = 10
+        step.agent_type_counts = {"system": 10, "independent": 10, "control": 10}
 
         mock_session.query.return_value.order_by.return_value.first.return_value = step
 
@@ -876,6 +888,7 @@ class TestEdgeCases:
             step.system_agents = 0
             step.independent_agents = 0
             step.control_agents = 0
+            step.agent_type_counts = {"system": 0, "independent": 0, "control": 0}
             steps.append(step)
 
         mock_session.query.return_value.order_by.return_value.all.return_value = steps
@@ -915,6 +928,7 @@ class TestEdgeCases:
             step.independent_agents = 0
             step.control_agents = 0
             step.total_agents = 20  # Add total_agents attribute
+            step.agent_type_counts = {"system": 20, "independent": 0, "control": 0}
             steps.append(step)
 
         mock_session.query.return_value.order_by.return_value.all.return_value = steps
@@ -964,6 +978,7 @@ class TestDominanceHelperFunctions:
         final_step.independent_agents = 15
         final_step.control_agents = 10
         final_step.step_number = 100
+        final_step.agent_type_counts = {"system": 20, "independent": 15, "control": 10}
 
         mock_session.query.return_value.order_by.return_value.first.return_value = final_step
 

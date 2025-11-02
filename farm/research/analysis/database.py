@@ -6,6 +6,7 @@ import numpy as np
 from sqlalchemy import func
 
 from farm.database.database import SimulationDatabase
+from farm.database.utils import extract_agent_counts_from_json
 from farm.database.models import (
     ActionModel,
     AgentModel,
@@ -154,8 +155,60 @@ def get_columns_data_by_agent_type(
     """
     Retrieve population data for each agent type from the simulation database.
     """
-    columns = ["system_agents", "control_agents", "independent_agents"]
-    return get_columns_data(experiment_db_path, columns)
+    # Use agent_type_counts JSON column instead
+    if not os.path.exists(experiment_db_path):
+        logger.error(f"Database file not found: {experiment_db_path}")
+        return None
+
+    db = None
+    session = None
+    try:
+        db = SimulationDatabase(experiment_db_path)
+        session = db.Session()
+
+        # Query steps with agent_type_counts
+        query = (
+            session.query(
+                SimulationStepModel.step_number,
+                SimulationStepModel.agent_type_counts
+            )
+            .order_by(SimulationStepModel.step_number)
+            .all()
+        )
+
+        if not query:
+            logger.warning(f"No data found in database: {experiment_db_path}")
+            return None
+
+        # Extract step numbers and agent counts from JSON
+        steps = np.array([row[0] for row in query])
+        system_counts = []
+        independent_counts = []
+        control_counts = []
+        
+        for row in query:
+            counts = extract_agent_counts_from_json(row[1])
+            system_counts.append(counts.get("system", 0))
+            independent_counts.append(counts.get("independent", 0))
+            control_counts.append(counts.get("control", 0))
+
+        populations = {
+            "system_agents": np.array(system_counts),
+            "independent_agents": np.array(independent_counts),
+            "control_agents": np.array(control_counts),
+        }
+
+        max_steps = len(steps)
+        return steps, populations, max_steps
+
+    except Exception as e:
+        logger.error(f"Error accessing database {experiment_db_path}: {str(e)}")
+        return None
+    finally:
+        if session:
+            session.close()
+        if db:
+            db.close()
 
 
 def get_resource_consumption_data(
@@ -173,39 +226,68 @@ def get_resource_consumption_data(
         - consumption: Dictionary mapping agent types to their consumption data arrays
         - max_steps: Number of steps in the simulation
     """
-    columns = [
-        "system_agents",
-        "control_agents",
-        "independent_agents",
-        "resources_consumed",
-    ]
-    result = get_columns_data(experiment_db_path, columns)
-
-    if result is None:
+    if not os.path.exists(experiment_db_path):
+        logger.error(f"Database file not found: {experiment_db_path}")
         return None
 
-    steps, data, max_steps = result
+    db = None
+    session = None
+    try:
+        db = SimulationDatabase(experiment_db_path)
+        session = db.Session()
 
-    # Calculate consumption per agent type
-    consumption = {}
-    total_agents = np.zeros_like(steps, dtype=float)
+        # Query steps with agent_type_counts and resources_consumed
+        query = (
+            session.query(
+                SimulationStepModel.step_number,
+                SimulationStepModel.agent_type_counts,
+                SimulationStepModel.resources_consumed
+            )
+            .order_by(SimulationStepModel.step_number)
+            .all()
+        )
 
-    # Sum up all agent types to get total population
-    for agent_type in ["system_agents", "control_agents", "independent_agents"]:
-        if agent_type in data:
-            total_agents += data[agent_type]
+        if not query:
+            logger.warning(f"No data found in database: {experiment_db_path}")
+            return None
 
-    # Calculate consumption proportionally for each agent type
-    for agent_type in ["system", "control", "independent"]:
-        db_column = f"{agent_type}_agents"
-        if db_column in data and "resources_consumed" in data:
+        # Extract data
+        steps = np.array([row[0] for row in query])
+        system_counts = []
+        independent_counts = []
+        control_counts = []
+        resources_consumed = []
+        
+        for row in query:
+            counts = extract_agent_counts_from_json(row[1])
+            system_counts.append(counts.get("system", 0))
+            independent_counts.append(counts.get("independent", 0))
+            control_counts.append(counts.get("control", 0))
+            resources_consumed.append(row[2] or 0)
+
+        # Calculate consumption per agent type
+        consumption = {}
+        total_agents = np.array(system_counts) + np.array(independent_counts) + np.array(control_counts)
+        resources_array = np.array(resources_consumed)
+        
+        # Calculate consumption proportionally for each agent type
+        for agent_type, counts in [("system", system_counts), ("independent", independent_counts), ("control", control_counts)]:
+            counts_array = np.array(counts)
             # Avoid division by zero
             safe_total = np.where(total_agents > 0, total_agents, 1)
-            consumption[agent_type] = (
-                data[db_column] * data["resources_consumed"] / safe_total
-            )
+            consumption[agent_type] = counts_array * resources_array / safe_total
 
-    return steps, consumption, max_steps
+        max_steps = len(steps)
+        return steps, consumption, max_steps
+
+    except Exception as e:
+        logger.error(f"Error accessing database {experiment_db_path}: {str(e)}")
+        return None
+    finally:
+        if session:
+            session.close()
+        if db:
+            db.close()
 
 
 def get_action_distribution_data(experiment_db_path: str) -> Dict[str, Dict[str, int]]:

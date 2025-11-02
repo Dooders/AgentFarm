@@ -83,6 +83,9 @@ class ChartAnalyzer:
             simulation_df = pd.read_sql(
                 "SELECT * FROM simulation_steps", db_to_use.engine
             )
+            # Normalize DataFrame to extract agent counts from JSON
+            from farm.database.utils import normalize_simulation_steps_dataframe
+            simulation_df = normalize_simulation_steps_dataframe(simulation_df)
             actions_df = pd.read_sql("SELECT * FROM agent_actions", db_to_use.engine)
             agents_df = pd.read_sql("SELECT * FROM agents", db_to_use.engine)
 
