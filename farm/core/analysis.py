@@ -3,7 +3,7 @@ import pandas as pd
 from sqlalchemy import case, func
 
 from farm.database.database import SimulationDatabase
-from farm.database.models import AgentModel, AgentStateModel, SimulationStepModel
+from farm.database.models import ActionModel, AgentModel, AgentStateModel, SimulationStepModel
 
 
 class SimulationAnalyzer:
@@ -80,13 +80,21 @@ class SimulationAnalyzer:
         return self.db._execute_in_transaction(_query)
 
     def analyze_competitive_interactions(self) -> pd.DataFrame:
-        """Analyze patterns in competitive interactions."""
+        """Analyze patterns in competitive interactions.
+        
+        Derives combat encounters from the actions table by counting attack actions.
+        """
 
         def _query(session):
-            query = session.query(
-                SimulationStepModel.step_number,
-                SimulationStepModel.combat_encounters.label("competitive_interactions"),
-            ).order_by(SimulationStepModel.step_number)
+            query = (
+                session.query(
+                    ActionModel.step_number,
+                    func.count(ActionModel.action_id).label("competitive_interactions"),
+                )
+                .filter(ActionModel.action_type == "attack")
+                .group_by(ActionModel.step_number)
+                .order_by(ActionModel.step_number)
+            )
 
             results = query.all()
             return pd.DataFrame(results, columns=["step", "competitive_interactions"])

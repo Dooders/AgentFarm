@@ -109,7 +109,7 @@ def process_combat_data(experiment_path: Path, use_database: bool = True, **kwar
 
 
 def process_combat_metrics_data(experiment_path: Path, use_database: bool = True, **kwargs) -> pd.DataFrame:
-    """Process combat metrics from simulation metrics.
+    """Process combat metrics by deriving from actions table.
 
     Args:
         experiment_path: Path to experiment directory
@@ -117,40 +117,53 @@ def process_combat_metrics_data(experiment_path: Path, use_database: bool = True
         **kwargs: Additional options
 
     Returns:
-        DataFrame with combat metrics over time
+        DataFrame with combat metrics over time (derived from actions table)
     """
     # Try DB first with safe fallback
     df: Optional[pd.DataFrame] = None
-    db = None
     if use_database:
         try:
             db_path = find_database_path(experiment_path, "simulation.db")
-            logger.info(f"Loading combat metrics from database: {db_path}")
+            logger.info(f"Loading combat metrics from database (derived from actions): {db_path}")
             db_uri = f"sqlite:///{db_path}"
             session_manager = SessionManager(db_uri)
+            action_repo = ActionRepository(session_manager)
 
-            # Query step metrics that contain combat data
-            from farm.database.models import SimulationStepModel
-
-            session = session_manager.create_session()
-            try:
-                metrics_rows: List[Dict[str, Any]] = []
-                for step_metric in session.query(SimulationStepModel).all():
-                    metrics_dict = step_metric.to_dict()
-                    if any(key in metrics_dict for key in ["combat_encounters", "successful_attacks"]):
-                        metrics_rows.append(
-                            {
-                                "step": metrics_dict.get("step", 0),
-                                "combat_encounters": metrics_dict.get("combat_encounters", 0),
-                                "successful_attacks": metrics_dict.get("successful_attacks", 0),
-                                "combat_encounters_this_step": metrics_dict.get("combat_encounters_this_step", 0),
-                                "successful_attacks_this_step": metrics_dict.get("successful_attacks_this_step", 0),
-                            }
-                        )
-                df = pd.DataFrame(metrics_rows)
-            finally:
-                session.close()
-                session_manager.close()
+            # Get all attack actions and aggregate by step
+            actions = action_repo.get_actions_by_scope("simulation")
+            
+            # Filter to attack actions only
+            attack_actions = [a for a in actions if getattr(a, "action_type", None) == "attack"]
+            
+            if attack_actions:
+                # Convert to DataFrame for easier aggregation
+                action_data = [
+                    {
+                        "step": getattr(a, "step_number", 0),
+                        "reward": getattr(a, "reward", 0.0) or 0.0,
+                    }
+                    for a in attack_actions
+                ]
+                action_df = pd.DataFrame(action_data)
+                
+                # Aggregate by step
+                grouped = action_df.groupby("step").agg(
+                    combat_encounters=("step", "count"),  # Count of attacks = combat_encounters
+                    successful_attacks=("reward", lambda x: (x > 0).sum() if len(x) > 0 else 0),  # Count successful attacks
+                )
+                
+                # Add per-step columns (same as cumulative for now since we're aggregating per step)
+                grouped["combat_encounters_this_step"] = grouped["combat_encounters"]
+                grouped["successful_attacks_this_step"] = grouped["successful_attacks"]
+                
+                # Reset index to make step a column
+                grouped.reset_index(inplace=True)
+                df = grouped
+            else:
+                df = pd.DataFrame(columns=["step", "combat_encounters", "successful_attacks", 
+                                         "combat_encounters_this_step", "successful_attacks_this_step"])
+                
+            session_manager.close()
         except Exception as e:
             logger.exception(f"Failed loading combat metrics from database. Falling back to CSV. Error: {e}")
             df = None
@@ -165,7 +178,8 @@ def process_combat_metrics_data(experiment_path: Path, use_database: bool = True
         csv_path = next((p for p in candidates if p.exists()), None)
         if csv_path is None:
             # No metrics fallback available; return empty frame with expected columns
-            return pd.DataFrame(columns=["step", "combat_encounters", "successful_attacks"])
+            return pd.DataFrame(columns=["step", "combat_encounters", "successful_attacks", 
+                                       "combat_encounters_this_step", "successful_attacks_this_step"])
 
         logger.info(f"Loading combat metrics from CSV fallback: {csv_path}")
         raw = pd.read_csv(csv_path)

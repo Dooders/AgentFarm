@@ -153,13 +153,31 @@ def mock_db_with_events(request):
                 (160, "agent_3", 100.0, 15.0, "combat"),
             ]
             mock_query.filter.return_value = mock_filter1
-        # Query 5: mass combat
+        # Query 5: mass combat - attack actions query (uses filter().group_by().filter())
         elif query_num == 5:
-            mock_query.filter.return_value.filter.return_value.all.return_value = [
-                (180, 25, 15, 100),
-            ]
-        # Query 6: resource depletion (uses filter().filter().order_by())
+            from types import SimpleNamespace
+            mock_result = SimpleNamespace(
+                step_number=180,
+                combat_encounters=25,
+                successful_attacks=15
+            )
+            # Handle filter().group_by().filter().all() chain (or filter().group_by().all())
+            mock_filter_after_group = MagicMock()
+            mock_filter_after_group.all.return_value = [mock_result]
+            mock_group_by = MagicMock()
+            mock_group_by.filter.return_value = mock_filter_after_group
+            mock_group_by.all.return_value = [mock_result]  # In case there's no second filter
+            mock_filter = MagicMock()
+            mock_filter.group_by.return_value = mock_group_by
+            mock_query.filter.return_value = mock_filter
+        # Query 6: mass combat - agents query (uses filter().all())
         elif query_num == 6:
+            from types import SimpleNamespace
+            mock_query.filter.return_value.all.return_value = [
+                SimpleNamespace(step_number=180, total_agents=100)
+            ]
+        # Query 7: resource depletion (uses filter().filter().order_by())
+        elif query_num == 7:
             # Handle the chained filters
             mock_filter1 = MagicMock()
             mock_filter2 = MagicMock()

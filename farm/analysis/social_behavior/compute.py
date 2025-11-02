@@ -21,7 +21,6 @@ from farm.database.models import (
     AgentModel,
     AgentStateModel,
     HealthIncident,
-    SocialInteractionModel,
 )
 
 logger = get_logger(__name__)

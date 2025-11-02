@@ -330,18 +330,6 @@ class SimulationStepModel(Base):
         Mean age of all agents
     average_reward : float
         Mean reward received by agents
-    combat_encounters : int
-        Number of combat interactions
-    successful_attacks : int
-        Number of successful attack actions
-    resources_shared : float
-        Amount of resources transferred between agents
-    resources_shared_this_step : float
-        Amount of resources transferred between agents in the current step
-    combat_encounters_this_step : int
-        Number of combat interactions in the current step
-    successful_attacks_this_step : int
-        Number of successful attack actions in the current step
     genetic_diversity : float
         Measure of genetic variation in population
     dominant_genome_ratio : float
@@ -377,12 +365,6 @@ class SimulationStepModel(Base):
     average_agent_health = Column(Float)
     average_agent_age = Column(Integer)
     average_reward = Column(Float)
-    combat_encounters = Column(Integer)
-    successful_attacks = Column(Integer)
-    resources_shared = Column(Float)
-    resources_shared_this_step = Column(Float, default=0.0)
-    combat_encounters_this_step = Column(Integer, default=0)
-    successful_attacks_this_step = Column(Integer, default=0)
     genetic_diversity = Column(Float)
     dominant_genome_ratio = Column(Float)
     resources_consumed = Column(Float, default=0.0)
@@ -407,12 +389,6 @@ class SimulationStepModel(Base):
             "average_agent_health": self.average_agent_health,
             "average_agent_age": self.average_agent_age,
             "average_reward": self.average_reward,
-            "combat_encounters": self.combat_encounters,
-            "successful_attacks": self.successful_attacks,
-            "resources_shared": self.resources_shared,
-            "resources_shared_this_step": self.resources_shared_this_step,
-            "combat_encounters_this_step": self.combat_encounters_this_step,
-            "successful_attacks_this_step": self.successful_attacks_this_step,
             "genetic_diversity": self.genetic_diversity,
             "dominant_genome_ratio": self.dominant_genome_ratio,
             "resources_consumed": self.resources_consumed,
@@ -592,114 +568,6 @@ class Simulation(Base):
 
     def __repr__(self):
         return f"<Simulation(simulation_id={self.simulation_id}, status={self.status})>"
-
-
-class SocialInteractionModel(Base):
-    # TODO: Is this needed or implemented?
-    """Records social interactions between agents in the simulation.
-
-    This model tracks various types of social interactions between agents,
-    including cooperation, competition, resource sharing, territory defense,
-    and group formation behaviors.
-
-    Attributes
-    ----------
-    interaction_id : int
-        Unique identifier for the social interaction
-    step_number : int
-        Simulation step when the interaction occurred
-    initiator_id : str
-        ID of the agent that initiated the interaction
-    recipient_id : str
-        ID of the agent that received/responded to the interaction
-    interaction_type : str
-        Type of social interaction (e.g., 'cooperation', 'competition', 'group_formation')
-    subtype : str
-        Specific subtype of the interaction (e.g., 'resource_sharing', 'territory_defense')
-    outcome : str
-        Outcome of the interaction (e.g., 'successful', 'rejected', 'conflict')
-    resources_transferred : float
-        Amount of resources exchanged during the interaction (if applicable)
-    distance : float
-        Distance between agents during the interaction
-    initiator_resources_before : float
-        Initiator's resource level before the interaction
-    initiator_resources_after : float
-        Initiator's resource level after the interaction
-    recipient_resources_before : float
-        Recipient's resource level before the interaction
-    recipient_resources_after : float
-        Recipient's resource level after the interaction
-    group_id : str
-        Identifier for the group/cluster if this interaction involves group behavior
-    details : dict
-        Additional interaction-specific details stored as JSON
-    timestamp : DateTime
-        When the interaction occurred
-
-    Relationships
-    ------------
-    initiator : Agent
-        The agent that initiated the interaction
-    recipient : Agent
-        The agent that received/responded to the interaction
-    """
-
-    __tablename__ = "social_interactions"
-    __table_args__ = (
-        Index("idx_social_interactions_step_number", "step_number"),
-        Index("idx_social_interactions_initiator_id", "initiator_id"),
-        Index("idx_social_interactions_recipient_id", "recipient_id"),
-        Index("idx_social_interactions_interaction_type", "interaction_type"),
-    )
-
-    interaction_id = Column(Integer, primary_key=True)
-    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
-    step_number = Column(Integer, nullable=False)
-    initiator_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=False)
-    recipient_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=False)
-    interaction_type = Column(String(50), nullable=False)
-    subtype = Column(String(50), nullable=True)
-    outcome = Column(String(50), nullable=False)
-    resources_transferred = Column(Float(precision=6), nullable=True)
-    distance = Column(Float, nullable=True)
-    initiator_resources_before = Column(Float(precision=6), nullable=True)
-    initiator_resources_after = Column(Float(precision=6), nullable=True)
-    recipient_resources_before = Column(Float(precision=6), nullable=True)
-    recipient_resources_after = Column(Float(precision=6), nullable=True)
-    group_id = Column(String(64), nullable=True)
-    details = Column(JSON, nullable=True)
-    timestamp = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
-    )
-
-    # Relationships
-    initiator = relationship(
-        "AgentModel", foreign_keys=[initiator_id], backref="initiated_interactions"
-    )
-    recipient = relationship(
-        "AgentModel", foreign_keys=[recipient_id], backref="received_interactions"
-    )
-
-    def as_dict(self) -> Dict[str, Any]:
-        """Convert social interaction to dictionary format."""
-        return {
-            "step_number": self.step_number,
-            "initiator_id": self.initiator_id,
-            "recipient_id": self.recipient_id,
-            "interaction_type": self.interaction_type,
-            "subtype": self.subtype,
-            "outcome": self.outcome,
-            "resources_transferred": self.resources_transferred,
-            "distance": self.distance,
-            "initiator_resources_before": self.initiator_resources_before,
-            "initiator_resources_after": self.initiator_resources_after,
-            "recipient_resources_before": self.recipient_resources_before,
-            "recipient_resources_after": self.recipient_resources_after,
-            "group_id": self.group_id,
-            "details": self.details,
-            "timestamp": self.timestamp,
-        }
 
 
 @dataclass

@@ -114,21 +114,26 @@ class TestCombatMetrics(unittest.TestCase):
         self.assertEqual(step_metrics["successful_attacks"], 0)
 
     def test_metrics_in_calculate_metrics(self):
-        """Test that metrics are included in the calculated metrics dictionary."""
+        """Test that combat metrics are tracked but not in calculated metrics (derived from actions instead)."""
         # Manually increment counters using tracker methods
         for _ in range(3):
             self.env.record_combat_encounter()
         for _ in range(2):
             self.env.record_successful_attack()
 
-        # Calculate metrics
-        metrics = self.env._calculate_metrics()
+        # Verify metrics are tracked in step_metrics (for runtime use)
+        step_metrics = self.env.metrics_tracker.get_step_metrics()
+        self.assertEqual(step_metrics["combat_encounters"], 3)
+        self.assertEqual(step_metrics["successful_attacks"], 2)
+        self.assertEqual(step_metrics["combat_encounters_this_step"], 3)
+        self.assertEqual(step_metrics["successful_attacks_this_step"], 2)
 
-        # Verify metrics include combat counters
-        self.assertEqual(metrics["combat_encounters"], 3)
-        self.assertEqual(metrics["successful_attacks"], 2)
-        self.assertEqual(metrics["combat_encounters_this_step"], 3)
-        self.assertEqual(metrics["successful_attacks_this_step"], 2)
+        # Calculate metrics (these no longer include combat metrics as they're derived from actions table)
+        metrics = self.env._calculate_metrics()
+        
+        # Verify combat metrics are NOT in calculated metrics (they're derived from actions table instead)
+        self.assertNotIn("combat_encounters", metrics)
+        self.assertNotIn("successful_attacks", metrics)
 
 
 if __name__ == "__main__":
