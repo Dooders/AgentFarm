@@ -1,3 +1,4 @@
+import statistics
 from typing import List, Optional, Tuple
 
 from sqlalchemy import func
@@ -155,9 +156,9 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
             control_counts.append(agent_counts.get("control", 0))
 
         return AgentDistribution(
-            system_agents=float(sum(system_counts) / len(system_counts)) if system_counts else 0.0,
-            independent_agents=float(sum(independent_counts) / len(independent_counts)) if independent_counts else 0.0,
-            control_agents=float(sum(control_counts) / len(control_counts)) if control_counts else 0.0,
+            system_agents=float(statistics.mean(system_counts)) if system_counts else 0.0,
+            independent_agents=float(statistics.mean(independent_counts)) if independent_counts else 0.0,
+            control_agents=float(statistics.mean(control_counts)) if control_counts else 0.0,
         )
 
     def get_states(

@@ -91,9 +91,9 @@ class GUIRepository(BaseRepository[SimulationStepModel]):
                 "steps": [row[0] for row in rows],
                 "metrics": {
                     "total_agents": [row[1] for row in rows],
-                    "system_agents": [(row[2] or {}).get("system", 0) if row[2] else 0 for row in rows],
-                    "independent_agents": [(row[2] or {}).get("independent", 0) if row[2] else 0 for row in rows],
-                    "control_agents": [(row[2] or {}).get("control", 0) if row[2] else 0 for row in rows],
+                    "system_agents": [(row[2] or {}).get("system", 0) for row in rows],
+                    "independent_agents": [(row[2] or {}).get("independent", 0) for row in rows],
+                    "control_agents": [(row[2] or {}).get("control", 0) for row in rows],
                     "total_resources": [row[3] for row in rows],
                     "average_agent_resources": [row[4] for row in rows],
                 },

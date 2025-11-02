@@ -592,7 +592,7 @@ def main(dataframe):
         print(f"An error occurred: {e}")
 
 
-    # Run the analysis
+# Run the analysis
 if __name__ == "__main__":
     check_database(CONNECTION_STRING)
 

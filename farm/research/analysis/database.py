@@ -6,6 +6,7 @@ import numpy as np
 from sqlalchemy import func
 
 from farm.database.database import SimulationDatabase
+from farm.database.utils import extract_agent_counts_from_json
 from farm.database.models import (
     ActionModel,
     AgentModel,
@@ -180,7 +181,6 @@ def get_columns_data_by_agent_type(
             return None
 
         # Extract step numbers and agent counts from JSON
-        from farm.database.utils import extract_agent_counts_from_json
         steps = np.array([row[0] for row in query])
         system_counts = []
         independent_counts = []
@@ -252,7 +252,6 @@ def get_resource_consumption_data(
             return None
 
         # Extract data
-        from farm.database.utils import extract_agent_counts_from_json
         steps = np.array([row[0] for row in query])
         system_counts = []
         independent_counts = []
