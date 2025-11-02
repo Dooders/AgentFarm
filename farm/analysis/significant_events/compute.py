@@ -16,7 +16,6 @@ from farm.database.models import (
     SimulationStepModel,
     ResourceModel,
     HealthIncident,
-    ReproductionEventModel,
     ActionModel,
 )
 
@@ -134,21 +133,44 @@ def _detect_agent_births(query_func, start_step: int, end_step: Optional[int]) -
     """Detect agent birth events."""
 
     def query(session: Session) -> List[Dict[str, Any]]:
+        # Reconstruct reproduction events from agents table
         q = session.query(
-            ReproductionEventModel.step_number,
-            ReproductionEventModel.parent_id,
-            ReproductionEventModel.offspring_id,
-            ReproductionEventModel.success,
-            ReproductionEventModel.offspring_generation,
-        ).filter(ReproductionEventModel.success, ReproductionEventModel.step_number >= start_step)
+            AgentModel.birth_time.label("step_number"),
+            AgentModel.agent_id.label("offspring_id"),
+            AgentModel.generation.label("offspring_generation"),
+            AgentModel.genome_id,  # Include genome_id in the query
+        ).filter(AgentModel.birth_time > 0, AgentModel.birth_time >= start_step)
 
         if end_step is not None:
-            q = q.filter(ReproductionEventModel.step_number <= end_step)
+            q = q.filter(AgentModel.birth_time <= end_step)
 
         results = q.all()
-
+        
+        # Convert to expected format with parent_id
+        from farm.database.data_types import GenomeId
+        formatted_results = []
+        for result in results:
+            try:
+                # Parse genome_id directly from query result
+                genome = GenomeId.from_string(result.genome_id)
+                parent_id = genome.parent_ids[0] if genome.parent_ids else None
+                formatted_results.append({
+                    'step_number': result.step_number,
+                    'parent_id': parent_id,
+                    'offspring_id': result.offspring_id,
+                    'success': True,  # All have birth_time > 0 so successful
+                    'offspring_generation': result.offspring_generation,
+                })
+            except Exception:
+                continue
+        
         events = []
-        for step_number, parent_id, offspring_id, success, generation in results:
+        for result in formatted_results:
+            step_number = result['step_number']
+            parent_id = result['parent_id']
+            offspring_id = result['offspring_id']
+            generation = result['offspring_generation']
+            
             # Calculate impact based on generation
             impact_scale = 0.2  # Base impact for births
             if generation and generation > 5:

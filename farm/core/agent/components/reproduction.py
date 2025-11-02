@@ -89,25 +89,6 @@ class ReproductionComponent(AgentComponent):
         
         self.offspring_created += 1
         
-        # Log reproduction if logging service available
-        if self.logging_service:
-            try:
-                self.logging_service.log_reproduction_event(
-                    step_number=self.current_time,
-                    parent_id=self.core.agent_id,
-                    offspring_id="",  # Will be assigned by factory
-                    success=True,
-                    parent_resources_before=resource_component.level + self.config.offspring_cost if resource_component else 0.0,
-                    parent_resources_after=resource_component.level if resource_component else 0.0,
-                    offspring_initial_resources=self.config.offspring_initial_resources,
-                    failure_reason="",
-                    parent_generation=self.core.state.generation if hasattr(self.core, 'state') else 0,
-                    offspring_generation=0,
-                    parent_position=self.core.position,
-                )
-            except Exception:
-                pass
-        
         return None
     
     @property

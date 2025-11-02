@@ -100,13 +100,13 @@ def query_database(db_path: str) -> None:
                 for action_type, count in action_types:
                     logger.info(f"      {action_type}: {count}")
 
-            # Query reproduction events
+            # Query reproduction events - reconstruct from agents table
             cursor.execute(
-                f"SELECT COUNT(*) FROM reproduction_events WHERE simulation_id = ?",
+                f"SELECT COUNT(*) FROM agents WHERE simulation_id = ? AND birth_time > 0",
                 (sim_id,),
             )
             reproduction_count = cursor.fetchone()[0]
-            logger.info(f"    Reproduction events: {reproduction_count}")
+            logger.info(f"    Successful reproductions (offspring): {reproduction_count}")
 
             # Query health incidents
             cursor.execute(

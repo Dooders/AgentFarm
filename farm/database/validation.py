@@ -36,7 +36,6 @@ from farm.database.models import (
     AgentModel,
     AgentStateModel,
     HealthIncident,
-    ReproductionEventModel,
     ResourceModel,
     Simulation,
     SimulationConfig,
@@ -221,7 +220,6 @@ class IntegrityValidator:
             "simulation_steps",
             "agent_actions",
             "resource_states",
-            "reproduction_events",
             "health_incidents",
             "social_interactions",
             "simulation_config",
@@ -586,23 +584,35 @@ class StatisticalValidator:
 
     def validate_generation_monotonicity(self) -> None:
         """Check that offspring generations are parent + 1."""
-        invalid_generations = self.session.execute(
-            text("""
-            SELECT COUNT(*) FROM reproduction_events re
-            JOIN agents parent ON re.parent_id = parent.agent_id
-            JOIN agents offspring ON re.offspring_id = offspring.agent_id
-            WHERE re.success = 1 AND offspring.generation != parent.generation + 1
-        """)
-        ).scalar()
-
-        if invalid_generations > 0:
+        # Reconstruct from agents table - check offspring generations match parent + 1
+        from farm.database.data_types import GenomeId
+        
+        invalid_count = 0
+        offspring_agents = self.session.query(AgentModel).filter(AgentModel.birth_time > 0).all()
+        
+        for offspring in offspring_agents:
+            try:
+                genome = GenomeId.from_string(offspring.genome_id)
+                if genome.parent_ids:
+                    parent_id = genome.parent_ids[0]
+                    parent = (
+                        self.session.query(AgentModel)
+                        .filter(AgentModel.agent_id == parent_id)
+                        .first()
+                    )
+                    if parent and offspring.generation != parent.generation + 1:
+                        invalid_count += 1
+            except Exception:
+                continue
+        
+        if invalid_count > 0:
             self.report.add_result(
                 ValidationResult(
                     check_name="generation_monotonicity",
                     severity=ValidationSeverity.ERROR,
                     passed=False,
-                    message=f"Reproduction events with invalid generation progression: {invalid_generations}",
-                    violation_count=invalid_generations,
+                    message=f"Found {invalid_count} offspring with invalid generation (not parent + 1)",
+                    violation_count=invalid_count,
                 )
             )
         else:
@@ -611,7 +621,7 @@ class StatisticalValidator:
                     check_name="generation_monotonicity",
                     severity=ValidationSeverity.INFO,
                     passed=True,
-                    message="All generation progressions are valid",
+                    message="All offspring have valid generation numbers (parent + 1)",
                 )
             )
 

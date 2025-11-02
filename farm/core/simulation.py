@@ -609,7 +609,6 @@ def run_simulation(
         initial_population=calculate_initial_population(config),
         total_births=birth_count,
         total_deaths=death_count,
-        reproduction_events=reproduction_count,
         final_resources=environment.cached_total_resources,
         resource_nodes=len(environment.resources),
         duration_seconds=round(total_duration, 2),

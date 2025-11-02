@@ -248,19 +248,7 @@ def run_simulation(
             else:
                 failure_reason = "insufficient_resources"
 
-            sim_context.log_reproduction_event(
-                step_number=unique_step,
-                parent_id=parent_id,
-                offspring_id=offspring_id,
-                success=success,
-                parent_resources_before=random.uniform(60, 100),
-                parent_resources_after=random.uniform(20, 60),
-                offspring_initial_resources=offspring_resources,
-                failure_reason=failure_reason,
-                parent_generation=step // 10,
-                offspring_generation=offspring_gen,
-                parent_position=(random.uniform(0, 100), random.uniform(0, 100)),
-            )
+            # Reproduction event logging removed - data can be reconstructed from agents table
 
         # Log a health incident occasionally
         if random.random() < 0.15:

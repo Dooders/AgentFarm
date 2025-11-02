@@ -362,7 +362,6 @@ class TestGenesisVisualization:
                         "SystemAgent_growth_rate": 0.2,
                         "IndependentAgent_growth_rate": 0.1,
                         "early_deaths": {"SystemAgent": 1, "IndependentAgent": 2},
-                        "first_reproduction_events": {"SystemAgent": 10, "IndependentAgent": 15},
                     }
                 },
             }

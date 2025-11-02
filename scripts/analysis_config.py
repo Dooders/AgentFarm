@@ -260,7 +260,6 @@ def check_db_schema(engine, table_name):
         return {"exists": False, "error": str(e)}
 
 
-# def check_reproduction_events(experiment_path):
 #     #! probably deleting this
 #     """
 #     Check if reproduction events exist in the simulation databases.

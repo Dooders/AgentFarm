@@ -41,7 +41,6 @@ def compute_advantages(sim_session, focus_agent_type=None):
         ActionModel,
         AgentModel,
         AgentStateModel,
-        ReproductionEventModel,
         SimulationStepModel,
     )
 
@@ -404,70 +403,103 @@ def compute_advantages(sim_session, focus_agent_type=None):
     results["reproduction"] = {}
 
     # Calculate reproduction metrics for each agent type
+    # Reconstruct from agents and agent_actions tables
+    from farm.database.data_types import GenomeId
+    
+    # Get successful reproductions (offspring)
+    offspring_agents = (
+        sim_session.query(AgentModel)
+        .filter(AgentModel.birth_time > 0)
+        .all()
+    )
+    
+    # Get all reproduction attempts (successful + failed)
+    reproduce_actions = (
+        sim_session.query(ActionModel)
+        .filter(ActionModel.action_type == 'reproduce')
+        .all()
+    )
+    
+    # Build reproduction stats by agent_type
     for agent_type in agent_types:
-        # Count successful reproductions
-        reproductions = (
-            sim_session.query(func.count(ReproductionEventModel.event_id))
-            .join(AgentModel, ReproductionEventModel.parent_id == AgentModel.agent_id)
-            .filter(
-                AgentModel.agent_type == agent_type,
-                ReproductionEventModel.success,
+        # Count successful reproductions by this agent_type (based on parent)
+        reproductions = 0
+        first_repro_times = []
+        
+        for offspring in offspring_agents:
+            try:
+                genome = GenomeId.from_string(offspring.genome_id)
+                if genome.parent_ids:
+                    parent_id = genome.parent_ids[0]
+                    parent = (
+                        sim_session.query(AgentModel)
+                        .filter(AgentModel.agent_id == parent_id)
+                        .first()
+                    )
+                    if parent and parent.agent_type == agent_type:
+                        reproductions += 1
+                        first_repro_times.append(offspring.birth_time)
+            except Exception:
+                continue
+        
+        # Count total attempts (successful + failed)
+        attempts = 0
+        for action in reproduce_actions:
+            parent = (
+                sim_session.query(AgentModel)
+                .filter(AgentModel.agent_id == action.agent_id)
+                .first()
             )
-            .scalar()
-        )
-
-        # Handle None values properly
-        reproductions = 0 if reproductions is None else reproductions
-
-        # Count total reproduction attempts
-        attempts = (
-            sim_session.query(func.count(ReproductionEventModel.event_id))
-            .join(AgentModel, ReproductionEventModel.parent_id == AgentModel.agent_id)
-            .filter(AgentModel.agent_type == agent_type)
-            .scalar()
-        )
-
-        # Handle None values properly
-        attempts = 0 if attempts is None else attempts
-
+            if parent and parent.agent_type == agent_type:
+                attempts += 1
+        
         # Calculate reproduction success rate
-        # Ensure attempts is a valid integer
-        attempts_int = int(attempts) if attempts is not None else 0
-        success_rate = reproductions / max(attempts_int, 1)
+        success_rate = reproductions / max(attempts, 1) if attempts > 0 else 0.0
 
         # Calculate reproduction efficiency (offspring per resource spent)
-        resource_spent = (
-            sim_session.query(
-                func.sum(ReproductionEventModel.parent_resources_before - ReproductionEventModel.parent_resources_after)
-            )
-            .join(AgentModel, ReproductionEventModel.parent_id == AgentModel.agent_id)
-            .filter(
-                AgentModel.agent_type == agent_type,
-                ReproductionEventModel.success,
-            )
-            .scalar()
-        )
-
-        # Handle None values properly
-        resource_spent = 0 if resource_spent is None else resource_spent
-
-        # Ensure resource_spent is a valid integer
-        resource_spent_int = int(resource_spent) if resource_spent is not None else 0
-        reproduction_efficiency = reproductions / max(resource_spent_int, 1)
+        # Get resource differences from agent_states
+        from farm.database.models import AgentStateModel
+        resource_spent = 0.0
+        
+        for offspring in offspring_agents:
+            try:
+                genome = GenomeId.from_string(offspring.genome_id)
+                if genome.parent_ids:
+                    parent_id = genome.parent_ids[0]
+                    parent = (
+                        sim_session.query(AgentModel)
+                        .filter(AgentModel.agent_id == parent_id)
+                        .first()
+                    )
+                    if parent and parent.agent_type == agent_type:
+                        # Get parent states before/after reproduction
+                        parent_state_before = (
+                            sim_session.query(AgentStateModel)
+                            .filter(
+                                AgentStateModel.agent_id == parent_id,
+                                AgentStateModel.step_number == offspring.birth_time - 1
+                            )
+                            .first()
+                        )
+                        parent_state_after = (
+                            sim_session.query(AgentStateModel)
+                            .filter(
+                                AgentStateModel.agent_id == parent_id,
+                                AgentStateModel.step_number == offspring.birth_time
+                            )
+                            .first()
+                        )
+                        if parent_state_before and parent_state_after:
+                            resource_spent += (
+                                parent_state_before.resource_level - parent_state_after.resource_level
+                            )
+            except Exception:
+                continue
+        
+        reproduction_efficiency = reproductions / max(resource_spent, 1) if resource_spent > 0 else 0.0
 
         # Calculate average time to first reproduction
-        first_repro_time = (
-            sim_session.query(func.min(ReproductionEventModel.step_number))
-            .join(AgentModel, ReproductionEventModel.parent_id == AgentModel.agent_id)
-            .filter(
-                AgentModel.agent_type == agent_type,
-                ReproductionEventModel.success,
-            )
-            .scalar()
-        )
-
-        # Handle None values properly
-        first_repro_time = float("inf") if first_repro_time is None else first_repro_time
+        first_repro_time = min(first_repro_times) if first_repro_times else float("inf")
 
         results["reproduction"][agent_type] = {
             "success_rate": success_rate,

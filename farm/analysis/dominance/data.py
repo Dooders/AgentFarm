@@ -7,7 +7,6 @@ from scipy.spatial.distance import euclidean
 
 from farm.database.models import (
     AgentModel,
-    ReproductionEventModel,
     ResourceModel,
     SimulationStepModel,
 )
@@ -241,23 +240,45 @@ def get_reproduction_stats(sim_session):
     Analyze reproduction patterns for each agent type.
     """
     try:
-        # Check if ReproductionEventModel table exists
-        inspector = sqlalchemy.inspect(sim_session.bind)
-        if "reproduction_events" not in inspector.get_table_names():
-            logger.warning("No reproduction_events table found in database")
-            return {}
-
-        # Query reproduction events
-        try:
-            reproduction_events = sim_session.query(ReproductionEventModel).all()
-            logger.info(
-                f"Found {len(reproduction_events)} reproduction events in database"
-            )
-        except Exception as e:
-            logger.error(f"Error querying reproduction events: {e}")
-            return {}
-
-        if not reproduction_events:
+        # Reconstruct reproduction data from agents and agent_actions tables
+        # Get successful reproductions (offspring with birth_time > 0)
+        offspring_agents = (
+            sim_session.query(AgentModel)
+            .filter(AgentModel.birth_time > 0)
+            .all()
+        )
+        
+        # Get failed reproduction attempts from agent_actions
+        from farm.database.models import ActionModel
+        reproduce_actions = (
+            sim_session.query(ActionModel)
+            .filter(ActionModel.action_type == 'reproduce')
+            .all()
+        )
+        
+        # Build a set of successful reproduction step+parent combinations
+        successful_reproductions = set()
+        for offspring in offspring_agents:
+            from farm.database.data_types import GenomeId
+            try:
+                genome = GenomeId.from_string(offspring.genome_id)
+                if genome.parent_ids:
+                    parent_id = genome.parent_ids[0]
+                    successful_reproductions.add((offspring.birth_time, parent_id))
+            except Exception:
+                continue
+        
+        # Filter reproduce_actions to find failed attempts
+        failed_actions = []
+        for action in reproduce_actions:
+            if (action.step_number, action.agent_id) not in successful_reproductions:
+                failed_actions.append(action)
+        
+        logger.info(
+            f"Found {len(offspring_agents)} successful reproductions and {len(failed_actions)} failed attempts"
+        )
+        
+        if not offspring_agents and not failed_actions:
             logger.warning("No reproduction events found in the database")
             return {}
 
@@ -329,13 +350,21 @@ def get_reproduction_stats(sim_session):
             },
         }
 
-        # Process reproduction events
+        # Process successful reproductions
+        from farm.database.models import AgentStateModel
+        from farm.database.data_types import GenomeId
+        
         unknown_agent_types = set()
         missing_resource_data = 0
 
-        for event in reproduction_events:
+        # Process successful reproductions
+        for offspring in offspring_agents:
             try:
-                parent_id = event.parent_id
+                genome = GenomeId.from_string(offspring.genome_id)
+                if not genome.parent_ids:
+                    continue
+                    
+                parent_id = genome.parent_ids[0]
                 parent_type = agents.get(parent_id, "unknown")
 
                 if parent_type not in stats:
@@ -347,35 +376,61 @@ def get_reproduction_stats(sim_session):
                     continue
 
                 stats[parent_type]["attempts"] += 1
+                stats[parent_type]["successes"] += 1
+                
+                # Track first successful reproduction time
+                stats[parent_type]["first_reproduction_time"] = min(
+                    stats[parent_type]["first_reproduction_time"], offspring.birth_time
+                )
+                
+                # Track resources given to offspring
+                if offspring.initial_resources is not None:
+                    stats[parent_type]["offspring_resources"] += offspring.initial_resources
 
-                # Calculate resources spent on reproduction
+                # Calculate resources spent on reproduction from agent_states
                 try:
-                    resources_spent = (
-                        event.parent_resources_before - event.parent_resources_after
+                    parent_state_before = (
+                        sim_session.query(AgentStateModel)
+                        .filter(
+                            AgentStateModel.agent_id == parent_id,
+                            AgentStateModel.step_number == offspring.birth_time - 1
+                        )
+                        .first()
                     )
-                    stats[parent_type]["resources_spent"] += resources_spent
+                    parent_state_after = (
+                        sim_session.query(AgentStateModel)
+                        .filter(
+                            AgentStateModel.agent_id == parent_id,
+                            AgentStateModel.step_number == offspring.birth_time
+                        )
+                        .first()
+                    )
+                    
+                    if parent_state_before and parent_state_after:
+                        resources_spent = (
+                            parent_state_before.resource_level - parent_state_after.resource_level
+                        )
+                        stats[parent_type]["resources_spent"] += resources_spent
                 except (TypeError, AttributeError):
                     missing_resource_data += 1
-                    # Skip resource calculation if data is missing
-
-                if event.success:
-                    stats[parent_type]["successes"] += 1
-                    # Track first successful reproduction time
-                    stats[parent_type]["first_reproduction_time"] = min(
-                        stats[parent_type]["first_reproduction_time"], event.step_number
-                    )
-                    # Track resources given to offspring
-                    if (
-                        hasattr(event, "offspring_initial_resources")
-                        and event.offspring_initial_resources is not None
-                    ):
-                        stats[parent_type][
-                            "offspring_resources"
-                        ] += event.offspring_initial_resources
-                else:
-                    stats[parent_type]["failures"] += 1
+                    
             except Exception as e:
                 logger.error(f"Error processing reproduction event: {e}")
+                continue
+        
+        # Process failed reproduction attempts
+        for action in failed_actions:
+            try:
+                parent_id = action.agent_id
+                parent_type = agents.get(parent_id, "unknown")
+                
+                if parent_type not in stats:
+                    continue
+                    
+                stats[parent_type]["attempts"] += 1
+                stats[parent_type]["failures"] += 1
+            except Exception as e:
+                logger.error(f"Error processing failed reproduction attempt: {e}")
                 continue
 
         if missing_resource_data > 0:

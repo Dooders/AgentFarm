@@ -69,7 +69,6 @@ from .models import (
     AgentStateModel,
     Base,
     HealthIncident,
-    ReproductionEventModel,
     ResourceModel,
     Simulation,
     SimulationConfig,
@@ -1147,70 +1146,6 @@ class SimulationDatabase(DatabaseProtocol):
 
         self._execute_in_transaction(_insert)
 
-    def log_reproduction_event(
-        self,
-        step_number: int,
-        parent_id: str,
-        success: bool,
-        parent_resources_before: float,
-        parent_resources_after: float,
-        offspring_id: Optional[str] = None,
-        offspring_initial_resources: Optional[float] = None,
-        failure_reason: Optional[str] = None,
-        parent_position: Optional[tuple[float, float]] = None,
-        parent_generation: Optional[int] = None,
-        offspring_generation: Optional[int] = None,
-    ) -> None:
-        """Log a reproduction event to the database.
-
-        Parameters
-        ----------
-        step_number : int
-            Current simulation step
-        parent_id : str
-            ID of parent agent attempting reproduction
-        success : bool
-            Whether reproduction was successful
-        parent_resources_before : float
-            Parent's resources before reproduction
-        parent_resources_after : float
-            Parent's resources after reproduction
-        offspring_id : str, optional
-            ID of created offspring (if successful)
-        offspring_initial_resources : float, optional
-            Resources given to offspring (if successful)
-        failure_reason : str, optional
-            Reason for failure (if unsuccessful)
-        parent_position : tuple[float, float], optional
-            Position where reproduction occurred
-        parent_generation : int, optional
-            Parent's generation number
-        offspring_generation : int, optional
-            Offspring's generation number (if successful)
-        """
-
-        def _log(session):
-            # Log reproduction event to ReproductionEventModel
-            event = ReproductionEventModel(
-                simulation_id=self.simulation_id,
-                step_number=step_number,
-                parent_id=parent_id,
-                offspring_id=offspring_id,
-                success=success,
-                parent_resources_before=parent_resources_before,
-                parent_resources_after=parent_resources_after,
-                offspring_initial_resources=offspring_initial_resources,
-                failure_reason=failure_reason,
-                parent_generation=parent_generation,
-                offspring_generation=offspring_generation,
-                parent_position_x=parent_position[0] if parent_position else None,
-                parent_position_y=parent_position[1] if parent_position else None,
-                timestamp=datetime.now(),
-            )
-            session.add(event)
-
-        self._execute_in_transaction(_log)
-
 
 class AsyncDataLogger:
     """Asynchronous data logger for non-critical simulation data.
@@ -1281,7 +1216,6 @@ class AsyncDataLogger:
         batched_data = {
             "actions": [],
             "health": [],
-            "reproduction": [],
             # Add other types as needed
         }
 
@@ -1307,11 +1241,6 @@ class AsyncDataLogger:
             if batched_data["health"]:
                 incidents = [HealthIncident(**data) for data in batched_data["health"]]
                 session.bulk_save_objects(incidents)
-
-            # Process reproduction events
-            if batched_data["reproduction"]:
-                events = [ReproductionEventModel(**data) for data in batched_data["reproduction"]]
-                session.bulk_save_objects(events)
 
             # Commit all changes at once
             session.commit()

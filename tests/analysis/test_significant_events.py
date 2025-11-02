@@ -121,11 +121,17 @@ def mock_db_with_events(request):
                 ("agent_1", 120, "system", 3),
                 ("agent_2", 150, "independent", 5),
             ]
-        # Query 2: agent births (reproduction events)
+        # Query 2: agent births (offspring from agents table)
         elif query_num == 2:
-            mock_query.filter.return_value.filter.return_value.all.return_value = [
-                (170, "agent_1", "agent_10", True, 4),
-            ]
+            # Mock query returns Row objects with attributes: step_number, offspring_id, offspring_generation, genome_id
+            from types import SimpleNamespace
+            mock_result = SimpleNamespace(
+                step_number=170,
+                offspring_id="agent_10",
+                offspring_generation=4,
+                genome_id="agent_1:1"
+            )
+            mock_query.filter.return_value.filter.return_value.all.return_value = [mock_result]
         # Query 3: population changes (uses filter().filter().order_by())
         elif query_num == 3:
             # Handle the chained filters
