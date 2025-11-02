@@ -276,6 +276,7 @@ class TestProtocolBasedTesting:
         mock_step.system_agents = 10
         mock_step.independent_agents = 5
         mock_step.control_agents = 3
+        mock_step.agent_type_counts = {"system": 10, "independent": 5, "control": 3}
         mock_session.query.return_value.order_by.return_value.first.return_value = mock_step
 
         # Test computer method

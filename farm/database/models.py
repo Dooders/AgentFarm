@@ -308,12 +308,8 @@ class SimulationStepModel(Base):
         Unique step identifier
     total_agents : int
         Total number of living agents
-    system_agents : int
-        Number of system-type agents
-    independent_agents : int
-        Number of independent-type agents
-    control_agents : int
-        Number of control-type agents
+    agent_type_counts : dict
+        JSON column containing counts by agent type (e.g., {"system": 10, "independent": 5, "control": 3})
     total_resources : float
         Total resources in environment
     average_agent_resources : float
@@ -370,9 +366,7 @@ class SimulationStepModel(Base):
     step_number = Column(Integer, primary_key=False)
     simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     total_agents = Column(Integer)
-    system_agents = Column(Integer)
-    independent_agents = Column(Integer)
-    control_agents = Column(Integer)
+    agent_type_counts = Column(JSON)
     total_resources = Column(Float)
     average_agent_resources = Column(Float)
     births = Column(Integer)
@@ -395,11 +389,14 @@ class SimulationStepModel(Base):
 
     def as_dict(self) -> Dict[str, Any]:
         """Convert simulation step to dictionary."""
+        # Extract individual counts from JSON for backwards compatibility
+        agent_counts = self.agent_type_counts or {}
         return {
             "total_agents": self.total_agents,
-            "system_agents": self.system_agents,
-            "independent_agents": self.independent_agents,
-            "control_agents": self.control_agents,
+            "agent_type_counts": agent_counts,
+            "system_agents": agent_counts.get("system", 0),
+            "independent_agents": agent_counts.get("independent", 0),
+            "control_agents": agent_counts.get("control", 0),
             "total_resources": self.total_resources,
             "average_agent_resources": self.average_agent_resources,
             "births": self.births,

@@ -42,6 +42,12 @@ def mock_simulation_steps():
         step.independent_agents = 8 - i % 4
         step.control_agents = 5 + i % 3
         step.total_agents = step.system_agents + step.independent_agents + step.control_agents
+        # Add new JSON structure
+        step.agent_type_counts = {
+            "system": step.system_agents,
+            "independent": step.independent_agents,
+            "control": step.control_agents,
+        }
         steps.append(step)
     return steps
 

@@ -894,10 +894,11 @@ def compute_simulation_outcomes(session: Session) -> Dict[str, Any]:
         return outcomes
 
     # Population outcomes
+    agent_counts = final_step.agent_type_counts or {}
     outcomes["final_total_agents"] = final_step.total_agents
-    outcomes["final_system_agents"] = final_step.system_agents
-    outcomes["final_independent_agents"] = final_step.independent_agents
-    outcomes["final_control_agents"] = final_step.control_agents
+    outcomes["final_system_agents"] = agent_counts.get("system", 0)
+    outcomes["final_independent_agents"] = agent_counts.get("independent", 0)
+    outcomes["final_control_agents"] = agent_counts.get("control", 0)
 
     # Determine population dominance
     step_dict = final_step.as_dict()

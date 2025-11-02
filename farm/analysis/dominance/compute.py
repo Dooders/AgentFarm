@@ -39,11 +39,12 @@ class DominanceComputer:
         final_step = sim_session.query(SimulationStepModel).order_by(SimulationStepModel.step_number.desc()).first()
         if final_step is None:
             return None
-        # Create a dictionary of agent counts
+        # Create a dictionary of agent counts from JSON column
+        agent_counts = final_step.agent_type_counts or {}
         counts = {
-            "system": final_step.system_agents,
-            "independent": final_step.independent_agents,
-            "control": final_step.control_agents,
+            "system": agent_counts.get("system", 0),
+            "independent": agent_counts.get("independent", 0),
+            "control": agent_counts.get("control", 0),
         }
         # Return the key with the maximum count
         return max(counts.items(), key=lambda x: x[1])[0]
@@ -118,10 +119,11 @@ class DominanceComputer:
         # Process each simulation step
         for step_idx, step in enumerate(sim_steps):
             # Determine which type is dominant in this step
+            agent_counts = step.agent_type_counts or {}
             counts = {
-                "system": step.system_agents,
-                "independent": step.independent_agents,
-                "control": step.control_agents,
+                "system": agent_counts.get("system", 0),
+                "independent": agent_counts.get("independent", 0),
+                "control": agent_counts.get("control", 0),
             }
 
             # Skip steps with no agents
@@ -245,8 +247,9 @@ class DominanceComputer:
             recency_weight = 1 + (i / total_steps)
 
             # Update metrics for each agent type
+            step_agent_counts = step.agent_type_counts or {}
             for agent_type in agent_types:
-                agent_count = getattr(step, f"{agent_type}_agents")
+                agent_count = step_agent_counts.get(agent_type, 0)
 
                 # Basic AUC - sum of agent counts across all steps
                 auc[agent_type] += agent_count
@@ -258,10 +261,11 @@ class DominanceComputer:
                 agent_counts[agent_type].append(agent_count)
 
             # Determine which type was dominant in this step
+            step_agent_counts = step.agent_type_counts or {}
             counts = {
-                "system": step.system_agents,
-                "independent": step.independent_agents,
-                "control": step.control_agents,
+                "system": step_agent_counts.get("system", 0),
+                "independent": step_agent_counts.get("independent", 0),
+                "control": step_agent_counts.get("control", 0),
             }
             dominant_type = max(counts.items(), key=lambda x: x[1])[0] if any(counts.values()) else None
             if dominant_type:

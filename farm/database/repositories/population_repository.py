@@ -134,26 +134,30 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
             - control_agents : float
                 Average number of control group agents
         """
+        # Query all steps and extract JSON values, then calculate averages
         query = session.query(
-            func.avg(SimulationStepModel.system_agents).label("avg_system"),
-            func.avg(SimulationStepModel.independent_agents).label("avg_independent"),
-            func.avg(SimulationStepModel.control_agents).label("avg_control"),
+            SimulationStepModel.agent_type_counts
         )
 
         # Apply scope filtering
         query = filter_scope(query, scope, str(agent_id), step, step_range)
-        type_stats = query.first()
+        steps = query.all()
+
+        # Extract counts from JSON and calculate averages
+        system_counts = []
+        independent_counts = []
+        control_counts = []
+        
+        for step in steps:
+            agent_counts = step.agent_type_counts or {}
+            system_counts.append(agent_counts.get("system", 0))
+            independent_counts.append(agent_counts.get("independent", 0))
+            control_counts.append(agent_counts.get("control", 0))
 
         return AgentDistribution(
-            system_agents=float(
-                type_stats[0] if type_stats and type_stats[0] is not None else 0
-            ),
-            independent_agents=float(
-                type_stats[1] if type_stats and type_stats[1] is not None else 0
-            ),
-            control_agents=float(
-                type_stats[2] if type_stats and type_stats[2] is not None else 0
-            ),
+            system_agents=float(sum(system_counts) / len(system_counts)) if system_counts else 0.0,
+            independent_agents=float(sum(independent_counts) / len(independent_counts)) if independent_counts else 0.0,
+            control_agents=float(sum(control_counts) / len(control_counts)) if control_counts else 0.0,
         )
 
     def get_states(
@@ -302,9 +306,7 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
                 session.query(
                     SimulationStepModel.step_number,
                     SimulationStepModel.total_agents,
-                    SimulationStepModel.system_agents,
-                    SimulationStepModel.independent_agents,
-                    SimulationStepModel.control_agents,
+                    SimulationStepModel.agent_type_counts,
                     SimulationStepModel.total_resources,
                 )
                 .filter(SimulationStepModel.total_agents > 0)
@@ -316,12 +318,12 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
                 Population(
                     step_number=row[0],
                     total_agents=row[1],
-                    total_resources=row[5],
+                    total_resources=row[3],
                     resources_consumed=None,
-                    system_agents=row[2],
-                    independent_agents=row[3],
-                    control_agents=row[4],
-                    avg_resources=row[5] / row[1] if row[1] > 0 else 0.0,
+                    system_agents=(row[2] or {}).get("system", 0) if row[2] else 0,
+                    independent_agents=(row[2] or {}).get("independent", 0) if row[2] else 0,
+                    control_agents=(row[2] or {}).get("control", 0) if row[2] else 0,
+                    avg_resources=row[3] / row[1] if row[1] > 0 else 0.0,
                 )
                 for row in results
             ]

@@ -16,6 +16,49 @@ from sqlalchemy import func
 logger = get_logger(__name__)
 
 
+def _get_avg_agent_type_count(sim_session, agent_type: str, filter_conditions) -> float:
+    """Helper function to get average agent type count from JSON column.
+    
+    Parameters
+    ----------
+    sim_session : SQLAlchemy session
+        Database session
+    agent_type : str
+        Agent type to count (e.g., 'system', 'independent', 'control')
+    filter_conditions : list
+        List of SQLAlchemy filter conditions
+        
+    Returns
+    -------
+    float
+        Average count for the agent type, or 0 if no data
+    """
+    from farm.database.models import SimulationStepModel
+    
+    # Query all steps that match the filter conditions
+    query = sim_session.query(
+        SimulationStepModel.step_number,
+        SimulationStepModel.agent_type_counts
+    )
+    
+    for condition in filter_conditions:
+        query = query.filter(condition)
+    
+    steps = query.all()
+    
+    if not steps:
+        return 0.0
+    
+    # Extract counts from JSON and calculate average
+    counts = []
+    for step in steps:
+        agent_counts = step.agent_type_counts or {}
+        count = agent_counts.get(agent_type, 0)
+        counts.append(count)
+    
+    return sum(counts) / len(counts) if counts else 0.0
+
+
 def compute_advantages(sim_session, focus_agent_type=None):
     """Calculate comprehensive advantages between agent types.
 
@@ -250,11 +293,10 @@ def compute_advantages(sim_session, focus_agent_type=None):
                     or 1
                 )
 
-                early_type_count = (
-                    sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
-                    .filter(SimulationStepModel.step_number <= early_phase_end)
-                    .scalar()
-                    or 0
+                early_type_count = _get_avg_agent_type_count(
+                    sim_session,
+                    agent_type,
+                    [SimulationStepModel.step_number <= early_phase_end]
                 )
 
                 mid_total = (
@@ -267,14 +309,13 @@ def compute_advantages(sim_session, focus_agent_type=None):
                     or 1
                 )
 
-                mid_type_count = (
-                    sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
-                    .filter(
+                mid_type_count = _get_avg_agent_type_count(
+                    sim_session,
+                    agent_type,
+                    [
                         SimulationStepModel.step_number > early_phase_end,
                         SimulationStepModel.step_number <= mid_phase_end,
-                    )
-                    .scalar()
-                    or 0
+                    ]
                 )
 
                 late_total = (
@@ -284,11 +325,10 @@ def compute_advantages(sim_session, focus_agent_type=None):
                     or 1
                 )
 
-                late_type_count = (
-                    sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
-                    .filter(SimulationStepModel.step_number > mid_phase_end)
-                    .scalar()
-                    or 0
+                late_type_count = _get_avg_agent_type_count(
+                    sim_session,
+                    agent_type,
+                    [SimulationStepModel.step_number > mid_phase_end]
                 )
 
                 # Calculate estimated resources per agent type based on population proportion
@@ -320,30 +360,27 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 # If all else fails, use population as a proxy for resources
                 try:
                     # Early phase population as proxy
-                    early_avg_resource = (
-                        sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
-                        .filter(SimulationStepModel.step_number <= early_phase_end)
-                        .scalar()
-                        or 0
+                    early_avg_resource = _get_avg_agent_type_count(
+                        sim_session,
+                        agent_type,
+                        [SimulationStepModel.step_number <= early_phase_end]
                     )
 
                     # Mid phase population as proxy
-                    mid_avg_resource = (
-                        sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
-                        .filter(
+                    mid_avg_resource = _get_avg_agent_type_count(
+                        sim_session,
+                        agent_type,
+                        [
                             SimulationStepModel.step_number > early_phase_end,
                             SimulationStepModel.step_number <= mid_phase_end,
-                        )
-                        .scalar()
-                        or 0
+                        ]
                     )
 
                     # Late phase population as proxy
-                    late_avg_resource = (
-                        sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
-                        .filter(SimulationStepModel.step_number > mid_phase_end)
-                        .scalar()
-                        or 0
+                    late_avg_resource = _get_avg_agent_type_count(
+                        sim_session,
+                        agent_type,
+                        [SimulationStepModel.step_number > mid_phase_end]
                     )
 
                     logger.info(f"Using population as proxy for resources for {agent_type}")
@@ -619,37 +656,28 @@ def compute_advantages(sim_session, focus_agent_type=None):
     # Get population counts over time by phase
     for agent_type in agent_types:
         # Early phase average population
-        early_avg_pop = (
-            sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
-            .filter(SimulationStepModel.step_number <= early_phase_end)
-            .scalar()
+        early_avg_pop = _get_avg_agent_type_count(
+            sim_session,
+            agent_type,
+            [SimulationStepModel.step_number <= early_phase_end]
         )
-
-        # Handle None values properly
-        early_avg_pop = 0 if early_avg_pop is None else early_avg_pop
 
         # Mid phase average population
-        mid_avg_pop = (
-            sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
-            .filter(
+        mid_avg_pop = _get_avg_agent_type_count(
+            sim_session,
+            agent_type,
+            [
                 SimulationStepModel.step_number > early_phase_end,
                 SimulationStepModel.step_number <= mid_phase_end,
-            )
-            .scalar()
+            ]
         )
-
-        # Handle None values properly
-        mid_avg_pop = 0 if mid_avg_pop is None else mid_avg_pop
 
         # Late phase average population
-        late_avg_pop = (
-            sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
-            .filter(SimulationStepModel.step_number > mid_phase_end)
-            .scalar()
+        late_avg_pop = _get_avg_agent_type_count(
+            sim_session,
+            agent_type,
+            [SimulationStepModel.step_number > mid_phase_end]
         )
-
-        # Handle None values properly
-        late_avg_pop = 0 if late_avg_pop is None else late_avg_pop
 
         # Calculate growth rates between phases
         # Ensure population values are valid integers
