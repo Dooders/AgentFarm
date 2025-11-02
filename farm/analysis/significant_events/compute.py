@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, case
+from sqlalchemy import func, case
 
 from farm.analysis.common.utils import calculate_statistics
 from farm.database.models import (
@@ -353,11 +353,12 @@ def _detect_mass_combat_events(query_func, start_step: int, end_step: Optional[i
                 ActionModel.action_type == "attack",
                 ActionModel.step_number >= start_step,
             )
-            .group_by(ActionModel.step_number)
         )
         
         if end_step is not None:
             attack_query = attack_query.filter(ActionModel.step_number <= end_step)
+        
+        attack_query = attack_query.group_by(ActionModel.step_number)
 
         attack_results = attack_query.all()
 

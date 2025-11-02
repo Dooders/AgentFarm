@@ -436,3 +436,39 @@ def handle_missing_data(df: pd.DataFrame, strategy: str = "drop", columns: Optio
         return df
     else:
         return df
+
+
+# ============================================================================
+# Action and Combat Utilities
+# ============================================================================
+
+
+# Mapping from action types to social interaction types
+ACTION_TO_INTERACTION_TYPE_MAP: Dict[str, str] = {
+    "attack": "competition",
+    "share": "cooperation",
+}
+
+
+def map_action_to_interaction_type(action_type: str) -> str:
+    """Map an action type to a social interaction type.
+
+    Args:
+        action_type: The action type (e.g., "attack", "share")
+
+    Returns:
+        The corresponding interaction type ("competition", "cooperation", or the action_type itself)
+    """
+    return ACTION_TO_INTERACTION_TYPE_MAP.get(action_type, action_type)
+
+
+def is_successful_attack(reward: float) -> bool:
+    """Check if an attack action was successful based on reward.
+
+    Args:
+        reward: The reward value from the attack action
+
+    Returns:
+        True if reward > 0 (indicating successful attack), False otherwise
+    """
+    return reward > 0

@@ -8,7 +8,7 @@ import pandas as pd
 
 from farm.database.session_manager import SessionManager
 from farm.database.repositories.action_repository import ActionRepository
-from farm.analysis.common.utils import find_database_path
+from farm.analysis.common.utils import find_database_path, is_successful_attack
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -36,20 +36,20 @@ def process_combat_data(experiment_path: Path, use_database: bool = True, **kwar
             session_manager = SessionManager(db_uri)
             action_repo = ActionRepository(session_manager)
 
-            actions = action_repo.get_actions_by_scope("simulation")
+            # Filter attack actions at database level
+            attack_actions = action_repo.get_actions_by_scope("simulation", action_type="attack")
 
             combat_actions: List[Dict[str, Any]] = []
-            for action in actions:
-                if getattr(action, "action_type", None) == "attack":
-                    combat_actions.append(
-                        {
-                            "step": getattr(action, "step_number", 0),
-                            "agent_id": getattr(action, "agent_id", None),
-                            "action_type": getattr(action, "action_type", ""),
-                            "reward": getattr(action, "reward", 0.0) or 0.0,
-                            "details": getattr(action, "details", {}),
-                        }
-                    )
+            for action in attack_actions:
+                combat_actions.append(
+                    {
+                        "step": getattr(action, "step_number", 0),
+                        "agent_id": getattr(action, "agent_id", None),
+                        "action_type": getattr(action, "action_type", ""),
+                        "reward": getattr(action, "reward", 0.0) or 0.0,
+                        "details": getattr(action, "details", {}),
+                    }
+                )
 
             if combat_actions:
                 df = pd.DataFrame(combat_actions)
@@ -129,11 +129,8 @@ def process_combat_metrics_data(experiment_path: Path, use_database: bool = True
             session_manager = SessionManager(db_uri)
             action_repo = ActionRepository(session_manager)
 
-            # Get all attack actions and aggregate by step
-            actions = action_repo.get_actions_by_scope("simulation")
-            
-            # Filter to attack actions only
-            attack_actions = [a for a in actions if getattr(a, "action_type", None) == "attack"]
+            # Get attack actions filtered at database level
+            attack_actions = action_repo.get_actions_by_scope("simulation", action_type="attack")
             
             if attack_actions:
                 # Convert to DataFrame for easier aggregation
@@ -149,7 +146,7 @@ def process_combat_metrics_data(experiment_path: Path, use_database: bool = True
                 # Aggregate by step
                 grouped = action_df.groupby("step").agg(
                     combat_encounters=("step", "count"),  # Count of attacks = combat_encounters
-                    successful_attacks=("reward", lambda x: (x > 0).sum() if len(x) > 0 else 0),  # Count successful attacks
+                    successful_attacks=("reward", lambda x: sum(1 for r in x if is_successful_attack(r)) if len(x) > 0 else 0),  # Count successful attacks
                 )
                 
                 # Add per-step columns (same as cumulative for now since we're aggregating per step)

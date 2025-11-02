@@ -6,6 +6,7 @@ in simulations, and analyze how these genesis factors impact simulation outcomes
 """
 
 from farm.utils.logging import get_logger
+from farm.analysis.common.utils import map_action_to_interaction_type
 import math
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
@@ -1261,16 +1262,9 @@ def compute_critical_period_metrics(
         interaction_counts = defaultdict(lambda: defaultdict(int))
 
         for action, initiator_type in social_actions:
-            # Determine interaction type from action_type
-            # Map action types to social interaction types
+            # Map action types to social interaction types using shared utility
             action_type = action.action_type
-            if action_type == "attack":
-                interaction_type = "competition"
-            elif action_type == "share":
-                interaction_type = "cooperation"
-            else:
-                # For other action types, use the action type as interaction type
-                interaction_type = action_type
+            interaction_type = map_action_to_interaction_type(action_type)
 
             interaction_counts[initiator_type][interaction_type] += 1
 
