@@ -493,7 +493,8 @@ def compute_advantages(sim_session, focus_agent_type=None):
                             .first()
                         )
                         if parent_state_before and parent_state_after:
-                            resource_spent += (
+                            resource_spent += max(
+                                0,
                                 parent_state_before.resource_level - parent_state_after.resource_level
                             )
             except Exception as e:
