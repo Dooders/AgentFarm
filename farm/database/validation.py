@@ -42,6 +42,7 @@ from farm.database.models import (
     SimulationStepModel,
     SocialInteractionModel,
 )
+from farm.database.utils import extract_agent_counts_from_json
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -669,8 +670,7 @@ class StatisticalValidator:
             )
             return
         
-        import json
-        agent_type_counts = json.loads(step_row[1]) if step_row[1] else {}
+        agent_type_counts = extract_agent_counts_from_json(step_row[1])
         step_counts = (
             step_row[0],  # total_agents
             agent_type_counts.get("system", 0),
