@@ -288,43 +288,6 @@ class ILoggingService(ABC):
     """
 
     @abstractmethod
-    def log_reproduction_event(
-        self,
-        step_number: int,
-        parent_id: str,
-        success: bool,
-        parent_resources_before: float,
-        parent_resources_after: float,
-        offspring_id: Optional[str] = None,
-        offspring_initial_resources: Optional[float] = None,
-        failure_reason: Optional[str] = None,
-        parent_position: Optional[Tuple[float, float]] = None,
-        parent_generation: Optional[int] = None,
-        offspring_generation: Optional[int] = None,
-    ) -> None:
-        """Log a reproduction attempt and its outcome.
-
-        Args:
-            step_number: The simulation time step when the reproduction occurred.
-            parent_id: Unique identifier of the parent agent attempting reproduction.
-            success: True if reproduction was successful, False otherwise.
-            parent_resources_before: Parent's resource level before reproduction attempt.
-            parent_resources_after: Parent's resource level after reproduction attempt.
-            offspring_id: Unique identifier of the offspring if reproduction succeeded.
-            offspring_initial_resources: Initial resource level assigned to offspring.
-            failure_reason: Description of why reproduction failed (if applicable).
-            parent_position: Position of the parent agent at time of reproduction.
-            parent_generation: Generation number of the parent agent.
-            offspring_generation: Generation number assigned to the offspring.
-
-        Note:
-            This comprehensive logging enables detailed analysis of reproduction
-            patterns, resource costs, and evolutionary dynamics. Failed reproduction
-            attempts are logged with failure_reason to distinguish different causes.
-        """
-        pass
-
-    @abstractmethod
     def update_agent_death(
         self, agent_id: str, death_time: int, cause: str = "starvation"
     ) -> None:

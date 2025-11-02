@@ -21,7 +21,6 @@ from farm.database.models import (
     AgentModel,
     AgentStateModel,
     HealthIncident,
-    ReproductionEventModel,
     SocialInteractionModel,
 )
 
@@ -691,34 +690,85 @@ def compute_reproduction_social_patterns(session: Session) -> Dict[str, Any]:
     Dict[str, Any]
         Dictionary containing reproduction social metrics
     """
-    # Get successful reproduction events
-    reproduction_events = (
-        session.query(
-            ReproductionEventModel.parent_id,
-            ReproductionEventModel.offspring_id,
-            ReproductionEventModel.parent_position_x,
-            ReproductionEventModel.parent_position_y,
-            ReproductionEventModel.step_number,
-            ReproductionEventModel.parent_resources_before,
-            AgentModel.agent_type.label("parent_type"),
-        )
-        .join(AgentModel, AgentModel.agent_id == ReproductionEventModel.parent_id)
-        .filter(
-            ReproductionEventModel.success,
-            ReproductionEventModel.offspring_id.isnot(None),
-        )
+    # Reconstruct successful reproduction events from agents table
+    # Get offspring agents (birth_time > 0 indicates successful reproduction)
+    offspring_agents = (
+        session.query(AgentModel)
+        .filter(AgentModel.birth_time > 0)
         .all()
     )
 
-    if not reproduction_events:
+    if not offspring_agents:
         logger.warning("No successful reproduction events found")
         return {"error": "No successful reproduction events found"}
 
+    # Parse genome_id to get parent relationships and reconstruct events
+    from farm.database.data_types import GenomeId
+    
+    reproduction_events = []
+    reproduction_steps = set()
+    
+    for offspring in offspring_agents:
+        try:
+            genome = GenomeId.from_string(offspring.genome_id)
+            if genome.parent_ids:
+                parent_id = genome.parent_ids[0]  # Use first parent
+                parent = (
+                    session.query(AgentModel)
+                    .filter(AgentModel.agent_id == parent_id)
+                    .first()
+                )
+                if parent:
+                    # Get parent state at birth_time for position and resources
+                    parent_state = (
+                        session.query(AgentStateModel)
+                        .filter(
+                            AgentStateModel.agent_id == parent_id,
+                            AgentStateModel.step_number == offspring.birth_time
+                        )
+                        .first()
+                    )
+                    
+                    # Get parent state before reproduction (birth_time - 1)
+                    parent_state_before = (
+                        session.query(AgentStateModel)
+                        .filter(
+                            AgentStateModel.agent_id == parent_id,
+                            AgentStateModel.step_number == offspring.birth_time - 1
+                        )
+                        .first()
+                    )
+                    
+                    parent_position_x = parent_state.position_x if parent_state else offspring.position_x
+                    parent_position_y = parent_state.position_y if parent_state else offspring.position_y
+                    parent_resources_before = parent_state_before.resource_level if parent_state_before else None
+                    
+                    # Create event-like structure
+                    event = type('Event', (), {
+                        'parent_id': parent_id,
+                        'offspring_id': offspring.agent_id,
+                        'parent_position_x': parent_position_x,
+                        'parent_position_y': parent_position_y,
+                        'step_number': offspring.birth_time,
+                        'parent_resources_before': parent_resources_before,
+                        'parent_type': parent.agent_type,
+                    })()
+                    reproduction_events.append(event)
+                    reproduction_steps.add(offspring.birth_time)
+        except Exception as e:
+            logger.error(
+                f"Failed to process offspring agent_id={getattr(offspring, 'agent_id', None)} genome_id={getattr(offspring, 'genome_id', None)}: {e}",
+                exc_info=True
+            )
+            # Skip if parsing fails
+            continue
+
+    if not reproduction_events:
+        logger.warning("No successful reproduction events found after reconstruction")
+        return {"error": "No successful reproduction events found after reconstruction"}
+
     # Get agent positions for proximity analysis
     step_positions = defaultdict(list)
-
-    # Query positions for steps where reproduction occurred
-    reproduction_steps = set(event.step_number for event in reproduction_events)
 
     for step in reproduction_steps:
         positions = (

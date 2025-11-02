@@ -656,47 +656,9 @@ class AgentCore:
             # Update reproduction component tracking
             repro_comp.offspring_created += 1
 
-            # Log reproduction event if logging service available
-            if self.services.logging_service:
-                try:
-                    self.services.logging_service.log_reproduction_event(
-                        step_number=self.services.get_current_time(),
-                        parent_id=self.agent_id,
-                        offspring_id=offspring.agent_id,
-                        success=True,
-                        parent_resources_before=initial_resources,
-                        parent_resources_after=self.resource_level,
-                        offspring_initial_resources=offspring_resources,
-                        failure_reason="",
-                        parent_generation=self.generation,
-                        offspring_generation=offspring.generation,
-                        parent_position=self.position,
-                    )
-                except Exception:
-                    pass
-
             return True
 
         except Exception as e:
-            # Log failed reproduction
-            if self.services.logging_service:
-                try:
-                    self.services.logging_service.log_reproduction_event(
-                        step_number=self.services.get_current_time(),
-                        parent_id=self.agent_id,
-                        offspring_id="",
-                        success=False,
-                        parent_resources_before=initial_resources,
-                        parent_resources_after=self.resource_level,
-                        offspring_initial_resources=0.0,
-                        failure_reason=str(e),
-                        parent_generation=self.generation,
-                        offspring_generation=0,
-                        parent_position=self.position,
-                    )
-                except Exception:
-                    pass
-
             return False
 
     def take_damage(self, damage: float) -> float:

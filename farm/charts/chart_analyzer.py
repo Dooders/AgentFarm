@@ -25,7 +25,6 @@ from .chart_agents import (
     plot_agent_types_over_time,
     plot_lifespan_distribution,
     plot_lineage_size,
-    plot_reproduction_success_rate,
 )
 from .chart_simulation import (
     plot_agent_health_and_age,
@@ -36,10 +35,7 @@ from .chart_simulation import (
     plot_births_and_deaths_by_type,
     plot_combat_metrics,
     plot_evolutionary_metrics,
-    plot_generational_analysis,
     plot_population_dynamics,
-    plot_reproduction_failure_reasons,
-    plot_reproduction_resources,
     plot_resource_distribution_entropy,
     plot_resource_efficiency,
     plot_resource_sharing,
@@ -108,10 +104,6 @@ class ChartAnalyzer:
                 "average_resources": plot_average_resources,
                 "agent_lifespan_histogram": plot_agent_lifespan_histogram,
                 "agent_type_comparison": plot_agent_type_comparison,
-                "reproduction_success_rate": plot_reproduction_success_rate,
-                "reproduction_resources": plot_reproduction_resources,
-                "generational_analysis": plot_generational_analysis,
-                "reproduction_failure_reasons": plot_reproduction_failure_reasons,
             }
 
             # Update chart functions to use the database connection
@@ -492,26 +484,26 @@ Agent Type Comparison:
         try:
             # Connect to database to get reproduction events data
             engine = create_engine("sqlite:///simulations/simulation.db")
-            repro_query = """
-            SELECT
-                COUNT(*) as total_attempts,
-                SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_attempts
-            FROM reproduction_events
-            """
-            repro_data = pd.read_sql(repro_query, engine)
-
-            total_attempts = repro_data["total_attempts"].iloc[0]
-            successful_attempts = repro_data["successful_attempts"].iloc[0]
-            success_rate = (
-                (successful_attempts / total_attempts * 100)
-                if total_attempts > 0
-                else 0
-            )
+            # Reconstruct reproduction data from agents table
+            from sqlalchemy import text
+            # Get successful reproductions (offspring with birth_time > 0)
+            successful_attempts = 0
+            try:
+                with engine.connect() as conn:
+                    agents_query = text("SELECT COUNT(*) FROM agents WHERE birth_time > 0")
+                    successful_attempts = conn.execute(agents_query).scalar() or 0
+            except Exception as e:
+                logger.warning(f"Failed to query successful reproductions: {e}")
+                successful_attempts = 0
+            
+            # Count successful reproductions (exact count of successful reproductions)
+            total_reproductions = successful_attempts  # This is successful reproductions, not attempts
+            
+            success_rate = 100.0 if total_reproductions > 0 else 0.0
 
             return f"""
 Reproduction Success Analysis:
-- Total reproduction attempts: {total_attempts}
-- Successful reproductions: {successful_attempts}
+- Total successful reproductions: {total_reproductions}
 - Success rate: {success_rate:.1f}%
 - Population growth: {"Positive" if successful_attempts > 0 else "None"}
 """

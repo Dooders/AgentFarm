@@ -159,50 +159,6 @@ class EnvironmentLoggingService(ILoggingService):
         """
         self._env = environment
 
-    def log_reproduction_event(
-        self,
-        step_number: int,
-        parent_id: str,
-        success: bool,
-        parent_resources_before: float,
-        parent_resources_after: float,
-        offspring_id: Optional[str] = None,
-        offspring_initial_resources: Optional[float] = None,
-        failure_reason: Optional[str] = None,
-        parent_position: Optional[Tuple[float, float]] = None,
-        parent_generation: Optional[int] = None,
-        offspring_generation: Optional[int] = None,
-    ) -> None:
-        """Log a reproduction attempt by an agent.
-
-        Args:
-            step_number: The current simulation step when reproduction occurred.
-            parent_id: The identifier of the parent agent attempting reproduction.
-            success: Whether the reproduction attempt was successful.
-            parent_resources_before: Parent's resource level before reproduction.
-            parent_resources_after: Parent's resource level after reproduction.
-            offspring_id: The identifier of the offspring if reproduction succeeded.
-            offspring_initial_resources: Initial resources allocated to offspring.
-            failure_reason: Reason for reproduction failure if unsuccessful.
-            parent_position: Position of the parent agent during reproduction.
-            parent_generation: Generation number of the parent agent.
-            offspring_generation: Generation number of the offspring.
-        """
-        # delegate to environment's method which already checks DB presence
-        self._env.log_reproduction_event(
-            step_number=step_number,
-            parent_id=parent_id,
-            success=success,
-            parent_resources_before=parent_resources_before,
-            parent_resources_after=parent_resources_after,
-            offspring_id=offspring_id,
-            offspring_initial_resources=offspring_initial_resources,
-            failure_reason=failure_reason,
-            parent_position=parent_position,
-            parent_generation=parent_generation,
-            offspring_generation=offspring_generation,
-        )
-
     def log_health_incident(
         self,
         step_number: int,

@@ -61,7 +61,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from farm.analysis.protocols import DataLoader
 from farm.database.models import (
     AgentModel,
-    ReproductionEventModel,
     ResourceModel,
     Simulation,
     SimulationStepModel,
@@ -191,7 +190,7 @@ class SQLiteLoader(DatabaseLoader):
         """Stream data from a specified table.
 
         Args:
-            table: One of 'agents', 'resources', 'steps', 'reproductions', 'simulations'
+            table: One of 'agents', 'resources', 'steps', 'simulations'
             chunk_size: Rows per chunk (default 10000)
             simulation_id: Optional simulation filter for applicable tables
         """
@@ -205,7 +204,6 @@ class SQLiteLoader(DatabaseLoader):
             "agents": self.iter_agents,
             "resources": self.iter_resources,
             "steps": self.iter_steps,
-            "reproductions": self.iter_reproduction_events,
             "simulations": self.iter_simulations,
         }
 
@@ -222,7 +220,7 @@ class SQLiteLoader(DatabaseLoader):
 
         Args:
             table: The table to load data from
-                ('agents', 'resources', 'steps', 'reproductions', 'simulations')
+                ('agents', 'resources', 'steps', 'simulations')
             **kwargs: Additional parameters for specific loaders
 
         Returns:
@@ -237,7 +235,6 @@ class SQLiteLoader(DatabaseLoader):
             "agents": self.load_agents,
             "resources": self.load_resources,
             "steps": self.load_steps,
-            "reproductions": self.load_reproduction_events,
             "simulations": self.load_simulations,
         }
 
@@ -367,21 +364,6 @@ class SQLiteLoader(DatabaseLoader):
             "timestamp": step.timestamp,
         }
 
-    def _build_reproduction_event_row(self, event) -> Dict[str, Any]:
-        """Build a row dictionary from a ReproductionEventModel instance."""
-        return {
-            "id": event.id,
-            "simulation_id": event.simulation_id,
-            "step_number": event.step_number,
-            "parent_id": event.parent_id,
-            "child_id": event.child_id,
-            "parent_health": event.parent_health,
-            "parent_energy": event.parent_energy,
-            "parent_age": event.parent_age,
-            "child_genome": event.child_genome,
-            "mutation_rate": event.mutation_rate,
-        }
-
     def iter_agents(
         self,
         simulation_id: Optional[int] = None,
@@ -489,58 +471,6 @@ class SQLiteLoader(DatabaseLoader):
         return self._iter_model_data(
             SimulationStepModel,
             self._build_step_row,
-            filter_simulation_id=True,
-            simulation_id=simulation_id,
-            chunk_size=chunk_size,
-            columns=columns,
-        )
-
-    def load_reproduction_events(self, simulation_id: Optional[int] = None) -> pd.DataFrame:
-        """Load reproduction event data from the database.
-
-        Args:
-            simulation_id: Filter by simulation ID
-
-        Returns:
-            pd.DataFrame: Reproduction event data
-        """
-        session = self.get_session()
-        query = session.query(ReproductionEventModel)
-
-        if simulation_id is not None:
-            query = query.filter(ReproductionEventModel.simulation_id == simulation_id)
-
-        events = query.all()
-        session.close()
-
-        # Convert to DataFrame
-        data = []
-        for event in events:
-            event_dict = {
-                "id": event.id,
-                "simulation_id": event.simulation_id,
-                "step_number": event.step_number,
-                "parent_id": event.parent_id,
-                "child_id": event.child_id,
-                "parent_health": event.parent_health,
-                "parent_energy": event.parent_energy,
-                "parent_age": event.parent_age,
-                "child_genome": event.child_genome,
-                "mutation_rate": event.mutation_rate,
-            }
-            data.append(event_dict)
-
-        return pd.DataFrame(data)
-
-    def iter_reproduction_events(
-        self,
-        simulation_id: Optional[int] = None,
-        chunk_size: int = 10000,
-        columns: Optional[List[str]] = None,
-    ) -> "Iterator[pd.DataFrame]":
-        return self._iter_model_data(
-            ReproductionEventModel,
-            self._build_reproduction_event_row,
             filter_simulation_id=True,
             simulation_id=simulation_id,
             chunk_size=chunk_size,
@@ -696,7 +626,6 @@ class SimulationLoader(SQLiteLoader):
             "agents": self.iter_agents,
             "resources": self.iter_resources,
             "steps": self.iter_steps,
-            "reproductions": self.iter_reproduction_events,
             "simulations": self.iter_simulations,
         }
         if table not in table_iters:

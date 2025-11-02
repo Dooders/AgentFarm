@@ -276,121 +276,6 @@ class TestReproduce:
         assert resource_component.remove.call_count == 3
 
 
-class TestReproductionLogging:
-    """Test reproduction logging functionality."""
-    
-    @pytest.fixture
-    def component_with_logging(self):
-        """Create a reproduction component with logging service."""
-        services = Mock(spec=AgentServices)
-        services.logging_service = Mock()
-        config = ReproductionConfig(offspring_cost=5.0, offspring_initial_resources=10.0)
-        component = ReproductionComponent(services, config)
-        
-        core = Mock()
-        core.agent_id = "parent_agent"
-        core.position = (15.0, 25.0)
-        core.state = Mock()
-        core.state.generation = 3
-        component.attach(core)
-        
-        return component
-    
-    def test_reproduce_logging_success(self, component_with_logging):
-        """Test logging on successful reproduction."""
-        # Setup resource component that actually modifies level when remove is called
-        resource_component = Mock()
-        resource_component.level = 10.0
-        
-        def mock_remove(amount):
-            resource_component.level -= amount
-            return True
-        
-        resource_component.remove.side_effect = mock_remove
-        component_with_logging.core.get_component.return_value = resource_component
-        
-        # Mock current time
-        component_with_logging.services.get_current_time.return_value = 42
-        
-        component_with_logging.reproduce()
-        
-        # Verify logging call
-        component_with_logging.services.logging_service.log_reproduction_event.assert_called_once()
-        call_args = component_with_logging.services.logging_service.log_reproduction_event.call_args[1]
-        
-        assert call_args['step_number'] == 42
-        assert call_args['parent_id'] == "parent_agent"
-        assert call_args['offspring_id'] == ""  # Will be assigned by factory
-        assert call_args['success'] is True
-        assert call_args['parent_resources_before'] == 10.0  # 5.0 + 5.0 (current level + cost)
-        assert call_args['parent_resources_after'] == 5.0
-        assert call_args['offspring_initial_resources'] == 10.0
-        assert call_args['failure_reason'] == ""
-        assert call_args['parent_generation'] == 3
-        assert call_args['offspring_generation'] == 0
-        assert call_args['parent_position'] == (15.0, 25.0)
-    
-    def test_reproduce_logging_error(self, component_with_logging):
-        """Test logging error handling."""
-        # Setup resource component
-        resource_component = Mock()
-        resource_component.level = 10.0
-        resource_component.remove.return_value = True
-        component_with_logging.core.get_component.return_value = resource_component
-        
-        # Make logging service raise exception
-        component_with_logging.services.logging_service.log_reproduction_event.side_effect = Exception("Logging error")
-        
-        # Should not raise exception
-        result = component_with_logging.reproduce()
-        
-        assert result is None
-        assert component_with_logging.offspring_created == 1  # Still increments
-    
-    def test_reproduce_no_logging_service(self):
-        """Test reproduction without logging service."""
-        services = Mock(spec=AgentServices)
-        services.logging_service = None
-        config = ReproductionConfig()
-        component = ReproductionComponent(services, config)
-        
-        core = Mock()
-        core.agent_id = "parent_agent"
-        core.position = (10.0, 20.0)
-        component.attach(core)
-        
-        resource_component = Mock()
-        resource_component.level = 10.0
-        resource_component.remove.return_value = True
-        core.get_component.return_value = resource_component
-        
-        # Should not raise exception
-        result = component.reproduce()
-        
-        assert result is None
-        assert component.offspring_created == 1
-    
-    def test_reproduce_logging_without_state(self, component_with_logging):
-        """Test logging when core has no state attribute."""
-        # Remove state attribute
-        del component_with_logging.core.state
-        
-        resource_component = Mock()
-        resource_component.level = 10.0
-        resource_component.remove.return_value = True
-        component_with_logging.core.get_component.return_value = resource_component
-        
-        # Should not raise exception
-        result = component_with_logging.reproduce()
-        
-        assert result is None
-        assert component_with_logging.offspring_created == 1
-        
-        # Verify logging call with default generation
-        call_args = component_with_logging.services.logging_service.log_reproduction_event.call_args[1]
-        assert call_args['parent_generation'] == 0  # Default when no state
-
-
 class TestTotalOffspring:
     """Test total offspring tracking."""
     
@@ -593,17 +478,6 @@ class TestIntegrationScenarios:
         assert component.total_offspring == 1
         resource_component.remove.assert_called_with(8.0)
         
-        # Verify logging
-        services.logging_service.log_reproduction_event.assert_called_once()
-        call_args = services.logging_service.log_reproduction_event.call_args[1]
-        assert call_args['step_number'] == 100
-        assert call_args['parent_id'] == "parent_123"
-        assert call_args['success'] is True
-        assert call_args['parent_resources_before'] == 25.0  # 17.0 + 8.0 (current level + cost)
-        assert call_args['parent_resources_after'] == 17.0
-        assert call_args['offspring_initial_resources'] == 15.0
-        assert call_args['parent_generation'] == 10
-        
         # Second reproduction
         result2 = component.reproduce()
         assert result2 is None
@@ -654,7 +528,6 @@ class TestIntegrationScenarios:
         """Test error recovery in various scenarios."""
         services = Mock(spec=AgentServices)
         services.logging_service = Mock()
-        services.logging_service.log_reproduction_event.side_effect = Exception("Logging error")
         
         config = ReproductionConfig()
         component = ReproductionComponent(services, config)

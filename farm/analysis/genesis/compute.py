@@ -23,7 +23,6 @@ from farm.database.models import (
     ActionModel,
     AgentModel,
     AgentStateModel,
-    ReproductionEventModel,
     ResourceModel,
     SimulationStepModel,
     SocialInteractionModel,
@@ -921,26 +920,55 @@ def compute_simulation_outcomes(session: Session) -> Dict[str, Any]:
     # Resource efficiency
     outcomes["final_resource_efficiency"] = final_step.resource_efficiency
 
-    # Reproduction outcomes
-    reproduction_events = session.query(ReproductionEventModel).all()
-
-    if reproduction_events:
+    # Reproduction outcomes - reconstruct from agents table
+    # Successful reproductions are agents with birth_time > 0 (exclude initial population)
+    offspring_agents = (
+        session.query(AgentModel)
+        .filter(AgentModel.birth_time > 0)
+        .all()
+    )
+    
+    if offspring_agents:
         # Total successful reproductions
-        successful_reproductions = [
-            event for event in reproduction_events if event.success is True
-        ]
-        outcomes["total_successful_reproductions"] = len(successful_reproductions)
+        outcomes["total_successful_reproductions"] = len(offspring_agents)
 
-        # Reproduction by agent type
+        # Reproduction by agent type - get parent agent_type by parsing genome_id
         reproduction_by_type = defaultdict(int)
-        for event in successful_reproductions:
-            parent = (
-                session.query(AgentModel)
-                .filter(AgentModel.agent_id == event.parent_id)
-                .first()
-            )
-            if parent:
-                reproduction_by_type[parent.agent_type] += 1
+        from farm.database.data_types import GenomeId
+        
+        for offspring in offspring_agents:
+            # Parse genome_id to get parent_id(s)
+            try:
+                genome = GenomeId.from_string(offspring.genome_id)
+                if genome.parent_ids:
+                    # Use first parent for asexual reproduction, or get parent agent_type
+                    parent_id = genome.parent_ids[0]
+                    parent = (
+                        session.query(AgentModel)
+                        .filter(AgentModel.agent_id == parent_id)
+                        .first()
+                    )
+                    if parent:
+                        reproduction_by_type[parent.agent_type] += 1
+                    else:
+                        # If parent not found, use offspring's agent_type as fallback
+                        reproduction_by_type[offspring.agent_type] += 1
+                else:
+                    # No parents (shouldn't happen for birth_time > 0, but handle gracefully)
+                    reproduction_by_type[offspring.agent_type] += 1
+            except ValueError as e:
+                logger.warning(
+                    f"Failed to parse genome_id '{offspring.genome_id}' for offspring agent_id {offspring.agent_id}: {e}"
+                )
+                # If parsing fails, use offspring's agent_type as fallback
+                reproduction_by_type[offspring.agent_type] += 1
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error when parsing genome_id '{offspring.genome_id}' for offspring agent_id {offspring.agent_id}: {e}",
+                    exc_info=True
+                )
+                # If parsing fails, use offspring's agent_type as fallback
+                reproduction_by_type[offspring.agent_type] += 1
 
         for agent_type, count in reproduction_by_type.items():
             outcomes[f"{agent_type}_reproductions"] = count
@@ -1140,26 +1168,46 @@ def compute_critical_period_metrics(
         else 0.0
     )
 
-    # Calculate reproduction rate based on successful reproduction events
-    reproduction_events = (
-        session.query(ReproductionEventModel)
-        .filter(ReproductionEventModel.step_number <= critical_period_end)
-        .filter(ReproductionEventModel.success == True)
+    # Calculate reproduction rate based on offspring born during critical period
+    # Query agents where birth_time > 0 and birth_time <= critical_period_end
+    offspring_during_critical = (
+        session.query(AgentModel)
+        .filter(
+            AgentModel.birth_time > 0,
+            AgentModel.birth_time <= critical_period_end
+        )
         .all()
     )
-
+    
+    from farm.database.data_types import GenomeId
+    
     first_reproductions = {}
     reproduction_count = 0
-    for event in reproduction_events:
-        agent = (
-            session.query(AgentModel)
-            .filter(AgentModel.agent_id == event.parent_id)
-            .first()
-        )
-        if agent:
-            if agent.agent_type not in first_reproductions:
-                first_reproductions[agent.agent_type] = event.step_number
-                reproduction_count += 1
+    
+    for offspring in offspring_during_critical:
+        # Parse genome_id to get parent and determine parent agent_type
+        try:
+            genome = GenomeId.from_string(offspring.genome_id)
+            if genome.parent_ids:
+                parent_id = genome.parent_ids[0]
+                parent = (
+                    session.query(AgentModel)
+                    .filter(AgentModel.agent_id == parent_id)
+                    .first()
+                )
+                if parent:
+                    agent_type = parent.agent_type
+                    # Count total offspring (not just unique agent types)
+                    reproduction_count += 1
+                    # Track first reproduction per agent_type
+                    if agent_type not in first_reproductions:
+                        first_reproductions[agent_type] = offspring.birth_time
+        except Exception as e:
+            logger.warning(
+                f"Failed to parse genome_id '{offspring.genome_id}' for offspring agent_id {offspring.agent_id}: {e}"
+            )
+            # If parsing fails, skip this offspring
+            pass
 
     metrics["first_reproduction_events"] = first_reproductions
     metrics["reproduction_rate"] = (

@@ -403,7 +403,8 @@ class TestStatisticalValidator(unittest.TestCase):
     def test_validate_generation_monotonicity(self):
         """Test generation monotonicity validation."""
         # Add test data with valid generation progression
-        from farm.database.models import AgentModel, ReproductionEventModel
+        from farm.database.models import AgentModel
+        from farm.utils.identity import Identity
         
         parent = AgentModel(
             agent_id="parent",
@@ -413,7 +414,8 @@ class TestStatisticalValidator(unittest.TestCase):
             position_y=0.0,
             initial_resources=100.0,
             starting_health=100.0,
-            generation=1
+            generation=1,
+            genome_id="::1"  # Initial agent
         )
         self.session.add(parent)
         
@@ -425,24 +427,10 @@ class TestStatisticalValidator(unittest.TestCase):
             position_y=0.0,
             initial_resources=50.0,
             starting_health=100.0,
-            generation=2  # Valid: parent + 1
+            generation=2,  # Valid: parent + 1
+            genome_id="parent:1"  # Offspring of parent
         )
         self.session.add(offspring)
-        
-        reproduction = ReproductionEventModel(
-            step_number=10,
-            parent_id="parent",
-            offspring_id="offspring",
-            success=True,
-            parent_resources_before=100.0,
-            parent_resources_after=50.0,
-            offspring_initial_resources=50.0,
-            parent_generation=1,
-            offspring_generation=2,
-            parent_position_x=0.0,
-            parent_position_y=0.0
-        )
-        self.session.add(reproduction)
         self.session.commit()
         
         self.validator.validate_generation_monotonicity()

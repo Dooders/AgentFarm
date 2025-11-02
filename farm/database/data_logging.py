@@ -26,7 +26,6 @@ from farm.database.models import (
     AgentModel,
     AgentStateModel,
     HealthIncident,
-    ReproductionEventModel,
     ResourceModel,
     SimulationStepModel,
 )
@@ -79,7 +78,6 @@ class DataLogger(DataLoggerProtocol):
         self._action_buffer = []
         self._health_incident_buffer = []
         self._resource_buffer = []
-        self.reproduction_buffer = []
         self._step_buffer = []
 
     def _check_time_based_flush(self):
@@ -215,41 +213,6 @@ class DataLogger(DataLoggerProtocol):
             )
             raise
 
-    def log_reproduction_event(
-        self,
-        step_number: int,
-        parent_id: str,
-        offspring_id: str | None,
-        success: bool,
-        parent_resources_before: float,
-        parent_resources_after: float,
-        offspring_initial_resources: float | None,
-        failure_reason: str | None,
-        parent_generation: int,
-        offspring_generation: int | None,
-        parent_position: tuple[float, float],
-    ) -> None:
-        """Buffer a reproduction event for batch processing."""
-        event = {
-            "simulation_id": self.simulation_id,
-            "step_number": step_number,
-            "parent_id": parent_id,
-            "offspring_id": offspring_id,
-            "success": success,
-            "parent_resources_before": parent_resources_before,
-            "parent_resources_after": parent_resources_after,
-            "offspring_initial_resources": offspring_initial_resources,
-            "failure_reason": failure_reason,
-            "parent_generation": parent_generation,
-            "offspring_generation": offspring_generation,
-            "parent_position_x": parent_position[0],
-            "parent_position_y": parent_position[1],
-        }
-        self.reproduction_buffer.append(event)
-
-        if len(self.reproduction_buffer) >= self._buffer_size:
-            self.flush_reproduction_buffer()
-
     def flush_action_buffer(self) -> None:
         """Flush the action buffer by batch inserting all buffered actions."""
         if not self._action_buffer:
@@ -289,19 +252,6 @@ class DataLogger(DataLoggerProtocol):
             logger.error(f"Failed to flush health buffer: {e}")
             raise
 
-    def flush_reproduction_buffer(self):
-        """Flush buffered reproduction events to database."""
-        if not self.reproduction_buffer:
-            return
-
-        def _flush(session):
-            for event_data in self.reproduction_buffer:
-                event = ReproductionEventModel(**event_data)
-                session.add(event)
-
-        self.db._execute_in_transaction(_flush)
-        self.reproduction_buffer.clear()
-
     def flush_all_buffers(self) -> None:
         """Flush all data buffers to the database in a single transaction."""
 
@@ -319,10 +269,6 @@ class DataLogger(DataLoggerProtocol):
                 if self._health_incident_buffer:
                     session.bulk_insert_mappings(HealthIncident, self._health_incident_buffer)
                     self._health_incident_buffer.clear()
-
-                if self.reproduction_buffer:
-                    session.bulk_insert_mappings(ReproductionEventModel, self.reproduction_buffer)
-                    self.reproduction_buffer.clear()
 
                 if self._step_buffer:
                     session.bulk_insert_mappings(SimulationStepModel, self._step_buffer)

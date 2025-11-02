@@ -81,83 +81,6 @@ def plot_agent_types_over_time(dataframe):
     return plt
 
 
-def plot_reproduction_success_rate(dataframe, connection_string=None):
-    """Plot the reproduction rate over generations."""
-    plt.figure(figsize=(10, 6))
-
-    try:
-        if connection_string is None:
-            connection_string = "sqlite:///simulations/simulation.db"
-
-        engine = create_engine(connection_string)
-
-        # Query reproduction events data grouped by parent generation
-        repro_query = """
-        SELECT
-            parent_generation,
-            COUNT(*) as attempts,
-            SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successes
-        FROM reproduction_events
-        GROUP BY parent_generation
-        ORDER BY parent_generation
-        """
-
-        repro_data = pd.read_sql(repro_query, engine)
-
-        if not repro_data.empty:
-            # Plot success rate by generation
-            success_rate = repro_data["successes"] / repro_data["attempts"] * 100
-            plt.plot(
-                repro_data["parent_generation"],
-                success_rate,
-                marker="o",
-                alpha=0.6,
-                label="Success Rate",
-            )
-
-            # Plot total attempts as a filled area
-            plt.fill_between(
-                repro_data["parent_generation"],
-                repro_data["attempts"],
-                alpha=0.2,
-                label="Total Attempts",
-            )
-
-            plt.title("Reproduction Success Rate by Generation")
-            plt.xlabel("Parent Generation")
-            plt.ylabel("Success Rate (%)")
-            plt.legend()
-            plt.grid(True, alpha=0.3)
-        else:
-            # Create a placeholder plot if no data
-            plt.text(
-                0.5,
-                0.5,
-                "No reproduction data available",
-                horizontalalignment="center",
-                verticalalignment="center",
-            )
-            plt.title("Reproduction Success Rate")
-            plt.xlabel("Generation")
-            plt.ylabel("Success Rate (%)")
-
-    except Exception as e:
-        print(f"Error in reproduction success rate plot: {e}")
-        # Create a simple placeholder plot
-        plt.text(
-            0.5,
-            0.5,
-            "Error plotting reproduction data",
-            horizontalalignment="center",
-            verticalalignment="center",
-        )
-        plt.title("Reproduction Success Rate")
-        plt.xlabel("Generation")
-        plt.ylabel("Success Rate (%)")
-
-    return plt
-
-
 # Load the dataset
 def main(dataframe):
     try:
@@ -170,7 +93,6 @@ def main(dataframe):
             "lifespan_distribution": plot_lifespan_distribution,
             "lineage_size": plot_lineage_size,
             "agent_types_over_time": plot_agent_types_over_time,
-            "reproduction_success_rate": plot_reproduction_success_rate,
         }
 
         # Generate and save each plot

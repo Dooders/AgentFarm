@@ -153,43 +153,6 @@ class ExperimentDataLogger(DataLogger):
             details=details,
         )
 
-    def log_reproduction_event(
-        self,
-        step_number,
-        parent_id,
-        offspring_id,
-        success,
-        parent_resources_before,
-        parent_resources_after,
-        offspring_initial_resources,
-        failure_reason,
-        parent_generation,
-        offspring_generation,
-        parent_position,
-    ):
-        """Log a reproduction event with the correct simulation_id and prefixed agent_ids."""
-        # Prefix agent_ids with simulation_id
-        unique_parent_id = parent_id
-
-        # Also prefix offspring_id if it exists
-        unique_offspring_id = None
-        if offspring_id:
-            unique_offspring_id = offspring_id
-
-        return super().log_reproduction_event(
-            step_number=step_number,
-            parent_id=unique_parent_id,
-            offspring_id=unique_offspring_id,
-            success=success,
-            parent_resources_before=parent_resources_before,
-            parent_resources_after=parent_resources_after,
-            offspring_initial_resources=offspring_initial_resources,
-            failure_reason=failure_reason,
-            parent_generation=parent_generation,
-            offspring_generation=offspring_generation,
-            parent_position=parent_position,
-        )
-
     def log_learning_experience(
         self,
         step_number,
@@ -382,9 +345,6 @@ class SimulationContext:
             action_weights=action_weights,
         )
 
-    def log_reproduction_event(self, **kwargs):
-        """Log a reproduction event with the correct simulation_id."""
-        return self.logger.log_reproduction_event(**kwargs)
 
     def log_agent_action(self, **kwargs):
         """Log an agent action with the correct simulation_id."""
