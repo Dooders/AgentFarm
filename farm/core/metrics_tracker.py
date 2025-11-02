@@ -389,11 +389,13 @@ class MetricsTracker:
             alive_agents = [agent for agent in agent_objects.values() if agent.alive]
             total_agents = len(alive_agents)
 
-            # Calculate agent type counts
-            # Count agents by their agent_type attribute
-            system_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and str(a.agent_type) == 'system'])
-            independent_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and str(a.agent_type) == 'independent'])
-            control_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and str(a.agent_type) == 'control'])
+            # Calculate agent type counts dynamically
+            # Count agents by their agent_type attribute, handling any agent type
+            agent_type_counts = {}
+            for agent in alive_agents:
+                if hasattr(agent, 'agent_type'):
+                    agent_type = str(agent.agent_type)
+                    agent_type_counts[agent_type] = agent_type_counts.get(agent_type, 0) + 1
 
             # Get metrics from tracker
             tracker_metrics = self.get_step_metrics()
@@ -477,9 +479,7 @@ class MetricsTracker:
             # Add births and deaths to metrics
             metrics = {
                 "total_agents": total_agents,
-                "system_agents": system_agents,
-                "independent_agents": independent_agents,
-                "control_agents": control_agents,
+                "agent_type_counts": agent_type_counts,
                 "total_resources": total_resources,
                 "average_agent_resources": average_agent_resources,
                 "resources_consumed": resources_consumed,

@@ -24,10 +24,11 @@ def get_final_population_counts(sim_session):
     if final_step is None:
         return None
 
+    agent_counts = final_step.agent_type_counts or {}
     return {
-        "system_agents": final_step.system_agents,
-        "independent_agents": final_step.independent_agents,
-        "control_agents": final_step.control_agents,
+        "system_agents": agent_counts.get("system", 0),
+        "independent_agents": agent_counts.get("independent", 0),
+        "control_agents": agent_counts.get("control", 0),
         "total_agents": final_step.total_agents,
         "final_step": final_step.step_number,
     }

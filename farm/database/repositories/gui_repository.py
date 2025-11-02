@@ -68,9 +68,7 @@ class GUIRepository(BaseRepository[SimulationStepModel]):
             query = session.query(
                 SimulationStepModel.step_number,
                 SimulationStepModel.total_agents,
-                SimulationStepModel.system_agents,
-                SimulationStepModel.independent_agents,
-                SimulationStepModel.control_agents,
+                SimulationStepModel.agent_type_counts,
                 SimulationStepModel.total_resources,
                 SimulationStepModel.average_agent_resources,
             ).order_by(SimulationStepModel.step_number)
@@ -93,11 +91,11 @@ class GUIRepository(BaseRepository[SimulationStepModel]):
                 "steps": [row[0] for row in rows],
                 "metrics": {
                     "total_agents": [row[1] for row in rows],
-                    "system_agents": [row[2] for row in rows],
-                    "independent_agents": [row[3] for row in rows],
-                    "control_agents": [row[4] for row in rows],
-                    "total_resources": [row[5] for row in rows],
-                    "average_agent_resources": [row[6] for row in rows],
+                    "system_agents": [(row[2] or {}).get("system", 0) if row[2] else 0 for row in rows],
+                    "independent_agents": [(row[2] or {}).get("independent", 0) if row[2] else 0 for row in rows],
+                    "control_agents": [(row[2] or {}).get("control", 0) if row[2] else 0 for row in rows],
+                    "total_resources": [row[3] for row in rows],
+                    "average_agent_resources": [row[4] for row in rows],
                 },
             }
 
@@ -172,11 +170,12 @@ class GUIRepository(BaseRepository[SimulationStepModel]):
             if not step:
                 return {}
 
+            agent_counts = step.agent_type_counts or {}
             return {
                 "total_agents": step.total_agents,
-                "system_agents": step.system_agents,
-                "independent_agents": step.independent_agents,
-                "control_agents": step.control_agents,
+                "system_agents": agent_counts.get("system", 0),
+                "independent_agents": agent_counts.get("independent", 0),
+                "control_agents": agent_counts.get("control", 0),
                 "total_resources": step.total_resources,
                 "average_agent_resources": step.average_agent_resources,
             }
@@ -243,11 +242,12 @@ class GUIRepository(BaseRepository[SimulationStepModel]):
             )
 
             if metrics:
+                agent_counts = metrics.agent_type_counts or {}
                 metrics_dict = {
                     "total_agents": metrics.total_agents,
-                    "system_agents": metrics.system_agents,
-                    "independent_agents": metrics.independent_agents,
-                    "control_agents": metrics.control_agents,
+                    "system_agents": agent_counts.get("system", 0),
+                    "independent_agents": agent_counts.get("independent", 0),
+                    "control_agents": agent_counts.get("control", 0),
                     "total_resources": metrics.total_resources,
                     "average_agent_resources": metrics.average_agent_resources,
                     "births": metrics.births,
