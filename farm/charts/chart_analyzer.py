@@ -492,18 +492,18 @@ Agent Type Comparison:
                 with engine.connect() as conn:
                     agents_query = text("SELECT COUNT(*) FROM agents WHERE birth_time > 0")
                     successful_attempts = conn.execute(agents_query).scalar() or 0
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to query successful reproductions: {e}")
+                successful_attempts = 0
             
-            # Approximate total attempts (would need agent_actions query for exact count)
-            total_attempts = successful_attempts  # Approximation
+            # Count successful reproductions (exact count of successful reproductions)
+            total_reproductions = successful_attempts  # This is successful reproductions, not attempts
             
-            success_rate = 100.0 if total_attempts > 0 else 0.0
+            success_rate = 100.0 if total_reproductions > 0 else 0.0
 
             return f"""
 Reproduction Success Analysis:
-- Total reproduction attempts: {total_attempts} (approximate)
-- Successful reproductions: {successful_attempts}
+- Total successful reproductions: {total_reproductions}
 - Success rate: {success_rate:.1f}%
 - Population growth: {"Positive" if successful_attempts > 0 else "None"}
 """

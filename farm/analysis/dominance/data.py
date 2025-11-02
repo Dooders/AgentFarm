@@ -265,7 +265,8 @@ def get_reproduction_stats(sim_session):
                 if genome.parent_ids:
                     parent_id = genome.parent_ids[0]
                     successful_reproductions.add((offspring.birth_time, parent_id))
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Failed to parse genome ID '{offspring.genome_id}' for agent {offspring.id}: {e}")
                 continue
         
         # Filter reproduce_actions to find failed attempts
@@ -415,7 +416,7 @@ def get_reproduction_stats(sim_session):
                     missing_resource_data += 1
                     
             except Exception as e:
-                logger.error(f"Error processing reproduction event: {e}")
+                logger.error(f"Error processing offspring agent: {e}")
                 continue
         
         # Process failed reproduction attempts

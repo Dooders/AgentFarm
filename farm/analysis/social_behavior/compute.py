@@ -755,7 +755,11 @@ def compute_reproduction_social_patterns(session: Session) -> Dict[str, Any]:
                     })()
                     reproduction_events.append(event)
                     reproduction_steps.add(offspring.birth_time)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                f"Failed to process offspring agent_id={getattr(offspring, 'agent_id', None)} genome_id={getattr(offspring, 'genome_id', None)}: {e}",
+                exc_info=True
+            )
             # Skip if parsing fails
             continue
 

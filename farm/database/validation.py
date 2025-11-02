@@ -602,7 +602,10 @@ class StatisticalValidator:
                     )
                     if parent and offspring.generation != parent.generation + 1:
                         invalid_count += 1
-            except Exception:
+            except Exception as e:
+                logger.error(
+                    f"Error parsing genome ID or parent lookup for agent_id={offspring.agent_id}, genome_id={offspring.genome_id}: {e}"
+                )
                 continue
         
         if invalid_count > 0:

@@ -956,7 +956,17 @@ def compute_simulation_outcomes(session: Session) -> Dict[str, Any]:
                 else:
                     # No parents (shouldn't happen for birth_time > 0, but handle gracefully)
                     reproduction_by_type[offspring.agent_type] += 1
-            except Exception:
+            except ValueError as e:
+                logger.warning(
+                    f"Failed to parse genome_id '{offspring.genome_id}' for offspring agent_id {offspring.agent_id}: {e}"
+                )
+                # If parsing fails, use offspring's agent_type as fallback
+                reproduction_by_type[offspring.agent_type] += 1
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error when parsing genome_id '{offspring.genome_id}' for offspring agent_id {offspring.agent_id}: {e}",
+                    exc_info=True
+                )
                 # If parsing fails, use offspring's agent_type as fallback
                 reproduction_by_type[offspring.agent_type] += 1
 
@@ -1192,7 +1202,10 @@ def compute_critical_period_metrics(
                     # Track first reproduction per agent_type
                     if agent_type not in first_reproductions:
                         first_reproductions[agent_type] = offspring.birth_time
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                f"Failed to parse genome_id '{offspring.genome_id}' for offspring agent_id {offspring.agent_id}: {e}"
+            )
             # If parsing fails, skip this offspring
             pass
 

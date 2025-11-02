@@ -439,7 +439,10 @@ def compute_advantages(sim_session, focus_agent_type=None):
                     if parent and parent.agent_type == agent_type:
                         reproductions += 1
                         first_repro_times.append(offspring.birth_time)
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"Failed to parse genome_id '{offspring.genome_id}' for offspring agent_id {offspring.agent_id}: {e}"
+                )
                 continue
         
         # Count total attempts (successful + failed)
@@ -493,7 +496,10 @@ def compute_advantages(sim_session, focus_agent_type=None):
                             resource_spent += (
                                 parent_state_before.resource_level - parent_state_after.resource_level
                             )
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"Failed to query resource data for offspring agent_id {offspring.agent_id}: {e}"
+                )
                 continue
         
         reproduction_efficiency = reproductions / max(resource_spent, 1) if resource_spent > 0 else 0.0

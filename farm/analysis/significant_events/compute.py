@@ -161,7 +161,12 @@ def _detect_agent_births(query_func, start_step: int, end_step: Optional[int]) -
                     'success': True,  # All have birth_time > 0 so successful
                     'offspring_generation': result.offspring_generation,
                 })
-            except Exception:
+            except Exception as e:
+                from farm.utils.logging import get_logger
+                logger = get_logger(__name__)
+                logger.warning(
+                    f"Failed to parse genome_id '{result.genome_id}' for offspring agent_id {result.offspring_id}: {e}"
+                )
                 continue
         
         events = []
