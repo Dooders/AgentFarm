@@ -1,0 +1,24 @@
+# Learning Rate Sweep Configuration
+# Run multiple experiments with different learning rates
+#
+# Usage:
+#   python run_simulation.py --use-hydra --sweep learning_rate_sweep
+#   Or with Hydra's native multi-run:
+#   python run_simulation_hydra.py -m learning.learning_rate=0.0001,0.0005,0.001,0.005
+
+defaults:
+  - /config
+  - override /hydra/sweeper: basic
+
+# Hydra multi-run configuration
+hydra:
+  sweeper:
+    # Basic sweeper configuration
+    params:
+      learning.learning_rate: range(0.0001, 0.001, 0.0001)  # 0.0001, 0.0002, ..., 0.001
+      simulation_steps: 100  # Keep steps constant for faster sweeps
+
+# Override defaults for sweep
+simulation_steps: 100
+environment: development
+profile: null

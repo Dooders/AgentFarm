@@ -1,0 +1,22 @@
+# Hyperparameter Grid Search Configuration
+# Comprehensive grid search over learning parameters
+#
+# Usage:
+#   python run_simulation.py --use-hydra --sweep hyperparameter_grid
+
+defaults:
+  - /config
+  - override /hydra/sweeper: basic
+
+hydra:
+  sweeper:
+    params:
+      learning.learning_rate: choice(0.0001, 0.0005, 0.001, 0.005)
+      learning.gamma: choice(0.9, 0.95, 0.99)
+      learning.batch_size: choice(32, 64, 128)
+      learning.epsilon_start: choice(0.8, 0.9, 1.0)
+      simulation_steps: 200
+
+simulation_steps: 200
+environment: development
+profile: benchmark

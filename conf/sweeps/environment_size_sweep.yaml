@@ -1,0 +1,20 @@
+# Environment Size Sweep Configuration
+# Test different environment dimensions
+#
+# Usage:
+#   python run_simulation.py --use-hydra --sweep environment_size_sweep
+
+defaults:
+  - /config
+  - override /hydra/sweeper: basic
+
+hydra:
+  sweeper:
+    params:
+      environment.width: range(50, 251, 50)  # 50, 100, 150, 200, 250
+      environment.height: range(50, 251, 50)  # 50, 100, 150, 200, 250
+      simulation_steps: 100
+
+simulation_steps: 100
+environment: development
+profile: null

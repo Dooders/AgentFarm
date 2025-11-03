@@ -1,0 +1,21 @@
+# Agent Behavior Sweep Configuration
+# Test different agent behavior parameters
+#
+# Usage:
+#   python run_simulation.py --use-hydra --sweep agent_behavior_sweep
+
+defaults:
+  - /config
+  - override /hydra/sweeper: basic
+
+hydra:
+  sweeper:
+    params:
+      agent_behavior.max_movement: range(5, 21, 5)  # 5, 10, 15, 20
+      agent_behavior.gathering_range: range(20, 51, 10)  # 20, 30, 40, 50
+      agent_behavior.base_consumption_rate: choice(0.1, 0.2, 0.3, 0.4)
+      simulation_steps: 300
+
+simulation_steps: 300
+environment: development
+profile: null

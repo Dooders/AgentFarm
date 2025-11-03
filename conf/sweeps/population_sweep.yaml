@@ -1,0 +1,22 @@
+# Population Sweep Configuration
+# Test different agent population sizes
+#
+# Usage:
+#   python run_simulation.py --use-hydra --sweep population_sweep
+#   Or with Hydra's native multi-run:
+#   python run_simulation_hydra.py -m population.system_agents=10,20,30,40,50
+
+defaults:
+  - /config
+  - override /hydra/sweeper: basic
+
+hydra:
+  sweeper:
+    params:
+      population.system_agents: range(10, 51, 10)  # 10, 20, 30, 40, 50
+      population.independent_agents: range(5, 26, 5)  # 5, 10, 15, 20, 25
+      simulation_steps: 200  # Longer runs for population studies
+
+simulation_steps: 200
+environment: development
+profile: null

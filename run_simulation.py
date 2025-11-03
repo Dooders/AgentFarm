@@ -215,6 +215,13 @@ def main():
         help="Additional Hydra config overrides (e.g., 'population.system_agents=50'). "
         "Only used when --use-hydra is set.",
     )
+    parser.add_argument(
+        "--sweep",
+        type=str,
+        default=None,
+        help="Run a sweep configuration from conf/sweeps/ (e.g., 'learning_rate_sweep'). "
+        "Requires --use-hydra. This runs multiple simulations sequentially.",
+    )
     args = parser.parse_args()
 
     # Ensure simulations directory exists
@@ -234,6 +241,30 @@ def main():
 
     # Determine if we should use Hydra (before config loading)
     use_hydra = args.use_hydra or os.getenv("USE_HYDRA_CONFIG", "false").lower() == "true"
+    
+    # Handle sweep mode
+    if args.sweep:
+        if not use_hydra:
+            logger.error(
+                "sweep_requires_hydra",
+                message="--sweep requires --use-hydra flag",
+            )
+            print("❌ Error: --sweep requires --use-hydra flag", flush=True)
+            print("   Use: python run_simulation.py --use-hydra --sweep <sweep_name>", flush=True)
+            print("   Or use native Hydra multi-run:", flush=True)
+            print("   python run_simulation_hydra.py --config-path=conf/sweeps --config-name=<sweep_name> -m", flush=True)
+            sys.exit(1)
+        
+        # For sweeps, recommend using the native Hydra entry point
+        logger.warning(
+            "sweep_mode_recommendation",
+            message="For sweeps, consider using run_simulation_hydra.py for better Hydra integration",
+            command=f"python run_simulation_hydra.py --config-path=conf/sweeps --config-name={args.sweep} -m",
+        )
+        print(f"⚠️  Sweep mode: {args.sweep}", flush=True)
+        print("   Consider using run_simulation_hydra.py for native Hydra multi-run support", flush=True)
+        print(f"   Command: python run_simulation_hydra.py --config-path=conf/sweeps --config-name={args.sweep} -m", flush=True)
+        print("   Continuing with single-run mode (sweep config loaded but only one run)...", flush=True)
 
     # Load configuration
     try:
