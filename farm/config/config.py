@@ -1253,6 +1253,45 @@ class SimulationConfig:
         return cls.from_dict(config_dict)
 
     @classmethod
+    def from_hydra(cls, cfg) -> "SimulationConfig":
+        """
+        Create SimulationConfig from a Hydra/OmegaConf DictConfig.
+        
+        This method converts a Hydra DictConfig to SimulationConfig,
+        making it easy to use Hydra with the existing config system.
+        
+        Args:
+            cfg: OmegaConf DictConfig from Hydra (can be from @hydra.main decorator
+                 or from compose() function)
+        
+        Returns:
+            SimulationConfig: Converted configuration object
+        
+        Example:
+            ```python
+            from hydra import compose, initialize
+            from farm.config import SimulationConfig
+            
+            with initialize(config_path="conf", version_base=None):
+                cfg = compose(config_name="config")
+                config = SimulationConfig.from_hydra(cfg)
+            ```
+        """
+        from omegaconf import DictConfig, OmegaConf
+        
+        # Handle both DictConfig and regular dicts
+        if isinstance(cfg, DictConfig):
+            config_dict = OmegaConf.to_container(cfg, resolve=True)
+        elif isinstance(cfg, dict):
+            config_dict = cfg
+        else:
+            raise ValueError(
+                f"Expected DictConfig or dict, got {type(cfg)}"
+            )
+        
+        return cls.from_dict(config_dict)
+
+    @classmethod
     def from_centralized_config(
         cls,
         environment: str = "development",
