@@ -14,7 +14,7 @@ import warnings
 from io import StringIO
 
 # Local imports
-from farm.config import SimulationConfig
+from farm.config import SimulationConfig, load_config
 from farm.core.simulation import run_simulation
 from farm.utils.logging import configure_logging, get_logger
 
@@ -203,6 +203,18 @@ def main():
         action="store_true",
         help="Skip database validation after simulation completes",
     )
+    parser.add_argument(
+        "--use-hydra",
+        action="store_true",
+        help="Use Hydra configuration system (enables CLI overrides like simulation_steps=200)",
+    )
+    parser.add_argument(
+        "--hydra-overrides",
+        nargs="*",
+        default=[],
+        help="Additional Hydra config overrides (e.g., 'population.system_agents=50'). "
+        "Only used when --use-hydra is set.",
+    )
     args = parser.parse_args()
 
     # Ensure simulations directory exists
@@ -220,16 +232,64 @@ def main():
     )
     logger = get_logger(__name__)
 
+    # Determine if we should use Hydra (before config loading)
+    use_hydra = args.use_hydra or os.getenv("USE_HYDRA_CONFIG", "false").lower() == "true"
+
     # Load configuration
     try:
-        config = SimulationConfig.from_centralized_config(environment=args.environment, profile=args.profile)
-        logger.info(
-            "configuration_loaded",
-            environment=args.environment,
-            profile=args.profile or "none",
-        )
+        
+        if use_hydra:
+            # Use Hydra configuration system
+            logger.info("loading_config_with_hydra", environment=args.environment, profile=args.profile or "none")
+            
+            # Build Hydra overrides list
+            hydra_overrides = list(args.hydra_overrides) if args.hydra_overrides else []
+            
+            # Convert argparse arguments to Hydra overrides
+            # Note: args.steps will override simulation_steps if provided
+            # Always add args.steps as override to ensure it takes precedence
+            hydra_overrides.append(f"simulation_steps={args.steps}")
+            
+            if args.seed is not None:
+                hydra_overrides.append(f"seed={args.seed}")
+            
+            # Load config with Hydra
+            config = load_config(
+                environment=args.environment,
+                profile=args.profile,
+                use_hydra=True,
+                overrides=hydra_overrides if hydra_overrides else None,
+            )
+            
+            logger.info(
+                "configuration_loaded_with_hydra",
+                environment=args.environment,
+                profile=args.profile or "none",
+                overrides_count=len(hydra_overrides),
+            )
+        else:
+            # Use legacy configuration system
+            config = SimulationConfig.from_centralized_config(environment=args.environment, profile=args.profile)
+            logger.info(
+                "configuration_loaded",
+                environment=args.environment,
+                profile=args.profile or "none",
+            )
+            
+            # Apply seed override if provided (legacy mode)
+            if args.seed is not None:
+                try:
+                    config.seed = args.seed
+                    logger.info("seed_configured", seed=args.seed, deterministic=True)
+                except Exception as e:
+                    logger.warning(
+                        "seed_configuration_failed",
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                    )
 
         # Apply in-memory database settings if requested
+        # (works for both Hydra and legacy systems)
         if args.in_memory:
             config.database.use_in_memory_db = True
             config.database.in_memory_db_memory_limit_mb = args.memory_limit if args.memory_limit else 1000
@@ -241,18 +301,6 @@ def main():
             )
             if args.no_persist:
                 logger.warning("in_memory_db_no_persist", message="Database will not be persisted to disk")
-
-        # Apply seed override if provided
-        if args.seed is not None:
-            try:
-                config.seed = args.seed
-                logger.info("seed_configured", seed=args.seed, deterministic=True)
-            except Exception as e:
-                logger.warning(
-                    "seed_configuration_failed",
-                    error_type=type(e).__name__,
-                    error_message=str(e),
-                )
     except Exception as e:
         logger.error(
             "configuration_load_failed",
@@ -262,14 +310,34 @@ def main():
         )
         sys.exit(1)
 
-    # Run simulation
+    # Determine number of steps to run
+    # When using Hydra, args.steps is converted to simulation_steps override
+    # When using legacy, args.steps overrides config directly
+    # In both cases, use args.steps for consistency
+    num_steps = args.steps
+    
+    if use_hydra:
+        logger.info(
+            "simulation_starting_with_hydra",
+            num_steps=num_steps,
+            config_simulation_steps=config.simulation_steps,
+            note="Using args.steps (converted to Hydra override)",
+        )
+    else:
+        logger.info(
+            "simulation_starting",
+            num_steps=num_steps,
+            output_dir=output_dir,
+        )
+    
     logger.info(
-        "simulation_starting",
-        num_steps=args.steps,
+        "simulation_config_summary",
         output_dir=output_dir,
         system_agents=config.population.system_agents,
         independent_agents=config.population.independent_agents,
         control_agents=config.population.control_agents,
+        environment_width=config.environment.width,
+        environment_height=config.environment.height,
     )
 
     try:
@@ -281,7 +349,7 @@ def main():
             profiler = cProfile.Profile()
             profiler.enable()
 
-            environment = run_profiled_simulation(args.steps, config, output_dir, args.enable_console_logging)
+            environment = run_profiled_simulation(num_steps, config, output_dir, args.enable_console_logging)
 
             profiler.disable()
 
@@ -329,7 +397,7 @@ def main():
         else:
             # Run without profiling
             environment = run_simulation(
-                num_steps=args.steps,
+                num_steps=num_steps,
                 config=config,
                 path=output_dir,
                 save_config=True,
