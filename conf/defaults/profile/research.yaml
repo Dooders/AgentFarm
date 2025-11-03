@@ -1,0 +1,66 @@
+# @package _global_
+# Research profile
+# Settings optimized for experimental research and data collection
+
+# Larger simulation for comprehensive research
+width: 150
+height: 150
+
+# Research-focused agent distribution with more variety
+system_agents: 30
+independent_agents: 20
+control_agents: 25
+max_population: 500
+
+# Full debugging for research analysis
+debug: true
+verbose_logging: true
+
+# Persistent database for detailed analysis
+use_in_memory_db: false
+persist_db_on_completion: true
+
+# Memory-optimized database for large datasets
+db_pragma_profile: "memory"
+db_cache_size_mb: 400
+
+# Long research runs
+simulation_steps: 2000
+max_steps: 10000
+
+# Variable seed for statistical analysis (can be overridden)
+# seed: 1234567890  # Commented out to allow randomization
+
+# Redis research settings
+redis:
+  db: 6
+  environment: research
+
+# Detailed visualization for research monitoring
+visualization:
+  canvas_size: [800, 800]
+  max_animation_frames: 10
+  animation_min_delay: 25
+
+# Research-grade learning parameters
+learning_rate: 0.0005
+epsilon_start: 1.0
+epsilon_decay: 0.999
+gamma: 0.99
+
+# Advanced DQN parameters for research
+dqn_hidden_size: 128
+batch_size: 64
+training_frequency: 1
+memory_size: 50000
+
+# Enhanced curriculum for research
+curriculum_phases:
+  - steps: 500
+    enabled_actions: ["move", "gather"]
+  - steps: 1000
+    enabled_actions: ["move", "gather", "share"]
+  - steps: 1500
+    enabled_actions: ["move", "gather", "share", "attack"]
+  - steps: -1
+    enabled_actions: ["move", "gather", "share", "attack", "reproduce"]

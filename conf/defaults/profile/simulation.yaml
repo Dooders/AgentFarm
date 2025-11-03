@@ -1,0 +1,55 @@
+# @package _global_
+# Simulation profile
+# Standard settings for regular simulation runs
+
+# Standard simulation size
+width: 100
+height: 100
+
+# Balanced agent distribution
+system_agents: 20
+independent_agents: 20
+control_agents: 20
+max_population: 300
+
+# Moderate debugging
+debug: true
+verbose_logging: false
+
+# Use persistent database for analysis
+use_in_memory_db: false
+persist_db_on_completion: true
+
+# Balanced database settings
+db_pragma_profile: "balanced"
+db_cache_size_mb: 200
+
+# Database validation (enabled by default)
+enable_validation: true
+validation_include_integrity: true
+validation_include_statistical: true
+
+# Standard simulation length
+simulation_steps: 1000
+max_steps: 5000
+
+# Redis simulation settings
+redis:
+  db: 5
+  environment: simulation
+
+# Standard visualization
+visualization:
+  canvas_size: [600, 600]
+  max_animation_frames: 5
+  animation_min_delay: 50
+
+# Standard learning parameters
+learning_rate: 0.001
+epsilon_start: 1.0
+epsilon_decay: 0.995
+
+# Standard DQN parameters
+dqn_hidden_size: 64
+batch_size: 32
+training_frequency: 4

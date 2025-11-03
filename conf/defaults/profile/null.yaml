@@ -1,0 +1,4 @@
+# @package _global_
+# Null profile - no overrides
+# This file allows profiles to be optional in Hydra
+# When profile: null is specified, this empty config is used

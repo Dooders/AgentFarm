@@ -1,0 +1,44 @@
+# @package _global_
+# Testing environment overrides
+# These settings are optimized for automated testing and CI/CD
+
+# Minimal simulation size for fast tests
+width: 25
+height: 25
+
+# Minimal agents for unit testing
+system_agents: 2
+independent_agents: 2
+control_agents: 2
+max_population: 10
+
+# Enable some debugging but not verbose logging
+debug: true
+verbose_logging: false
+
+# Use in-memory database for testing
+use_in_memory_db: true
+persist_db_on_completion: false
+in_memory_db_memory_limit_mb: 100
+
+# Fast database settings for testing
+db_pragma_profile: "performance"
+db_cache_size_mb: 10
+
+# Very short simulation steps for testing
+simulation_steps: 10
+max_steps: 50
+
+# Fixed seed for reproducible tests
+seed: 42
+
+# Redis testing settings
+redis:
+  db: 3
+  environment: testing
+
+# Minimal visualization for testing
+visualization:
+  canvas_size: [200, 200]
+  max_animation_frames: 1
+  animation_min_delay: 0
