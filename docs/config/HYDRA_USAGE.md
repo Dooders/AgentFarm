@@ -26,8 +26,8 @@ pip install hydra-core>=1.3.0
 ```python
 from farm.config import load_config
 
-# Load config with Hydra
-config = load_config(environment="production", use_hydra=True)
+# Load config (always uses Hydra)
+config = load_config(environment="production")
 
 # Use the config
 print(f"Simulation steps: {config.simulation_steps}")
@@ -43,11 +43,10 @@ The easiest way to use Hydra is through the compatibility layer:
 ```python
 from farm.config import load_config
 
-# Load with Hydra (via environment variable or explicit flag)
+# Load config (always uses Hydra)
 config = load_config(
     environment="development",
-    profile="benchmark",
-    use_hydra=True
+    profile="benchmark"
 )
 ```
 

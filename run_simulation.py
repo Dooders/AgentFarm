@@ -204,23 +204,18 @@ def main():
         help="Skip database validation after simulation completes",
     )
     parser.add_argument(
-        "--use-hydra",
-        action="store_true",
-        help="Use Hydra configuration system (enables CLI overrides like simulation_steps=200)",
-    )
-    parser.add_argument(
         "--hydra-overrides",
         nargs="*",
         default=[],
-        help="Additional Hydra config overrides (e.g., 'population.system_agents=50'). "
-        "Only used when --use-hydra is set.",
+        help="Hydra config overrides (e.g., 'population.system_agents=50'). "
+        "Multiple overrides can be specified.",
     )
     parser.add_argument(
         "--sweep",
         type=str,
         default=None,
         help="Run a sweep configuration from conf/sweeps/ (e.g., 'learning_rate_sweep'). "
-        "Requires --use-hydra. This runs multiple simulations sequentially.",
+        "For full multi-run support, use run_simulation_hydra.py instead.",
     )
     args = parser.parse_args()
 
@@ -239,85 +234,44 @@ def main():
     )
     logger = get_logger(__name__)
 
-    # Determine if we should use Hydra (before config loading)
-    use_hydra = args.use_hydra or os.getenv("USE_HYDRA_CONFIG", "false").lower() == "true"
-    
     # Handle sweep mode
     if args.sweep:
-        if not use_hydra:
-            logger.error(
-                "sweep_requires_hydra",
-                message="--sweep requires --use-hydra flag",
-            )
-            print("❌ Error: --sweep requires --use-hydra flag", flush=True)
-            print("   Use: python run_simulation.py --use-hydra --sweep <sweep_name>", flush=True)
-            print("   Or use native Hydra multi-run:", flush=True)
-            print("   python run_simulation_hydra.py --config-path=conf/sweeps --config-name=<sweep_name> -m", flush=True)
-            sys.exit(1)
-        
-        # For sweeps, recommend using the native Hydra entry point
         logger.warning(
             "sweep_mode_recommendation",
-            message="For sweeps, consider using run_simulation_hydra.py for better Hydra integration",
+            message="For sweeps, use run_simulation_hydra.py for native Hydra multi-run support",
             command=f"python run_simulation_hydra.py --config-path=conf/sweeps --config-name={args.sweep} -m",
         )
         print(f"⚠️  Sweep mode: {args.sweep}", flush=True)
-        print("   Consider using run_simulation_hydra.py for native Hydra multi-run support", flush=True)
-        print(f"   Command: python run_simulation_hydra.py --config-path=conf/sweeps --config-name={args.sweep} -m", flush=True)
-        print("   Continuing with single-run mode (sweep config loaded but only one run)...", flush=True)
+        print("   For full multi-run support, use:", flush=True)
+        print(f"   python run_simulation_hydra.py --config-path=conf/sweeps --config-name={args.sweep} -m", flush=True)
+        print("   Continuing with single-run mode...", flush=True)
 
-    # Load configuration
+    # Load configuration using Hydra
     try:
+        logger.info("loading_config_with_hydra", environment=args.environment, profile=args.profile or "none")
         
-        if use_hydra:
-            # Use Hydra configuration system
-            logger.info("loading_config_with_hydra", environment=args.environment, profile=args.profile or "none")
-            
-            # Build Hydra overrides list
-            hydra_overrides = list(args.hydra_overrides) if args.hydra_overrides else []
-            
-            # Convert argparse arguments to Hydra overrides
-            # Note: args.steps will override simulation_steps if provided
-            # Always add args.steps as override to ensure it takes precedence
-            hydra_overrides.append(f"simulation_steps={args.steps}")
-            
-            if args.seed is not None:
-                hydra_overrides.append(f"seed={args.seed}")
-            
-            # Load config with Hydra
-            config = load_config(
-                environment=args.environment,
-                profile=args.profile,
-                use_hydra=True,
-                overrides=hydra_overrides if hydra_overrides else None,
-            )
-            
-            logger.info(
-                "configuration_loaded_with_hydra",
-                environment=args.environment,
-                profile=args.profile or "none",
-                overrides_count=len(hydra_overrides),
-            )
-        else:
-            # Use legacy configuration system
-            config = SimulationConfig.from_centralized_config(environment=args.environment, profile=args.profile)
-            logger.info(
-                "configuration_loaded",
-                environment=args.environment,
-                profile=args.profile or "none",
-            )
-            
-            # Apply seed override if provided (legacy mode)
-            if args.seed is not None:
-                try:
-                    config.seed = args.seed
-                    logger.info("seed_configured", seed=args.seed, deterministic=True)
-                except Exception as e:
-                    logger.warning(
-                        "seed_configuration_failed",
-                        error_type=type(e).__name__,
-                        error_message=str(e),
-                    )
+        # Build Hydra overrides list
+        hydra_overrides = list(args.hydra_overrides) if args.hydra_overrides else []
+        
+        # Convert argparse arguments to Hydra overrides
+        hydra_overrides.append(f"simulation_steps={args.steps}")
+        
+        if args.seed is not None:
+            hydra_overrides.append(f"seed={args.seed}")
+        
+        # Load config with Hydra
+        config = load_config(
+            environment=args.environment,
+            profile=args.profile,
+            overrides=hydra_overrides if hydra_overrides else None,
+        )
+        
+        logger.info(
+            "configuration_loaded",
+            environment=args.environment,
+            profile=args.profile or "none",
+            overrides_count=len(hydra_overrides),
+        )
 
         # Apply in-memory database settings if requested
         # (works for both Hydra and legacy systems)
@@ -342,24 +296,15 @@ def main():
         sys.exit(1)
 
     # Determine number of steps to run
-    # When using Hydra, args.steps is converted to simulation_steps override
-    # When using legacy, args.steps overrides config directly
-    # In both cases, use args.steps for consistency
+    # args.steps is converted to simulation_steps override in Hydra config
     num_steps = args.steps
     
-    if use_hydra:
-        logger.info(
-            "simulation_starting_with_hydra",
-            num_steps=num_steps,
-            config_simulation_steps=config.simulation_steps,
-            note="Using args.steps (converted to Hydra override)",
-        )
-    else:
-        logger.info(
-            "simulation_starting",
-            num_steps=num_steps,
-            output_dir=output_dir,
-        )
+    logger.info(
+        "simulation_starting",
+        num_steps=num_steps,
+        config_simulation_steps=config.simulation_steps,
+        output_dir=output_dir,
+    )
     
     logger.info(
         "simulation_config_summary",

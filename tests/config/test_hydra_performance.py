@@ -1,10 +1,10 @@
 """
-Performance tests comparing Hydra vs legacy config loading.
+Performance tests for Hydra config loading.
 
 These tests measure:
 - Config loading time
 - Memory usage
-- Caching effectiveness
+- Override performance
 """
 
 import os
@@ -22,50 +22,30 @@ class TestConfigLoadingPerformance:
     def test_hydra_loading_time(self, benchmark):
         """Benchmark Hydra config loading time."""
         def load():
-            return load_config(environment="development", use_hydra=True)
+            return load_config(environment="development")
         
         config = benchmark(load)
         assert config is not None
 
-    def test_legacy_loading_time(self, benchmark):
-        """Benchmark legacy config loading time."""
-        def load():
-            return load_config(environment="development", use_hydra=False)
-        
-        config = benchmark(load)
-        assert config is not None
-
-    def test_comparative_loading_time(self):
-        """Compare loading times between Hydra and legacy."""
+    def test_loading_time_benchmark(self):
+        """Benchmark config loading time."""
         # Warm up
-        load_config(environment="development", use_hydra=True)
-        load_config(environment="development", use_hydra=False)
+        load_config(environment="development")
         
-        # Measure Hydra
-        hydra_times = []
+        # Measure loading time
+        times = []
         for _ in range(10):
             start = time.time()
-            load_config(environment="development", use_hydra=True)
-            hydra_times.append(time.time() - start)
+            load_config(environment="development")
+            times.append(time.time() - start)
         
-        # Measure Legacy
-        legacy_times = []
-        for _ in range(10):
-            start = time.time()
-            load_config(environment="development", use_hydra=False)
-            legacy_times.append(time.time() - start)
+        avg_time = sum(times) / len(times)
         
-        avg_hydra = sum(hydra_times) / len(hydra_times)
-        avg_legacy = sum(legacy_times) / len(legacy_times)
-        
-        # Both should be reasonably fast (< 1 second)
-        assert avg_hydra < 1.0, f"Hydra loading too slow: {avg_hydra:.4f}s"
-        assert avg_legacy < 1.0, f"Legacy loading too slow: {avg_legacy:.4f}s
+        # Should be reasonably fast (< 1 second)
+        assert avg_time < 1.0, f"Loading too slow: {avg_time:.4f}s"
         
         # Log results
-        print(f"\nHydra avg: {avg_hydra:.4f}s")
-        print(f"Legacy avg: {avg_legacy:.4f}s")
-        print(f"Ratio: {avg_hydra/avg_legacy:.2f}x")
+        print(f"\nAverage loading time: {avg_time:.4f}s")
 
     def test_override_performance(self):
         """Test performance with overrides."""
@@ -97,7 +77,7 @@ class TestConfigLoadingPerformance:
         times = []
         for env in environments:
             start = time.time()
-            load_config(environment=env, use_hydra=True)
+            load_config(environment=env)
             times.append(time.time() - start)
         
         avg_time = sum(times) / len(times)
@@ -111,20 +91,13 @@ class TestConfigMemoryUsage:
         """Test that config objects are reasonably sized."""
         import sys
         
-        hydra_config = load_config(environment="development", use_hydra=True)
-        legacy_config = load_config(environment="development", use_hydra=False)
+        config = load_config(environment="development")
         
-        hydra_size = sys.getsizeof(hydra_config)
-        legacy_size = sys.getsizeof(legacy_config)
+        config_size = sys.getsizeof(config)
         
-        # Both should be similar (same dataclass structure)
-        # Hydra might be slightly larger due to OmegaConf conversion overhead
-        print(f"\nHydra config size: {hydra_size} bytes")
-        print(f"Legacy config size: {legacy_size} bytes")
-        
-        # Configs should be reasonably sized (< 10MB for the object itself)
-        assert hydra_size < 10 * 1024 * 1024
-        assert legacy_size < 10 * 1024 * 1024
+        # Config should be reasonably sized (< 10MB for the object itself)
+        print(f"\nConfig size: {config_size} bytes")
+        assert config_size < 10 * 1024 * 1024
 
 
 if __name__ == "__main__":

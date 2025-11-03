@@ -3,7 +3,6 @@ Comprehensive integration tests for Hydra configuration system.
 
 This test suite validates:
 - Config loading and composition
-- Backward compatibility with legacy system
 - Override functionality
 - Multi-run support
 - Sweep configurations
@@ -22,12 +21,11 @@ from farm.config.hydra_loader import HydraConfigLoader
 class TestHydraConfigLoading:
     """Test basic Hydra config loading."""
 
-    def test_load_config_with_hydra(self):
+    def test_load_config(self):
         """Test loading config using Hydra."""
         config = load_config(
             environment="development",
             profile=None,
-            use_hydra=True,
         )
         
         assert isinstance(config, SimulationConfig)
@@ -39,7 +37,6 @@ class TestHydraConfigLoading:
         config = load_config(
             environment="production",
             profile="benchmark",
-            use_hydra=True,
         )
         
         assert isinstance(config, SimulationConfig)
@@ -50,7 +47,6 @@ class TestHydraConfigLoading:
         config = load_config(
             environment="development",
             profile=None,
-            use_hydra=True,
             overrides=["simulation_steps=200", "population.system_agents=50"],
         )
         
@@ -61,7 +57,6 @@ class TestHydraConfigLoading:
         """Test nested parameter overrides."""
         config = load_config(
             environment="development",
-            use_hydra=True,
             overrides=[
                 "environment.width=200",
                 "environment.height=200",
@@ -74,64 +69,20 @@ class TestHydraConfigLoading:
         assert config.learning.learning_rate == 0.0005
 
 
-class TestBackwardCompatibility:
-    """Test backward compatibility with legacy system."""
+class TestConfigConsistency:
+    """Test config consistency across different loading methods."""
 
-    def test_legacy_config_still_works(self):
-        """Test that legacy config loading still works."""
-        config = load_config(
-            environment="development",
-            profile=None,
-            use_hydra=False,
-        )
+    def test_from_centralized_config_uses_hydra(self):
+        """Test that from_centralized_config uses Hydra internally."""
+        from farm.config import SimulationConfig
         
-        assert isinstance(config, SimulationConfig)
-        assert config.simulation_steps == 100
-
-    def test_same_config_values(self):
-        """Test that Hydra and legacy produce same config values."""
-        hydra_config = load_config(
-            environment="development",
-            profile=None,
-            use_hydra=True,
-        )
+        config1 = load_config(environment="development")
+        config2 = SimulationConfig.from_centralized_config(environment="development")
         
-        legacy_config = load_config(
-            environment="development",
-            profile=None,
-            use_hydra=False,
-        )
-        
-        # Compare key values
-        assert hydra_config.simulation_steps == legacy_config.simulation_steps
-        assert hydra_config.environment.width == legacy_config.environment.width
-        assert hydra_config.environment.height == legacy_config.environment.height
-        assert hydra_config.population.system_agents == legacy_config.population.system_agents
-
-    def test_environment_variable_control(self):
-        """Test that USE_HYDRA_CONFIG environment variable works."""
-        # Save original value
-        original_value = os.environ.get("USE_HYDRA_CONFIG")
-        
-        try:
-            # Test with Hydra enabled
-            os.environ["USE_HYDRA_CONFIG"] = "true"
-            config_hydra = load_config(environment="development", use_hydra=None)
-            
-            # Test with Hydra disabled
-            os.environ["USE_HYDRA_CONFIG"] = "false"
-            config_legacy = load_config(environment="development", use_hydra=None)
-            
-            # Both should work
-            assert isinstance(config_hydra, SimulationConfig)
-            assert isinstance(config_legacy, SimulationConfig)
-            
-        finally:
-            # Restore original value
-            if original_value is not None:
-                os.environ["USE_HYDRA_CONFIG"] = original_value
-            elif "USE_HYDRA_CONFIG" in os.environ:
-                del os.environ["USE_HYDRA_CONFIG"]
+        # Both should produce same config (both use Hydra)
+        assert config1.simulation_steps == config2.simulation_steps
+        assert config1.environment.width == config2.environment.width
+        assert config1.population.system_agents == config2.population.system_agents
 
 
 class TestHydraConfigLoader:
@@ -212,7 +163,7 @@ class TestEnvironmentProfiles:
     @pytest.mark.parametrize("environment", ["development", "production", "testing"])
     def test_all_environments(self, environment):
         """Test that all environments load correctly."""
-        config = load_config(environment=environment, use_hydra=True)
+        config = load_config(environment=environment)
         assert isinstance(config, SimulationConfig)
         assert config.environment.width > 0
         assert config.environment.height > 0
@@ -223,7 +174,6 @@ class TestEnvironmentProfiles:
         config = load_config(
             environment="production",
             profile=profile,
-            use_hydra=True,
         )
         assert isinstance(config, SimulationConfig)
 
@@ -242,7 +192,6 @@ class TestEnvironmentProfiles:
         config = load_config(
             environment=environment,
             profile=profile,
-            use_hydra=True,
         )
         assert isinstance(config, SimulationConfig)
 
@@ -256,7 +205,6 @@ class TestOverrideValidation:
         try:
             config = load_config(
                 environment="development",
-                use_hydra=True,
                 overrides=["invalid_override"],
             )
             # If it doesn't raise, config should still be valid
@@ -271,7 +219,6 @@ class TestOverrideValidation:
         try:
             config = load_config(
                 environment="development",
-                use_hydra=True,
                 overrides=["nonexistent.parameter=123"],
             )
             # If it works, config should still be valid
@@ -284,7 +231,6 @@ class TestOverrideValidation:
         """Test that overrides handle type coercion correctly."""
         config = load_config(
             environment="development",
-            use_hydra=True,
             overrides=[
                 "simulation_steps=200",  # String to int
                 "learning.learning_rate=0.0005",  # String to float
@@ -300,8 +246,8 @@ class TestOverrideValidation:
 class TestConfigConsistency:
     """Test config consistency across loading methods."""
 
-    def test_hydra_vs_legacy_consistency(self):
-        """Test that Hydra and legacy produce consistent configs."""
+    def test_config_consistency_across_methods(self):
+        """Test that different loading methods produce consistent configs."""
         # Test multiple scenarios
         scenarios = [
             {"environment": "development", "profile": None},
@@ -310,28 +256,25 @@ class TestConfigConsistency:
         ]
         
         for scenario in scenarios:
-            hydra_config = load_config(use_hydra=True, **scenario)
-            legacy_config = load_config(use_hydra=False, **scenario)
+            config1 = load_config(**scenario)
+            config2 = SimulationConfig.from_centralized_config(**scenario)
             
-            # Compare critical fields
-            assert hydra_config.simulation_steps == legacy_config.simulation_steps
-            assert hydra_config.environment.width == legacy_config.environment.width
-            assert hydra_config.population.system_agents == legacy_config.population.system_agents
+            # Both should produce same config (both use Hydra)
+            assert config1.simulation_steps == config2.simulation_steps
+            assert config1.environment.width == config2.environment.width
+            assert config1.population.system_agents == config2.population.system_agents
 
-    def test_override_consistency(self):
-        """Test that overrides work consistently."""
+    def test_override_functionality(self):
+        """Test that overrides work correctly."""
         overrides = ["simulation_steps=250", "population.system_agents=75"]
         
-        hydra_config = load_config(
+        config = load_config(
             environment="development",
-            use_hydra=True,
             overrides=overrides,
         )
         
-        # Legacy doesn't support overrides, so we can't compare
-        # But Hydra should apply them correctly
-        assert hydra_config.simulation_steps == 250
-        assert hydra_config.population.system_agents == 75
+        assert config.simulation_steps == 250
+        assert config.population.system_agents == 75
 
 
 if __name__ == "__main__":

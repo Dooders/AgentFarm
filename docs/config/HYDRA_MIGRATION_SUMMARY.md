@@ -141,19 +141,14 @@ run_simulation_hydra.py          # Native Hydra entry point
 
 ### Basic Usage
 
-**Legacy (still works):**
+**Standard usage (Hydra is default):**
 ```bash
 python run_simulation.py --environment development
 ```
 
-**With Hydra:**
-```bash
-python run_simulation.py --use-hydra --environment development
-```
-
 **With Overrides:**
 ```bash
-python run_simulation.py --use-hydra \
+python run_simulation.py \
     --hydra-overrides simulation_steps=2000 population.system_agents=50
 ```
 
@@ -172,11 +167,12 @@ python run_simulation_hydra.py \
     --config-path=conf/sweeps --config-name=learning_rate_sweep -m
 ```
 
-### Environment Variable
+### Using Native Hydra Entry Point
+
+For advanced features like multi-run, use the native Hydra entry point:
 
 ```bash
-export USE_HYDRA_CONFIG=true
-python run_simulation.py --environment production
+python run_simulation_hydra.py -m learning.learning_rate=0.0001,0.0005,0.001
 ```
 
 ## Testing

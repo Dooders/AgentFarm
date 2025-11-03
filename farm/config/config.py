@@ -1302,45 +1302,37 @@ class SimulationConfig:
         auto_repair: bool = False,
     ) -> "SimulationConfig":
         """
-        Load configuration from the centralized config structure.
+        Load configuration using Hydra (legacy method name maintained for compatibility).
+        
+        This method now uses Hydra internally. The parameters config_dir, use_cache,
+        strict_validation, and auto_repair are kept for API compatibility but are
+        no longer used (Hydra handles caching and validation differently).
 
         Args:
             environment: Environment name (development, production, testing)
             profile: Optional profile name (benchmark, simulation, research)
-            config_dir: Base configuration directory
-            use_cache: Whether to use caching for performance
-            strict_validation: Whether to treat warnings as errors
-            auto_repair: Whether to attempt automatic repair of validation errors
+            config_dir: Deprecated - kept for compatibility only
+            use_cache: Deprecated - kept for compatibility only
+            strict_validation: Deprecated - kept for compatibility only
+            auto_repair: Deprecated - kept for compatibility only
 
         Returns:
             SimulationConfig: Loaded and merged configuration
 
         Raises:
-            ConfigurationError: If validation fails and auto_repair is disabled
+            ConfigurationError: If config cannot be loaded
         """
-        from .cache import OptimizedConfigLoader
-
-        # Use cache loader for basic loading
-        loader = OptimizedConfigLoader()
-        config = loader.load_centralized_config(
+        # Use Hydra loader (the new standard)
+        from .hydra_loader import get_global_hydra_loader
+        
+        loader = get_global_hydra_loader()
+        config = loader.load_config(
             environment=environment,
             profile=profile,
-            config_dir=config_dir,
-            use_cache=use_cache,
         )
-
-        # Apply validation and repair if requested
-        if strict_validation or auto_repair:
-            from .validation import SafeConfigLoader
-
-            loader = SafeConfigLoader()
-            config, status_info = loader.load_config_safely(
-                environment=environment,
-                profile=profile,
-                config_dir=config_dir,
-                strict_validation=strict_validation,
-                auto_repair=auto_repair,
-            )
+        
+        # Note: Validation is handled by Hydra/OmegaConf
+        # Legacy validation parameters are ignored
 
         return config
 

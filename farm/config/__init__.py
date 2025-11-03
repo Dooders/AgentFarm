@@ -39,89 +39,60 @@ from .validation import (
     SafeConfigLoader,
     ValidationError,
 )
-from .orchestrator import ConfigurationOrchestrator, get_global_orchestrator, load_config as _load_config_legacy
+from .orchestrator import ConfigurationOrchestrator, get_global_orchestrator
 from .watcher import ConfigWatcher, ReloadableConfig, create_reloadable_config
 
-# Try to import Hydra loader (may not be available if Hydra not installed)
-try:
-    from .hydra_loader import (
-        HydraConfigLoader,
-        get_global_hydra_loader,
-        load_hydra_config,
-    )
-    _HYDRA_AVAILABLE = True
-except ImportError:
-    _HYDRA_AVAILABLE = False
-    HydraConfigLoader = None
-    get_global_hydra_loader = None
-    load_hydra_config = None
+# Import Hydra loader (required)
+from .hydra_loader import (
+    HydraConfigLoader,
+    get_global_hydra_loader,
+    load_hydra_config,
+)
 
 def load_config(
     environment: str = "development",
     profile: Optional[str] = None,
-    use_hydra: Optional[bool] = None,
     **kwargs
 ) -> SimulationConfig:
     """
-    Load configuration with backward compatibility.
+    Load configuration using Hydra.
     
-    This function provides a unified interface for loading configurations,
-    supporting both the legacy config system and Hydra. By default, it uses
-    the legacy system unless USE_HYDRA_CONFIG environment variable is set
-    or use_hydra=True is explicitly passed.
+    This function loads configurations using the Hydra configuration system.
+    Hydra provides advanced features like command-line overrides, config composition,
+    and multi-run support.
     
     Args:
         environment: Environment name (development, production, testing)
         profile: Optional profile name (benchmark, simulation, research)
-        use_hydra: Whether to use Hydra (None = auto-detect from env var)
-        **kwargs: Additional arguments passed to the underlying loader
+        **kwargs: Additional arguments:
+            - overrides: List of override strings (e.g., ["simulation_steps=200"])
     
     Returns:
         SimulationConfig: Loaded configuration
     
     Raises:
-        ImportError: If use_hydra=True but Hydra is not installed
+        ImportError: If Hydra is not installed
         ValueError: If Hydra config cannot be loaded
     
     Example:
         ```python
-        # Use legacy system (default)
+        # Basic usage
         config = load_config(environment="production", profile="benchmark")
         
-        # Force Hydra usage
-        config = load_config(environment="production", use_hydra=True)
-        
-        # Use environment variable
-        # export USE_HYDRA_CONFIG=true
-        config = load_config(environment="production")
+        # With overrides
+        config = load_config(
+            environment="production",
+            overrides=["simulation_steps=2000", "population.system_agents=50"]
+        )
         ```
     """
-    # Determine which loader to use
-    if use_hydra is None:
-        # Auto-detect from environment variable
-        use_hydra = os.getenv("USE_HYDRA_CONFIG", "false").lower() == "true"
-    
-    if use_hydra:
-        if not _HYDRA_AVAILABLE:
-            raise ImportError(
-                "Hydra is not available. Install it with: pip install hydra-core>=1.3.0"
-            )
-        
-        # Use Hydra loader
-        loader = get_global_hydra_loader()
-        overrides = kwargs.get("overrides")
-        return loader.load_config(
-            environment=environment,
-            profile=profile,
-            overrides=overrides,
-        )
-    else:
-        # Use legacy loader
-        return _load_config_legacy(
-            environment=environment,
-            profile=profile,
-            **kwargs
-        )
+    loader = get_global_hydra_loader()
+    overrides = kwargs.get("overrides")
+    return loader.load_config(
+        environment=environment,
+        profile=profile,
+        overrides=overrides,
+    )
 
 
 __all__ = [
@@ -142,8 +113,10 @@ __all__ = [
     "ConfigurationOrchestrator",
     "get_global_orchestrator",
     "load_config",  # Unified loader with Hydra support
-    # Hydra support (if available)
-    *(["HydraConfigLoader", "get_global_hydra_loader", "load_hydra_config"] if _HYDRA_AVAILABLE else []),
+    # Hydra support
+    "HydraConfigLoader",
+    "get_global_hydra_loader",
+    "load_hydra_config",
     # Monitoring
     "ConfigMetrics",
     "ConfigMonitor",
