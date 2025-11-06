@@ -566,7 +566,9 @@ class TestSpatialIndexBatchUpdates:
 
 
 class TestEnvironmentBatchUpdates:
-    def test_environment_initialization_with_spatial_config(self):
+    @patch("farm.database.utilities.setup_db")
+    def test_environment_initialization_with_spatial_config(self, mock_setup_db):
+        mock_setup_db.return_value = Mock()
         spatial_config = SpatialIndexConfig(
             enable_batch_updates=True,
             region_size=30.0,
@@ -585,7 +587,9 @@ class TestEnvironmentBatchUpdates:
         assert env.spatial_index._dirty_region_tracker.region_size == 30.0
         assert env.spatial_index.max_batch_size == 25
 
-    def test_environment_initialization_without_spatial_config(self):
+    @patch("farm.database.utilities.setup_db")
+    def test_environment_initialization_without_spatial_config(self, mock_setup_db):
+        mock_setup_db.return_value = Mock()
         config = SimulationConfig()
         env = Environment(
             width=100, height=100, resource_distribution="uniform", config=config
@@ -594,7 +598,9 @@ class TestEnvironmentBatchUpdates:
         assert env.spatial_index._dirty_region_tracker.region_size == 50.0
         assert env.spatial_index.max_batch_size == 100
 
-    def test_process_batch_spatial_updates(self):
+    @patch("farm.database.utilities.setup_db")
+    def test_process_batch_spatial_updates(self, mock_setup_db):
+        mock_setup_db.return_value = Mock()
         env = Environment(width=100, height=100, resource_distribution="uniform")
         entity = Mock()
         env.spatial_index.add_position_update(
@@ -603,7 +609,9 @@ class TestEnvironmentBatchUpdates:
         env.process_batch_spatial_updates(force=True)
         assert len(env.spatial_index._pending_position_updates) == 0
 
-    def test_get_spatial_performance_stats(self):
+    @patch("farm.database.utilities.setup_db")
+    def test_get_spatial_performance_stats(self, mock_setup_db):
+        mock_setup_db.return_value = Mock()
         env = Environment(width=100, height=100, resource_distribution="uniform")
         stats = env.get_spatial_performance_stats()
         assert "agent_count" in stats
@@ -611,7 +619,9 @@ class TestEnvironmentBatchUpdates:
         assert "batch_updates" in stats
         assert "perception" in stats
 
-    def test_enable_disable_batch_spatial_updates(self):
+    @patch("farm.database.utilities.setup_db")
+    def test_enable_disable_batch_spatial_updates(self, mock_setup_db):
+        mock_setup_db.return_value = Mock()
         env = Environment(width=100, height=100, resource_distribution="uniform")
         env.disable_batch_spatial_updates()
         assert env.spatial_index._batch_update_enabled is False
