@@ -8,6 +8,7 @@ and DefaultAgentBehavior.
 """
 
 import pytest
+from unittest.mock import patch, Mock
 
 from farm.core.agent import AgentCore, DefaultAgentBehavior
 from farm.core.agent.components import (
@@ -122,35 +123,37 @@ class TestResourceComponentDeterminism:
             environment=EnvironmentConfig(width=50, height=50),
             seed=seed
         )
-        env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
-        
-        # Create services from environment
-        from farm.core.simulation import create_services_from_environment
-        services = create_services_from_environment(env)
-        
-        # Create resource component
-        resource_config = ComponentResourceConfig()
-        resource_component = ResourceComponent(services, resource_config)
-        
-        # Create agent
-        agent = AgentCore(
-            agent_id="test_agent",
-            position=(25, 25),
-            services=services,
-            behavior=DefaultAgentBehavior(),
-            components=[resource_component],
-            config=AgentComponentConfig(),
-            environment=env,
-            initial_resources=10.0,
-        )
-        
-        # Attach component
-        resource_component.attach(agent)
-        
-        # Initialize resource level
-        resource_component.level = 10.0
-        
-        return agent
+        with patch("farm.database.utilities.setup_db") as mock_setup_db:
+            mock_setup_db.return_value = Mock()
+            env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
+            
+            # Create services from environment
+            from farm.core.simulation import create_services_from_environment
+            services = create_services_from_environment(env)
+            
+            # Create resource component
+            resource_config = ComponentResourceConfig()
+            resource_component = ResourceComponent(services, resource_config)
+            
+            # Create agent
+            agent = AgentCore(
+                agent_id="test_agent",
+                position=(25, 25),
+                services=services,
+                behavior=DefaultAgentBehavior(),
+                components=[resource_component],
+                config=AgentComponentConfig(),
+                environment=env,
+                initial_resources=10.0,
+            )
+            
+            # Attach component
+            resource_component.attach(agent)
+            
+            # Initialize resource level
+            resource_component.level = 10.0
+            
+            return agent
     
     def test_resource_consumption_determinism(self, deterministic_seed):
         """Test that resource consumption is deterministic."""
@@ -216,32 +219,34 @@ class TestReproductionComponentDeterminism:
             environment=EnvironmentConfig(width=50, height=50),
             seed=seed
         )
-        env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
-        
-        # Create services from environment
-        from farm.core.simulation import create_services_from_environment
-        services = create_services_from_environment(env)
-        
-        # Create reproduction component
-        reproduction_config = ReproductionConfig()
-        reproduction_component = ReproductionComponent(services, reproduction_config)
-        
-        # Create agent
-        agent = AgentCore(
-            agent_id="test_agent",
-            position=(25, 25),
-            services=services,
-            behavior=DefaultAgentBehavior(),
-            components=[reproduction_component],
-            config=AgentComponentConfig(),
-            environment=env,
-            initial_resources=20.0,  # High resources for reproduction
-        )
-        
-        # Attach component
-        reproduction_component.attach(agent)
-        
-        return agent
+        with patch("farm.database.utilities.setup_db") as mock_setup_db:
+            mock_setup_db.return_value = Mock()
+            env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
+            
+            # Create services from environment
+            from farm.core.simulation import create_services_from_environment
+            services = create_services_from_environment(env)
+            
+            # Create reproduction component
+            reproduction_config = ReproductionConfig()
+            reproduction_component = ReproductionComponent(services, reproduction_config)
+            
+            # Create agent
+            agent = AgentCore(
+                agent_id="test_agent",
+                position=(25, 25),
+                services=services,
+                behavior=DefaultAgentBehavior(),
+                components=[reproduction_component],
+                config=AgentComponentConfig(),
+                environment=env,
+                initial_resources=20.0,  # High resources for reproduction
+            )
+            
+            # Attach component
+            reproduction_component.attach(agent)
+            
+            return agent
     
     def test_offspring_creation_determinism(self, deterministic_seed):
         """Test that offspring creation is deterministic."""
@@ -306,32 +311,34 @@ class TestMovementComponentDeterminism:
             environment=EnvironmentConfig(width=50, height=50),
             seed=seed
         )
-        env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
-        
-        # Create services from environment
-        from farm.core.simulation import create_services_from_environment
-        services = create_services_from_environment(env)
-        
-        # Create movement component
-        movement_config = MovementConfig()
-        movement_component = MovementComponent(services, movement_config)
-        
-        # Create agent
-        agent = AgentCore(
-            agent_id="test_agent",
-            position=(25, 25),
-            services=services,
-            behavior=DefaultAgentBehavior(),
-            components=[movement_component],
-            config=AgentComponentConfig(),
-            environment=env,
-            initial_resources=10.0,
-        )
-        
-        # Attach component
-        movement_component.attach(agent)
-        
-        return agent
+        with patch("farm.database.utilities.setup_db") as mock_setup_db:
+            mock_setup_db.return_value = Mock()
+            env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
+            
+            # Create services from environment
+            from farm.core.simulation import create_services_from_environment
+            services = create_services_from_environment(env)
+            
+            # Create movement component
+            movement_config = MovementConfig()
+            movement_component = MovementComponent(services, movement_config)
+            
+            # Create agent
+            agent = AgentCore(
+                agent_id="test_agent",
+                position=(25, 25),
+                services=services,
+                behavior=DefaultAgentBehavior(),
+                components=[movement_component],
+                config=AgentComponentConfig(),
+                environment=env,
+                initial_resources=10.0,
+            )
+            
+            # Attach component
+            movement_component.attach(agent)
+            
+            return agent
     
     def test_movement_target_selection_determinism(self, deterministic_seed):
         """Test that movement target selection is deterministic."""
@@ -396,38 +403,40 @@ class TestComponentIntegrationDeterminism:
             environment=EnvironmentConfig(width=50, height=50),
             seed=seed
         )
-        env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
-        
-        # Create services from environment
-        from farm.core.simulation import create_services_from_environment
-        services = create_services_from_environment(env)
-        
-        # Create all components
-        components = [
-            MovementComponent(services, MovementConfig()),
-            ResourceComponent(services, ComponentResourceConfig()),
-            CombatComponent(services, CombatConfig()),
-            PerceptionComponent(services, PerceptionConfig()),
-            ReproductionComponent(services, ReproductionConfig()),
-        ]
-        
-        # Create agent
-        agent = AgentCore(
-            agent_id="test_agent",
-            position=(25, 25),
-            services=services,
-            behavior=DefaultAgentBehavior(),
-            components=components,
-            config=AgentComponentConfig(),
-            environment=env,
-            initial_resources=15.0,
-        )
-        
-        # Attach all components
-        for component in components:
-            component.attach(agent)
-        
-        return agent
+        with patch("farm.database.utilities.setup_db") as mock_setup_db:
+            mock_setup_db.return_value = Mock()
+            env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
+            
+            # Create services from environment
+            from farm.core.simulation import create_services_from_environment
+            services = create_services_from_environment(env)
+            
+            # Create all components
+            components = [
+                MovementComponent(services, MovementConfig()),
+                ResourceComponent(services, ComponentResourceConfig()),
+                CombatComponent(services, CombatConfig()),
+                PerceptionComponent(services, PerceptionConfig()),
+                ReproductionComponent(services, ReproductionConfig()),
+            ]
+            
+            # Create agent
+            agent = AgentCore(
+                agent_id="test_agent",
+                position=(25, 25),
+                services=services,
+                behavior=DefaultAgentBehavior(),
+                components=components,
+                config=AgentComponentConfig(),
+                environment=env,
+                initial_resources=15.0,
+            )
+            
+            # Attach all components
+            for component in components:
+                component.attach(agent)
+            
+            return agent
     
     def test_multi_component_determinism(self, deterministic_seed):
         """Test that multiple components work deterministically together."""

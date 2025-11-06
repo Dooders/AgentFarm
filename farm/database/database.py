@@ -471,8 +471,15 @@ class SimulationDatabase(DatabaseProtocol):
             cursor.execute("PRAGMA page_size=4096")  # Default page size
             cursor.execute("PRAGMA busy_timeout=30000")  # 30-second timeout
 
-        # Run optimizer
-        cursor.execute("PRAGMA optimize")
+        # Run optimizer (non-critical, so handle errors gracefully)
+        try:
+            cursor.execute("PRAGMA optimize")
+        except Exception as e:
+            # PRAGMA optimize is just an optimization hint - not critical
+            # Log but don't fail if there's a disk I/O error or other issue
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"PRAGMA optimize failed (non-critical): {e}")
 
     def _apply_pragma_profile(
         self,
