@@ -1,7 +1,7 @@
 """Extended tests for DecisionModule covering algorithm registry, per-agent isolation, and training flows."""
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import numpy as np
 

@@ -477,8 +477,6 @@ class SimulationDatabase(DatabaseProtocol):
         except Exception as e:
             # PRAGMA optimize is just an optimization hint - not critical
             # Log but don't fail if there's a disk I/O error or other issue
-            import logging
-            logger = logging.getLogger(__name__)
             logger.debug(f"PRAGMA optimize failed (non-critical): {e}")
 
     def _apply_pragma_profile(

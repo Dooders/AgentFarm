@@ -1,7 +1,6 @@
 """Extended tests for database utilities covering setup and helper functions."""
 
 import unittest
-from unittest.mock import Mock, patch
 
 from farm.database.utilities import (
     format_position,

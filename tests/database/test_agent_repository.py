@@ -4,7 +4,7 @@ Tests all query methods, relationships, edge cases, and error handling.
 """
 
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 from sqlalchemy.orm import Session
 

@@ -12,7 +12,6 @@ from farm.database.data_types import (
     ResourceEfficiencyMetrics,
     ResourceHotspot,
 )
-from farm.database.models import ResourceModel, SimulationStepModel
 from farm.database.repositories.resource_repository import ResourceRepository
 from farm.database.session_manager import SessionManager
 

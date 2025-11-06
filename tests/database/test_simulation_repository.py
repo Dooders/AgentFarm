@@ -9,12 +9,7 @@ from farm.database.data_types import (
     SimulationResults,
     SimulationState,
 )
-from farm.database.models import (
-    AgentModel,
-    AgentStateModel,
-    ResourceModel,
-    SimulationStepModel,
-)
+from farm.database.models import SimulationStepModel
 from farm.database.repositories.simulation_repository import SimulationRepository
 
 

@@ -5,12 +5,7 @@ from unittest.mock import Mock
 
 from sqlalchemy.orm import Session
 
-from farm.database.models import (
-    AgentModel,
-    AgentStateModel,
-    ResourceModel,
-    SimulationStepModel,
-)
+from farm.database.models import SimulationStepModel
 from farm.database.repositories.gui_repository import GUIRepository
 from farm.database.session_manager import SessionManager
 

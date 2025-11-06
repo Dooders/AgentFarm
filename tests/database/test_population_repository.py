@@ -11,7 +11,7 @@ from farm.database.data_types import (
     AgentStates,
     Population,
 )
-from farm.database.models import AgentModel, AgentStateModel, SimulationStepModel
+from farm.database.models import AgentModel
 from farm.database.repositories.population_repository import PopulationRepository
 from farm.database.session_manager import SessionManager
 

@@ -3,8 +3,6 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from farm.memory import redis_memory
-
 
 class TestRedisMemoryExtended(unittest.TestCase):
     """Extended tests for Redis memory module."""

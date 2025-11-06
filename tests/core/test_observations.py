@@ -4,9 +4,7 @@ Tests AgentObservation, SparsePoints, channel operations, and utility functions.
 """
 
 import unittest
-from unittest.mock import Mock, patch
 
-import numpy as np
 import pytest
 import torch
 
@@ -14,7 +12,6 @@ from farm.core.observations import (
     AgentObservation,
     ObservationConfig,
     SparsePoints,
-    StorageMode,
     create_observation_tensor,
     crop_local,
     make_disk_mask,

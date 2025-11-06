@@ -4,22 +4,20 @@ Tests initialization, action selection, training, model persistence,
 and error handling for all Tianshou algorithm wrappers.
 """
 
-import os
-import tempfile
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 
 try:
-    import torch
+    import torch  # noqa: F401
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
 
 try:
-    import tianshou
+    import tianshou  # noqa: F401
     TIANSHOU_AVAILABLE = True
 except ImportError:
     TIANSHOU_AVAILABLE = False
