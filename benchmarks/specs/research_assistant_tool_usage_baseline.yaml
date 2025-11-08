@@ -1,0 +1,70 @@
+experiment: research_assistant_tool_usage
+params:
+  emit_tool_trace: true
+  cases:
+    - id: tier0_q1
+      tier: tier_0
+      question: "Where is the primary project README located?"
+      expected_answer: "README.md"
+      expected_tools: ["repo_search"]
+      simulated_trace:
+        answer: "README.md"
+        answer_correct: true
+        tool_calls:
+          - name: repo_search
+            relevant: true
+            latency_s: 0.6
+        latency_total_s: 0.6
+        metrics:
+          answer_exact: 1.0
+          tool_calls_total: 1
+          time_to_first_tool: 0.2
+    - id: tier2_q1
+      tier: tier_2
+      question: "Summarize how observation and spatial benchmarks differ and cite both docs."
+      expected_answer: "Observation benchmarks focus on perception throughput; spatial benchmarks measure indexing performance."
+      expected_tools: ["doc_search", "doc_read"]
+      simulated_trace:
+        answer: "Observation benchmarks focus on perception throughput; spatial benchmarks measure indexing performance."
+        answer_correct: true
+        tool_calls:
+          - name: doc_search
+            relevant: true
+            latency_s: 0.8
+          - name: doc_read
+            relevant: true
+            latency_s: 1.2
+        latency_total_s: 2.2
+        metrics:
+          evidence_coverage: 1.0
+          chain_depth: 2
+          tool_efficiency: 1.0
+    - id: tier3_q1
+      tier: tier_3
+      question: "Compute the ratio of in-memory to disk run time from the memory DB benchmark example (3.1s vs 5.4s)."
+      expected_answer: "0.574"
+      expected_tools: ["code_runner", "calculator"]
+      simulated_trace:
+        answer: "0.574"
+        answer_correct: true
+        tool_calls:
+          - name: code_runner
+            relevant: true
+            latency_s: 1.5
+          - name: calculator
+            relevant: true
+            latency_s: 0.4
+        latency_total_s: 1.9
+        metrics:
+          calc_correctness: 1.0
+          verification_trace: 1.0
+          runtime_cost: 1.9
+iterations:
+  warmup: 0
+  measured: 3
+instrumentation:
+  - timing
+output_dir: benchmarks/results/research_assistant_tool_usage
+tags: [agent, tools, baseline]
+notes: "Deterministic baseline traces for research assistant tool usage benchmark prototype."
+seed: 42
