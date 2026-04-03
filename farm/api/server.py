@@ -223,7 +223,8 @@ def _run_simulation_background(sim_id, config, db_path):
         with ThreadLock(_active_simulations_thread_lock):
             if sim_id in active_simulations:
                 active_simulations[sim_id]["status"] = "error"
-                active_simulations[sim_id]["error_message"] = str(e)
+                # Store a generic message for the public API; full details are in the logs above.
+                active_simulations[sim_id]["error_message"] = "Simulation failed. Check server logs for details."
 
 
 @app.post("/api/simulation/new", response_model=SimulationResponse)

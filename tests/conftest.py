@@ -10,23 +10,57 @@ import pytest
 
 try:
     import torch
-except ImportError:  # pragma: no cover - optional for lightweight test runs
+except ImportError:  # pragma: no cover
     torch = None  # type: ignore[assignment]
+
+# Directories and files that unconditionally import torch and will fail to
+# collect when torch is not installed.  Listed here so that
+# ``pytest_ignore_collect`` can skip them gracefully.
+_TORCH_DEPENDENT_DIRS = {"decision"}
+_TORCH_DEPENDENT_FILES = {
+    "test_channels.py",
+    "test_default_behavior.py",
+    "test_observations.py",
+    "test_observation_pipeline.py",
+    "test_state_models.py",
+    "test_observations_highfreq.py",
+    "test_deterministic.py",
+}
+
+
+def pytest_ignore_collect(collection_path, config):
+    """Skip torch-dependent directories/files when torch is not available.
+
+    This prevents collection-time ImportError for files that unconditionally
+    import torch at module level.
+    """
+    if torch is not None:
+        return None
+    if collection_path.is_dir() and collection_path.name in _TORCH_DEPENDENT_DIRS:
+        return True
+    if collection_path.is_file() and collection_path.name in _TORCH_DEPENDENT_FILES:
+        return True
+    return None
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config, items):
-    """Auto-mark tests under certain directories.
+    """Auto-mark tests under certain directories and skip torch-dependent ones.
 
     - tests/integration/** -> integration
     - tests/decision/** -> ml (heuristic)
+    - ml-marked tests are skipped automatically when torch is not installed.
     """
+    torch_skip_marker = pytest.mark.skip(reason="torch not installed") if torch is None else None
+
     for item in items:
         path = str(item.fspath)
         if "/tests/integration/" in path:
             item.add_marker(pytest.mark.integration)
         if "/tests/decision/" in path:
             item.add_marker(pytest.mark.ml)
+        if torch_skip_marker is not None and item.get_closest_marker("ml"):
+            item.add_marker(torch_skip_marker)
 
 
 @pytest.fixture(autouse=True)

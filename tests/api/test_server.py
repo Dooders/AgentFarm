@@ -430,7 +430,7 @@ class TestFastAPIServer:
                 assert active_simulations[sim_id]["status"] == "error"
                 assert "error_message" in active_simulations[sim_id]
                 assert (
-                    active_simulations[sim_id]["error_message"] == "Simulation failed"
+                    active_simulations[sim_id]["error_message"] == "Simulation failed. Check server logs for details."
                 )
 
     def test_concurrent_simulation_access(self, client):
