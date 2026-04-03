@@ -211,15 +211,6 @@ class TestGenomeFromAgent(unittest.TestCase):
         action2.weight = 0.4
         agent.actions = [action1, action2]
 
-        # Create a mock module
-        mock_module = MagicMock()
-        mock_module.get_state_dict.return_value = {"state": 42}
-
-        # Simulate dir() returning a module attribute
-        with patch("builtins.dir", return_value=["decision_module", "resource_level"]):
-            # We need the real dir to work on agent, so patch differently
-            pass
-
         return agent
 
     def test_from_agent_returns_dict(self):

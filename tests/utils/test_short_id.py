@@ -14,9 +14,16 @@ from farm.utils.short_id import (
 class TestIntToString(unittest.TestCase):
     def test_zero(self):
         alphabet = list("0123456789")
-        # 0 with no padding returns empty string reversed = ""
+        # 0 with no padding: the while-loop body never runs, output stays ""
         result = int_to_string(0, alphabet)
         self.assertEqual(result, "")
+
+    def test_zero_with_padding(self):
+        alphabet = list("0123456789")
+        # With padding=4, zero should produce 4 leading "0" characters
+        result = int_to_string(0, alphabet, padding=4)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(result, "0000")
 
     def test_simple_number(self):
         # Base-10 alphabet, number 10 → "10"
