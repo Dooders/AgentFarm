@@ -56,3 +56,24 @@ Run these from the repository root unless noted.
 | `benchmarks/` | Performance benchmarks |
 
 When changing behavior, locate the closest existing patterns in `farm/` and mirror their structure, typing, and logging (`structlog` via `farm.utils` logging helpers where applicable).
+
+## Cursor Cloud specific instructions
+
+### Services overview
+
+| Service | How to run | Notes |
+|---------|-----------|-------|
+| Simulation (CLI) | `source venv/bin/activate && python run_simulation.py --environment development --steps N` | Produces a `.db` file in `simulations/` |
+| API server | `source venv/bin/activate && uvicorn farm.api.server:app --host 0.0.0.0 --port 5000` | Do **not** use `python -m farm.api.server` — the `reload=True` flag in `__main__` requires import-string mode and may crash. Use the `uvicorn` command directly. |
+| Pytest | `source venv/bin/activate && pytest` | See `AGENTS.md > Commands` table for variants. 2 pre-existing failures in `tests/analysis/test_dominance.py` (pandas `LossySetitemError`). |
+| Jest (editor) | `cd farm/editor && npm test -- --runInBand` | Requires Node 20 (`nvm use 20`). |
+| Lint | `source venv/bin/activate && ruff check .` | 136 pre-existing warnings; these are in the repo, not regressions. |
+
+### Gotchas
+
+- **API server startup**: Always use `uvicorn farm.api.server:app` instead of `python -m farm.api.server`. The latter's `reload=True` flag causes `WARNING: You must pass the application as an import string to enable 'reload' or 'workers'` and silently exits.
+- **Node version**: The editor tests require Node 20. Run `source /home/ubuntu/.nvm/nvm.sh && nvm use 20` before `npm test`.
+- **`python3.12-venv` and `python3-tk`**: Must be installed via `apt` — they are not in `requirements.txt`. The update script handles this.
+- **Ruff/Pylint not in `requirements.txt`**: `ruff` and `pylint` must be `pip install`-ed separately; the update script handles this.
+- **Simulation determinism**: `run_simulation.py` automatically restarts itself with `PYTHONHASHSEED=0` if not set. This is normal behavior, not an error.
+- **Pytest logging noise**: Some tests trigger `structlog` memory-monitor warnings on stderr (`CRITICAL: Memory usage at …`). This is cosmetic and does not indicate test failure — check the actual pass/fail summary line.
