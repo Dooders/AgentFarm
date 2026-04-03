@@ -290,12 +290,14 @@ class TestCoreProcessors:
             "payload": {
                 "username": "u",
                 "nested_password": "hunter2",
+                "_password": "underscore_key_still_secret",
                 "inner": {"api_key": "k"},
             },
         }
         result = censor_sensitive_data(None, "info", event_dict)
         assert result["payload"]["username"] == "u"
         assert result["payload"]["nested_password"] == "***REDACTED***"
+        assert result["payload"]["_password"] == "***REDACTED***"
         assert result["payload"]["inner"]["api_key"] == "***REDACTED***"
 
 

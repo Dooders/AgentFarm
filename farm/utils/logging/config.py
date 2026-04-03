@@ -309,8 +309,6 @@ _SENSITIVE_KEY_RE = re.compile(
 
 def _is_sensitive_key_name(key: str) -> bool:
     """True if a structlog/context key name likely holds a credential."""
-    if key.startswith("_"):
-        return False
     kl = key.lower().replace("-", "_")
     if _SENSITIVE_KEY_RE.search(kl):
         return True
