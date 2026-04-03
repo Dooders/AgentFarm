@@ -301,5 +301,7 @@ class TestGenomeToAgent(unittest.TestCase):
         Genome.to_agent(genome, "agent_1", (0, 0), env, agent_factory=factory)
 
         # Health should be capped and set
-        combat_comp.health = min(genome["current_health"], combat_comp.config.starting_health)
-        mock_agent.state.update_health.assert_called()
+        expected_health = min(
+            genome["current_health"], combat_comp.config.starting_health
+        )
+        mock_agent.state.update_health.assert_called_once_with(expected_health)
