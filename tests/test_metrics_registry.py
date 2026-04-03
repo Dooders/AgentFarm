@@ -4,14 +4,8 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
-
 from farm.utils.metrics_registry import (
     MetricsRegistry,
-    get_metrics_registry,
-    get_metric_definition,
-    get_category_metrics,
-    validate_metric_data,
     get_registry_summary,
     get_metrics_by_module,
     get_all_modules,
