@@ -245,8 +245,11 @@ class TestFastAPIServer:
         assert data["status"] == "success"
         assert "data" in data
         assert len(data["data"]) == 2
-        assert "sim1" in data["data"]
-        assert "sim2" in data["data"]
+        by_id = {row["sim_id"]: row for row in data["data"]}
+        assert "sim1" in by_id and "sim2" in by_id
+        assert by_id["sim1"]["status"] == "running"
+        assert "db_path" not in by_id["sim1"]
+        assert "config" not in by_id["sim1"]
 
     def test_export_simulation_success(self, client, temp_db_path):
         """Test successful simulation export."""
@@ -296,6 +299,9 @@ class TestFastAPIServer:
         assert data["status"] == "success"
         assert "data" in data
         assert data["data"]["status"] == "running"
+        assert data["data"]["sim_id"] == sim_id
+        assert "db_path" not in data["data"]
+        assert "config" not in data["data"]
 
     def test_get_simulation_status_not_found(self, client):
         """Test status retrieval for non-existent simulation."""
@@ -424,7 +430,7 @@ class TestFastAPIServer:
                 assert active_simulations[sim_id]["status"] == "error"
                 assert "error_message" in active_simulations[sim_id]
                 assert (
-                    active_simulations[sim_id]["error_message"] == "Simulation failed"
+                    active_simulations[sim_id]["error_message"] == "Simulation failed. Check server logs for details."
                 )
 
     def test_concurrent_simulation_access(self, client):

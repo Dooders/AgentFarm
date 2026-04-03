@@ -1,8 +1,9 @@
 import asyncio
 import os
+import secrets
 import threading
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import (
     BackgroundTasks,
@@ -35,10 +36,18 @@ logger = get_logger(__name__)
 
 app = FastAPI(title="AgentFarm API", version="1.0.0")
 
-# Add CORS middleware
+# CORS: wildcard + credentials is invalid for browsers; use explicit origins in production.
+_cors_raw = os.environ.get(
+    "AGENTFARM_CORS_ORIGINS",
+    "http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:5173,http://localhost:5173",
+)
+_cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+if not _cors_origins:
+    _cors_origins = ["http://127.0.0.1:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -173,6 +182,19 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+def _public_simulation_summary(sim_id: str, entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Return API-safe fields only (no filesystem paths or full config payloads)."""
+    summary: Dict[str, Any] = {
+        "sim_id": sim_id,
+        "status": entry.get("status"),
+        "created_at": entry.get("created_at"),
+        "ended_at": entry.get("ended_at"),
+    }
+    if entry.get("status") == "error":
+        summary["error_message"] = entry.get("error_message")
+    return summary
+
+
 def _run_simulation_background(sim_id, config, db_path):
     try:
         with ThreadLock(_active_simulations_thread_lock):
@@ -201,7 +223,8 @@ def _run_simulation_background(sim_id, config, db_path):
         with ThreadLock(_active_simulations_thread_lock):
             if sim_id in active_simulations:
                 active_simulations[sim_id]["status"] = "error"
-                active_simulations[sim_id]["error_message"] = str(e)
+                # Store a generic message for the public API; full details are in the logs above.
+                active_simulations[sim_id]["error_message"] = "Simulation failed. Check server logs for details."
 
 
 @app.post("/api/simulation/new", response_model=SimulationResponse)
@@ -212,8 +235,8 @@ async def create_simulation(
     try:
         config_data = request_data.dict(exclude_unset=True)
 
-        # Generate unique simulation ID
-        sim_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Non-guessable ID (timestamp + entropy) to reduce cross-simulation probing
+        sim_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{secrets.token_urlsafe(12)}"
 
         logger.info(
             "api_simulation_create_request",
@@ -773,10 +796,13 @@ async def get_analysis_statistics():
 
 @app.get("/api/simulations")
 async def list_simulations():
-    """Get list of active simulations."""
+    """Get list of active simulations (metadata only; no db paths or config bodies)."""
     async with AsyncLock(_active_simulations_async_lock):
-        data = dict(active_simulations)
-    return {"status": "success", "data": data}
+        summaries: List[Dict[str, Any]] = [
+            _public_simulation_summary(sid, entry)
+            for sid, entry in active_simulations.items()
+        ]
+    return {"status": "success", "data": summaries}
 
 
 @app.get("/api/simulation/{sim_id}/export")
@@ -875,7 +901,7 @@ async def get_simulation_status(sim_id: str):
                 raise HTTPException(
                     status_code=404, detail=f"Simulation {sim_id} not found"
                 )
-            data = dict(active_simulations[sim_id])
+            data = _public_simulation_summary(sim_id, active_simulations[sim_id])
         return SimulationStatus(status="success", data=data)
     except HTTPException:
         raise
