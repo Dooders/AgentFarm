@@ -35,6 +35,7 @@ Usage:
 
 import logging
 import os
+import re
 import statistics
 import sys
 import time
@@ -298,13 +299,48 @@ def add_process_info(logger: Any, method_name: str, event_dict: EventDict) -> Ev
     return event_dict
 
 
-def censor_sensitive_data(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
-    """Censor sensitive information from logs."""
-    sensitive_keys = {"password", "token", "secret", "api_key", "auth", "key"}
+_SENSITIVE_KEY_RE = re.compile(
+    r"(password|passwd|secret|token|credential|private_?key|api_?key|apikey|"
+    r"bearer|csrf|authorization|authentication|client_?secret|refresh_?token|"
+    r"access_?token|id_?token|set_?cookie|session_?id|x_?api_?key)",
+    re.IGNORECASE,
+)
 
+
+def _is_sensitive_key_name(key: str) -> bool:
+    """True if a structlog/context key name likely holds a credential."""
+    if key.startswith("_"):
+        return False
+    kl = key.lower().replace("-", "_")
+    if _SENSITIVE_KEY_RE.search(kl):
+        return True
+    if kl.endswith("_key") or kl.endswith("_token") or kl.endswith("_secret"):
+        return True
+    return False
+
+
+def _redact_value(value: Any) -> Any:
+    """Recursively redact dict/list/tuple leaves; leave primitives as-is unless replacing."""
+    if isinstance(value, dict):
+        return {k: _redact_value(v) if not _is_sensitive_key_name(str(k)) else "***REDACTED***" for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_value(v) for v in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_value(v) for v in value)
+    return value
+
+
+def censor_sensitive_data(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
+    """Censor sensitive information from logs (top-level keys and nested dict/list values)."""
     for key in list(event_dict.keys()):
-        if any(sensitive in key.lower() for sensitive in sensitive_keys):
+        if key.startswith("_"):
+            continue
+        if _is_sensitive_key_name(str(key)):
             event_dict[key] = "***REDACTED***"
+        else:
+            val = event_dict[key]
+            if isinstance(val, (dict, list, tuple)):
+                event_dict[key] = _redact_value(val)
 
     return event_dict
 

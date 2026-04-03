@@ -7,7 +7,11 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 import pytest
-import torch
+
+try:
+    import torch
+except ImportError:  # pragma: no cover - optional for lightweight test runs
+    torch = None  # type: ignore[assignment]
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -160,9 +164,11 @@ def seed_all_rngs(seed: int) -> None:
     """
     random.seed(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.benchmark = False
+    if torch is not None:
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.benchmark = False
 
 
 def capture_component_state(component: Any) -> Dict[str, Any]:

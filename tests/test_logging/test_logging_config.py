@@ -283,6 +283,21 @@ class TestCoreProcessors:
         assert result["normal_field"] == "visible"
         assert result["username"] == "john"
 
+    def test_censor_sensitive_data_nested(self):
+        """Nested dict keys matching sensitive patterns are redacted."""
+        event_dict = {
+            "event": "test",
+            "payload": {
+                "username": "u",
+                "nested_password": "hunter2",
+                "inner": {"api_key": "k"},
+            },
+        }
+        result = censor_sensitive_data(None, "info", event_dict)
+        assert result["payload"]["username"] == "u"
+        assert result["payload"]["nested_password"] == "***REDACTED***"
+        assert result["payload"]["inner"]["api_key"] == "***REDACTED***"
+
 
 class TestPerformanceLogger:
     """Test PerformanceLogger processor."""
