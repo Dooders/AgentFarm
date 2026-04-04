@@ -456,7 +456,7 @@ class TestConfigIntegration(unittest.TestCase):
 
         orchestrator = ConfigurationOrchestrator()
 
-        # Test basic load performance (should be < 50ms average)
+        # Test basic load performance (thresholds: avg < 500ms, max < 2000ms to tolerate cold CI runners and I/O variance)
         times = []
         for _ in range(20):
             start = time.perf_counter()
@@ -469,11 +469,11 @@ class TestConfigIntegration(unittest.TestCase):
         avg_time = sum(times) / len(times)
         max_time = max(times)
 
-        # Performance should be reasonable (thresholds tolerate cold CI runners and I/O variance)
+        # Assert thresholds
         self.assertLess(avg_time, 500.0, f"Average load time too slow: {avg_time:.2f}ms")
         self.assertLess(max_time, 2000.0, f"Max load time too slow: {max_time:.2f}ms")
 
-        # Test cached performance (should stay fast once warmed)
+        # Test cached performance (threshold: avg < 50ms; cache should be much faster than uncached)
         # Warm up cache
         for _ in range(5):
             orchestrator.load_config(

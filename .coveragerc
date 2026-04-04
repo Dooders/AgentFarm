@@ -83,8 +83,6 @@ omit =
     farm/core/interfaces.py
     farm/core/observation_render.py
     farm/core/senses.py
-    farm/core/services/factory.py
-    farm/core/simulation.py
     farm/core/visualization.py
     farm/database/data_logging.py
     farm/database/data_retrieval.py
