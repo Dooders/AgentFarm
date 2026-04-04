@@ -948,13 +948,13 @@ if __name__ == "__main__":
 ## Additional Resources
 
 ### Documentation
-- [Spatial Indexing Details](spatial/spatial_indexing.md) - Technical implementation
-- [Performance Summary](spatial/spatial_module_performance_summary.md) - Benchmark results
-- [Configuration Guide](config/README.md) - Spatial config options
+- [Spatial Indexing Details](../spatial/spatial_indexing.md) - Technical implementation
+- [Performance Summary](../spatial/spatial_module_performance_summary.md) - Benchmark results
+- [Configuration Guide](../config/configuration_guide.md) - Spatial config options
 
 ### Benchmarks
-- [Spatial Benchmark Report](../benchmarks/reports/0.1.0/spatial_benchmark_report.md)
-- [Benchmark Guide](../BENCHMARK_GUIDE.md)
+- [Spatial Benchmark Report](../../benchmarks/reports/0.1.0/spatial_benchmark_report.md)
+- [Benchmarks](../../benchmarks/README.md)
 
 ### Implementation
 - `farm/core/spatial/index.py` - Main spatial index
@@ -968,7 +968,7 @@ if __name__ == "__main__":
 
 For spatial indexing questions:
 - **GitHub Issues**: [Report bugs or request features](https://github.com/Dooders/AgentFarm/issues)
-- **Documentation**: [Full documentation index](README.md)
+- **Documentation**: [Full documentation index](../README.md)
 - **Benchmarks**: Check `benchmarks/` directory for performance data
 
 ---

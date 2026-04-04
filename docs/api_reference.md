@@ -1,6 +1,6 @@
 # API Reference
 
-This comprehensive API reference documents all public classes, functions, and modules in AgentFarm. The API is organized by module and provides detailed information about parameters, return values, and usage examples.
+High-level map of major entry points in AgentFarm. For authoritative signatures, use the source modules cited below and [usage examples](usage_examples.md).
 
 ## Core API Index
 
@@ -25,9 +25,10 @@ A quick map of core modules and primary entry points:
 - Helper utilities: distance, validation, name↔index mapping
 - Built-in actions: move, gather, share, defend, attack, reproduce, pass
 
-### farm/core/agent.py
-- BaseAgent: agent lifecycle, decision integration, combat, memory hooks
-- Key methods: act(), decide_action(), get_state(), clone(), reproduce()
+### farm/core/agent/
+- **AgentCore**: coordinator over components + `IAgentBehavior`
+- **AgentFactory**: builds agents for the simulation
+- **Components / behaviors**: movement, combat, perception, learning, etc. (see package `__init__.py`)
 
 ### farm/core/observations.py and channels.py
 - ObservationConfig: radius, decay, dtype/device
@@ -684,374 +685,106 @@ class ActionRepository:
     def get_success_rates(self) -> Dict
 ```
 
-## Analysis Module (`farm.analysis`)
+## Analysis (`farm.analysis` and related)
 
-### ComparativeAnalysis Class
+The analysis stack is **modular** (registry + per-domain packages), not a small set of classes named `ComparativeAnalysis` / `AgentAnalysis` / `ExperimentAnalysis`.
 
-Performs comparative analysis between simulation runs.
+- **Module index**: [docs/analysis/modules/README.md](analysis/modules/README.md)
+- **Orchestrated runs**: `AnalysisService`, `AnalysisRequest`, `AnalysisResult` in `farm.analysis.service`
+- **Registry**: `farm.analysis.registry` (`get_module`, `get_module_names`, …)
+- **Cross-run comparison (API)**: `compare_simulations` in `farm.analysis.comparative_analysis`
+- **Lightweight SQL/pandas summaries**: `SimulationAnalyzer` in `farm.core.analysis`
+- **Figures / charts**: `farm.charts.chart_analyzer.ChartAnalyzer`
 
-#### Constructor
+## Configuration (`farm.config`)
 
-```python
-ComparativeAnalysis(base_path: str = "results")
-```
+- **Primary type**: `SimulationConfig` and nested dataclasses defined in `farm/config/config.py`. The `farm.config` package re-exports the main public types (see `farm/config/__init__.py`).
+- **Typical load paths**:
+  - `SimulationConfig.from_centralized_config(environment=..., profile=...)`
+  - `load_config(...)` in `farm.config` (wrapper around `ConfigurationOrchestrator`, see `farm/config/orchestrator.py`)
+- **Also useful**: `ConfigurationOrchestrator`, `get_global_orchestrator`, validation types in `farm.config.validation`, templates in `farm.config.template`.
 
-#### Methods
+There is **no** `ConfigBuilder` in this repository. There are **no** standalone `save_config` / `merge_configs` / `validate_config` functions matching the old stubs that used to appear here.
 
-```python
-compare_runs(run_paths: List[str]) -> Dict[str, Any]
-```
-Compare multiple simulation runs.
+Human-facing guides: [Configuration guide](config/configuration_guide.md), [configuration API notes](config/configuration_api.md).
 
-```python
-generate_report(results: Dict, output_path: str) -> None
-```
-Generate analysis report.
+## Runners (`farm.runners`)
 
-```python
-create_visualization(results: Dict, metric: str) -> plt.Figure
-```
-Create visualization for specific metric.
-
-### AgentAnalysis Class
-
-Analyzes individual agent behaviors.
-
-#### Constructor
+### `ExperimentRunner` — `farm.runners.experiment_runner`
 
 ```python
-AgentAnalysis(agent_id: str, simulation_path: str)
+ExperimentRunner(
+    base_config: SimulationConfig,
+    experiment_name: str,
+    db_path: Optional[Path] = None,
+    chart_analyzer: Optional[ChartAnalyzerProtocol] = None,
+)
 ```
-
-#### Methods
 
 ```python
-analyze_behavior() -> Dict[str, Any]
+run_iterations(
+    num_iterations: int,
+    config_variations: Optional[List[Dict]] = None,
+    num_steps: int = 1000,
+    path: Optional[Path] = None,
+    run_analysis: bool = True,
+) -> None
 ```
-Analyze agent behavior patterns.
+
+**Important:** when `config_variations` is used, each dict’s keys are applied with `setattr` on the **top-level** `SimulationConfig` only (see `_create_iteration_config`). Nested fields (`population`, `resources`, …) are not traversed automatically.
+
+**Single simulation runs** use `farm.core.simulation.run_simulation` (returns `Environment`).
+
+There is **no** `SimulationRunner` class in `farm.runners`.
+
+## Utilities (`farm.utils`)
+
+### Structured logging (primary)
+
+Exported from `farm.utils` (see `farm/utils/__init__.py`):
 
 ```python
-plot_trajectory() -> plt.Figure
-```
-Plot agent's movement trajectory.
-
-```python
-calculate_efficiency() -> float
-```
-Calculate agent's resource efficiency.
-
-### ExperimentAnalysis Class
-
-Analyzes experimental results.
-
-#### Constructor
-
-```python
-ExperimentAnalysis(experiment_path: str)
+configure_logging(...)
+get_logger(__name__)
+bind_context(...) / unbind_context(...) / clear_context(...)
+log_performance, log_errors, log_context, log_step, log_simulation, log_experiment
+AgentLogger, DatabaseLogger, LogSampler, PerformanceMonitor
 ```
 
-#### Methods
+Use **`configure_logging`** (structlog-based), not a legacy `setup_logging` helper.
 
-```python
-load_results() -> Dict[str, Any]
-```
-Load experiment results.
+### Other helpers
 
-```python
-perform_statistical_tests() -> Dict[str, Any]
-```
-Perform statistical analysis.
+- **`bilinear_distribute_value`** — `farm.utils.spatial` (re-exported from `farm.utils`).
+- **Short IDs** — `ShortUUID` lives in `farm.utils.short_id` (not re-exported from `farm.utils`); identity helpers in `farm.utils.identity`.
 
-```python
-generate_summary_report() -> str
-```
-Generate experiment summary.
+## Exceptions (selected)
 
-## Configuration Module (`farm.core.config`)
+There is **no** single `AgentFarmError` hierarchy. Notable types:
 
-### ConfigBuilder Class
+- **Config loading / validation**: `ConfigurationError`, `ValidationError`, `ConfigurationValidator` in `farm.config.validation` (see that module for the full set).
+- **Analysis pipeline**: `AnalysisError` and subclasses (`DataValidationError`, `ModuleNotFoundError`, `ConfigurationError`, …) in `farm.analysis.exceptions` — note `ModuleNotFoundError` here is **not** the Python builtin.
 
-Builder pattern for creating configurations programmatically.
+Search the codebase for `class .*Error` when debugging a specific subsystem.
 
-#### Constructor
+## Constants and enums (selected)
 
-```python
-ConfigBuilder()
-```
+### Action types
 
-#### Methods
+Executable actions use **`ActionType`** (`IntEnum`) and the **`Action`** dataclass in `farm.core.action` (values and ordering differ from older docs; read `farm/core/action.py`).
 
-```python
-set_environment(width: int, height: int, **kwargs) -> ConfigBuilder
-```
-Set environment parameters.
+### Observation channels
 
-```python
-set_agents(count: int, resources: int, **kwargs) -> ConfigBuilder
-```
-Set agent parameters.
+Channels are identified by **string names** and `ChannelHandler` implementations in `farm.core.channels`, not by a single `Channel` `IntEnum` in the public API.
 
-```python
-set_learning(rate: float, memory: int, **kwargs) -> ConfigBuilder
-```
-Set learning parameters.
+### Resource placement
 
-```python
-enable_channels(channels: List[str]) -> ConfigBuilder
-```
-Enable specific observation channels.
+`resource_distribution` passed to `Environment` is typically a **string** (e.g. `"uniform"`) or a callable; there is no guaranteed `ResourceDistribution` enum in core.
 
-```python
-build() -> Dict[str, Any]
-```
-Build final configuration dictionary.
+## Type hints
 
-### Configuration Loading Functions
+Types vary by submodule. Common patterns: agent ids as `str`, grid positions as `(int, int)` or floats depending on API, observations as `torch.Tensor` where documented in `farm.core.observations`.
 
-```python
-def load_config(config_path: str) -> Dict[str, Any]
-```
-Load configuration from YAML file.
+---
 
-```python
-def save_config(config: Dict[str, Any], config_path: str) -> None
-```
-Save configuration to YAML file.
-
-```python
-def merge_configs(base_config: Dict, override_config: Dict) -> Dict[str, Any]
-```
-Merge two configurations.
-
-```python
-def validate_config(config: Dict[str, Any]) -> List[str]
-```
-Validate configuration and return error messages.
-
-## Runners Module (`farm.runners`)
-
-### SimulationRunner Class
-
-Runs individual simulations.
-
-#### Constructor
-
-```python
-SimulationRunner(config: Dict[str, Any])
-```
-
-#### Methods
-
-```python
-run() -> Dict[str, Any]
-```
-Run simulation.
-
-```python
-run_with_visualization() -> Dict[str, Any]
-```
-Run simulation with real-time visualization.
-
-```python
-save_results(output_path: str) -> None
-```
-Save simulation results.
-
-### ExperimentRunner Class
-
-Runs parameter experiments.
-
-#### Constructor
-
-```python
-ExperimentRunner()
-```
-
-#### Methods
-
-```python
-run_experiment(experiment_config: Dict[str, Any]) -> Dict[str, Any]
-```
-Run parameter experiment.
-
-```python
-run_parameter_sweep(parameters: Dict[str, List],
-                   base_config: Dict[str, Any],
-                   replications: int = 3) -> Dict[str, Any]
-```
-Run parameter sweep.
-
-```python
-generate_comparison_report(results: Dict[str, Any],
-                          output_path: str) -> None
-```
-Generate experiment comparison report.
-
-## Utilities Module (`farm.utils`)
-
-### ShortUUID Class
-
-Generates short unique identifiers.
-
-#### Constructor
-
-```python
-ShortUUID()
-```
-
-#### Methods
-
-```python
-generate() -> str
-```
-Generate short UUID.
-
-### Timing Utilities
-
-```python
-def time_function(func: Callable) -> Callable
-```
-Decorator to time function execution.
-
-```python
-class Timer:
-    def __enter__(self)
-    def __exit__(self, *args)
-    def elapsed() -> float
-```
-Context manager for timing code blocks.
-
-### Logging Utilities
-
-```python
-def setup_logging(level: str = "INFO", log_file: str = None) -> None
-```
-Set up logging configuration.
-
-```python
-def get_logger(name: str) -> logging.Logger
-```
-Get configured logger.
-
-## Exceptions
-
-### Core Exceptions
-
-```python
-class AgentFarmError(Exception)
-```
-Base exception for AgentFarm errors.
-
-```python
-class ConfigurationError(AgentFarmError)
-```
-Configuration-related errors.
-
-```python
-class SimulationError(AgentFarmError)
-```
-Simulation execution errors.
-
-```python
-class DatabaseError(AgentFarmError)
-```
-Database operation errors.
-
-### Channel Exceptions
-
-```python
-class ChannelError(AgentFarmError)
-```
-Channel-related errors.
-
-```python
-class ChannelNotFoundError(ChannelError)
-```
-Channel not found error.
-
-```python
-class ChannelRegistrationError(ChannelError)
-```
-Channel registration error.
-
-### Agent Exceptions
-
-```python
-class AgentError(AgentFarmError)
-```
-Agent-related errors.
-
-```python
-class AgentNotFoundError(AgentError)
-```
-Agent not found error.
-
-```python
-class InvalidActionError(AgentError)
-```
-Invalid action error.
-
-## Constants and Enums
-
-### Action Enum
-
-```python
-class Action(IntEnum):
-    MOVE = 0
-    GATHER = 1
-    ATTACK = 2
-    SHARE = 3
-    REPRODUCE = 4
-    NO_OP = 5
-```
-
-### Channel Enum
-
-```python
-class Channel(IntEnum):
-    SELF_HP = 0
-    ALLIES_HP = 1
-    ENEMIES_HP = 2
-    RESOURCES = 3
-    OBSTACLES = 4
-    TERRAIN_COST = 5
-    VISIBILITY = 6
-    KNOWN_EMPTY = 7
-    DAMAGE_HEAT = 8
-    TRAILS = 9
-    ALLY_SIGNAL = 10
-    GOAL = 11
-```
-
-### ResourceDistribution Enum
-
-```python
-class ResourceDistribution(Enum):
-    UNIFORM = "uniform"
-    CLUSTERED = "clustered"
-    SCATTERED = "scattered"
-```
-
-## Type Hints
-
-### Common Types
-
-```python
-AgentID = str
-Position = Tuple[int, int]
-ActionDict = Dict[str, Any]
-Observation = torch.Tensor
-Config = Dict[str, Any]
-Metrics = Dict[str, Union[int, float, List]]
-```
-
-### Generic Types
-
-```python
-from typing import TypeVar
-AgentType = TypeVar('AgentType', bound=BaseAgent)
-ChannelType = TypeVar('ChannelType', bound=ChannelHandler)
-RepositoryType = TypeVar('RepositoryType', bound=BaseRepository)
-```
-
-This API reference provides comprehensive documentation for all public interfaces in AgentFarm. For more detailed examples and tutorials, see the usage examples documentation.
+This page is a **high-level index** and entry-point reference. Prefer reading the cited modules and [usage examples](usage_examples.md) for authoritative signatures.

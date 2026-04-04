@@ -39,8 +39,8 @@
 | `OPTIMIZATION_IMPLEMENTATION_NOTES.md` | Technical implementation details | Developers |
 | `POPULATION_ANALYSIS_EXTENSIONS.md` | Future analysis ideas | Researchers |
 | `POPULATION_ANALYSIS_ROADMAP.md` | This file - project status | Project Managers |
-| `examples/population_analysis_enhanced_example.py` | Working code examples | All Users |
-| `examples/add_carrying_capacity_analysis.py` | Extension tutorial | Developers |
+| `docs/usage_examples.md` | Working code examples | All Users |
+| `docs/analysis/modules/Population.md` | Extension tutorial | Developers |
 
 ## 🚀 Quick Access Guide
 
@@ -63,10 +63,10 @@ population_module.run_analysis(
 
 #### **Add new analysis capabilities**
 → See: `POPULATION_ANALYSIS_EXTENSIONS.md`
-→ Tutorial: `examples/add_carrying_capacity_analysis.py`
+→ Tutorial: `docs/analysis/modules/Population.md`
 
 #### **See working examples**
-→ Run: `python examples/population_analysis_enhanced_example.py`
+→ Run: `pytest tests/`. See `docs/usage_examples.md` for working examples.
 
 ## 🎨 What Analyses Can You Do Now?
 
@@ -162,7 +162,7 @@ population_module.run_analysis(
    - Read the text report
 
 2. **Run the examples** (15 minutes)
-   - Execute `examples/population_analysis_enhanced_example.py`
+   - Follow the examples in `docs/usage_examples.md`
    - Understand what each analysis shows
 
 3. **Apply to your data** (30 minutes)
@@ -188,7 +188,7 @@ population_module.run_analysis(
 
 3. **Extend with new analyses** (4-8 hours per analysis)
    - Pick from `POPULATION_ANALYSIS_EXTENSIONS.md`
-   - Follow tutorial in `examples/add_carrying_capacity_analysis.py`
+   - Follow tutorial in `docs/analysis/modules/Population.md`
    - Common choices: carrying capacity, equilibrium, cycles
 
 4. **Optimize further** (ongoing)
@@ -251,7 +251,7 @@ farm/analysis/population/
 
 ### For Beginners:
 1. Start with: `POPULATION_ANALYSIS_QUICK_START.md`
-2. Run: `examples/population_analysis_enhanced_example.py`
+2. Follow the examples in: `docs/usage_examples.md`
 3. Read: Population ecology basics (external resources)
 
 ### For Intermediate Users:
@@ -261,7 +261,7 @@ farm/analysis/population/
 
 ### For Advanced Users/Developers:
 1. Deep dive: `OPTIMIZATION_IMPLEMENTATION_NOTES.md`
-2. Extend: Follow `examples/add_carrying_capacity_analysis.py`
+2. Extend: Follow `docs/analysis/modules/Population.md`
 3. Contribute: Implement analyses from `POPULATION_ANALYSIS_EXTENSIONS.md`
 
 ## 🤝 Contributing
@@ -278,7 +278,7 @@ Want to add a new analysis? Here's the workflow:
 8. **Document** in docstrings
 9. **Add example** usage
 
-See `examples/add_carrying_capacity_analysis.py` for complete tutorial.
+See `docs/analysis/modules/Population.md` for complete tutorial.
 
 ## 📞 Support & Questions
 

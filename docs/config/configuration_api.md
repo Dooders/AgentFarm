@@ -127,7 +127,7 @@ Load configuration from the centralized config structure.
 
 **Example:**
 ```python
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 
 # Load development config
 config = SimulationConfig.from_centralized_config(environment="development")

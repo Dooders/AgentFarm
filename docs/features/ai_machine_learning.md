@@ -1182,20 +1182,17 @@ if __name__ == "__main__":
 ## Additional Resources
 
 ### Documentation
-- [Deep Q-Learning](deep_q_learning.md) - Detailed DQN documentation
-- [Decision Module](core/decision/README.md) - Algorithm implementations
-- [Analysis System](analysis/README.md) - ML-based analysis tools
+- [Deep Q-Learning](../deep_q_learning.md) - Detailed DQN documentation
+- [Decision Module](../../farm/core/decision/README.md) - Algorithm implementations
+- [Analysis modules](../analysis/modules/README.md) - ML-related analysis docs
 - [Genome System](api_reference.md#genome) - Evolutionary algorithms
 
 ### Examples
-- [RL Algorithm Usage](examples/rl_algorithm_usage.py)
-- [ML Algorithm Usage](examples/ml_algorithm_usage.py)
-- [Evolutionary Simulation](examples/evolutionary_simulation.py)
+- [Usage examples](../usage_examples.md) — RL, training, and experiment patterns
+- Implementation references: `farm/core/decision/`, `farm/research/`
 
-### Research Resources
-- [Genome Embeddings](genome_embeddings/) - Neural genome analysis
-- [Behavioral Clustering](research/behavioral_clustering.py)
-- [Pattern Recognition](analysis/social_behavior/)
+### Research resources
+- Research helpers and templates: `farm/research/` (repository root)
 
 ---
 
@@ -1203,8 +1200,8 @@ if __name__ == "__main__":
 
 For ML-related questions:
 - **GitHub Issues**: [Report bugs or request features](https://github.com/Dooders/AgentFarm/issues)
-- **Documentation**: [Full documentation index](README.md)
-- **Examples**: Check `examples/` and `research/` directories
+- **Documentation**: [Full documentation index](../README.md)
+- **Examples**: See [Usage examples](../usage_examples.md) and `farm/research/`
 
 ---
 

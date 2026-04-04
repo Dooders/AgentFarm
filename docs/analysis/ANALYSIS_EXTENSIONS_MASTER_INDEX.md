@@ -172,7 +172,7 @@ This comprehensive extension library provides **50+ advanced analysis techniques
    - Verify outputs
 
 ### Example Workflow:
-See `examples/add_carrying_capacity_analysis.py` for complete tutorial!
+See `docs/analysis/modules/Population.md` for complete tutorial!
 
 ---
 

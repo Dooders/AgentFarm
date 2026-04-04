@@ -167,7 +167,7 @@ output_path, df = {module}_module.run_analysis(
 )
 ```
 
-**Complete tutorial**: `examples/add_carrying_capacity_analysis.py`
+**Complete tutorial**: `docs/analysis/modules/Population.md`
 
 ---
 

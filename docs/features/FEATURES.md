@@ -47,21 +47,20 @@ Build complex simulations where autonomous agents interact, adapt, and evolve, p
 - 🔗 **Interaction Tracking**: Monitor all agent-agent and agent-environment interactions
 - 📈 **Trend Analysis**: Identify patterns and dynamics over time
 
-**Quick Example:**
+**Quick example:**
 ```python
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
-config = SimulationConfig(
-    width=100,
-    height=100,
-    system_agents=25,      # Cooperative agents
-    independent_agents=25,  # Competitive agents
-    max_steps=1000
-)
+config = SimulationConfig.from_centralized_config(environment="development")
+config.environment.width = 100
+config.environment.height = 100
+config.population.system_agents = 25
+config.population.independent_agents = 25
+config.max_steps = 1000
 
-results = run_simulation(config)
-# Observe cooperation, competition, resource dynamics, and emergent patterns
+env = run_simulation(num_steps=config.max_steps, config=config, path="simulations")
+# Inspect env.agents, env.db, and logs for emergent dynamics
 ```
 
 **Use Cases:**
@@ -87,27 +86,7 @@ From simple parameter adjustments to complete behavioral overhauls, customize ag
 - 🌍 **Custom Environments**: Define rules, zones, and environmental dynamics
 - 🧪 **Custom Experiments**: Design complete experimental protocols
 
-**Quick Example:**
-```python
-# Custom agent with personality traits
-class CooperativeAgent(BaseAgent):
-    def __init__(self, *args, generosity=0.7, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.generosity = generosity
-        
-    def decide_action(self):
-        # Custom decision logic prioritizing cooperation
-        if self.resource_level > 100:
-            return self.share_with_nearby()
-        return super().decide_action()
-
-# Custom environment with seasonal dynamics
-class SeasonalEnvironment(Environment):
-    def step_resources(self):
-        # Resources vary by season
-        multiplier = self.get_seasonal_multiplier()
-        super().step_resources(multiplier)
-```
+**Quick example (directional):** extend **`IAgentBehavior`** / **`AgentComponent`** under `farm/core/agent/`, or subclass **`Environment`** in `farm/core/environment.py` if you need different world dynamics. See [Usage examples](../usage_examples.md) and the agent package README patterns before copying large snippets.
 
 **Use Cases:**
 - Domain-specific simulations (ecology, economics, social science)
@@ -131,30 +110,21 @@ Integrate state-of-the-art reinforcement learning, evolutionary algorithms, and 
 - 🔮 **Behavior Prediction**: Forecast agent actions and outcomes
 - 🧬 **Evolutionary Algorithms**: Genetic evolution and natural selection
 
-**Quick Example:**
+**Quick example:**
 ```python
-from farm.core.decision import DecisionConfig
+from farm.core.decision.config import DecisionConfig
 
-# Configure PPO reinforcement learning
-config = DecisionConfig(
-    algorithm_type="ppo",
-    rl_state_dim=8,
-    algorithm_params={
-        'learning_rate': 3e-4,
-        'n_steps': 2048,
-        'ent_coef': 0.01
-    }
+# DQN / action-selection parameters (see farm.core.decision.config for fields)
+decision_cfg = DecisionConfig(
+    algorithm_type="dqn",
+    learning_rate=1e-3,
+    gamma=0.99,
+    epsilon_start=1.0,
+    epsilon_min=0.01,
 )
 
-# Agents learn optimal policies through experience
-# - Exploration vs exploitation
-# - Reward-driven adaptation
-# - Policy optimization
-
-# Automated behavioral clustering
-from farm.analysis.behavioral_clustering import cluster_agents
-clusters = cluster_agents("simulation.db", n_clusters=5)
-# Discovers: aggressive, cooperative, efficient, exploratory, defensive
+# Wire decision_cfg through learning / agent configuration per your scenario YAML or SimulationConfig.
+# Post-run charts and tables: farm.charts.chart_analyzer.ChartAnalyzer + farm.core.analysis.SimulationAnalyzer
 ```
 
 **Use Cases:**
@@ -225,32 +195,31 @@ Run parameter sweeps, comparative studies, and replicate experiments with tools 
 - 🔁 **Replication Tools**: Ensure reproducibility with validation and verification
 - 📋 **Structured Logging**: Professional-grade logs with rich context
 
-**Quick Example:**
+**Quick example:**
 ```python
+from pathlib import Path
+
+from farm.config import SimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
-import itertools
 
-# Define parameter ranges
-population_sizes = [50, 100, 200]
-resource_rates = [0.01, 0.02, 0.03]
+base_config = SimulationConfig.from_centralized_config(environment="development")
 
-# Generate all combinations
-variations = []
-for pop, rate in itertools.product(population_sizes, resource_rates):
-    variations.append({
-        'system_agents': pop,
-        'resource_regen_rate': rate
-    })
+# `_create_iteration_config` applies dict keys with setattr() on SimulationConfig — use **top-level**
+# fields only (e.g. max_steps, seed). For nested changes (population/resources), clone the config
+# per iteration in your own loop or extend ExperimentRunner.
+variations = [
+    {"max_steps": 400, "seed": 1},
+    {"max_steps": 400, "seed": 2},
+    {"max_steps": 400, "seed": 3},
+]
 
-# Run systematic parameter sweep
-experiment = ExperimentRunner(base_config, "param_sweep_study")
-experiment.run_iterations(
+runner = ExperimentRunner(base_config, "repeatability_demo")
+runner.run_iterations(
     num_iterations=len(variations),
-    config_variations=variations
+    config_variations=variations,
+    path=Path("experiments_out"),
 )
-
-# Statistical analysis
-experiment.generate_report()  # Identifies optimal parameters
+# Inspect per-iteration folders under experiments/repeatability_demo/ and experiments_out/
 ```
 
 **Use Cases:**
@@ -276,28 +245,16 @@ A comprehensive 4-layer data system providing clean abstractions from raw storag
 - 🔌 **Flexible Access**: Multiple ways to query and retrieve data
 - 🚀 **High-Level Services**: Coordinated analysis with error handling
 
-**Quick Example:**
+**Quick example:**
 ```python
-from farm.database.repositories import AgentRepository
-from farm.database.services import ActionsService
-from farm.database.analyzers import BehaviorClusteringAnalyzer
+from farm.database.database import SimulationDatabase
+from farm.database.repositories.agent_repository import AgentRepository
 
-# Repository layer - clean data access
-agent_repo = AgentRepository(session_manager)
-agent = agent_repo.get_agent_by_id("agent_001")
-actions = agent_repo.get_actions_by_agent_id("agent_001")
+db = SimulationDatabase("simulations/simulation.db")
+agent_repo = AgentRepository(db.session_manager)
+row = agent_repo.get_agent_by_id("agent_001")
 
-# Analyzer layer - specialized analysis
-behavior_analyzer = BehaviorClusteringAnalyzer(action_repo)
-clusters = behavior_analyzer.analyze(scope="SIMULATION")
-# Identifies: aggressive, cooperative, efficient behavioral patterns
-
-# Service layer - coordinated operations
-actions_service = ActionsService(action_repo)
-comprehensive = actions_service.analyze_actions(
-    analysis_types=['stats', 'behavior', 'causal', 'resource']
-)
-# Returns all analyses in one coordinated operation
+# Higher-level analysis: farm.core.analysis.SimulationAnalyzer, farm.analysis.*, farm.charts.chart_analyzer
 ```
 
 **Use Cases:**
@@ -323,32 +280,36 @@ Multiple spatial indexing strategies optimized for different query patterns, wit
 - 🎯 **Query Optimization**: Choose optimal index per query type
 - 📊 **Performance Monitoring**: Real-time metrics and benchmarking
 
-**Quick Example:**
+**Quick example:**
 ```python
-from farm.config import SpatialIndexConfig
+from farm.config import SimulationConfig
+from farm.config.config import SpatialIndexConfig
+from farm.core.environment import Environment
 
-# Configure optimized spatial indexing
 spatial_config = SpatialIndexConfig(
-    enable_batch_updates=True,     # Incremental speedup for dynamic sims (2-3%)
+    enable_batch_updates=True,
     region_size=50.0,
-    max_batch_size=100
+    max_batch_size=100,
 )
+sim_config = SimulationConfig.from_centralized_config(environment="development")
+sim_config.environment.spatial_index = spatial_config
+sim_config.environment.width = 200
+sim_config.environment.height = 200
 
-env = Environment(width=200, height=200, config=config)
+env = Environment(
+    width=sim_config.environment.width,
+    height=sim_config.environment.height,
+    resource_distribution="uniform",
+    config=sim_config,
+)
+env.enable_quadtree_indices()
+env.enable_spatial_hash_indices(15.0)
 
-# Enable multiple index types
-env.enable_quadtree_indices()      # For range queries
-env.enable_spatial_hash_indices()  # For fast neighbors
-
-# Use optimal index for each query
-# Radial query → KD-tree (O(log n), 4.85μs avg)
-allies = env.spatial_index.get_nearby(pos, 5.0, ["agents"])
-
-# Range query → Quadtree (O(log n), 6.76μs avg)  
-in_area = env.spatial_index.get_nearby_range(bounds, ["agents_quadtree"])
-
-# Neighbor query → Hash (O(1) avg, 3.61μs)
-nearby = env.spatial_index.get_nearby(pos, 3.0, ["agents_hash"])
+pos = (50.0, 50.0)
+bounds = (40.0, 40.0, 20.0, 20.0)  # (x, y, width, height)
+env.spatial_index.get_nearby(pos, 5.0, ["agents"])
+env.spatial_index.get_nearby_range(bounds, ["agents_quadtree"])
+env.spatial_index.get_nearby(pos, 3.0, ["agents_hash"])
 ```
 
 **Performance:**
@@ -441,24 +402,7 @@ create_reproducibility_report(analysis_params, results)
 3. ✅ Spatial Indexing - Performance at scale
 4. ✅ Data System - Analytics and reporting
 
-**Quick Start:**
-```python
-# 1. Create domain-specific agents
-class CustomerAgent(BaseAgent):
-    def decide_action(self):
-        # Custom business logic
-        pass
-
-# 2. Configure for scale
-config = SpatialIndexConfig(
-    enable_batch_updates=True,
-    performance_monitoring=True
-)
-
-# 3. Run and analyze
-results = run_simulation(config)
-metrics = extract_business_metrics(results)
-```
+**Quick start:** combine nested `SimulationConfig`, `run_simulation`, and `SpatialIndexConfig` (see section 7) for scale; add domain-specific **behaviors/components** under `farm/core/agent/` instead of legacy “subclass BaseAgent” patterns.
 
 ---
 
@@ -472,24 +416,7 @@ metrics = extract_business_metrics(results)
 3. ✅ Research Tools - Systematic testing
 4. ✅ Data System - Training data
 
-**Quick Start:**
-```python
-# 1. Configure learning
-config = DecisionConfig(
-    algorithm_type="ppo",
-    rl_state_dim=8,
-    algorithm_params={'learning_rate': 3e-4}
-)
-
-# 2. Train agents
-for episode in range(1000):
-    results = run_simulation(config)
-    # Agents learn optimal policies
-
-# 3. Analyze learned behaviors
-clusters = cluster_agent_behaviors("simulation.db")
-prediction_model = train_behavior_predictor("simulation.db")
-```
+**Quick start:** tune `DecisionConfig` / learning settings, run repeated `run_simulation` calls or `ExperimentRunner`, then analyze SQLite outputs with `SimulationAnalyzer`, `ChartAnalyzer`, or your own notebooks.
 
 ---
 
@@ -503,21 +430,7 @@ prediction_model = train_behavior_predictor("simulation.db")
 3. ✅ Data & Visualization - Discover patterns
 4. ✅ Data System - Deep analysis
 
-**Quick Start:**
-```python
-# 1. Create experimental scenario
-scenario = CooperationScenario(config)
-scenario.setup(environment)
-
-# 2. Run and observe
-for step in range(1000):
-    environment.step(actions)
-    scenario.record_observations(step)
-
-# 3. Analyze emergence
-patterns = find_behavioral_patterns("simulation.db")
-clustering = cluster_agent_behaviors("simulation.db")
-```
+**Quick start:** drive `run_simulation` + structured logging/metrics, then explore the resulting database with analysis modules under `farm/analysis/` and `farm/core/analysis.py`.
 
 ---
 
@@ -531,25 +444,7 @@ clustering = cluster_agent_behaviors("simulation.db")
 3. ✅ Data & Visualization - Interactive UI
 4. ✅ Customization - User controls
 
-**Quick Start:**
-```python
-# 1. Configure for responsiveness
-config = SpatialIndexConfig(
-    enable_batch_updates=True,
-    flush_interval_seconds=0.1  # Responsive updates
-)
-
-# 2. Use partial flushing
-while running:
-    # Process small batches
-    env.spatial_index.flush_partial_updates(max_updates=10)
-    
-    # Render frame
-    visualizer.render()
-    
-    # Handle input
-    process_user_input()
-```
+**Quick start:** tune `SpatialIndexConfig` batch settings, call `Environment.process_batch_spatial_updates()` between frames when you need fresh spatial queries, and pair with `farm.core.visualization` if you render frames.
 
 ---
 
@@ -629,44 +524,45 @@ cd AgentFarm
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Install dependencies
+# Install dependencies and the package (required for `farm` imports)
 pip install -r requirements.txt
+pip install -e .
 
 # Optional: Install Redis for enhanced memory
 # Ubuntu/Debian: sudo apt-get install redis-server
 # macOS: brew install redis
 ```
 
-### Your First Simulation
+### Your first simulation
 
 ```python
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
-# Configure simulation
-config = SimulationConfig(
-    width=100,
-    height=100,
-    system_agents=25,
-    independent_agents=25,
-    max_steps=1000,
-    seed=42
+config = SimulationConfig.from_centralized_config(environment="development")
+config.environment.width = 100
+config.environment.height = 100
+config.population.system_agents = 25
+config.population.independent_agents = 25
+config.max_steps = 1000
+config.seed = 42
+
+env = run_simulation(
+    num_steps=config.max_steps,
+    config=config,
+    path="simulations",
+    save_config=True,
 )
-
-# Run simulation
-results = run_simulation(config)
-
-# View results
-print(f"Simulation ID: {results['simulation_id']}")
-print(f"Final population: {results['surviving_agents']}")
-print(f"Database: {results['db_path']}")
+print(f"Final agent count: {len(env.agents)}")
 ```
 
-**Next Steps:**
-- [User Guide](user-guide.md) - Comprehensive getting started
-- [Developer Guide](developer-guide.md) - Contributing and development
-- [API Reference](api_reference.md) - Complete API documentation
-- [Examples](../examples/) - Working code examples
+**Next steps:**
+- [README](../../README.md) — simulation CLI, API server, benchmarks
+- [User Guide](../user-guide.md) — Config Explorer UI (`farm/editor`)
+- [Developer Guide](../developer-guide.md) — Config Explorer / frontend dev
+- [Contributing](../../CONTRIBUTING.md) — Python package and tests
+- [API Reference](../api_reference.md) — module reference
+- [Usage examples](../usage_examples.md) — tutorials and snippets
 
 ---
 
@@ -684,38 +580,33 @@ print(f"Database: {results['db_path']}")
 - [Spatial Indexing & Performance](spatial_indexing_performance.md)
 
 **Technical Guides:**
-- [Core Architecture](core_architecture.md)
-- [Configuration Guide](config/README.md)
-- [Database Schema](data/database_schema.md)
-- [Logging Guide](logging_guide.md)
-- [Benchmarking Guide](../BENCHMARK_GUIDE.md)
+- [Core Architecture](../core_architecture.md)
+- [Configuration Guide](../config/configuration_guide.md)
+- [Database Schema](../data/database_schema.md)
+- [Logging Guide](../logging_guide.md)
+- [Benchmarks](../../benchmarks/README.md)
 
-### 🎯 Examples
+### Examples
 
-```
-examples/
-├── basic_simulation.py          # Hello World simulation
-├── custom_agents.py             # Custom agent types
-├── parameter_sweep.py           # Systematic experiments
-├── rl_training.py              # Reinforcement learning
-├── data_analysis.py            # Data exploration
-├── visualization.py            # Creating visualizations
-└── performance_optimization.py  # Spatial indexing optimization
-```
+Primary entry points for runnable patterns:
+
+- [Usage examples](../usage_examples.md)
+- `benchmarks/examples/` (repository root)
+- `tests/` (repository root)
 
 ### 📊 Benchmarks
 
 **Performance Reports:**
-- [Spatial Benchmark Report](../benchmarks/reports/0.1.0/spatial_benchmark_report.md)
-- [Database Benchmark Report](../benchmarks/reports/0.1.0/database_benchmark_report.md)
-- [Benchmark & Profiling Summary](../benchmarks/reports/0.1.0/benchmark_profiling_summary_report.md)
+- [Spatial Benchmark Report](../../benchmarks/reports/0.1.0/spatial_benchmark_report.md)
+- [Database Benchmark Report](../../benchmarks/reports/0.1.0/database_benchmark_report.md)
+- [Benchmark & Profiling Summary](../../benchmarks/reports/0.1.0/benchmark_profiling_summary_report.md)
 
 ### 🔬 Research
 
 **Use Cases & Studies:**
-- [Experiment Case Studies](experiments/)
-- [Analysis Techniques](analysis/)
-- [Comparative Studies](../analysis/simulation_comparison.py)
+- [Experiment write-ups](../experiments/)
+- [Analysis modules](../analysis/modules/README.md)
+- Simulation comparison API: `farm/database/simulation_comparison.py`
 
 ---
 
@@ -723,14 +614,14 @@ examples/
 
 ### Getting Help
 
-- **📖 Documentation**: Start with the [User Guide](user-guide.md)
+- **📖 Documentation**: Start with the [User Guide](../user-guide.md)
 - **💬 GitHub Discussions**: Ask questions and share ideas
 - **🐛 GitHub Issues**: Report bugs and request features
 - **📧 Email**: Contact the development team
 
 ### Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for:
+We welcome contributions! See [CONTRIBUTING.md](../../CONTRIBUTING.md) for:
 - Code contribution guidelines
 - Development setup
 - Testing requirements

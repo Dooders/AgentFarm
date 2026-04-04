@@ -2,11 +2,14 @@
 
 This document provides practical examples and tutorials for using AgentFarm effectively. Each example builds on the previous ones, starting with basic usage and progressing to advanced implementations.
 
+> **Note:** Several tutorials below reference `BaseAgent` as a simplified illustrative base class. In the current codebase, agents are built using the component-based `AgentCore` and assembled via `AgentFactory` (see `farm/core/agent/`). Code blocks marked with `# Illustrative pseudocode` show the intended pattern conceptually but are not directly runnable as written.
+
 ## Tutorial 1: Basic Simulation Setup
 
 ### Creating Your First Simulation
 
 ```python
+# Illustrative pseudocode – BaseAgent is used as a stand-in for AgentCore-based agents
 #!/usr/bin/env python3
 """
 Basic AgentFarm simulation example.
@@ -17,9 +20,13 @@ import random
 import torch
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.core.agent import AgentCore  # Current API: use AgentCore + AgentFactory
+from farm.config import SimulationConfig
 from farm.core.services.factory import AgentServiceFactory
+
+# NOTE: In actual usage, replace BaseAgent with AgentCore assembled via AgentFactory.
+# See farm/core/agent/factory.py for the current agent creation pattern.
+BaseAgent = AgentCore  # Alias used below for illustration only
 
 def create_basic_simulation():
     """Create a basic simulation with 10 agents."""
@@ -142,6 +149,7 @@ Final resources: 182 resources
 ### Implementing a Cooperative Agent
 
 ```python
+# Illustrative pseudocode – BaseAgent is used as a stand-in for AgentCore-based agents
 #!/usr/bin/env python3
 """
 Custom agent implementation example.
@@ -151,10 +159,14 @@ This tutorial shows how to create agents with specialized behaviors.
 import random
 import numpy as np
 from typing import Tuple, Optional
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore  # Current API: use AgentCore + AgentFactory
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
+
+# NOTE: In actual usage, custom agent behaviors are implemented as AgentBehavior
+# subclasses (see farm/core/agent/behaviors/) rather than subclassing BaseAgent.
+BaseAgent = AgentCore  # Alias used below for illustration only
 
 class CooperativeAgent(BaseAgent):
     """An agent that prioritizes cooperation and resource sharing."""
@@ -372,6 +384,7 @@ if __name__ == "__main__":
 ### Implementing Environmental Awareness
 
 ```python
+# Illustrative pseudocode – BaseAgent is used as a stand-in for AgentCore-based agents
 #!/usr/bin/env python3
 """
 Custom observation channels example.
@@ -385,8 +398,10 @@ from typing import Tuple
 from farm.core.channels import ChannelHandler, ChannelBehavior, register_channel
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.core.agent import AgentCore  # Current API; BaseAgent used below for illustration
+from farm.config import SimulationConfig
+
+BaseAgent = AgentCore  # Alias used below for illustration only
 
 class WeatherChannel(ChannelHandler):
     """Channel representing dynamic weather conditions."""
@@ -664,6 +679,7 @@ if __name__ == "__main__":
 ### Running Parameter Studies
 
 ```python
+# Illustrative pseudocode – BaseAgent is used as a stand-in for AgentCore-based agents
 #!/usr/bin/env python3
 """
 Experiment management example.
@@ -676,9 +692,11 @@ from typing import Dict, List, Any
 from pathlib import Path
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.core.agent import AgentCore  # Current API; BaseAgent used below for illustration
+from farm.config import SimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
+
+BaseAgent = AgentCore  # Alias used below for illustration only
 
 def create_config_variations(base_config: SimulationConfig, 
                            parameter_ranges: Dict[str, List[Any]]) -> List[SimulationConfig]:

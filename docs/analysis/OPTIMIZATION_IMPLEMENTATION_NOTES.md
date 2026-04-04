@@ -104,7 +104,7 @@
    - Performance benchmarks
    - Migration guide
 
-2. `examples/population_analysis_enhanced_example.py` (400+ lines)
+2. `docs/usage_examples.md` (400+ lines)
    - 6 working examples
    - Demonstrates each new feature
    - Copy-paste ready code

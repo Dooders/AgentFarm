@@ -77,10 +77,9 @@ logger.info("simulation_started", num_agents=100, num_steps=1000)
 ```
 
 **Learn More:**
-- [Getting Started Guide](LOGGING_README.md)
 - [Quick Reference](docs/LOGGING_QUICK_REFERENCE.md)
 - [Complete Documentation](docs/logging_guide.md)
-- [Examples](examples/logging_examples.py)
+- [Logging module overview](farm/utils/logging/README.md) (inline examples)
 
 ## Quick Start
 
@@ -101,8 +100,9 @@ cd AgentFarm
 python -m venv venv
 source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 
-# Install dependencies
+# Install dependencies and the package in editable mode (required for `farm` imports)
 pip install -r requirements.txt
+pip install -e .
 
 # Optional: Install Redis for enhanced memory management
 # Note: Redis is used for agent memory storage and can improve performance
@@ -156,13 +156,16 @@ Key endpoints:
 - `GET /api/simulation/<sim_id>/step/<step>` — fetch a specific step
 - `GET /api/simulation/<sim_id>/analysis` — run analysis
 - `GET /api/simulation/<sim_id>/export` — export data
+- `WS /ws/<client_id>` — WebSocket for streaming-style client messages
 
 ### Benchmarks
 
 ```bash
-python -m benchmarks.run_benchmarks
-# or a specific benchmark
-python -m benchmarks.run_benchmarks --benchmark memory_db
+# List spec-driven experiments
+python -m benchmarks.run_benchmarks --list
+
+# Run from a YAML spec (example: in-memory DB benchmark)
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/memory_db_baseline.yaml
 ```
 See `benchmarks/README.md` for details and recommended configurations.
 

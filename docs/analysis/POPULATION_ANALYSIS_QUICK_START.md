@@ -210,7 +210,7 @@ DEMOGRAPHIC COMPOSITION
 ## 📚 More Information
 
 - **Full Documentation**: `POPULATION_ANALYSIS_OPTIMIZATION_SUMMARY.md`
-- **Examples**: `examples/population_analysis_enhanced_example.py`
+- **Examples**: `docs/usage_examples.md`
 - **Implementation Details**: `OPTIMIZATION_IMPLEMENTATION_NOTES.md`
 
 ## 🤝 Backward Compatibility

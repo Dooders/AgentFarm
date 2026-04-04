@@ -989,21 +989,20 @@ if __name__ == "__main__":
 ## Additional Resources
 
 ### Documentation
-- [Database Schema](data/database_schema.md) - Complete schema documentation
-- [Data API](data/data_api.md) - API overview
-- [Repositories](data/repositories.md) - Repository documentation
-- [Services](data/data_services.md) - Services documentation
-- [Analyzers](data/analyzers/README.md) - Analyzer documentation
+- [Database Schema](../data/database_schema.md) - Complete schema documentation
+- [Data API](../data/data_api.md) - API overview
+- [Repositories](../data/repositories.md) - Repository documentation
+- [Services](../data/data_services.md) - Services documentation
+- [Analyzers](../data/analyzers/README.md) - Analyzer documentation
 
 ### Examples
-- [Data Access Examples](examples/data_access.py)
-- [Custom Analyzer Example](examples/custom_analyzer.py)
-- [Multi-Simulation Example](examples/multi_simulation.py)
+- [Usage examples](../usage_examples.md) — patterns for data access, analysis, and multi-run workflows
+- Runnable benchmark samples: `benchmarks/examples/` (repository root)
 
 ### API Reference
-- [Models](api_reference.md#models) - Database models
-- [Repositories](api_reference.md#repositories) - Repository API
-- [Services](api_reference.md#services) - Service API
+- [Models](../api_reference.md#models) - Database models
+- [Repositories](../api_reference.md#repositories) - Repository API
+- [Services](../api_reference.md#services) - Service API
 
 ---
 
@@ -1011,8 +1010,8 @@ if __name__ == "__main__":
 
 For data system questions:
 - **GitHub Issues**: [Report bugs or request features](https://github.com/Dooders/AgentFarm/issues)
-- **Documentation**: [Full documentation index](README.md)
-- **Examples**: Check `examples/` directory for more samples
+- **Documentation**: [Full documentation index](../README.md)
+- **Examples**: See [Usage examples](../usage_examples.md) and `benchmarks/examples/`
 
 ---
 

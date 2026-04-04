@@ -1171,21 +1171,19 @@ if __name__ == "__main__":
 ## Additional Resources
 
 ### Documentation
-- [Database Schema](data/database_schema.md) - Detailed schema documentation
-- [Data API](data/data_api.md) - Data access patterns
-- [Repositories](data/repositories.md) - Repository documentation
-- [Metrics](metrics.md) - Available metrics
-- [Analysis System](analysis/README.md) - Analysis modules
+- [Database Schema](../data/database_schema.md) - Detailed schema documentation
+- [Data API](../data/data_api.md) - Data access patterns
+- [Repositories](../data/repositories.md) - Repository documentation
+- [Metrics](../metrics.md) - Available metrics
+- [Analysis modules](../analysis/modules/README.md) - Analysis modules
 
 ### Examples
-- [Visualization Examples](examples/visualization_examples.py)
-- [Data Analysis Examples](examples/data_analysis_examples.py)
-- [Custom Charts](examples/custom_charts.py)
+- [Usage examples](../usage_examples.md) — visualization and analysis patterns
+- Charting code under `farm/charts/` in the repository
 
 ### Tools
-- [Chart Utilities](charts/) - Charting functions
-- [Data Retrieval](database/data_retrieval.py) - Data access
-- [Analyzers](database/analyzers/) - Analysis tools
+- Chart utilities: `farm/charts/` (repository root)
+- Data retrieval and analyzers: `farm/database/` and `farm/analysis/`
 
 ---
 
@@ -1193,8 +1191,8 @@ if __name__ == "__main__":
 
 For data and visualization questions:
 - **GitHub Issues**: [Report bugs or request features](https://github.com/Dooders/AgentFarm/issues)
-- **Documentation**: [Full documentation index](README.md)
-- **Examples**: Check `examples/` directory for more samples
+- **Documentation**: [Full documentation index](../README.md)
+- **Examples**: See [Usage examples](../usage_examples.md) and `farm/charts/`
 
 ---
 

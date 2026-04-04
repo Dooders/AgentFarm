@@ -21,8 +21,8 @@ A **comprehensive enhancement** of the AgentFarm analysis system, including:
 4. **POPULATION_ANALYSIS_EXTENSIONS.md** - 10 additional analyses
 5. **POPULATION_ANALYSIS_ROADMAP.md** - Project status
 6. **OPTIMIZATION_IMPLEMENTATION_NOTES.md** - Developer notes
-7. **examples/population_analysis_enhanced_example.py** - Working examples
-8. **examples/add_carrying_capacity_analysis.py** - Extension tutorial
+7. **docs/usage_examples.md** - Working examples
+8. **docs/analysis/modules/Population.md** - Extension tutorial
 9. **POPULATION_ANALYSIS_QUICK_START.md** - Fast reference
 10. **Module code improvements** - compute.py, analyze.py, plot.py, data.py
 
@@ -105,8 +105,8 @@ Events:        [████████████████    ] 80% (Exten
 │   └── TEMPORAL_SOCIAL_COMPARATIVE_EXTENSIONS.md
 │
 └── Examples & Tutorials
-    ├── examples/population_analysis_enhanced_example.py
-    └── examples/add_carrying_capacity_analysis.py
+    ├── docs/usage_examples.md
+    └── docs/analysis/modules/Population.md
 ```
 
 ---
@@ -228,7 +228,7 @@ cat ANALYSIS_EXTENSIONS_MASTER_INDEX.md
 cat OPTIMIZATION_IMPLEMENTATION_NOTES.md
 
 # Study example
-cat examples/add_carrying_capacity_analysis.py
+See docs/analysis/modules/Population.md
 ```
 
 #### 2. Implement Extensions (2-4 hours each)
@@ -256,8 +256,8 @@ cat examples/add_carrying_capacity_analysis.py
 - Extension documents - What you can do
 
 ### Level 4: Examples & Tutorials
-- **examples/population_analysis_enhanced_example.py** - Working examples
-- **examples/add_carrying_capacity_analysis.py** - Implementation tutorial
+- **docs/usage_examples.md** - Working examples
+- **docs/analysis/modules/Population.md** - Implementation tutorial
 
 ---
 
@@ -276,7 +276,7 @@ cat examples/add_carrying_capacity_analysis.py
 4. Plan integration
 
 ### Path 3: Implement Extensions (1 week)
-1. Study tutorial: `examples/add_carrying_capacity_analysis.py`
+1. Study tutorial: `docs/analysis/modules/Population.md`
 2. Implement 5 "Quick Win" extensions
 3. Test with your data
 4. Deploy to production

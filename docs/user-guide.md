@@ -1,36 +1,38 @@
-## User Guide
+## User guide
 
-This guide walks you through installing, launching, and using the Config Explorer.
+### Simulation platform (Python)
 
-### Install & Launch
-- Development (web): `npm install` then `npm run dev` and open `http://localhost:3000`
-- Development (Electron): `npm run electron:dev`
-- Production build: `npm run build` (web) or `npm run electron:pack` (Electron)
+AgentFarm’s core product is the Python package under `farm/`. For install, CLI, API server, and benchmarks, use the [repository README](../README.md) and [CONTRIBUTING](../CONTRIBUTING.md). Automated tests run with `pytest` from the repo root after `pip install -r requirements.txt` and `pip install -e .`.
 
-### Main Concepts
-- Configuration Explorer: Navigate sections, edit values, and validate.
-- Comparison Mode: Load another configuration to diff and selectively apply.
-- Templates: Save, list, apply, and delete reusable presets.
-- History: Edits are tracked; undo/redo and history save/load supported.
+### Configuration Explorer (UI)
 
-### Workflow
-1. Open a configuration (File > Open or toolbar)
-2. Edit fields in the left panel; validation hints appear inline
-3. Save (Ctrl/Cmd+S) or Save As to a new file
-4. Use Compare to load another config and apply differences
-5. Export to JSON/YAML/TOML
+**In this repository today**, [`farm/editor/`](../farm/editor/) contains a **Jest** test suite for editor-related JavaScript (see `farm/editor/package.json`). There is no Vite dev server or Electron app checked in here yet.
 
-### Keyboard Shortcuts
-- Open: Ctrl/Cmd+O
-- Save: Ctrl/Cmd+S
-- Save As: Ctrl/Cmd+Shift+S
-- Toggle Grayscale UI: Ctrl/Cmd+G
-- Export YAML: Ctrl/Cmd+Y
+The sections below describe the **intended** Configuration Explorer product (navigation, compare/diff, templates, IPC). That design is spelled out in:
 
-### Accessibility
-- Keyboard navigable controls with visible focus
-- Live regions announce key actions
+- [Electron Config Explorer architecture](electron/config_explorer_architecture.md)
+- [IPC API reference](ipc-api.md) (target main/preload contract)
 
-### Troubleshooting
-- If IPC is unavailable, the app runs in browser mode with limited features
-- Check developer console for `[perf]` logs when `PERF_LOG=1`
+When a full web or Electron app lands in-tree, its `package.json` will own scripts such as `dev`, `build`, and `electron:dev`; until then, treat the following as **product/spec** rather than runnable steps in this clone.
+
+#### Intended install and launch (future)
+
+- Development (web): install deps, run the dev server, open the local URL (see future app README).
+- Development (Electron): Electron + renderer dev command (see future app README).
+- Production: static build and/or `electron-builder` packaging as defined by that app.
+
+#### Intended concepts and workflow
+
+- Configuration Explorer: sections, validation, editing.
+- Comparison mode: load another configuration, diff, selective apply.
+- Templates: save, list, apply, delete presets.
+- History: undo/redo and history save/load.
+
+#### Intended keyboard shortcuts
+
+- Open / Save / Save As, grayscale toggle, export shortcuts as implemented by the future UI.
+
+#### Accessibility and troubleshooting
+
+- Keyboard navigation and live regions as implemented by the future UI.
+- IPC vs browser-only mode and `PERF_LOG=1` behavior as documented when the app exists.

@@ -12,8 +12,8 @@ Your population analysis module has been **completely optimized and enhanced** w
 3. **OPTIMIZATION_IMPLEMENTATION_NOTES.md** - Technical implementation details
 4. **POPULATION_ANALYSIS_EXTENSIONS.md** - 10+ additional analyses you can add
 5. **POPULATION_ANALYSIS_ROADMAP.md** - Project status and future plans
-6. **examples/population_analysis_enhanced_example.py** - 6 working examples
-7. **examples/add_carrying_capacity_analysis.py** - Tutorial for adding new analyses
+6. **docs/usage_examples.md** - 6 working examples
+7. **docs/analysis/modules/Population.md** - Tutorial for adding new analyses
 
 ## ✨ Key Improvements
 
@@ -81,7 +81,7 @@ output_path, df = population_module.run_analysis(
 | **Quick usage** | `POPULATION_ANALYSIS_QUICK_START.md` |
 | **What changed** | `POPULATION_ANALYSIS_OPTIMIZATION_SUMMARY.md` |
 | **More analyses to add** | `POPULATION_ANALYSIS_EXTENSIONS.md` |
-| **How to extend** | `examples/add_carrying_capacity_analysis.py` |
+| **How to extend** | `docs/analysis/modules/Population.md` |
 | **Project status** | `POPULATION_ANALYSIS_ROADMAP.md` |
 | **Implementation details** | `OPTIMIZATION_IMPLEMENTATION_NOTES.md` |
 
@@ -95,13 +95,13 @@ output_path, df = population_module.run_analysis(
 
 ### For Understanding (30 minutes):
 1. Read `POPULATION_ANALYSIS_OPTIMIZATION_SUMMARY.md`
-2. Run `examples/population_analysis_enhanced_example.py`
+2. Follow the examples in `docs/usage_examples.md`
 3. Explore the generated outputs
 
 ### For Extension (2-4 hours):
 1. Browse `POPULATION_ANALYSIS_EXTENSIONS.md`
 2. Pick an analysis you need
-3. Follow `examples/add_carrying_capacity_analysis.py` tutorial
+3. Follow `docs/analysis/modules/Population.md` tutorial
 4. Implement and test
 
 ## 🔬 Research Questions You Can Answer
