@@ -65,7 +65,7 @@ def plot_dominance_distribution(df, output_path: Optional[str] = None, ctx: Opti
 
         # Create a consistent DataFrame with all agent types
         # This ensures the same order and includes all agent types even if some have 0%
-        ordered_percentages = pd.Series(0, index=agent_types)
+        ordered_percentages = pd.Series(0.0, index=agent_types, dtype=float)
 
         # Map agent types to consistent format
         for agent in percentages.index:
@@ -1071,18 +1071,19 @@ def plot_comprehensive_score_breakdown(df, output_path: Optional[str] = None, ct
     # Create a colormap for the components
     colors = plt.cm.get_cmap("viridis")(np.linspace(0, 0.8, len(components)))
 
-    # Create the stacked bars
-    bottom = np.zeros(len(agent_types))
+    # Create the stacked bars (use numpy stacking; += with a pandas Series reuses the Series name `bottom`)
+    bottom = np.zeros(len(agent_types), dtype=float)
     for i, component in enumerate(components):
+        heights = weighted_scores[component].to_numpy(dtype=float, copy=False)
         plt.bar(
             index,
-            weighted_scores[component],
+            heights,
             bar_width,
             bottom=bottom,
             label=f"{component.replace('_', ' ').title()} ({weights[component] * 100:.0f}%)",
             color=colors[i],
         )
-        bottom += weighted_scores[component]
+        bottom = bottom + heights
 
     # Add the total score as text on top of each bar
     for i, agent_type in enumerate(agent_types):
