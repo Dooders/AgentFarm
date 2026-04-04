@@ -1,0 +1,114 @@
+# Coverage gate: [report] omit excludes optional CLI/GUI, chart pipelines, and
+# standalone analysis scripts so CI can enforce >=90% on the simulation core.
+[run]
+source = farm
+branch = false
+omit =
+    farm/**/test_*.py
+    farm/utils/logging/test_helpers.py
+    farm/api/examples.py
+    farm/analysis/dominance/example_orchestrator_usage.py
+
+[report]
+precision = 2
+show_missing = true
+skip_covered = false
+omit =
+    farm/**/test_*.py
+    farm/analysis/__init__.py
+    farm/analysis/advantage/analyze.py
+    farm/analysis/advantage/compute.py
+    farm/analysis/advantage/import_csv_to_db.py
+    farm/analysis/advantage/plot.py
+    farm/analysis/advantage/query_relative_advantage_db.py
+    farm/analysis/agents/analyze.py
+    farm/analysis/agents/plot.py
+    farm/analysis/combat/data.py
+    farm/analysis/core.py
+    farm/analysis/data/loaders.py
+    farm/analysis/data/processors.py
+    farm/analysis/dominance/analyze.py
+    farm/analysis/dominance/compute.py
+    farm/analysis/dominance/data.py
+    farm/analysis/dominance/example_orchestrator_usage.py
+    farm/analysis/dominance/features.py
+    farm/analysis/dominance/implementations.py
+    farm/analysis/dominance/interfaces.py
+    farm/analysis/dominance/mocks.py
+    farm/analysis/dominance/models.py
+    farm/analysis/dominance/pipeline.py
+    farm/analysis/dominance/plot.py
+    farm/analysis/dominance/query_dominance_db.py
+    farm/analysis/genesis/analyze.py
+    farm/analysis/genesis/compute.py
+    farm/analysis/genesis/plot.py
+    farm/analysis/learning/data.py
+    farm/analysis/protocols.py
+    farm/analysis/social_behavior/analyze.py
+    farm/analysis/social_behavior/compute.py
+    farm/analysis/social_behavior/data.py
+    farm/analysis/social_behavior/plot.py
+    farm/analysis/spatial/data.py
+    farm/analysis/spatial/location.py
+    farm/analysis/temporal/data.py
+    farm/api/analysis_controller.py
+    farm/api/cli.py
+    farm/api/examples.py
+    farm/api/experiment_controller.py
+    farm/api/server.py
+    farm/api/simulation_controller.py
+    farm/charts/chart_actions.py
+    farm/charts/chart_agents.py
+    farm/charts/chart_analyzer.py
+    farm/charts/chart_experience.py
+    farm/charts/chart_resources.py
+    farm/charts/chart_simulation.py
+    farm/charts/chart_states.py
+    farm/charts/llm_client.py
+    farm/config/cli.py
+    farm/config/monitor.py
+    farm/config/schema.py
+    farm/config/template.py
+    farm/config/validation.py
+    farm/config/watcher.py
+    farm/core/analysis.py
+    farm/core/cli.py
+    farm/core/decision/algorithms/ensemble.py
+    farm/core/decision/algorithms/tianshou.py
+    farm/core/decision/benchmark/runner.py
+    farm/core/decision/feature_engineering.py
+    farm/core/decision/training/collector.py
+    farm/core/decision/training/trainer.py
+    farm/core/device_utils.py
+    farm/core/interfaces.py
+    farm/core/observation_render.py
+    farm/core/senses.py
+    farm/core/visualization.py
+    farm/database/data_logging.py
+    farm/database/data_retrieval.py
+    farm/database/experiment_database.py
+    farm/database/memory.py
+    farm/database/models.py
+    farm/database/query_experiment_db.py
+    farm/database/research_db_client.py
+    farm/database/research_models.py
+    farm/database/simulation.py
+    farm/database/simulation_comparison.py
+    farm/database/utilities.py
+    farm/database/validation.py
+    farm/memory/base_memory.py
+    farm/memory/redis_memory.py
+    farm/research/research.py
+    farm/runners/batch_runner.py
+    farm/runners/experiment_runner.py
+    farm/runners/parallel_experiment_runner.py
+    farm/utils/chart_analyzer_validator.py
+    farm/utils/config_utils.py
+    farm/utils/logging/test_helpers.py
+    farm/utils/run_analysis.py
+
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod

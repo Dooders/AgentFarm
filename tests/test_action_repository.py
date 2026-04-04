@@ -1,10 +1,11 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from farm.database.data_types import AgentActionData
-from farm.database.models import ActionModel, AgentModel
+from farm.database.models import ActionModel, AgentModel, Base
 from farm.database.repositories.action_repository import ActionRepository
 from farm.database.session_manager import SessionManager
 
@@ -183,6 +184,75 @@ class TestActionRepository(unittest.TestCase):
         self.assertEqual(action_data.agent_id, mock_action.agent_id)
         self.assertEqual(action_data.action_type, mock_action.action_type)
         self.assertEqual(action_data.details, mock_action.details)
+
+
+class _SessionManagerForTest:
+    """Minimal stand-in: run repository callbacks on a shared in-memory engine."""
+
+    def __init__(self, session_factory):
+        self._session_factory = session_factory
+
+    def execute_with_retry(self, operation, max_retries=3):
+        sess = self._session_factory()
+        try:
+            result = operation(sess)
+            sess.commit()
+            return result
+        except Exception:
+            sess.rollback()
+            raise
+        finally:
+            sess.close()
+
+
+class TestActionRepositoryFilterScopeIntegration(unittest.TestCase):
+    """Exercise filter_scope against a real query (entity step_number resolution)."""
+
+    def setUp(self):
+        self.engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(self.engine)
+        self.SessionFactory = sessionmaker(bind=self.engine)
+        self.repository = ActionRepository(_SessionManagerForTest(self.SessionFactory))
+
+        sess = self.SessionFactory()
+        sess.add(
+            AgentModel(
+                agent_id="a1",
+                birth_time=0,
+                agent_type="t",
+                position_x=0.0,
+                position_y=0.0,
+                initial_resources=1.0,
+                starting_health=1.0,
+            )
+        )
+        for step, atype in [(1, "move"), (2, "gather"), (3, "move")]:
+            sess.add(
+                ActionModel(
+                    step_number=step,
+                    agent_id="a1",
+                    action_type=atype,
+                )
+            )
+        sess.commit()
+        sess.close()
+
+    def tearDown(self):
+        self.engine.dispose()
+
+    def test_get_actions_by_scope_step_filters_sqlalchemy(self):
+        result = self.repository.get_actions_by_scope("step", step=2)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].step_number, 2)
+        self.assertEqual(result[0].action_type, "gather")
+
+    def test_get_actions_by_scope_step_range_filters(self):
+        result = self.repository.get_actions_by_scope(
+            "step_range", step_range=(1, 2)
+        )
+        self.assertEqual(len(result), 2)
+        steps = sorted(a.step_number for a in result)
+        self.assertEqual(steps, [1, 2])
 
 
 if __name__ == "__main__":

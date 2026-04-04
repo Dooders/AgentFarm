@@ -309,36 +309,3 @@ def get_module_categories(module: str) -> List[str]:
 def search_metrics(query: str, search_type: str = "any") -> Dict[str, Dict[str, Any]]:
     """Convenience function to search metrics."""
     return get_metrics_registry().search_metrics(query, search_type)
-
-
-if __name__ == "__main__":
-    # Example usage
-    registry = get_metrics_registry()
-
-    print("Metrics Registry Summary:")
-    summary = registry.get_registry_summary()
-    print(json.dumps(summary, indent=2))
-
-    # Example validation
-    print("\nValidating example data:")
-    test_value = 0.74
-    errors = registry.validate_metric_data("decision_patterns", "avg_success_rate", test_value)
-    if errors:
-        print(f"Validation errors: {errors}")
-    else:
-        print(f"✓ Value {test_value} is valid for avg_success_rate")
-
-    # Show metrics by tag
-    reward_metrics = registry.get_metrics_by_tag("reward")
-    print(f"\nFound {len(reward_metrics)} reward-related metrics")
-
-    # Show module-specific queries
-    modules = registry.get_all_modules()
-    print(f"\nAvailable modules: {modules}")
-
-    agents_metrics = registry.get_metrics_by_module('agents')
-    print(f"Agents module has {len(agents_metrics)} categories")
-
-    # Example search
-    performance_search = registry.search_metrics("performance")
-    print(f"Found {len(performance_search)} metrics containing 'performance'")

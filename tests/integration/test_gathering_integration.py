@@ -117,7 +117,7 @@ def test_agent_act_gathers_when_decision_returns_gather(simple_config: Simulatio
     factory = AgentFactory(services)
     agent_config = AgentComponentConfig.from_simulation_config(simple_config) if simple_config else None
     
-    agent = factory.create_default_agent(
+    agent = factory.create_learning_agent(
         agent_id="a-2",
         position=(10, 10),
         initial_resources=0.0,
@@ -126,18 +126,21 @@ def test_agent_act_gathers_when_decision_returns_gather(simple_config: Simulatio
     )
     env.add_agent(agent)
 
-    # Monkeypatch the agent's decision to always choose gather within enabled actions
-    def fake_decide_action(state, enabled):
-        # Map enabled (which are indices into full action set) to find gather
-        # BaseAgent._select_action_with_curriculum provides enabled as indices into full space
-        from farm.core.action import ActionType
+    # Monkeypatch DecisionModule to always return the gather action index in full action space
+    gather_idx = next((i for i, a in enumerate(agent.actions) if a.name == "gather"), None)
+    assert gather_idx is not None, (
+        f"Expected learning agent to have a 'gather' action, but found {[a.name for a in agent.actions]}"
+    )
 
-        for i, idx in enumerate(enabled):
-            if idx == ActionType.GATHER:
-                return i
-        return 0
+    def fake_decide_action(state, enabled_actions=None, action_weights=None):
+        if enabled_actions is not None and len(enabled_actions) > 0:
+            for rel, full_idx in enumerate(enabled_actions):
+                if full_idx == gather_idx:
+                    return rel
+            return 0
+        return gather_idx
 
-    monkeypatch.setattr(agent.decision_module, "decide_action", fake_decide_action)
+    monkeypatch.setattr(agent.behavior.decision_module, "decide_action", fake_decide_action)
 
     before_agent = agent.resource_level
     before_res = resource.amount
@@ -219,7 +222,7 @@ def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, mon
     factory = AgentFactory(services)
     agent_config = AgentComponentConfig.from_simulation_config(simple_config) if simple_config else None
     
-    agent = factory.create_default_agent(
+    agent = factory.create_learning_agent(
         agent_id="a-4",
         position=(12, 12),
         initial_resources=0.0,
@@ -233,18 +236,30 @@ def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, mon
     env.spatial_index.set_references(list(env._agent_objects.values()), env.resources)
     env.spatial_index.update()
 
-    # Force decision to use full mapping but we expect gather index will be used
-    # by mapping through enabled action indices in BaseAgent
+    gather_idx = next((i for i, a in enumerate(agent.actions) if a.name == "gather"), None)
+    assert gather_idx is not None, (
+        f"Expected learning agent to expose a 'gather' action, but only found: {[a.name for a in agent.actions]}"
+    )
+
+    def fake_decide_action(state, enabled_actions=None, action_weights=None):
+        if enabled_actions is not None and len(enabled_actions) > 0:
+            for rel, full_idx in enumerate(enabled_actions):
+                if full_idx == gather_idx:
+                    return rel
+            return 0
+        return gather_idx
+
+    monkeypatch.setattr(agent.behavior.decision_module, "decide_action", fake_decide_action)
+
     before_agent = agent.resource_level
     before_res = resource.amount
 
-    # Let BaseAgent decide; ensure the mapping returns gather action
-    action = agent.decide_action()
-    assert action.name in {"gather", "move", "pass", "attack", "share", "reproduce", "defend"}
+    state_tensor = agent._create_observation()
+    enabled = agent._get_enabled_actions()
+    action = agent.behavior.decide_action(agent, state_tensor, enabled)
+    assert action.name == "gather"
 
-    # Execute the chosen action and verify gathering occurs if gather selected
     result = action.execute(agent)
-    if action.name == "gather":
-        assert result.get("success", False)
-        assert agent.resource_level > before_agent
-        assert resource.amount < before_res
+    assert result.get("success", False)
+    assert agent.resource_level > before_agent
+    assert resource.amount < before_res
