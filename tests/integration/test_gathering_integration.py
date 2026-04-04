@@ -129,8 +129,7 @@ def test_agent_act_gathers_when_decision_returns_gather(simple_config: Simulatio
     # Monkeypatch DecisionModule to always return the gather action index in full action space
     gather_idx = next((i for i, a in enumerate(agent.actions) if a.name == "gather"), None)
     assert gather_idx is not None, (
-        f"Expected learning agent to have a 'gather' action, but found "
-        f"{[a.name for a in agent.actions]}"
+        f"Expected learning agent to have a 'gather' action, but found {[a.name for a in agent.actions]}"
     )
 
     def fake_decide_action(state, enabled_actions=None, action_weights=None):
@@ -239,8 +238,7 @@ def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, mon
 
     gather_idx = next((i for i, a in enumerate(agent.actions) if a.name == "gather"), None)
     assert gather_idx is not None, (
-        "Expected learning agent to expose a 'gather' action, "
-        f"but only found: {[a.name for a in agent.actions]}"
+        f"Expected learning agent to expose a 'gather' action, but only found: {[a.name for a in agent.actions]}"
     )
 
     def fake_decide_action(state, enabled_actions=None, action_weights=None):
