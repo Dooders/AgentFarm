@@ -9,12 +9,10 @@ The simulation runner orchestrates the interaction between agents and their
 environment, managing the simulation loop, agent lifecycle, data collection,
 and result analysis. It supports both single-run simulations and batch processing.
 
-Key Components:
-    - setup_logging: Configure logging system for simulation runs
+Key components:
     - create_initial_agents: Generate initial agent population
     - run_simulation: Execute complete simulation with progress tracking
-    - run_simulation_batch: Run multiple simulations with parameter variations
-    - Simulation result collection and analysis
+    - Simulation result collection via the returned Environment and on-disk database
 
 Features:
     - Configurable agent populations and types
@@ -22,16 +20,16 @@ Features:
     - Comprehensive logging and metrics collection
     - Database integration for result persistence
     - Support for various termination conditions
-    - Batch processing capabilities for parameter studies
 
 Usage:
-    # Run a single simulation
-    config = SimulationConfig(...)
-    results = run_simulation(config)
+    # Run a single simulation (returns Environment; DB path from your config / output path)
+    from farm.config import SimulationConfig
+    from farm.core.simulation import run_simulation
 
-    # Run multiple simulations with different parameters
-    configs = [SimulationConfig(...), SimulationConfig(...)]
-    batch_results = run_simulation_batch(configs)
+    config = SimulationConfig.from_centralized_config(environment="development")
+    env = run_simulation(num_steps=config.max_steps, config=config, path="simulations")
+
+    # Multiple runs / parameter sweeps: loop run_simulation or use farm.runners.experiment_runner.ExperimentRunner
 """
 
 import json

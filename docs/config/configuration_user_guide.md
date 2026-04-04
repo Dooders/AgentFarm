@@ -40,7 +40,7 @@ config = orchestrator.load_config(
 For backward compatibility, the old methods still work:
 
 ```python
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 
 # These methods still work but use the orchestrator internally
 config = SimulationConfig.from_centralized_config()
@@ -583,7 +583,7 @@ ValueError: Missing required variable: env_size
 ### Custom Configuration Classes
 
 ```python
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 
 class CustomConfig(SimulationConfig):
     """Custom configuration with additional parameters."""

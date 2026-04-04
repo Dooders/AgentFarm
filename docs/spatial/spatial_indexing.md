@@ -467,30 +467,30 @@ For in-depth technical information, refer to:
 
 **Core Implementation:**
 
-- [Perception System Design](perception_system_design.md) - Complete spatial index implementation details
-- [Core Architecture](core_architecture.md) - System integration and spatial management patterns
+- [Perception System Design](../perception_system_design.md) - Complete spatial index implementation details
+- [Core Architecture](../core_architecture.md) - System integration and spatial management patterns
 
-**Performance & Optimization:**
+**Performance & optimization:**
 
-- [Configuration Guide](configuration_guide.md) - Complete spatial indexing configuration reference
-- [Observation Footprint](observation_footprint.md) - Memory usage analysis for spatial indexing
+- [Configuration Guide](../config/configuration_guide.md) - Complete spatial indexing configuration reference
+- [Batch spatial updates](batch_spatial_updates_guide.md) - Dirty regions and batched updates
+- [Spatial module performance](spatial_module_performance_summary.md) - Benchmarks and scaling notes
 
-**Research & Advanced Topics:**
+**Related topics:**
 
-- [Index Optimization Strategies](research/agent_state_memory/index_optimization_strategies.md) - Advanced indexing optimization techniques
-- [Redis Index Schema](research/agent_state_memory/redis_index_schema.md) - Spatial indexing in memory systems
+- [Redis agent memory](../redis_agent_memory.md) - Optional distributed memory for agents
 
 ### 🔧 Implementation Files
 
 Key implementation modules:
 
-- `farm/core/spatial_index.py` - Core spatial indexing implementation
+- `farm/core/spatial/` - Spatial index implementations (`index.py`, `quadtree.py`, `hash_grid.py`, `dirty_regions.py`)
 - `farm/core/environment.py` - Environment integration
 - `farm/core/observations.py` - Observation system integration
 
 ### ⚙️ Configuration Examples
 
-See [Configuration Guide](configuration_guide.md) for:
+See [Configuration Guide](../config/configuration_guide.md) for:
 
 - Complete configuration options
 - Performance tuning recommendations
@@ -533,22 +533,34 @@ The spatial indexing system now includes **batch spatial updates with dirty regi
 ### Configuration
 
 ```python
+from farm.config import SimulationConfig
 from farm.config.config import SpatialIndexConfig
+from farm.core.environment import Environment
 
 spatial_config = SpatialIndexConfig(
     enable_batch_updates=True,      # Enable batch updates
     region_size=50.0,               # Size of each region
     max_batch_size=100,             # Maximum updates per batch
     max_regions=1000,               # Maximum regions to track
-    performance_monitoring=True     # Enable performance monitoring
+    performance_monitoring=True,    # Enable performance monitoring
 )
+
+sim_config = SimulationConfig.from_centralized_config(environment="development")
+sim_config.spatial_index = spatial_config
+sim_config.environment.width = 200
+sim_config.environment.height = 200
 ```
 
 ### Usage
 
 ```python
-# Batch updates are automatically enabled and work transparently
-env = Environment(width=200, height=200, resource_distribution="uniform", config=config)
+# Batch updates follow SimulationConfig.spatial_index when the environment is constructed
+env = Environment(
+    width=sim_config.environment.width,
+    height=sim_config.environment.height,
+    resource_distribution="uniform",
+    config=sim_config,
+)
 
 # For fine-grained control, use partial flushing
 spatial_index = env.spatial_index

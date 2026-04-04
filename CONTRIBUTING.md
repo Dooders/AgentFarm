@@ -13,11 +13,13 @@ Thank you for your interest in contributing to AgentFarm! This document provides
 
 1. **Fork the repository** to your GitHub account
 2. **Clone your fork** to your local machine
-3. **Create a new branch** for your contribution
-4. **Make your changes** following our coding standards
-5. **Test your changes** to ensure they work as expected
-6. **Commit your changes** with clear, descriptive commit messages
-7. **Push to your fork** and submit a pull request
+3. **Create and activate a virtual environment** (recommended): `python -m venv venv` then `source venv/bin/activate`
+4. **Install dependencies and the package in editable mode**: `pip install -r requirements.txt` and `pip install -e .`
+5. **Create a new branch** for your contribution
+6. **Make your changes** following our coding standards
+7. **Test your changes** (for example `pytest` from the repository root)
+8. **Commit your changes** with clear, descriptive commit messages
+9. **Push to your fork** and submit a pull request
 
 ## Pull Request Process
 

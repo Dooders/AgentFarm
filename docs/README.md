@@ -1,29 +1,27 @@
-## Documentation
+# AgentFarm documentation
 
-Welcome to the Live Simulation Config Explorer documentation.
+Start here for navigation; detailed guides live in this directory.
 
-- User Guide: `docs/user-guide.md`
-- Developer Guide: `docs/developer-guide.md`
-- IPC API Reference: `docs/ipc-api.md`
-- Deployment Guide: `docs/deployment.md`
-- Monitoring & Performance: `docs/monitoring.md`
+- [User Guide](user-guide.md)
+- [Developer Guide](developer-guide.md)
+- [IPC API Reference](ipc-api.md)
+- [Deployment](deployment.md)
+- [Monitoring & Performance](monitoring.md)
+- [Electron Config Explorer architecture](electron/config_explorer_architecture.md) (renderer/main, IPC)
 
-If you are new, start with the User Guide, then see the Developer Guide for setup and contribution.
-# AgentFarm Documentation
+If you are new, read the User Guide, then the Developer Guide for setup and contribution patterns.
 
-Welcome to the comprehensive AgentFarm documentation. This guide will help you navigate the available resources to get the most out of this powerful multi-agent reinforcement learning simulation platform.
+## 📚 Documentation overview
 
-## 📚 Documentation Overview
+AgentFarm is a simulation and analysis platform for agent-based modeling and reinforcement learning experiments. The sections below link deeper guides and references.
 
-AgentFarm is a sophisticated platform for researching complex adaptive systems through agent-based modeling. This documentation provides everything from basic tutorials to advanced API references.
-
-### 🗂️ Documentation Structure
+### 🗂️ Structure
 
 - **[Module Overview](module_overview.md)** - High-level introduction to AgentFarm's architecture and capabilities
 - **[Core Architecture](core_architecture.md)** - Deep dive into fundamental components and design patterns
 - **[Electron Config Explorer Architecture](electron/config_explorer_architecture.md)** - Electron renderer/main boundaries, IPC, and migration plan
 - **[Usage Examples](usage_examples.md)** - Practical tutorials and code examples
-- **[Configuration Guide](configuration_guide.md)** - Comprehensive configuration system documentation (includes Electron Config Explorer compare/diff/presets/status bar)
+- **[Configuration Guide](config/configuration_guide.md)** - Comprehensive configuration system documentation (includes Electron Config Explorer compare/diff/presets/status bar)
 - **[API Reference](api_reference.md)** - Complete API documentation for all modules
 
 ## 🚀 Quick Start Guides
@@ -34,7 +32,7 @@ AgentFarm is a sophisticated platform for researching complex adaptive systems t
 
 ### Agent System
 - [Agents](agents.md) - Agent architecture, types, and behaviors
-- [Perception](perception.md) - Sensory systems and observation processing
+- [Perception](perception_system.md) - Sensory systems and observation processing
 - [State System](state_system.md) - Agent state management and transitions
 
 ### Action System
@@ -107,10 +105,9 @@ Step-by-step guides for specific use cases:
 - Analysis and visualization
 
 ### Analysis Techniques
-- [Analysis](analysis/) - Advanced analysis techniques and examples
-- [Comparative Analysis](analysis/comparative_analysis.md)
-- [Agent Behavior Analysis](analysis/agent_analysis.md)
-- [Experiment Analysis](analysis/experiment_analysis.md)
+- [Analysis modules](analysis/modules/README.md) - Analysis module index (population, spatial, learning, etc.)
+- [Experiment Analysis](experiment_analysis.md) - Tools for analyzing experiment results
+- Comparative and behavioral analysis APIs live under `farm/analysis/`; see [Usage Examples](usage_examples.md) for patterns
 
 ### Experiments
 - [Experiments](experiments/) - Detailed experiment configurations
@@ -127,13 +124,13 @@ Step-by-step guides for specific use cases:
 - Usage examples for each API
 
 ### Configuration System
-- **[Configuration Guide](configuration_guide.md)** - Comprehensive configuration reference
+- **[Configuration Guide](config/configuration_guide.md)** - Comprehensive configuration reference
 - YAML configuration format
 - Parameter validation
 - Configuration management tools
 
 ### Database & Persistence
-- [Interaction Edge Logging](data/interaction_edges.md)
+- [Database schema](data/database_schema.md) and [data retrieval](data/data_retrieval.md)
 - Database utilities and maintenance
 - Data export and import procedures
 
@@ -165,8 +162,8 @@ We welcome contributions to both the platform and its documentation:
 ### Development Setup
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/your-username/AgentFarm.git`
-3. Set up development environment: `pip install -r requirements.txt`
-4. Run tests: `python -m pytest`
+3. Create a virtual environment and install: `pip install -r requirements.txt` and `pip install -e .`
+4. Run tests: `pytest` (from the repository root)
 5. Submit pull request
 
 ### Documentation Guidelines
@@ -182,10 +179,10 @@ We welcome contributions to both the platform and its documentation:
 - **Documentation**: Start with this README and the guides listed above
 - **Issues**: Check existing [GitHub Issues](https://github.com/Dooders/AgentFarm/issues)
 - **Discussions**: Use GitHub Discussions for questions and general discussion
-- **Examples**: Review the `examples/` directory for working code samples
+- **Examples**: [Usage Examples](usage_examples.md), benchmark samples under `benchmarks/examples/`, and tests under `tests/`
 
 ### Community Resources
-- **Research Papers**: See `docs/research/` for related academic work
+- **Research code**: `farm/research/` (analysis helpers and experiment tooling)
 - **Tutorials**: Community-contributed tutorials and guides
 - **Case Studies**: Real-world applications and results
 
@@ -213,7 +210,7 @@ This project is part of the [Dooders](https://github.com/Dooders) research initi
 **🎓 Learning Path Recommendation:**
 1. Start with [Module Overview](module_overview.md) for high-level understanding
 2. Follow [Usage Examples](usage_examples.md) for hands-on experience
-3. Dive into [Configuration Guide](configuration_guide.md) for customization
+3. Dive into [Configuration Guide](config/configuration_guide.md) for customization
 4. Reference [API Documentation](api_reference.md) for development
 5. Explore specialized guides for advanced topics
 

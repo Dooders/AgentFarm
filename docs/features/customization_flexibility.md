@@ -808,9 +808,13 @@ variable_sets = [
 # Generate all experiment configurations
 configs = [template.instantiate(vars) for vars in variable_sets]
 
-# Run batch experiment
-from farm.core.simulation import run_simulation_batch
-results = run_simulation_batch(configs)
+# Run multiple simulations (no batch helper in farm.core.simulation)
+from farm.core.simulation import run_simulation
+
+results = []
+for cfg in configs:
+    env = run_simulation(num_steps=cfg.max_steps, config=cfg, path="simulations")
+    results.append(env)
 ```
 
 #### Custom Scenario Framework
@@ -824,9 +828,9 @@ from farm.core.environment import Environment
 
 class ResourceCompetitionScenario(Environment):
     """Scenario studying competition for declining resources."""
-    
-    def __init__(self, config: SimulationConfig):
-        super().__init__(config)
+
+    def __init__(self, width: int, height: int, resource_distribution, config: SimulationConfig):
+        super().__init__(width, height, resource_distribution, config=config)
         
         self.resource_decline_rate = 0.02  # 2% per step
         self.competition_threshold = 0.3    # Resource level triggering competition
@@ -1527,20 +1531,20 @@ if __name__ == "__main__":
 ## Additional Resources
 
 ### Documentation
-- [Configuration System](config/README.md) - Detailed configuration guide
-- [Agent System](agents.md) - Agent customization details
-- [Action System](action_system.md) - Custom action development
-- [Scenario Design](generic_simulation_scenario_howto.md) - Complete scenario guide
+- [Configuration System](../config/configuration_guide.md) - Detailed configuration guide
+- [Agent System](../agents.md) - Agent customization details
+- [Action System](../action_system.md) - Custom action development
+- [Scenario Design](../generic_simulation_scenario_howto.md) - Complete scenario guide
 
 ### Examples
-- [Usage Examples](usage_examples.md) - Practical tutorials
-- [Experiment QuickStart](ExperimentQuickStart.md) - Running experiments
-- [Custom Scenarios](experiments/) - Example scenarios
+- [Usage Examples](../usage_examples.md) - Practical tutorials
+- [Experiment QuickStart](../ExperimentQuickStart.md) - Running experiments
+- [Custom Scenarios](../experiments/) - Example scenarios
 
 ### API Reference
-- [SimulationConfig](api_reference.md#simulationconfig) - Configuration API
-- [Environment](api_reference.md#environment) - Environment API
-- [BaseAgent](api_reference.md#baseagent) - Agent API
+- [SimulationConfig](../api_reference.md#simulationconfig) - Configuration API
+- [Environment](../api_reference.md#environment) - Environment API
+- [BaseAgent](../api_reference.md#baseagent) - Agent API
 
 ---
 
@@ -1548,9 +1552,9 @@ if __name__ == "__main__":
 
 For help with customization:
 - **GitHub Issues**: [Report bugs or request features](https://github.com/Dooders/AgentFarm/issues)
-- **Documentation**: [Full documentation index](README.md)
-- **Examples**: Check `examples/` directory for more samples
+- **Documentation**: [Full documentation index](../README.md)
+- **Examples**: See [Usage examples](../usage_examples.md) and tests under `tests/`
 
 ---
 
-**Ready to customize?** Start with the [Configuration System](config/README.md) or explore our [Usage Examples](usage_examples.md) to see customization in action!
+**Ready to customize?** Start with the [Configuration System](../config/configuration_guide.md) or explore our [Usage Examples](../usage_examples.md) to see customization in action!

@@ -445,7 +445,7 @@ This framework provides a solid foundation for creating diverse simulation scena
 - **Agents**: Extend `BaseAgent` class from `farm.core.agent`
 - **Actions**: Use existing action system in `farm.core.action` or add new actions
 - **Decisions**: Leverage existing DQN-based decision system in `farm.core.decision`
-- **Configuration**: Extend `SimulationConfig` in `farm.core.config`
+- **Configuration**: Extend `SimulationConfig` in `farm.config` / `farm.config.config`
 - **Memory**: Use Redis-based memory system in `farm.memory`
 
 ### Remember to:

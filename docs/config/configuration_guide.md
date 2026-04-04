@@ -361,7 +361,7 @@ config = orchestrator.load_config(
 For backward compatibility, the old `SimulationConfig.from_centralized_config()` method is still available but now uses the orchestrator internally:
 
 ```python
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 
 # These methods still work but use the orchestrator internally
 config = SimulationConfig.from_centralized_config()
@@ -374,7 +374,7 @@ config = SimulationConfig.from_centralized_config(
 ### Programmatic Configuration
 
 ```python
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 
 # Create configuration programmatically
 config = SimulationConfig(

@@ -23,10 +23,10 @@ AgentFarm/
 │   ├── Analysis Tools (farm.analysis)
 │   └── Metrics (farm.core.metrics_tracker)
 ├── Configuration & Control
-│   ├── Configuration (farm.core.config)
+│   ├── Configuration (farm.config)
 │   └── Simulation Runners (farm.runners)
 └── Extensions & Tools
-    ├── Visualization (farm.visualization)
+    ├── Visualization (farm.core.visualization)
     ├── GUI (farm.gui)
     └── Utilities (farm.utils)
 ```
@@ -184,7 +184,7 @@ observation:
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 import random
 
 # Configure observations
@@ -313,31 +313,9 @@ emotion_channel_idx = register_channel(EmotionChannel("EMOTION"))
 territory_channel_idx = register_channel(TerritoryChannel("TERRITORY"))
 ```
 
-### Experiment Configuration
+### Experiment configuration
 
-```python
-from farm.core.config import ExperimentConfig
-from farm.runners.experiment_runner import ExperimentRunner
-
-# Define parameter variations
-experiment = ExperimentConfig(
-    name="resource_distribution_study",
-    variations=[
-        {"resource_distribution": "uniform", "resource_clusters": 1},
-        {"resource_distribution": "clustered", "resource_clusters": 3},
-        {"resource_distribution": "scattered", "resource_clusters": 10},
-    ],
-    num_iterations=5,  # Run 5 simulations per variation
-    num_steps=2000     # Each simulation runs for 2000 steps
-)
-
-# Run experiment
-runner = ExperimentRunner()
-results = runner.run_experiment(experiment)
-
-# Analyze results
-runner.generate_comparison_report(results)
-```
+There is no `ExperimentConfig` type. Use **`SimulationConfig`** plus **`ExperimentRunner`** (`farm.runners.experiment_runner`), passing `config_variations` as a list of dicts whose keys are **top-level** `SimulationConfig` field names (see runner implementation). For nested tweaks, clone/adjust the config each iteration in your own script.
 
 ## Data Analysis and Visualization
 
@@ -546,7 +524,7 @@ class CustomAnalyzer(BaseAnalyzer):
 ## Support and Resources
 
 - **Documentation**: Comprehensive guides in `docs/` directory
-- **Examples**: Working examples in `examples/` directory
+- **Examples**: [Usage examples](usage_examples.md), `benchmarks/examples/`, and the test suite under `tests/`
 - **Tests**: Extensive test suite in `tests/` directory
 - **Community**: GitHub issues and discussions
 

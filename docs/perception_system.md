@@ -220,8 +220,8 @@ AgentCore.step()
 ### Basic Configuration
 
 ```python
+from farm.config import SimulationConfig
 from farm.core.observations import ObservationConfig
-from farm.core.config import SimulationConfig
 
 # Create observation configuration
 obs_config = ObservationConfig(
@@ -237,13 +237,11 @@ obs_config = ObservationConfig(
     high_frequency_channels=["RESOURCES", "VISIBILITY"]  # Optional optimization
 )
 
-# Create simulation configuration with observation settings
-config = SimulationConfig(
-    width=100,
-    height=100,
-    observation=obs_config,        # Include observation configuration
-    # ... other simulation parameters
-)
+# Attach to simulation configuration (sizes live on environment.*)
+config = SimulationConfig.from_centralized_config(environment="development")
+config.observation = obs_config
+config.environment.width = 100
+config.environment.height = 100
 ```
 
 All 13 default channels are always included. Custom channels can be added through the dynamic channel registry system.
@@ -291,9 +289,10 @@ observation:
   random_min: 0.0                # Random init minimum
   random_max: 1.0                # Random init maximum
 
-# Load from YAML
-from farm.core.config import SimulationConfig
-config = SimulationConfig.from_centralized_config()
+# Load from centralized YAML (see docs/config/)
+from farm.config import SimulationConfig
+
+config = SimulationConfig.from_centralized_config(environment="development")
 ```
 
 ---
@@ -439,9 +438,9 @@ hit_rate = hits / (hits + misses)
 ### Basic Usage
 
 ```python
+from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.config import SimulationConfig
 
 # Create observation configuration
 obs_config = ObservationConfig(
@@ -453,20 +452,16 @@ obs_config = ObservationConfig(
     gamma_known=0.98       # Known empty decay rate
 )
 
-# Create simulation configuration
-config = SimulationConfig(
-    width=100,
-    height=100,
-    observation=obs_config,  # Include observation settings
-    # ... other simulation parameters
-)
+config = SimulationConfig.from_centralized_config(environment="development")
+config.observation = obs_config
+config.environment.width = 100
+config.environment.height = 100
 
-# Create environment with configuration
 env = Environment(
-    width=100,
-    height=100,
+    width=config.environment.width,
+    height=config.environment.height,
     resource_distribution="uniform",
-    config=config           # Pass the configuration
+    config=config,
 )
 
 # Environment automatically includes spatial indexing and observation system
@@ -585,8 +580,9 @@ For in-depth technical information, refer to:
 
 **Performance & Optimization:**
 
-- [Observation Footprint Analysis](observation_footprint.md) - Memory usage and performance analysis
-- [Configuration Guide](configuration_guide.md) - Complete configuration reference
+- [Observation channels](observation_channels.md) - Channel layout and sizing considerations
+- [Memmap optimization](memmap_optimization.md) - Memory-mapped / footprint-related tuning
+- [Configuration Guide](config/configuration_guide.md) - Complete configuration reference
 
 **Integration & Usage:**
 
@@ -604,7 +600,7 @@ Key implementation modules:
 
 ### ⚙️ Configuration Examples
 
-See [Configuration Guide](configuration_guide.md) for:
+See [Configuration Guide](config/configuration_guide.md) for:
 
 - Complete configuration options
 - Performance tuning recommendations

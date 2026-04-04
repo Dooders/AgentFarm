@@ -347,6 +347,6 @@ All repositories include built-in error handling through the SessionManager and 
 
 ## Further Reading
 
-- [Database Schema Documentation](database_schema.md)
-- [Data API Documentation](data_api.md)
+- [Database Schema Documentation](data/database_schema.md)
+- [Data API Documentation](data/data_api.md)
 - [Metrics Documentation](metrics.md) 

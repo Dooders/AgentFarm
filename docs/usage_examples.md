@@ -18,7 +18,7 @@ import torch
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.services.factory import AgentServiceFactory
 
 def create_basic_simulation():
@@ -154,7 +154,7 @@ from typing import Tuple, Optional
 from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 
 class CooperativeAgent(BaseAgent):
     """An agent that prioritizes cooperation and resource sharing."""
@@ -386,7 +386,7 @@ from farm.core.channels import ChannelHandler, ChannelBehavior, register_channel
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 
 class WeatherChannel(ChannelHandler):
     """Channel representing dynamic weather conditions."""
@@ -677,7 +677,7 @@ from pathlib import Path
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
 
 def create_config_variations(base_config: SimulationConfig, 

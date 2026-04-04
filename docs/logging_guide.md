@@ -537,7 +537,7 @@ errors_by_type = df[df['level'] == 'error'].groupby('error_type').size()
 
 ## Examples
 
-See the [examples directory](../examples/logging_examples.py) for complete working examples.
+See the [logging package README](../farm/utils/logging/README.md) for runnable snippets and patterns; this guide also includes sections above with copy-pastable setup.
 
 ## Troubleshooting
 

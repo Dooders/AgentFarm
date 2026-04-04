@@ -1187,20 +1187,19 @@ if __name__ == "__main__":
 ## Additional Resources
 
 ### Documentation
-- [Experiment QuickStart](ExperimentQuickStart.md) - Getting started guide
-- [Logging Guide](logging_guide.md) - Comprehensive logging documentation
-- [Logging Quick Reference](LOGGING_QUICK_REFERENCE.md) - Quick logging reference
+- [Experiment QuickStart](../ExperimentQuickStart.md) - Getting started guide
+- [Logging Guide](../logging_guide.md) - Comprehensive logging documentation
+- [Logging Quick Reference](../LOGGING_QUICK_REFERENCE.md) - Quick logging reference
 - [Data Analysis](data_visualization.md) - Analysis and visualization tools
 
 ### Examples
-- [Parameter Sweep Example](examples/parameter_sweep.py)
-- [Comparative Analysis Example](examples/comparative_analysis.py)
-- [Replication Study Example](examples/replication_study.py)
+- [Usage examples](../usage_examples.md) — experiment and comparative-analysis patterns
+- Core APIs: `farm/runners/experiment_runner.py`, `farm/analysis/comparative_analysis.py`, `farm/research/`
 
 ### Tools
-- [Experiment Runner](runners/experiment_runner.py) - Experiment execution
-- [Experiment Tracker](core/experiment_tracker.py) - Experiment management
-- [Simulation Comparator](database/simulation_comparison.py) - Comparison tools
+- Experiment execution: `farm/runners/experiment_runner.py`
+- Experiment tracking: `farm/core/experiment_tracker.py`
+- Simulation comparison: `farm/database/simulation_comparison.py`
 
 ---
 
@@ -1208,8 +1207,8 @@ if __name__ == "__main__":
 
 For research tools questions:
 - **GitHub Issues**: [Report bugs or request features](https://github.com/Dooders/AgentFarm/issues)
-- **Documentation**: [Full documentation index](README.md)
-- **Examples**: Check `examples/` directory for more samples
+- **Documentation**: [Full documentation index](../README.md)
+- **Examples**: See [Usage examples](../usage_examples.md) and `farm/research/`
 
 ---
 
