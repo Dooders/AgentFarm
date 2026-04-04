@@ -73,6 +73,13 @@ class TestIdentity(unittest.TestCase):
         # First occurrence should have counter :1
         self.assertEqual(gid, "agent_p1:agent_p2:1")
 
+    def test_genome_id_more_than_two_parents_uses_first_two(self):
+        identity = Identity()
+        gid = str(
+            identity.genome_id(["agent_p1", "agent_p2", "agent_p3"])
+        )
+        self.assertEqual(gid, "agent_p1:agent_p2:1")
+
     def test_genome_id_counter_increments(self):
         """Test that genome ID counter increments for duplicate base IDs."""
         identity = Identity()

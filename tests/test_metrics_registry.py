@@ -4,6 +4,8 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
 from farm.utils.metrics_registry import (
     MetricsRegistry,
     get_registry_summary,
@@ -55,6 +57,26 @@ def _make_sample_registry():
                         "range_description": None,
                         "example_value": 5,
                         "required": True,
+                        "tags": [],
+                    },
+                    "mode_label": {
+                        "name": "mode_label",
+                        "description": "Mode name",
+                        "data_type": "str",
+                        "unit": None,
+                        "range_description": None,
+                        "example_value": "train",
+                        "required": False,
+                        "tags": [],
+                    },
+                    "recent_steps": {
+                        "name": "recent_steps",
+                        "description": "Recent step indices",
+                        "data_type": "list",
+                        "unit": None,
+                        "range_description": None,
+                        "example_value": [1, 2],
+                        "required": False,
                         "tags": [],
                     },
                 },
@@ -206,6 +228,37 @@ class TestMetricsRegistryWithFile(unittest.TestCase):
             "action_statistics", "count", "not_int"
         )
         self.assertTrue(len(errors) > 0)
+
+    def test_validate_metric_data_wrong_type_str(self):
+        errors = self.registry.validate_metric_data(
+            "action_statistics", "mode_label", 99
+        )
+        self.assertTrue(any("Expected str" in e for e in errors))
+
+    def test_validate_metric_data_wrong_type_dict(self):
+        errors = self.registry.validate_metric_data(
+            "action_statistics", "total_actions", "not_a_dict"
+        )
+        self.assertTrue(any("Expected dict" in e for e in errors))
+
+    def test_validate_metric_data_wrong_type_list(self):
+        errors = self.registry.validate_metric_data(
+            "action_statistics", "recent_steps", {"a": 1}
+        )
+        self.assertTrue(any("Expected list" in e for e in errors))
+
+    def test_validate_metric_data_module_convenience(self):
+        import farm.utils.metrics_registry as metrics_registry_module
+
+        with patch.object(
+            metrics_registry_module,
+            "get_metrics_registry",
+            return_value=self.registry,
+        ):
+            errors = metrics_registry_module.validate_metric_data(
+                "action_statistics", "avg_success_rate", 0.5
+            )
+        self.assertEqual(errors, [])
 
     def test_validate_metric_data_unknown_metric(self):
         errors = self.registry.validate_metric_data(
