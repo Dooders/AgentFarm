@@ -1,10 +1,25 @@
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import func
 from sqlalchemy.orm import Query
 
 from farm.database.enums import AnalysisScope
 from farm.database.models import AgentModel
+
+
+def _resolve_step_column(query: Query) -> Any:
+    """Return a SQLAlchemy column/expression for step_number from the query shape."""
+    for desc in query.column_descriptions:
+        expr = desc.get("expr")
+        if expr is not None and getattr(expr, "key", None) == "step_number":
+            return expr
+        entity = desc.get("entity")
+        if entity is not None and sa_inspect(entity, False) is not None:
+            step_col = getattr(entity, "step_number", None)
+            if step_col is not None:
+                return step_col
+    return None
 
 
 def filter_scope(
@@ -88,18 +103,27 @@ def filter_scope(
     if scope == AnalysisScope.STEP_RANGE and step_range is None:
         raise ValueError("step_range is required when scope is STEP_RANGE")
 
+    step_col = None
+    if scope in (AnalysisScope.STEP, AnalysisScope.STEP_RANGE):
+        step_col = _resolve_step_column(query)
+        if step_col is None:
+            raise ValueError(
+                "Cannot apply step scope: query must select or include an entity "
+                "with a step_number column (e.g. ActionModel, AgentStateModel, SimulationStepModel)."
+            )
+
     # Apply filters based on scope
     if scope == AnalysisScope.AGENT:
         query = query.filter(AgentModel.agent_id == agent_id)
     elif scope == AnalysisScope.STEP:
-        query = query.filter(AgentModel.step_number == step)
+        query = query.filter(step_col == step)
     elif scope == AnalysisScope.STEP_RANGE:
         if step_range is None:
             raise ValueError("step_range is required when scope is STEP_RANGE")
         start_step, end_step = step_range
         query = query.filter(
-            AgentModel.step_number >= start_step,
-            AgentModel.step_number <= end_step,
+            step_col >= start_step,
+            step_col <= end_step,
         )
     elif scope == AnalysisScope.EPISODE:
         # For episode scope, we don't apply additional filters
