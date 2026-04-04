@@ -66,7 +66,7 @@ population_module.run_analysis(
 → Tutorial: `docs/analysis/modules/Population.md`
 
 #### **See working examples**
-→ Run: `pytest tests/ (see docs/usage_examples.md)`
+→ Run: `pytest tests/`. See `docs/usage_examples.md` for working examples.
 
 ## 🎨 What Analyses Can You Do Now?
 
@@ -162,7 +162,7 @@ population_module.run_analysis(
    - Read the text report
 
 2. **Run the examples** (15 minutes)
-   - Execute `docs/usage_examples.md`
+   - Follow the examples in `docs/usage_examples.md`
    - Understand what each analysis shows
 
 3. **Apply to your data** (30 minutes)
@@ -251,7 +251,7 @@ farm/analysis/population/
 
 ### For Beginners:
 1. Start with: `POPULATION_ANALYSIS_QUICK_START.md`
-2. Run: `docs/usage_examples.md`
+2. Follow the examples in: `docs/usage_examples.md`
 3. Read: Population ecology basics (external resources)
 
 ### For Intermediate Users:

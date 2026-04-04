@@ -292,7 +292,7 @@ spatial_config = SpatialIndexConfig(
     max_batch_size=100,
 )
 sim_config = SimulationConfig.from_centralized_config(environment="development")
-sim_config.spatial_index = spatial_config
+sim_config.environment.spatial_index = spatial_config
 sim_config.environment.width = 200
 sim_config.environment.height = 200
 

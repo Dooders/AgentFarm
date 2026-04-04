@@ -181,39 +181,37 @@ observation:
 ### Running a Basic Simulation
 
 ```python
+# Illustrative pseudocode – see farm/core/agent/ for the current AgentCore + AgentFactory API
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.agent import BaseAgent
-from farm.config import SimulationConfig
+from farm.core.agent import AgentCore, AgentFactory
+from farm.config import SimulationConfig, EnvironmentConfig, PopulationConfig
 import random
 
 # Configure observations
 obs_config = ObservationConfig(R=6, fov_radius=5)
 
-# Create simulation configuration
+# Create simulation configuration (environment/population settings are nested)
 config = SimulationConfig(
-    width=50,
-    height=50,
-    system_agents=5,
-    independent_agents=5,
-    observation=obs_config
+    environment=EnvironmentConfig(width=50, height=50),
+    population=PopulationConfig(system_agents=5, independent_agents=5),
+    observation=obs_config,
 )
 
 # Create environment
 env = Environment(
-    width=config.width,
-    height=config.height,
+    width=config.environment.width,
+    height=config.environment.height,
     resource_distribution={"type": "uniform"},
     config=config
 )
 
-# Add agents (environment is accepted and services are auto-injected)
+# Add agents via AgentFactory (services are injected automatically)
 for i in range(10):
-    agent = BaseAgent(
+    agent = AgentFactory.create(
         agent_id=f"agent_{i}",
         position=(random.randint(0, 49), random.randint(0, 49)),
-        resource_level=100,
-        environment=env
+        environment=env,
     )
     env.add_agent(agent)
 
@@ -226,27 +224,29 @@ for step in range(1000):
 ### Custom Agent Implementation
 
 ```python
-from farm.core.agent import BaseAgent
+# Illustrative pseudocode – custom behaviors are implemented via IAgentBehavior subclasses
+# See farm/core/agent/behaviors/ for the current extension pattern
+from farm.core.agent import AgentCore
+from farm.core.agent.behaviors.base import IAgentBehavior
 from farm.core.channels import ChannelHandler, ChannelBehavior
 
-class CustomAgent(BaseAgent):
-    def __init__(self, agent_id, position, resource_level, environment, **kwargs):
-        super().__init__(agent_id, position, resource_level, environment, **kwargs)
+class CustomBehavior(IAgentBehavior):
+    """Custom behavior implemented as an IAgentBehavior subclass."""
 
-        # Custom initialization
-        self.personality_trait = kwargs.get('personality', 'neutral')
+    def __init__(self, personality: str = 'neutral'):
+        self.personality_trait = personality
 
-    def decide_action(self):
+    def decide_action(self, agent: AgentCore):
         # Custom decision logic based on personality
         if self.personality_trait == 'aggressive':
             # Prioritize combat
-            return self._select_attack_action()
+            return agent._select_attack_action()
         elif self.personality_trait == 'cooperative':
             # Prioritize sharing
-            return self._select_share_action()
+            return agent._select_share_action()
         else:
             # Default behavior
-            return super().decide_action()
+            return agent.default_action()
 ```
 
 ### Extending Observations with Custom Channels

@@ -95,7 +95,7 @@ output_path, df = population_module.run_analysis(
 
 ### For Understanding (30 minutes):
 1. Read `POPULATION_ANALYSIS_OPTIMIZATION_SUMMARY.md`
-2. Run `docs/usage_examples.md`
+2. Follow the examples in `docs/usage_examples.md`
 3. Explore the generated outputs
 
 ### For Extension (2-4 hours):

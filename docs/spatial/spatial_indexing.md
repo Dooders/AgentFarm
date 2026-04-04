@@ -546,7 +546,7 @@ spatial_config = SpatialIndexConfig(
 )
 
 sim_config = SimulationConfig.from_centralized_config(environment="development")
-sim_config.spatial_index = spatial_config
+sim_config.environment.spatial_index = spatial_config
 sim_config.environment.width = 200
 sim_config.environment.height = 200
 ```
@@ -554,7 +554,7 @@ sim_config.environment.height = 200
 ### Usage
 
 ```python
-# Batch updates follow SimulationConfig.spatial_index when the environment is constructed
+# Batch updates follow SimulationConfig.environment.spatial_index when the environment is constructed
 env = Environment(
     width=sim_config.environment.width,
     height=sim_config.environment.height,
