@@ -1,12 +1,10 @@
 import argparse
 import json
 import os
-import tkinter as tk
 from datetime import datetime
 
 from farm.core.analysis import SimulationAnalyzer
 from farm.config import SimulationConfig
-from farm.core.visualization import SimulationVisualizer
 from farm.runners.experiment_runner import ExperimentRunner
 from farm.utils.logging import configure_logging, get_logger
 
@@ -136,6 +134,24 @@ def main():
         # Open visualization for existing simulation
         if not os.path.exists(args.db_path):
             logger.error("database_file_not_found", db_path=args.db_path)
+            return
+
+        # Tk and matplotlib's Tk backend are optional; lazy-import so CLI/tests import without them.
+        try:
+            import tkinter as tk
+
+            from farm.core.visualization import SimulationVisualizer
+        except ImportError as exc:
+            logger.error(
+                "visualization_dependencies_unavailable",
+                mode="visualize",
+                error=str(exc),
+                guidance=(
+                    "Visualization mode requires optional GUI dependencies. "
+                    "Install tkinter/Tk for your Python environment and ensure "
+                    "any Tk-backed visualization dependencies are available."
+                ),
+            )
             return
 
         root = tk.Tk()

@@ -1151,6 +1151,37 @@ class SimulationDatabase(DatabaseProtocol):
 
         self._execute_in_transaction(_insert)
 
+    def update_simulation_record(
+        self,
+        simulation_id: str,
+        *,
+        status: Optional[str] = None,
+        end_time: Optional[datetime] = None,
+        results_summary: Optional[Dict] = None,
+        simulation_db_path: Optional[str] = None,
+    ) -> None:
+        """Update fields on an existing simulation row.
+
+        Only arguments that are not None are applied, so callers can update
+        status and end_time without clobbering other columns.
+        """
+
+        def _update(session):
+            sim = session.query(Simulation).filter_by(simulation_id=simulation_id).one_or_none()
+            if sim is None:
+                logger.warning("update_simulation_record_missing", simulation_id=simulation_id)
+                return
+            if status is not None:
+                sim.status = status
+            if end_time is not None:
+                sim.end_time = end_time
+            if results_summary is not None:
+                sim.results_summary = results_summary
+            if simulation_db_path is not None:
+                sim.simulation_db_path = simulation_db_path
+
+        self._execute_in_transaction(_update)
+
 
 class AsyncDataLogger:
     """Asynchronous data logger for non-critical simulation data.

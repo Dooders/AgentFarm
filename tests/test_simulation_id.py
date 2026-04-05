@@ -117,6 +117,15 @@ class TestSimulationID(unittest.TestCase):
         self.db_conn = sqlite3.connect(db_file)
         cursor = self.db_conn.cursor()
 
+        cursor.execute(
+            "SELECT status, end_time FROM simulations WHERE simulation_id = ?",
+            (simulation_id,),
+        )
+        sim_row = cursor.fetchone()
+        self.assertIsNotNone(sim_row, "simulations row missing")
+        self.assertEqual(sim_row[0], "completed")
+        self.assertIsNotNone(sim_row[1], "simulations.end_time should be set when run finishes")
+
         # List of tables to check for simulation_id
         tables_to_check = [
             "agents",

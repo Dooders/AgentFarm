@@ -36,7 +36,7 @@ import json
 import os
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -286,7 +286,7 @@ def run_simulation(
     )
 
     # Initialize start_time here so it's available in both code paths
-    start_time = datetime.now()
+    start_time = datetime.now(timezone.utc)
 
     try:
         # Set up database path (None if path is None)
@@ -332,7 +332,7 @@ def run_simulation(
             # Create simulation record for in-memory database
             environment.db.add_simulation_record(
                 simulation_id=simulation_id,
-                start_time=datetime.now(),
+                start_time=datetime.now(timezone.utc),
                 status="running",
                 parameters=config.to_dict(),
             )
@@ -396,7 +396,7 @@ def run_simulation(
                 if "FOREIGN KEY constraint failed" in str(e):
                     environment.db.add_simulation_record(
                         simulation_id=simulation_id,
-                        start_time=datetime.now(),
+                        start_time=datetime.now(timezone.utc),
                         status="running",
                         parameters=config.to_dict(),
                     )
@@ -502,6 +502,25 @@ def run_simulation(
         if environment.db:
             environment.db.logger.flush_all_buffers()
 
+            termination_reason = (
+                "resources_depleted"
+                if environment.cached_total_resources == 0
+                else "agents_extinct"
+                if len(environment.agents) == 0
+                else "completed"
+            )
+            environment.db.update_simulation_record(
+                simulation_id,
+                status="completed",
+                end_time=datetime.now(timezone.utc),
+                results_summary={
+                    "total_steps": environment.time,
+                    "max_steps_configured": num_steps,
+                    "final_population": len(environment.agents),
+                    "termination_reason": termination_reason,
+                },
+            )
+
             # Persist in-memory database to disk if configured and db_path is provided
             if config.database.persist_db_on_completion and db_path is not None:
                 try:
@@ -530,6 +549,12 @@ def run_simulation(
                             reason="not_in_memory_database",
                             db_type=type(environment.db).__name__,
                         )
+                    # Update simulation_db_path only after successful persistence
+                    final_db_path_abs = os.path.abspath(db_path)
+                    environment.db.update_simulation_record(
+                        simulation_id,
+                        simulation_db_path=final_db_path_abs,
+                    )
                 except Exception as e:
                     logger.error(
                         "database_persistence_failed",
@@ -549,6 +574,24 @@ def run_simulation(
             error_message=str(e),
             exc_info=True,
         )
+        if "environment" in locals() and getattr(environment, "db", None):
+            try:
+                environment.db.logger.flush_all_buffers()
+                environment.db.update_simulation_record(
+                    simulation_id,
+                    status="failed",
+                    end_time=datetime.now(timezone.utc),
+                    results_summary={
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                    },
+                )
+            except Exception as update_err:
+                logger.warning(
+                    "simulation_status_update_failed",
+                    simulation_id=simulation_id,
+                    error=str(update_err),
+                )
         if "environment" in locals():
             try:
                 environment.cleanup()
@@ -573,7 +616,7 @@ def run_simulation(
                 )
 
     # Calculate summary statistics
-    elapsed_time = datetime.now() - start_time
+    elapsed_time = datetime.now(timezone.utc) - start_time
     total_duration = elapsed_time.total_seconds()
     avg_step_time_ms = (total_duration * 1000) / max(environment.time, 1)
 
