@@ -25,7 +25,9 @@ def mock_config():
     cfg.width = 10
     cfg.height = 10
     cfg.initial_resources = 3
-    cfg.copy.return_value = cfg
+    cfg_copy = Mock()
+    cfg_copy.simulation_steps = 10
+    cfg.copy.return_value = cfg_copy
     cfg.to_dict.return_value = {}
     return cfg
 
@@ -89,17 +91,18 @@ class TestExperimentControllerInit:
 class TestCreateIterationConfig:
     def test_no_variations(self, controller, mock_config):
         result = controller._create_iteration_config(0, None)
-        assert result is mock_config
+        assert result is mock_config.copy.return_value
 
     def test_variation_applied(self, controller, mock_config):
         variations = [{"simulation_steps": 99}]
         result = controller._create_iteration_config(0, variations)
-        assert mock_config.simulation_steps == 99
+        assert result.simulation_steps == 99
+        assert mock_config.simulation_steps == 10  # base config unchanged
 
     def test_variation_index_out_of_range(self, controller, mock_config):
         variations = [{"simulation_steps": 99}]
         result = controller._create_iteration_config(5, variations)
-        assert result is mock_config  # out of range → no variation applied
+        assert result is mock_config.copy.return_value  # copy returned, no variation applied
 
 
 # ---------------------------------------------------------------------------

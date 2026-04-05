@@ -21,12 +21,14 @@ from farm.api.simulation_controller import SimulationController
 
 @pytest.fixture
 def mock_config():
-    """Minimal SimulationConfig mock."""
+    """Minimal SimulationConfig mock with nested structure matching real SimulationConfig."""
     cfg = Mock()
     cfg.simulation_steps = 10
-    cfg.width = 20
-    cfg.height = 20
-    cfg.initial_resources = 5
+    cfg.environment = Mock()
+    cfg.environment.width = 20
+    cfg.environment.height = 20
+    cfg.resources = Mock()
+    cfg.resources.initial_resources = 5
     cfg.to_dict.return_value = {"steps": 10}
     return cfg
 

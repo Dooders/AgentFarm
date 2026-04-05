@@ -52,23 +52,6 @@ omit =
     farm/analysis/spatial/location.py
     farm/analysis/temporal/data.py
     farm/api/examples.py
-    farm/charts/chart_actions.py
-    farm/charts/chart_agents.py
-    farm/charts/chart_analyzer.py
-    farm/charts/chart_experience.py
-    farm/charts/chart_resources.py
-    farm/charts/chart_simulation.py
-    farm/charts/chart_states.py
-    farm/charts/llm_client.py
-    farm/api/experiment_controller.py
-    farm/api/server.py
-    farm/api/simulation_controller.py
-    farm/config/cli.py
-    farm/config/monitor.py
-    farm/config/schema.py
-    farm/config/template.py
-    farm/config/validation.py
-    farm/config/watcher.py
     # analysis.py: calculate_survival_rates / analyze_resource_distribution etc.
     # contain inner SQLAlchemy _query closures that require a fully-populated
     # simulation database; unit tests for the public API already cover the

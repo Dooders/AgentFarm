@@ -130,11 +130,11 @@ class SimulationController:
 
             # Initialize environment
             self.environment = Environment(
-                width=self.config.width,
-                height=self.config.height,
+                width=self.config.environment.width,
+                height=self.config.environment.height,
                 resource_distribution={
                     "type": "random",
-                    "amount": self.config.initial_resources,
+                    "amount": self.config.resources.initial_resources,
                 },
                 db_path=self.db_path,
                 config=self.config,
