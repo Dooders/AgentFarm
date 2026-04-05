@@ -20,8 +20,9 @@ Technical Details:
 """
 
 import math
+from collections import Counter
 from enum import IntEnum
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
 import numpy as np
 
@@ -365,6 +366,7 @@ class ActionType(IntEnum):
         MOVE (4): Agent moves to a new position within the environment
         REPRODUCE (5): Agent attempts to create offspring if conditions are met
         PASS (6): Agent takes no action this turn
+        COMMUNICATE (7): Agent broadcasts a message to nearby agents
     """
 
     DEFEND = 0
@@ -374,6 +376,7 @@ class ActionType(IntEnum):
     MOVE = 4
     REPRODUCE = 5
     PASS = 6
+    COMMUNICATE = 7
 
 
 class Action:
@@ -1271,7 +1274,182 @@ def pass_action(agent: "AgentCore") -> dict:
         }
 
 
-# Centralized action space utilities
+def _message_for_delivery_to_recipient(msg: Any) -> Any:
+    """Return a message instance safe to place in a recipient inbox.
+
+    Broadcasts are copied with a shallow-copied ``content`` dict so one neighbour
+    cannot mutate another's delivered payload. Unicasts use the original object.
+
+    Defined with a lazy ``dataclasses.replace`` import so :mod:`farm.core.action`
+    does not import the agent communication component at module load (circular).
+    """
+    from dataclasses import replace
+
+    recipient_id = getattr(msg, "recipient_id", None)
+    if recipient_id is None:
+        return replace(msg, content=dict(msg.content))
+    return msg
+
+
+def communicate_action(agent: "AgentCore") -> dict:
+    """Execute the communicate action for the given agent.
+
+    This action implements agent-to-agent message passing where the agent broadcasts
+    an informational message to nearby agents within its communication range.  The
+    default payload carries the agent's current resource level so that neighbours can
+    make better-informed sharing decisions.
+
+    Behaviour details:
+    - Requires agent to have a :class:`~farm.core.agent.components.communication.CommunicationComponent`.
+    - Uses ``communication_range`` from :class:`~farm.core.agent.config.component_configs.CommunicationConfig`
+      (default: 50.0 units) to find eligible receivers.
+    - Broadcasts an ``INFO`` message containing ``resource_level`` and ``position``.
+    - Delivers the message to the :class:`CommunicationComponent` inbox of every
+      nearby agent that also has the component attached.
+    - Deducts ``config.communication.broadcast_cost`` from resources when non-zero.
+    - Provides a small reward (``config.communication.reward_per_message``) scaled
+      by the number of messages successfully delivered.
+    - Logs delivery count and source agent for analysis.
+
+    Returns:
+        dict: Action result containing success status and details.
+    """
+    from farm.core.agent.components.communication import MessageType
+
+    # Validate agent configuration
+    if not validate_agent_config(agent, "communicate"):
+        return {
+            "success": False,
+            "error": "Invalid agent configuration for communicate action",
+            "details": {},
+        }
+
+    # Check that the agent has a communication component
+    comm_comp = agent.get_component("communication")
+    if comm_comp is None:
+        logger.debug(
+            f"Agent {agent.agent_id} has no CommunicationComponent; skipping communicate action"
+        )
+        return {
+            "success": False,
+            "error": "Agent does not have a CommunicationComponent",
+            "details": {},
+        }
+
+    # Get communication range from component config
+    comm_range = comm_comp.communication_range
+
+    try:
+        # Find nearby agents within communication range
+        nearby = agent.spatial_service.get_nearby(agent.position, comm_range, ["agents"])
+        nearby_agents = nearby.get("agents", [])
+
+        # Filter out self and dead agents
+        recipients = [
+            a for a in nearby_agents if a.agent_id != agent.agent_id and a.alive
+        ]
+
+        if not recipients:
+            logger.debug(
+                f"Agent {agent.agent_id} found no nearby agents within communication range {comm_range}"
+            )
+            return {
+                "success": False,
+                "error": "No nearby agents within communication range",
+                "details": {"communication_range": comm_range},
+            }
+
+        broadcast_cost = agent.config.communication.broadcast_cost
+        if broadcast_cost > 0:
+            if not check_resource_requirement(agent, broadcast_cost, "communicate"):
+                return {
+                    "success": False,
+                    "error": (
+                        f"Insufficient resources for communicate action "
+                        f"(need {broadcast_cost}, have {agent.resource_level})"
+                    ),
+                    "details": {
+                        "required": broadcast_cost,
+                        "agent_resources": agent.resource_level,
+                    },
+                }
+            agent.resource_level -= broadcast_cost
+
+        # Compose the broadcast payload
+        payload = {
+            "resource_level": agent.resource_level,
+            "position": agent.position,
+            "health": getattr(agent, "current_health", None),
+            "agent_type": getattr(agent, "agent_type", "unknown"),
+        }
+
+        # Queue the message in the sender's outbox
+        comm_comp.send(
+            message_type=MessageType.INFO,
+            content=payload,
+            recipient_id=None,  # broadcast
+        )
+
+        # Immediately flush and deliver to each recipient's inbox.
+        # Broadcast messages (recipient_id=None) go to every nearby agent;
+        # unicast messages (recipient_id set) are delivered only to the
+        # matching agent if it is among the eligible recipients.
+        outbox = comm_comp.flush_outbox()
+        flushed_by_type = Counter(m.message_type.value for m in outbox)
+        delivered = 0
+        for msg in outbox:
+            recipient_id = getattr(msg, "recipient_id", None)
+            for recipient in recipients:
+                if (
+                    recipient_id is not None
+                    and recipient.agent_id != recipient_id
+                ):
+                    continue
+
+                recipient_comm = recipient.get_component("communication")
+                if recipient_comm is not None:
+                    recipient_comm.receive(_message_for_delivery_to_recipient(msg))
+                    delivered += 1
+                    if recipient_id is not None:
+                        break
+
+        # Small reward per successful delivery
+        reward_per_msg = agent.config.communication.reward_per_message
+        reward = reward_per_msg * delivered
+        agent.total_reward += reward
+
+        logger.debug(
+            f"Agent {agent.agent_id} broadcasted message to {delivered} agents "
+            f"(range={comm_range:.1f})"
+        )
+
+        # The action succeeds as long as the broadcast was attempted (nearby agents found).
+        # delivered=0 means no neighbours had a CommunicationComponent — valid but unproductive.
+        ineligible_note = None if delivered > 0 else "No recipients had a CommunicationComponent"
+        return {
+            "success": True,
+            "error": None,
+            "details": {
+                "communication_range": comm_range,
+                "nearby_agents": len(recipients),
+                "messages_flushed": len(outbox),
+                "messages_delivered": delivered,
+                "messages_by_type": dict(flushed_by_type),
+                "reward_earned": reward,
+                "note": ineligible_note,
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"Communicate action failed for agent {agent.agent_id}: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Communicate action exception: {str(e)}",
+            "details": {"exception_type": type(e).__name__},
+        }
+
+
+
 def get_action_space() -> dict[str, int]:
     """Get the centralized mapping of action names to indices.
 
@@ -1286,6 +1464,7 @@ def get_action_space() -> dict[str, int]:
         "move": ActionType.MOVE.value,
         "reproduce": ActionType.REPRODUCE.value,
         "pass": ActionType.PASS.value,
+        "communicate": ActionType.COMMUNICATE.value,
     }
 
 
@@ -1327,3 +1506,4 @@ action_registry.register("reproduce", 0.15, reproduce_action)
 action_registry.register("share", 0.2, share_action)
 action_registry.register("defend", 0.25, defend_action)
 action_registry.register("pass", 0.05, pass_action)
+action_registry.register("communicate", 0.1, communicate_action)

@@ -19,6 +19,7 @@ from pydantic import ValidationError
 
 np.random.seed(42)  # For reproducibility in tests
 
+from farm.core.action import get_action_count
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import TIANSHOU_AVAILABLE, DecisionModule
 
@@ -39,7 +40,7 @@ class TestDecisionModule(unittest.TestCase):
 
         # Create mock environment
         self.mock_env = Mock()
-        self.mock_env.action_space = spaces.Discrete(7)  # Standard action count
+        self.mock_env.action_space = spaces.Discrete(get_action_count())
         self.mock_agent.environment = self.mock_env
 
         # Create mock observation space
@@ -60,7 +61,7 @@ class TestDecisionModule(unittest.TestCase):
         )
 
         self.assertEqual(module.agent_id, "test_agent_1")
-        self.assertEqual(module.num_actions, 7)
+        self.assertEqual(module.num_actions, get_action_count())
         self.assertIsInstance(
             module.algorithm, type(module.algorithm)
         )  # Fallback algorithm
@@ -70,12 +71,12 @@ class TestDecisionModule(unittest.TestCase):
         """Test initialization with custom action space."""
         from gymnasium import spaces
 
-        custom_action_space = spaces.Discrete(8)
+        custom_action_space = spaces.Discrete(9)
         module = DecisionModule(
             self.mock_agent, custom_action_space, self.observation_space, self.config
         )
 
-        self.assertEqual(module.num_actions, 8)
+        self.assertEqual(module.num_actions, 9)
         self.assertEqual(module.action_space, custom_action_space)
 
     def test_initialization_with_custom_observation_space(self):
@@ -206,10 +207,12 @@ class TestDecisionModule(unittest.TestCase):
         state = torch.randn(8)
         
         # Create action weights favoring action 0
-        action_weights = np.array([0.7, 0.1, 0.1, 0.05, 0.03, 0.01, 0.01], dtype=np.float64)
+        action_weights = np.array(
+            [0.7, 0.1, 0.1, 0.05, 0.03, 0.01, 0.01, 0.0], dtype=np.float64
+        )
 
         # Test multiple selections to verify weighted random
-        selection_counts = {i: 0 for i in range(7)}
+        selection_counts = {i: 0 for i in range(get_action_count())}
         num_selections = 1000
         
         np.random.seed(42)
@@ -233,7 +236,9 @@ class TestDecisionModule(unittest.TestCase):
         state = torch.randn(8)
         
         # Weights for all actions
-        action_weights = np.array([0.1, 0.5, 0.3, 0.05, 0.03, 0.01, 0.01], dtype=np.float64)
+        action_weights = np.array(
+            [0.1, 0.5, 0.3, 0.05, 0.03, 0.01, 0.01, 0.0], dtype=np.float64
+        )
         # Only enable actions 1 and 2
         enabled_actions = [1, 2]
 
@@ -265,13 +270,17 @@ class TestDecisionModule(unittest.TestCase):
         state = torch.randn(8)
         
         # Create weights
-        action_weights = np.array([0.1, 0.1, 0.8, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
+        action_weights = np.array(
+            [0.1, 0.1, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64
+        )
 
         # Mock algorithm to provide probabilities
-        mock_probs = np.array([[0.25, 0.25, 0.25, 0.25, 0.0, 0.0, 0.0]], dtype=np.float32)
+        mock_probs = np.array(
+            [[0.25, 0.25, 0.25, 0.25, 0.0, 0.0, 0.0, 0.0]], dtype=np.float32
+        )
         with patch.object(module.algorithm, "predict_proba", return_value=mock_probs):
             # Test multiple selections
-            selection_counts = {i: 0 for i in range(7)}
+            selection_counts = {i: 0 for i in range(get_action_count())}
             num_selections = 1000
             
             np.random.seed(42)
@@ -711,7 +720,8 @@ class TestDecisionModule(unittest.TestCase):
             state = torch.randn(8)
             probs = module.get_action_probabilities(state)
 
-            expected = np.full(7, 1.0 / 7)
+            n = get_action_count()
+            expected = np.full(n, 1.0 / n)
             np.testing.assert_array_almost_equal(probs, expected)
 
     def test_get_action_probabilities_exception_handling(self):
@@ -731,7 +741,8 @@ class TestDecisionModule(unittest.TestCase):
             probs = module.get_action_probabilities(state)
 
             # Should return uniform distribution
-            expected = np.full(7, 1.0 / 7)
+            n = get_action_count()
+            expected = np.full(n, 1.0 / n)
             np.testing.assert_array_almost_equal(probs, expected)
 
     def test_get_model_info(self):
@@ -785,22 +796,27 @@ class TestDecisionModule(unittest.TestCase):
             self.observation_space,
             self.config,
         )
-        self.assertEqual(module.num_actions, 7)  # From mock environment
+        self.assertEqual(module.num_actions, get_action_count())  # From mock environment
 
     def test_get_action_space_size_fallback(self):
-        """Test getting action space size fallback."""
+        """Test getting action space size fallback via len(ActionType) when space has no ``n``."""
         # Remove environment from agent
         delattr(self.mock_agent, "environment")
 
+        expected_n = get_action_count()
+
+        class _ActionSpaceWithoutN:
+            """Gym-like space object without ``n`` to force enum fallback in DecisionModule."""
+
         with patch("farm.core.action.ActionType") as mock_action_type:
-            mock_action_type.__len__ = Mock(return_value=7)
+            mock_action_type.__len__ = Mock(return_value=expected_n)
             module = DecisionModule(
                 self.mock_agent,
-                self.mock_env.action_space,
+                _ActionSpaceWithoutN(),
                 self.observation_space,
                 self.config,
             )
-            self.assertEqual(module.num_actions, 7)
+            self.assertEqual(module.num_actions, expected_n)
 
     def test_get_action_space_size_from_space_object(self):
         """Test getting action space size from space object."""
@@ -982,7 +998,8 @@ class TestDecisionModule(unittest.TestCase):
         probs = module.get_action_probabilities(state)
 
         # Should return uniform distribution
-        expected = np.full(7, 1.0 / 7)
+        n = get_action_count()
+        expected = np.full(n, 1.0 / n)
         np.testing.assert_array_almost_equal(probs, expected)
 
 
@@ -999,7 +1016,7 @@ class TestDecisionModuleIntegration(unittest.TestCase):
 
         # Create mock environment
         self.mock_env = Mock()
-        self.mock_env.action_space = spaces.Discrete(7)
+        self.mock_env.action_space = spaces.Discrete(get_action_count())
         self.mock_agent.environment = self.mock_env
 
         # Create mock observation space
@@ -1020,11 +1037,11 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         # Get action
         action = module.decide_action(state)
         self.assertIsInstance(action, int)
-        self.assertTrue(0 <= action < 7)
+        self.assertTrue(0 <= action < get_action_count())
 
         # Get probabilities
         probs = module.get_action_probabilities(state)
-        self.assertEqual(len(probs), 7)
+        self.assertEqual(len(probs), get_action_count())
         self.assertAlmostEqual(np.sum(probs), 1.0, places=6)
 
         # Update with experience
@@ -1081,8 +1098,9 @@ class TestDecisionModuleIntegration(unittest.TestCase):
                 mock_algorithm = Mock()
                 mock_algorithm.select_action.return_value = 2
                 mock_algorithm.select_action_with_mask.return_value = 2
+                n = get_action_count()
                 mock_algorithm.predict_proba.return_value = np.full(
-                    (1, 7), 1.0 / 7, dtype=np.float32
+                    (1, n), 1.0 / n, dtype=np.float32
                 )
                 mock_algorithm.update = Mock()
                 mock_algorithm.learn = Mock()
@@ -1109,7 +1127,7 @@ class TestDecisionModuleIntegration(unittest.TestCase):
                 self.assertEqual(action, 2)  # From mock
 
                 probs = module.get_action_probabilities(state)
-                self.assertEqual(len(probs), 7)
+                self.assertEqual(len(probs), get_action_count())
 
                 # Test update
                 module.update(state, action, 1.0, torch.randn(8), False)
@@ -1146,7 +1164,7 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         state = torch.randn(12)
         action = module.decide_action(state)
         self.assertIsInstance(action, int)
-        self.assertTrue(0 <= action < 7)
+        self.assertTrue(0 <= action < get_action_count())
 
     def test_integration_performance_stress_test(self):
         """Test performance with multiple decision cycles."""
@@ -1169,7 +1187,7 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         for i, state in enumerate(states):
             action = module.decide_action(state)
             self.assertIsInstance(action, int)
-            self.assertTrue(0 <= action < 7)
+            self.assertTrue(0 <= action < get_action_count())
 
             # Update occasionally
             if i % 10 == 0:

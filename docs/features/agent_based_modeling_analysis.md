@@ -95,17 +95,129 @@ AgentFarm supports multiple agent types, each with distinct behaviors:
 
 Each agent in AgentFarm possesses a rich set of capabilities:
 
-```python
-# Agent Core Attributes
+```
+Agent Core Attributes
 - Autonomous decision-making
 - Spatial awareness and navigation
 - Resource gathering and management
 - Health and survival mechanics
 - Combat and defense capabilities
-- Communication with nearby agents
+- Communication with nearby agents  ← implemented via CommunicationComponent
 - Learning through reinforcement
 - Memory and experience tracking
 ```
+
+#### Agent-to-Agent (A2A) Communication
+
+**Status: implemented** — `farm/core/agent/components/communication.py`
+
+AgentFarm implements an asynchronous **inbox/outbox message-passing** model inspired by the [FIPA ACL](http://www.fipa.org/repository/aclspecs.html) standard and classic publish/subscribe paradigms.
+
+##### Design overview
+
+| Concept | Implementation |
+|---|---|
+| **Asynchronous delivery** | Senders push to an outbox; recipients read from a bounded inbox. Queued sends survive across simulation steps until the agent runs **communicate** (which calls `flush_outbox`). The outbox is **not** cleared at step boundaries. |
+| **Proximity-limited broadcast** | The `communicate` action delivers messages only to agents within `communication_range` (default 50 units). |
+| **Typed messages** | Each `Message` carries a `MessageType` so recipients can filter on semantics. |
+| **Bounded inbox** | `inbox_capacity` (default 20) prevents memory growth; oldest messages are dropped when full. |
+| **Bounded outbox** | `outbox_capacity` (default 20); oldest queued outbound messages are dropped when the queue is full. |
+| **Optional component** | Agents without `CommunicationComponent` simply cannot send or receive messages. |
+
+##### Supported message types
+
+| `MessageType` | Meaning |
+|---|---|
+| `RESOURCE_REQUEST` | Sender is asking nearby agents for resources. |
+| `RESOURCE_OFFER` | Sender is proactively offering to share resources. |
+| `THREAT_ALERT` | Sender is warning nearby agents of a danger (e.g. an attacker). |
+| `INFO` | General-purpose informational exchange. |
+| `CUSTOM` | Arbitrary user-defined payload. |
+
+##### Usage example
+
+```python
+from farm.core.agent import CommunicationComponent, MessageType
+
+# Access the component on any full-featured agent
+comm = agent.get_component("communication")
+
+# ── Sending ─────────────────────────────────────────────────────
+# Queue a broadcast (all nearby agents within communication_range)
+comm.send(MessageType.RESOURCE_OFFER, content={"amount": 10})
+
+# Queue a direct message to a specific agent (unicast).
+# Only the agent with agent_id="ally_003" will receive it,
+# provided it is within communication_range and alive.
+comm.send(MessageType.THREAT_ALERT,
+          content={"attacker_id": "enemy_007", "position": (40, 60)},
+          recipient_id="ally_003")
+
+# Messages are delivered when the 'communicate' action executes (flush).
+# You may call send() in an earlier step and still deliver on a later communicate,
+# within outbox_capacity. Broadcast messages (recipient_id=None) go to every
+# eligible neighbour; unicast messages (recipient_id set) are routed only to the
+# named agent.
+
+# ── Receiving ────────────────────────────────────────────────────
+# Read all inbox messages
+for msg in comm.get_messages():
+    print(msg.sender_id, msg.message_type, msg.content)
+
+# Filter by type
+alerts = comm.get_messages(MessageType.THREAT_ALERT)
+offers  = comm.get_messages(MessageType.RESOURCE_OFFER)
+
+comm.clear_inbox()   # discard processed messages
+```
+
+##### Configuration (`CommunicationConfig`)
+
+```python
+from farm.core.agent.config import CommunicationConfig
+
+cfg = CommunicationConfig(
+    communication_range=80.0,   # wider broadcast radius
+    inbox_capacity=50,           # larger inbox
+    outbox_capacity=50,          # more queued outbound messages before oldest drop
+    reward_per_message=0.02,     # higher reward for communicating
+)
+# Pass via AgentComponentConfig.communication
+```
+
+##### The `communicate` action
+
+When an agent selects the **communicate** action it:
+
+1. Queries the spatial index for agents within `communication_range`.
+2. Composes an `INFO` broadcast carrying `resource_level`, `position`, `health`, and `agent_type`.
+3. Flushes the outbox (including any messages queued earlier via `send()`), delivering each to eligible neighbours' inboxes. Broadcast payloads are shallow-copied per recipient so neighbours cannot mutate each other's copy.
+4. Earns a small reward proportional to successful deliveries.
+
+The action weight in the global registry is **0.1** (lower than move/gather so communication does not dominate agent policy by default).
+
+##### A2A communication protocols — research context
+
+The implementation covers the foundational layer.  Researchers wishing to build richer protocols may draw on these established paradigms:
+
+| Paradigm | Key idea | Applicable to AgentFarm |
+|---|---|---|
+| **FIPA ACL** | Performative-based language: `inform`, `request`, `propose`, `accept`, `refuse` | Extend `MessageType` with FIPA performatives |
+| **Publish/Subscribe** | Agents subscribe to "topics"; publishers push updates | Use a shared topic registry + `CommunicationComponent.receive` |
+| **Blackboard** | Shared read/write workspace; agents post and read problem data | Implement a per-environment dict; agents read in `on_step_start` |
+| **Contract Net Protocol (CNP)** | Manager broadcasts task; contractors bid; winner is selected | Multi-message dialogue using `RESOURCE_REQUEST` / `RESOURCE_OFFER` |
+| **Stigmergy** | Indirect communication via environment signals (pheromones) | Write signals to the resource grid; agents detect via perception |
+
+> **TODO / future work** — see the checklist below.
+
+##### Known limitations and future work
+
+- [ ] **Dialogue protocols** — multi-turn conversations (e.g. CNP negotiation) require a correlation ID and state machine per dialogue.
+- [ ] **Performative semantics** — messages currently carry raw `content` dicts; adding FIPA-style performatives would allow generic middleware.
+- [x] **Direct unicast routing** — unicast messages (with `recipient_id` set) are routed by the `communicate` action to the named agent only if it is within range and alive.
+- [ ] **Message persistence / logging** — sent messages are not written to the simulation database; add a `CommunicationEvent` row to the data model.
+- [ ] **Observation integration** — the perception system (channels) does not yet include inbox-message features; consider adding a `message_channel` to the observation pipeline.
+- [ ] **Scalability** — for very large populations (>10 000 agents), per-message spatial queries may become expensive; consider a region-based message bus.
 
 #### Creating Agents
 
@@ -117,7 +229,7 @@ Agents can interact in multiple ways:
 
 1. **Resource Sharing**: Agents can share resources with nearby agents
 2. **Combat**: Agents can engage in offensive or defensive actions
-3. **Communication**: Agents can exchange information within interaction zones
+3. **Communication**: Agents exchange typed messages via `CommunicationComponent` and the `communicate` action
 4. **Cooperation**: System agents can coordinate for collective benefit
 5. **Competition**: Independent agents compete for limited resources
 
@@ -133,7 +245,7 @@ for agent in environment.agents.values():
         # Agent decides on action based on observation
         action = agent.decide_action()
         
-        # Agent executes action (move, gather, share, attack, etc.)
+        # Agent executes action (move, gather, share, attack, communicate, etc.)
         result = agent.execute_action(action)
         
         # Agent learns from experience

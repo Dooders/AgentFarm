@@ -19,6 +19,7 @@ import numpy as np
 import torch
 from gymnasium import spaces
 
+from farm.core.action import get_action_count
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule
 from farm.database.data_logging import DataLogger, DataLoggingConfig
@@ -62,7 +63,7 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         # Create mock environment with database
         self.mock_env = Mock()
         self.mock_env.db = self.db
-        self.mock_env.action_space = spaces.Discrete(7)
+        self.mock_env.action_space = spaces.Discrete(get_action_count())
 
         # Create mock agent
         self.mock_agent = Mock()
@@ -126,7 +127,7 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
             self.mock_time_service.current_time.return_value = step
 
             state = torch.randn(8)
-            action = step % 7  # Cycle through actions
+            action = step % get_action_count()  # Cycle through actions
             reward = float(step) * 0.1
             next_state = torch.randn(8)
             done = False
@@ -224,7 +225,7 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
                 mock_time.current_time.return_value = step
 
                 state = torch.randn(8)
-                action = (step + int(mock_agent.agent_id.split("_")[1])) % 7
+                action = (step + int(mock_agent.agent_id.split("_")[1])) % get_action_count()
                 reward = float(step) * 0.5
                 next_state = torch.randn(8)
 
@@ -449,7 +450,7 @@ class TestLearningExperienceLoggingPerformance(unittest.TestCase):
 
         self.mock_env = Mock()
         self.mock_env.db = self.db
-        self.mock_env.action_space = spaces.Discrete(7)
+        self.mock_env.action_space = spaces.Discrete(get_action_count())
 
         self.observation_space = spaces.Box(low=-1, high=1, shape=(8,), dtype=np.float32)
 
@@ -474,7 +475,7 @@ class TestLearningExperienceLoggingPerformance(unittest.TestCase):
         mock_agent.services.time_service = mock_time
 
         mock_actions = []
-        for i in range(7):
+        for i in range(get_action_count()):
             mock_action = Mock()
             mock_action.name = f"action_{i}"
             mock_actions.append(mock_action)
@@ -493,7 +494,9 @@ class TestLearningExperienceLoggingPerformance(unittest.TestCase):
         for step in range(1000):
             mock_time.current_time.return_value = step
             state = torch.randn(8)
-            module.update(state, step % 7, float(step) * 0.01, torch.randn(8), False)
+            module.update(
+                state, step % get_action_count(), float(step) * 0.01, torch.randn(8), False
+            )
 
         # Flush buffers
         self.db.logger.flush_all_buffers()

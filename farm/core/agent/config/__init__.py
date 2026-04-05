@@ -3,6 +3,7 @@
 from .component_configs import (
     AgentComponentConfig,
     CombatConfig,
+    CommunicationConfig,
     DecisionConfig,
     MovementConfig,
     PerceptionConfig,
@@ -12,6 +13,7 @@ from .component_configs import (
 
 __all__ = [
     "AgentComponentConfig",
+    "CommunicationConfig",
     "MovementConfig",
     "ResourceConfig",
     "CombatConfig",
