@@ -58,6 +58,10 @@ def normalize_simulation_steps_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if "agent_type_counts" not in df.columns:
         # If old columns exist, keep them (for backwards compatibility during migration)
         if all(col in df.columns for col in ["system_agents", "independent_agents", "control_agents"]):
+            if "order_agents" not in df.columns:
+                df["order_agents"] = 0
+            if "chaos_agents" not in df.columns:
+                df["chaos_agents"] = 0
             return df
         # Otherwise, add empty columns
         df["system_agents"] = 0

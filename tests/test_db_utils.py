@@ -90,6 +90,10 @@ class TestNormalizeSimulationStepsDataframe(unittest.TestCase):
         )
         result = normalize_simulation_steps_dataframe(df)
         self.assertEqual(result.iloc[0]["system_agents"], 5)
+        self.assertIn("order_agents", result.columns)
+        self.assertIn("chaos_agents", result.columns)
+        self.assertEqual(result.iloc[0]["order_agents"], 0)
+        self.assertEqual(result.iloc[0]["chaos_agents"], 0)
 
     def test_missing_agent_types_default_to_zero(self):
         df = pd.DataFrame(

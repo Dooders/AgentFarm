@@ -648,11 +648,9 @@ class SimulationVisualizer:
         """Draw agents as colored circles."""
         for agent in agent_states:
             x, y = self._transform_coords(agent[2], agent[3], params)
-            if agent[1] == "SystemAgent":
-                color = self.config.agent_colors["SystemAgent"]
-            elif agent[1] == "IndependentAgent":
-                color = self.config.agent_colors["IndependentAgent"]
-            else:  # ControlAgent
+            agent_type = agent[1]
+            color = self.config.agent_colors.get(agent_type)
+            if color is None:
                 color = self.config.agent_colors["ControlAgent"]
 
             radius = max(1, int(self.config.agent_radius_scale * params["scale"]))

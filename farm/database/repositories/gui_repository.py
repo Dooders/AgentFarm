@@ -54,6 +54,8 @@ class GUIRepository(BaseRepository[SimulationStepModel]):
                 - system_agents
                 - independent_agents
                 - control_agents
+                - order_agents
+                - chaos_agents
                 - total_resources
                 - average_agent_resources
 
@@ -94,6 +96,8 @@ class GUIRepository(BaseRepository[SimulationStepModel]):
                     "system_agents": [(row[2] or {}).get("system", 0) for row in rows],
                     "independent_agents": [(row[2] or {}).get("independent", 0) for row in rows],
                     "control_agents": [(row[2] or {}).get("control", 0) for row in rows],
+                    "order_agents": [(row[2] or {}).get("order", 0) for row in rows],
+                    "chaos_agents": [(row[2] or {}).get("chaos", 0) for row in rows],
                     "total_resources": [row[3] for row in rows],
                     "average_agent_resources": [row[4] for row in rows],
                 },

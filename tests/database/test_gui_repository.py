@@ -28,8 +28,20 @@ class TestGUIRepository(unittest.TestCase):
 
     def test_get_historical_data(self):
         """Test get_historical_data returns time series metrics."""
-        mock_row1 = (1, 10, {"system": 5, "independent": 3, "control": 2}, 1000.0, 100.0)
-        mock_row2 = (2, 12, {"system": 6, "independent": 4, "control": 2}, 1200.0, 100.0)
+        mock_row1 = (
+            1,
+            10,
+            {"system": 5, "independent": 3, "control": 2, "order": 1, "chaos": 0},
+            1000.0,
+            100.0,
+        )
+        mock_row2 = (
+            2,
+            12,
+            {"system": 6, "independent": 4, "control": 2, "order": 0, "chaos": 1},
+            1200.0,
+            100.0,
+        )
 
         mock_query = Mock()
         mock_query.order_by.return_value.all.return_value = [mock_row1, mock_row2]
@@ -42,6 +54,8 @@ class TestGUIRepository(unittest.TestCase):
         self.assertEqual(result["steps"], [1, 2])
         self.assertEqual(result["metrics"]["total_agents"], [10, 12])
         self.assertEqual(result["metrics"]["system_agents"], [5, 6])
+        self.assertEqual(result["metrics"]["order_agents"], [1, 0])
+        self.assertEqual(result["metrics"]["chaos_agents"], [0, 1])
 
     def test_get_historical_data_with_agent_filter(self):
         """Test get_historical_data with agent_id filter."""
