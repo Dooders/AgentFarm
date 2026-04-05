@@ -6,6 +6,9 @@ from .behaviors import DefaultAgentBehavior, IAgentBehavior, LearningAgentBehavi
 from .components import (
     AgentComponent,
     CombatComponent,
+    CommunicationComponent,
+    Message,
+    MessageType,
     MovementComponent,
     PerceptionComponent,
     ReproductionComponent,
@@ -28,6 +31,9 @@ __all__ = [
     "IAgentBehavior",
     # Components
     "AgentComponent",
+    "CommunicationComponent",
+    "Message",
+    "MessageType",
     "MovementComponent",
     "ResourceComponent",
     "CombatComponent",

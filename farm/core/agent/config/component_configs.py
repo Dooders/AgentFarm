@@ -72,6 +72,26 @@ class PerceptionConfig:
 
 
 @dataclass(frozen=True)
+class CommunicationConfig:
+    """Configuration for agent-to-agent communication."""
+
+    communication_range: float = 50.0
+    """Maximum distance (environment units) at which messages can be delivered."""
+
+    inbox_capacity: int = 20
+    """Maximum number of messages stored in the inbox before old ones are dropped."""
+
+    broadcast_cost: float = 0.0
+    """Resource cost per broadcast message (0.0 = free by default)."""
+
+    direct_cost: float = 0.0
+    """Resource cost per direct (unicast) message (0.0 = free by default)."""
+
+    reward_per_message: float = 0.01
+    """Small reward given for successfully delivering a message."""
+
+
+@dataclass(frozen=True)
 class ReproductionConfig:
     """Configuration for reproduction mechanics."""
     
@@ -168,6 +188,9 @@ class AgentComponentConfig:
     
     decision: DecisionConfig = field(default_factory=DecisionConfig)
     """Decision-making configuration."""
+    
+    communication: CommunicationConfig = field(default_factory=CommunicationConfig)
+    """Agent-to-agent communication configuration."""
     
     @classmethod
     def default(cls) -> "AgentComponentConfig":
