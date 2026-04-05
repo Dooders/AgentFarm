@@ -74,6 +74,10 @@ class SimulationState:
         Number of independent agents
     control_agents : int
         Number of control group agents
+    order_agents : int
+        Number of order agents
+    chaos_agents : int
+        Number of chaos agents
     total_resources : float
         Total resources available in the environment
     average_agent_resources : float
@@ -128,6 +132,8 @@ class SimulationState:
     genetic_diversity: float
     dominant_genome_ratio: float
     resources_consumed: float
+    order_agents: int = 0
+    chaos_agents: int = 0
 
 
 @dataclass
@@ -231,11 +237,17 @@ class AgentDistribution:
         Average number of independent agents
     control_agents : float
         Average number of control agents
+    order_agents : float
+        Average number of order agents
+    chaos_agents : float
+        Average number of chaos agents
     """
 
     system_agents: float
     independent_agents: float
     control_agents: float
+    order_agents: float = 0.0
+    chaos_agents: float = 0.0
 
 
 @dataclass
@@ -846,12 +858,18 @@ class PopulationMetrics:
         Number of independent agents
     control_agents : int
         Number of control agents
+    order_agents : int
+        Number of order agents
+    chaos_agents : int
+        Number of chaos agents
     """
 
     total_agents: int
     system_agents: int
     independent_agents: int
     control_agents: int
+    order_agents: int = 0
+    chaos_agents: int = 0
 
 
 @dataclass
@@ -1243,6 +1261,10 @@ class Population:
         Number of independent agents at this step (optional)
     control_agents : Optional[int]
         Number of control agents at this step (optional)
+    order_agents : Optional[int]
+        Number of order agents at this step (optional)
+    chaos_agents : Optional[int]
+        Number of chaos agents at this step (optional)
     avg_resources : Optional[float]
         Average resources per agent at this step (optional)
     """
@@ -1254,6 +1276,8 @@ class Population:
     system_agents: Optional[int] = None
     independent_agents: Optional[int] = None
     control_agents: Optional[int] = None
+    order_agents: Optional[int] = None
+    chaos_agents: Optional[int] = None
     avg_resources: Optional[float] = None
 
 

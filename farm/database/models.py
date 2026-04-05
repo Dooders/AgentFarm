@@ -379,6 +379,8 @@ class SimulationStepModel(Base):
             "system_agents": agent_counts.get("system", 0),
             "independent_agents": agent_counts.get("independent", 0),
             "control_agents": agent_counts.get("control", 0),
+            "order_agents": agent_counts.get("order", 0),
+            "chaos_agents": agent_counts.get("chaos", 0),
             "total_resources": self.total_resources,
             "average_agent_resources": self.average_agent_resources,
             "births": self.births,

@@ -88,6 +88,8 @@ def create_initial_agents(
     num_system_agents: int,
     num_independent_agents: int,
     num_control_agents: int,
+    num_order_agents: int = 0,
+    num_chaos_agents: int = 0,
 ) -> List[Tuple[float, float]]:
     """
     Create initial population of agents.
@@ -100,6 +102,12 @@ def create_initial_agents(
         Number of system agents to create
     num_independent_agents : int
         Number of independent agents to create
+    num_control_agents : int
+        Number of control agents to create
+    num_order_agents : int, optional
+        Number of order agents to create (default: 0)
+    num_chaos_agents : int, optional
+        Number of chaos agents to create (default: 0)
 
     Returns
     -------
@@ -112,6 +120,8 @@ def create_initial_agents(
         num_system_agents=num_system_agents,
         num_independent_agents=num_independent_agents,
         num_control_agents=num_control_agents,
+        num_order_agents=num_order_agents,
+        num_chaos_agents=num_chaos_agents,
     )
 
     # Create services from environment
@@ -182,6 +192,34 @@ def create_initial_agents(
             config=agent_config,
             environment=environment,
             agent_type="control",
+        )
+        environment.add_agent(agent, flush_immediately=True)
+        positions.append(position)
+
+    # Create order agents with learning behavior
+    for _ in range(num_order_agents):
+        position = get_random_position()
+        agent = factory.create_learning_agent(
+            agent_id=environment.get_next_agent_id(),
+            position=position,
+            initial_resources=int(initial_resource_level),
+            config=agent_config,
+            environment=environment,
+            agent_type="order",
+        )
+        environment.add_agent(agent, flush_immediately=True)
+        positions.append(position)
+
+    # Create chaos agents with learning behavior
+    for _ in range(num_chaos_agents):
+        position = get_random_position()
+        agent = factory.create_learning_agent(
+            agent_id=environment.get_next_agent_id(),
+            position=position,
+            initial_resources=int(initial_resource_level),
+            config=agent_config,
+            environment=environment,
+            agent_type="chaos",
         )
         environment.add_agent(agent, flush_immediately=True)
         positions.append(position)
@@ -415,6 +453,8 @@ def run_simulation(
             config.population.system_agents,
             config.population.independent_agents,
             config.population.control_agents,
+            config.population.order_agents,
+            config.population.chaos_agents,
         )
 
         # Ensure all initial agents are committed to database before simulation starts
@@ -639,7 +679,12 @@ def run_simulation(
         """Calculate the initial population from configuration."""
         if config is None:
             return 0
-        return config.population.system_agents + config.population.independent_agents
+        return (
+            config.population.system_agents
+            + config.population.independent_agents
+            + config.population.order_agents
+            + config.population.chaos_agents
+        )
 
     logger.info(
         "simulation_completed",

@@ -37,8 +37,9 @@ def extract_agent_counts_from_json(agent_type_counts) -> Dict[str, int]:
 def normalize_simulation_steps_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Normalize simulation_steps DataFrame to extract agent counts from JSON.
     
-    This function adds backwards-compatible columns (system_agents, independent_agents, control_agents)
-    by extracting them from the agent_type_counts JSON column.
+    This function adds backwards-compatible columns (system_agents, independent_agents,
+    control_agents, order_agents, chaos_agents) by extracting them from the
+    agent_type_counts JSON column.
     
     Parameters
     ----------
@@ -62,6 +63,8 @@ def normalize_simulation_steps_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         df["system_agents"] = 0
         df["independent_agents"] = 0
         df["control_agents"] = 0
+        df["order_agents"] = 0
+        df["chaos_agents"] = 0
         return df
     
     # Extract counts from JSON column
@@ -71,13 +74,15 @@ def normalize_simulation_steps_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             "system_agents": counts.get("system", 0),
             "independent_agents": counts.get("independent", 0),
             "control_agents": counts.get("control", 0),
+            "order_agents": counts.get("order", 0),
+            "chaos_agents": counts.get("chaos", 0),
         })
     
     # Extract agent counts
     counts_df = df.apply(extract_counts, axis=1)
     
     # Add columns, overwriting if they already exist
-    for col in ["system_agents", "independent_agents", "control_agents"]:
+    for col in ["system_agents", "independent_agents", "control_agents", "order_agents", "chaos_agents"]:
         df[col] = counts_df[col]
     
     return df
