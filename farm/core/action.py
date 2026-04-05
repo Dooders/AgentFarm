@@ -1379,11 +1379,11 @@ def communicate_action(agent: "AgentCore") -> dict:
         outbox = comm_comp.flush_outbox()
         delivered = 0
         for msg in outbox:
-            target_recipient_id = getattr(msg, "recipient_id", None)
+            recipient_id = getattr(msg, "recipient_id", None)
             for recipient in recipients:
                 if (
-                    target_recipient_id is not None
-                    and recipient.agent_id != target_recipient_id
+                    recipient_id is not None
+                    and recipient.agent_id != recipient_id
                 ):
                     continue
 
@@ -1391,7 +1391,7 @@ def communicate_action(agent: "AgentCore") -> dict:
                 if recipient_comm is not None:
                     recipient_comm.receive(msg)
                     delivered += 1
-                    if target_recipient_id is not None:
+                    if recipient_id is not None:
                         break
 
         # Small reward per successful delivery
