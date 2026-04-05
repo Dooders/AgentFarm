@@ -71,18 +71,29 @@ omit =
     farm/config/template.py
     farm/config/validation.py
     farm/config/watcher.py
+    # analysis.py: calculate_survival_rates / analyze_resource_distribution etc.
+    # contain inner SQLAlchemy _query closures that require a fully-populated
+    # simulation database; unit tests for the public API already cover the
+    # method contracts via mocks (tests/core/test_analysis.py).
     farm/core/analysis.py
-    farm/core/cli.py
-    farm/core/decision/algorithms/ensemble.py
-    farm/core/decision/algorithms/tianshou.py
-    farm/core/decision/benchmark/runner.py
-    farm/core/decision/feature_engineering.py
-    farm/core/decision/training/collector.py
-    farm/core/decision/training/trainer.py
+    # device_utils.py: CUDA-specific code paths (lines within _auto_select_device,
+    # _resolve_cuda_device, _configure_device) require GPU hardware not present in
+    # CI; CPU paths and the module-level helpers are covered by
+    # tests/core/test_device_utils.py.
     farm/core/device_utils.py
+    # interfaces.py: Protocol method bodies are `...` stubs that are structural
+    # definitions for structural sub-typing and are intentionally never executed;
+    # protocol shape and isinstance() checks are covered by
+    # tests/core/test_interfaces.py.
     farm/core/interfaces.py
-    farm/core/observation_render.py
+    # tianshou.py: requires the optional 'tianshou' RL library which is not a
+    # mandatory CI dependency; tested separately when tianshou is installed.
+    farm/core/decision/algorithms/tianshou.py
+    # senses.py: requires a ~350 MB ViT model download and FAISS at import
+    # time; neither is available in the standard CI environment.
     farm/core/senses.py
+    # visualization.py: Tk/matplotlib-Tk GUI code that requires a live
+    # display; headless/Xvfb testing is out of scope for the default suite.
     farm/core/visualization.py
     farm/database/data_logging.py
     farm/database/data_retrieval.py
