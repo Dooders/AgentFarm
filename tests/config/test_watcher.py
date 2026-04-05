@@ -85,8 +85,8 @@ class TestConfigWatcher(unittest.TestCase):
         """unwatch_file with no callback removes all callbacks."""
         p = self._config_path()
         _write_config(p)
-        self.watcher.watch_file(p, lambda c: None)
-        self.watcher.watch_file(p, lambda c: None)
+        self.watcher.watch_file(p, lambda config: None)
+        self.watcher.watch_file(p, lambda config: None)
         self.watcher.unwatch_file(p)
         watched = self.watcher.get_watched_files()
         self.assertNotIn(os.path.realpath(p), watched)
@@ -111,7 +111,7 @@ class TestConfigWatcher(unittest.TestCase):
         """get_watched_files returns a copy, not internal state."""
         p = self._config_path()
         _write_config(p)
-        self.watcher.watch_file(p, lambda c: None)
+        self.watcher.watch_file(p, lambda config: None)
         watched = self.watcher.get_watched_files()
         watched["fake_key"] = "fake_value"
         # Original should not be modified
@@ -149,7 +149,7 @@ class TestConfigWatcher(unittest.TestCase):
         _write_config(p)
 
         called = []
-        self.watcher.watch_file(p, lambda c: called.append(True))
+        self.watcher.watch_file(p, lambda config: called.append(True))
         self.watcher.start()
 
         time.sleep(0.3)
@@ -211,7 +211,7 @@ class TestReloadableConfig(unittest.TestCase):
         rc = ReloadableConfig(config)
 
         received = []
-        rc.add_change_callback(lambda c: received.append(c.simulation_steps))
+        rc.add_change_callback(lambda config: received.append(config.simulation_steps))
 
         _write_config(p, simulation_steps=55)
         rc.reload_from_file(p)
@@ -226,7 +226,7 @@ class TestReloadableConfig(unittest.TestCase):
         rc = ReloadableConfig(config)
 
         called = []
-        cb = lambda c: called.append(True)
+        cb = lambda config: called.append(True)
         rc.add_change_callback(cb)
         rc.remove_change_callback(cb)
 
