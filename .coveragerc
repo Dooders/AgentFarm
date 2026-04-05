@@ -84,24 +84,25 @@ omit =
     farm/core/observation_render.py
     farm/core/senses.py
     farm/core/visualization.py
-    farm/database/data_logging.py
+    # Modules with tests - not omitted from coverage:
+    # farm/database/data_logging.py          (tests/database/test_data_logging.py)
+    # farm/database/experiment_database.py   (tests/database/test_experiment_database.py)
+    # farm/database/memory.py                (tests/database/test_database_memory.py)
+    # farm/database/query_experiment_db.py   (tests/database/test_query_experiment_db.py)
+    # farm/database/research_db_client.py    (tests/database/test_research_db_client.py)
+    # farm/database/research_models.py       (tests/database/test_research_db_client.py)
+    # farm/database/simulation_comparison.py (tests/database/test_simulation_comparison.py)
+    # farm/memory/base_memory.py             (tests/memory/test_base_memory.py)
+    # farm/memory/redis_memory.py            (tests/memory/test_redis_memory.py -- uses fakeredis)
+    # farm/research/research.py              (tests/research/test_research.py)
+    # farm/runners/batch_runner.py           (tests/runners/test_batch_runner.py)
+    # farm/runners/experiment_runner.py      (tests/runners/test_experiment_runner.py)
+    # farm/runners/parallel_experiment_runner.py (tests/runners/test_parallel_experiment_runner.py)
     farm/database/data_retrieval.py
-    farm/database/experiment_database.py
-    farm/database/memory.py
     farm/database/models.py
-    farm/database/query_experiment_db.py
-    farm/database/research_db_client.py
-    farm/database/research_models.py
     farm/database/simulation.py
-    farm/database/simulation_comparison.py
     farm/database/utilities.py
     farm/database/validation.py
-    farm/memory/base_memory.py
-    farm/memory/redis_memory.py
-    farm/research/research.py
-    farm/runners/batch_runner.py
-    farm/runners/experiment_runner.py
-    farm/runners/parallel_experiment_runner.py
     farm/utils/chart_analyzer_validator.py
     farm/utils/config_utils.py
     farm/utils/logging/test_helpers.py

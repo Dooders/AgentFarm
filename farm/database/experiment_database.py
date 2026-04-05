@@ -385,9 +385,14 @@ class ExperimentDatabase(SimulationDatabase):
         config : SimulationConfig, optional
             Configuration object with database settings
         """
-        # Initialize the parent class without a simulation_id
-        super().__init__(db_path, config=config, simulation_id=None)
+        # Initialize the parent class with a placeholder simulation_id derived
+        # from the experiment_id so that the base DataLogger can be created.
+        # Individual simulations use separate SimulationContext loggers.
+        super().__init__(db_path, config=config, simulation_id=f"_experiment_{experiment_id}")
 
+        # Override simulation_id to None – ExperimentDatabase operates at the
+        # experiment level, not at the individual simulation level.
+        self.simulation_id = None
         self.experiment_id = experiment_id
 
         # Create the experiment record
