@@ -10,6 +10,7 @@ from typing import Optional
 from farm.core.agent.behaviors.default import DefaultAgentBehavior
 from farm.core.agent.behaviors.learning import LearningAgentBehavior
 from farm.core.agent.components.combat import CombatComponent
+from farm.core.agent.components.communication import CommunicationComponent
 from farm.core.agent.components.movement import MovementComponent
 from farm.core.agent.components.perception import PerceptionComponent
 from farm.core.agent.components.reproduction import ReproductionComponent
@@ -80,6 +81,7 @@ class AgentFactory:
             PerceptionComponent(self.services, config.perception),
             ReproductionComponent(self.services, config.reproduction),
             RewardComponent(self.services, config.reward),
+            CommunicationComponent(self.services, config.communication),
         ]
 
         # Create behavior
@@ -141,6 +143,7 @@ class AgentFactory:
             PerceptionComponent(self.services, config.perception),
             ReproductionComponent(self.services, config.reproduction),
             RewardComponent(self.services, config.reward),
+            CommunicationComponent(self.services, config.communication),
         ]
 
         # Create temporary default behavior to avoid None state
