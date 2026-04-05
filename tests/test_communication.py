@@ -99,12 +99,10 @@ class TestCommunicationComponent:
         assert msg.message_type == MessageType.INFO
         assert msg.sender_id == agent.agent_id
 
-    def test_receive_adds_to_inbox(self, agent, mock_services):
-        factory2 = AgentFactory(mock_services)
-        sender = factory2.create_default_agent("sender_001", (10.0, 10.0))
+    def test_receive_adds_to_inbox(self, agent):
         comp = agent.get_component("communication")
         msg = Message(
-            sender_id=sender.agent_id,
+            sender_id="sender_001",
             message_type=MessageType.THREAT_ALERT,
             content={"threat": "attacker nearby"},
             step=1,
@@ -113,9 +111,8 @@ class TestCommunicationComponent:
         assert comp.inbox_size == 1
         assert comp.messages_received == 1
 
-    def test_get_messages_no_filter(self, agent, mock_services):
+    def test_get_messages_no_filter(self, agent):
         comp = agent.get_component("communication")
-        factory2 = AgentFactory(mock_services)
         msg1 = Message("s1", MessageType.INFO, {}, step=1)
         msg2 = Message("s2", MessageType.RESOURCE_REQUEST, {}, step=1)
         comp.receive(msg1)
@@ -281,8 +278,10 @@ class TestCommunicateAction:
         mock_services.spatial_service.get_nearby.return_value = {"agents": [recipient]}
 
         result = communicate_action(sender)
-        # Recipient has no comm component; success=False, delivered=0
+        # Broadcast succeeded (nearby agents exist), but delivered=0 as recipient lacks component
+        assert result["success"] is True
         assert result["details"]["messages_delivered"] == 0
+        assert result["details"]["note"] is not None
 
     def test_communicate_dead_agent_excluded(self, mock_services, factory):
         """Dead agents are not eligible recipients."""

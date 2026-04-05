@@ -37,11 +37,14 @@ from typing import TYPE_CHECKING, Deque, Dict, List, Optional
 
 from farm.core.agent.config.component_configs import CommunicationConfig
 from farm.core.agent.services import AgentServices
+from farm.utils.logging import get_logger
 
 from .base import AgentComponent
 
 if TYPE_CHECKING:
     from farm.core.agent.core import AgentCore
+
+logger = get_logger(__name__)
 
 
 class MessageType(str, Enum):
@@ -152,6 +155,8 @@ class CommunicationComponent(AgentComponent):
             The created :class:`Message`.
         """
         current_step = self.current_time
+        if self.core is None:
+            logger.warning("CommunicationComponent.send() called before component was attached to an agent core")
         msg = Message(
             sender_id=self.core.agent_id if self.core else "unknown",
             message_type=message_type,

@@ -1366,9 +1366,7 @@ def communicate_action(agent: "AgentCore") -> dict:
                     delivered += 1
 
         # Small reward per successful delivery
-        reward_per_msg = getattr(
-            getattr(agent.config, "communication", None), "reward_per_message", 0.01
-        )
+        reward_per_msg = agent.config.communication.reward_per_message
         reward = reward_per_msg * delivered
         agent.total_reward += reward
 
@@ -1377,15 +1375,19 @@ def communicate_action(agent: "AgentCore") -> dict:
             f"(range={comm_range:.1f})"
         )
 
+        # The action succeeds as long as the broadcast was attempted (nearby agents found).
+        # delivered=0 means no neighbours had a CommunicationComponent — valid but unproductive.
+        ineligible_note = None if delivered > 0 else "No recipients had a CommunicationComponent"
         return {
-            "success": delivered > 0,
-            "error": None if delivered > 0 else "No recipients had a CommunicationComponent",
+            "success": True,
+            "error": None,
             "details": {
                 "communication_range": comm_range,
                 "nearby_agents": len(recipients),
                 "messages_delivered": delivered,
                 "message_type": message.message_type.value,
                 "reward_earned": reward,
+                "note": ineligible_note,
             },
         }
 
