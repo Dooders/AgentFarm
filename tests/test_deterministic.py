@@ -196,8 +196,8 @@ def compare_database_contents(db1_path, db2_path):
                         col_info = session1.execute(text(f"PRAGMA table_info({table})")).fetchall()
                         col_names = [row[1] for row in col_info]  # Column name is in index 1
                         timestamp_cols = {'start_time', 'end_time', 'created_at', 'updated_at', 'timestamp'}
-                        # Also ignore module_id differences as they are object references that can vary
-                        acceptable_difference_cols = timestamp_cols | {'module_id'}
+                        # module_id: object references can vary; simulation_db_path: absolute path to this run's DB file
+                        acceptable_difference_cols = timestamp_cols | {'module_id', 'simulation_db_path'}
                         
                         # Check each row for differences
                         all_timestamp_diffs = True
@@ -213,7 +213,10 @@ def compare_database_contents(db1_path, db2_path):
                                 # Check if all differences are acceptable (timestamps or module_id)
                                 if differences:
                                     if all(col_name in acceptable_difference_cols for col_name, _, _ in differences):
-                                        print(f"  Row {i}: Only acceptable differences detected (timestamps/module_id)")
+                                        print(
+                                            f"  Row {i}: Only acceptable differences detected "
+                                            "(timestamps, module_id, simulation_db_path)"
+                                        )
                                     else:
                                         print(f"  Row {i}: Non-acceptable differences found:")
                                         for col_name, val1, val2 in differences:
@@ -224,7 +227,10 @@ def compare_database_contents(db1_path, db2_path):
                                             break
                         
                         if all_timestamp_diffs:
-                            print(f"✅ Table {table} differences are only acceptable (timestamps/module_id)")
+                            print(
+                                f"✅ Table {table} differences are only acceptable "
+                                "(timestamps, module_id, simulation_db_path)"
+                            )
                             # Continue to next table - don't return False
                         else:
                             return False
