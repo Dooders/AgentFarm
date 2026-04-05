@@ -51,12 +51,7 @@ omit =
     farm/analysis/spatial/data.py
     farm/analysis/spatial/location.py
     farm/analysis/temporal/data.py
-    farm/api/analysis_controller.py
-    farm/api/cli.py
     farm/api/examples.py
-    farm/api/experiment_controller.py
-    farm/api/server.py
-    farm/api/simulation_controller.py
     farm/charts/chart_actions.py
     farm/charts/chart_agents.py
     farm/charts/chart_analyzer.py
