@@ -57,14 +57,6 @@ omit =
     farm/api/experiment_controller.py
     farm/api/server.py
     farm/api/simulation_controller.py
-    farm/charts/chart_actions.py
-    farm/charts/chart_agents.py
-    farm/charts/chart_analyzer.py
-    farm/charts/chart_experience.py
-    farm/charts/chart_resources.py
-    farm/charts/chart_simulation.py
-    farm/charts/chart_states.py
-    farm/charts/llm_client.py
     farm/config/cli.py
     farm/config/monitor.py
     farm/config/schema.py
@@ -102,10 +94,8 @@ omit =
     farm/runners/batch_runner.py
     farm/runners/experiment_runner.py
     farm/runners/parallel_experiment_runner.py
-    farm/utils/chart_analyzer_validator.py
     farm/utils/config_utils.py
     farm/utils/logging/test_helpers.py
-    farm/utils/run_analysis.py
 
 exclude_lines =
     pragma: no cover
