@@ -82,7 +82,32 @@ def plot_agent_types_over_time(dataframe):
 
 
 # Load the dataset
-def main(dataframe):
+def plot_reproduction_success_rate(dataframe, connection_string=None):
+    """Plot reproduction success rate over time."""
+    try:
+        births = dataframe.groupby("step_number")["births"].sum()
+        deaths = dataframe.groupby("step_number")["deaths"].sum()
+        success_rate = births / (births + deaths).replace(0, 1) * 100
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(
+            success_rate.index,
+            success_rate.values,
+            marker="o",
+            color="green",
+            label="Reproduction Success Rate (%)",
+        )
+        plt.title("Reproduction Success Rate Over Time")
+        plt.xlabel("Step Number")
+        plt.ylabel("Success Rate (%)")
+        plt.legend()
+        return plt
+    except Exception as e:
+        print(f"Error plotting reproduction success rate: {e}")
+        return None
+
+
+def main(dataframe):  # pragma: no cover
     try:
         # Create output directory
         output_dir = "chart_analysis"

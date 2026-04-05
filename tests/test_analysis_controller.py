@@ -425,5 +425,266 @@ def test_progress_handler_with_pause(controller, mock_analysis_service):
     assert elapsed >= 0.1
 
 
+# ---------------------------------------------------------------------------
+# Additional coverage for start() paths, _run_analysis(), stop() with thread,
+# callback error handling, get_state paused/running, and cleanup/del.
+# ---------------------------------------------------------------------------
+
+
+def test_start_resumes_paused_thread(mock_config_service, mock_analysis_service):
+    """start() resumes execution when thread alive and paused."""
+    mock_analysis_service.validate_request = Mock()
+    controller = AnalysisController(mock_config_service)
+
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out"),
+    )
+    controller.initialize_analysis(request)
+    controller.is_paused = True
+
+    # Fake an alive thread
+    fake_thread = Mock()
+    fake_thread.is_alive.return_value = True
+    controller._analysis_thread = fake_thread
+
+    statuses = []
+    controller.register_status_callback("test", statuses.append)
+    controller.start()
+
+    assert not controller.is_paused
+    assert "resumed" in statuses
+
+
+def test_start_no_op_when_thread_alive_not_paused(mock_config_service, mock_analysis_service):
+    """start() is a no-op when thread is alive and not paused."""
+    mock_analysis_service.validate_request = Mock()
+    controller = AnalysisController(mock_config_service)
+
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out"),
+    )
+    controller.initialize_analysis(request)
+
+    fake_thread = Mock()
+    fake_thread.is_alive.return_value = True
+    controller._analysis_thread = fake_thread
+    controller.is_paused = False
+
+    # Should not raise or change state
+    controller.start()
+
+
+def test_start_spawns_thread_and_runs_analysis(mock_config_service, mock_analysis_service):
+    """start() creates a real thread that calls _run_analysis."""
+    from farm.analysis.service import AnalysisResult
+    from pathlib import Path as LibPath
+
+    mock_analysis_service.validate_request = Mock()
+    mock_result = Mock(spec=AnalysisResult)
+    mock_result.success = True
+    mock_result.output_path = LibPath("/fake/out")
+    mock_result.execution_time = 0.1
+    mock_result.cache_hit = False
+    mock_analysis_service.run.return_value = mock_result
+
+    controller = AnalysisController(mock_config_service)
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out"),
+    )
+    controller.initialize_analysis(request)
+
+    statuses = []
+    controller.register_status_callback("test", statuses.append)
+    controller.start()
+    controller.wait_for_completion(timeout=5.0)
+
+    assert "completed" in statuses
+    assert not controller.is_running
+    assert controller.current_progress == 1.0
+
+
+def test_run_analysis_failure(mock_config_service, mock_analysis_service):
+    """_run_analysis notifies 'error' status when result.success is False."""
+    from farm.analysis.service import AnalysisResult
+
+    mock_analysis_service.validate_request = Mock()
+    mock_result = Mock(spec=AnalysisResult)
+    mock_result.success = False
+    mock_result.error = "Analysis module failed"
+    mock_analysis_service.run.return_value = mock_result
+
+    controller = AnalysisController(mock_config_service)
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out"),
+    )
+    controller.initialize_analysis(request)
+
+    statuses = []
+    controller.register_status_callback("test", statuses.append)
+    controller.start()
+    controller.wait_for_completion(timeout=5.0)
+
+    assert "error" in statuses
+
+
+def test_run_analysis_exception(mock_config_service, mock_analysis_service):
+    """_run_analysis handles unexpected exceptions gracefully."""
+    mock_analysis_service.validate_request = Mock()
+    mock_analysis_service.run.side_effect = RuntimeError("unexpected crash")
+
+    controller = AnalysisController(mock_config_service)
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out"),
+    )
+    controller.initialize_analysis(request)
+
+    statuses = []
+    controller.register_status_callback("test", statuses.append)
+    controller.start()
+    controller._analysis_thread.join(timeout=5.0)
+
+    assert "error" in statuses
+    assert not controller.is_running
+
+
+def test_stop_joins_thread(mock_config_service, mock_analysis_service):
+    """stop() joins the analysis thread when called from a different thread."""
+    mock_analysis_service.validate_request = Mock()
+
+    controller = AnalysisController(mock_config_service)
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out"),
+    )
+    controller.initialize_analysis(request)
+
+    fake_thread = Mock()
+    fake_thread.is_alive.return_value = False
+    controller._analysis_thread = fake_thread
+
+    controller.stop()
+    fake_thread.join.assert_called_once()
+
+
+def test_stop_warns_on_thread_timeout(mock_config_service, mock_analysis_service):
+    """stop() logs a warning when thread doesn't terminate within timeout."""
+    mock_analysis_service.validate_request = Mock()
+
+    controller = AnalysisController(mock_config_service)
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out"),
+    )
+    controller.initialize_analysis(request)
+
+    fake_thread = Mock()
+    fake_thread.is_alive.return_value = True  # never finishes
+    controller._analysis_thread = fake_thread
+
+    # Should not raise
+    controller.stop()
+
+
+def test_notify_progress_callback_exception_does_not_propagate(
+    controller, mock_analysis_service
+):
+    """Progress callback exceptions are caught and logged."""
+    mock_analysis_service.validate_request = Mock()
+
+    controller.register_progress_callback("bad", lambda msg, p: 1 / 0)
+    # Should not raise
+    controller._notify_progress("msg", 0.5)
+
+
+def test_notify_status_callback_exception_does_not_propagate(
+    controller, mock_analysis_service
+):
+    """Status callback exceptions are caught and logged."""
+    controller.register_status_callback("bad", lambda s: 1 / 0)
+    # Should not raise
+    controller._notify_status_change("some_status")
+
+
+def test_get_state_paused(controller, mock_analysis_service):
+    """get_state returns 'paused' status when is_paused is True."""
+    mock_analysis_service.validate_request = Mock()
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out"),
+    )
+    controller.initialize_analysis(request)
+    controller.is_paused = True
+    controller.result = None
+
+    state = controller.get_state()
+    assert state["status"] == "paused"
+
+
+def test_get_state_running(controller, mock_analysis_service):
+    """get_state returns 'running' status when is_running is True."""
+    mock_analysis_service.validate_request = Mock()
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out"),
+    )
+    controller.initialize_analysis(request)
+    controller.is_running = True
+    controller.is_paused = False
+    controller.result = None
+
+    state = controller.get_state()
+    assert state["status"] == "running"
+
+
+def test_cleanup_when_running_stops(mock_config_service, mock_analysis_service):
+    """cleanup() stops the controller when it is currently running."""
+    mock_analysis_service.validate_request = Mock()
+
+    controller = AnalysisController(mock_config_service)
+    controller.is_running = True
+
+    stop_called = []
+    original_stop = controller.stop
+    controller.stop = lambda: stop_called.append(True) or original_stop()
+
+    controller.cleanup()
+
+    assert stop_called
+
+
+def test_cleanup_raises_on_error(mock_config_service, mock_analysis_service):
+    """cleanup() re-raises exceptions."""
+    mock_analysis_service.validate_request = Mock()
+
+    controller = AnalysisController(mock_config_service)
+    controller.is_running = True
+    controller.stop = Mock(side_effect=RuntimeError("stop failed"))
+
+    with pytest.raises(RuntimeError, match="stop failed"):
+        controller.cleanup()
+
+
+def test_del_suppresses_exception(mock_config_service, mock_analysis_service):
+    """__del__ swallows exceptions raised during cleanup."""
+    controller = AnalysisController(mock_config_service)
+    controller.cleanup = Mock(side_effect=RuntimeError("cleanup failed"))
+    # Should not raise
+    controller.__del__()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -193,7 +193,7 @@ def plot_action_target_distribution(dataframe):
 
 
 # Load the dataset
-def main(dataframe):
+def main(dataframe):  # pragma: no cover
     try:
         # Dictionary of plot functions and their names
         plot_functions = {
