@@ -112,6 +112,22 @@ class TestChartAgents(unittest.TestCase):
         self.assertIsNotNone(result)
 
     @patch("farm.charts.chart_agents.plt")
+    def test_plot_reproduction_success_rate_all_zero_events_step(self, mock_plt):
+        """Steps with no births and no deaths contribute NaN, not a fake 100%."""
+        df = pd.DataFrame(
+            {
+                "step_number": [1, 1, 2],
+                "births": [0, 0, 1],
+                "deaths": [0, 0, 0],
+            }
+        )
+        result = chart_agents.plot_reproduction_success_rate(df)
+        self.assertIsNotNone(result)
+        call_args = mock_plt.plot.call_args
+        y_values = call_args[0][1]
+        self.assertTrue(pd.Series(y_values).isna().any())
+
+    @patch("farm.charts.chart_agents.plt")
     def test_plot_reproduction_success_rate_exception(self, mock_plt):
         """plot_reproduction_success_rate returns None when data is invalid."""
         df = pd.DataFrame({"wrong_col": [1, 2]})

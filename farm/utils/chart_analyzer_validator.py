@@ -123,7 +123,7 @@ def validate_chart(chart_name: str, show_plot: bool = True):
         "lineage_size": lambda: plot_lineage_size(agents_df),
         "agent_types_over_time": lambda: plot_agent_types_over_time(agents_df),
         "reproduction_success_rate": lambda: plot_reproduction_success_rate(
-            simulation_df, "sqlite:///simulations/simulation.db"
+            simulation_df
         ),
     }
 

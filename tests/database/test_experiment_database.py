@@ -13,6 +13,7 @@ import pytest
 
 from farm.database.data_logging import DataLoggingConfig
 from farm.database.experiment_database import (
+    EXPERIMENT_SIMULATION_ID_PREFIX,
     ExperimentDataLogger,
     ExperimentDatabase,
     SimulationContext,
@@ -91,6 +92,18 @@ class TestExperimentDatabase(unittest.TestCase):
             db_path = f"{tmpdir}/exp_test.db"
             db = ExperimentDatabase(db_path=db_path, experiment_id="exp_001")
             self.assertEqual(db.experiment_id, "exp_001")
+            db.close()
+
+    def test_experiment_simulation_id_none_logger_keeps_placeholder(self):
+        """Experiment scope exposes simulation_id=None; base logger keeps placeholder."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = f"{tmpdir}/exp_contract.db"
+            db = ExperimentDatabase(db_path=db_path, experiment_id="exp_contract")
+            self.assertIsNone(db.simulation_id)
+            self.assertEqual(
+                db.logger.simulation_id,
+                f"{EXPERIMENT_SIMULATION_ID_PREFIX}exp_contract",
+            )
             db.close()
 
     def test_get_simulation_ids_empty(self):

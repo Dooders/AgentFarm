@@ -10,6 +10,14 @@ Features:
 - Semantic search over past experiences
 - Custom indexing for domain-specific queries
 - Automatic memory management with TTL and priority-based expiration
+
+Redis keys
+----------
+Timeline sorted sets and per-step values share the namespace prefix
+``{namespace}:{agent_id}:...``. Older releases used ``{agent_id}:timeline`` for
+timeline lookups only, which could diverge from stored keys. After upgrading,
+either migrate keys in Redis or accept empty timelines until agents write new
+entries.
 """
 
 import json

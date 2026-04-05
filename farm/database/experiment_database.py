@@ -375,6 +375,17 @@ class ExperimentDatabase(SimulationDatabase):
     This class extends SimulationDatabase to support multiple simulations
     in a single database file. Each simulation is tagged with a unique
     simulation_id, enabling data to be filtered by simulation.
+
+    Notes
+    -----
+    **Experiment-level** instances expose ``simulation_id`` as ``None`` because
+    there is no single simulation row. The parent ``SimulationDatabase`` still
+    constructs a ``DataLogger``, which requires a non-empty simulation id; that
+    logger keeps the placeholder
+    ``f"{EXPERIMENT_SIMULATION_ID_PREFIX}{experiment_id}"``. Per-simulation work
+    uses :class:`SimulationContext`, which replaces logging with an
+    ``ExperimentDataLogger`` tied to the real simulation id. Do not assume
+    ``db.simulation_id == db.logger.simulation_id`` on an ``ExperimentDatabase``.
     """
 
     def __init__(self, db_path: str, experiment_id: str, config=None):
