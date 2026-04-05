@@ -416,6 +416,10 @@ class TestGenesisModule:
             == "Analysis of initial conditions and their impact on dominance patterns and simulation outcomes"
         )
 
+    def test_genesis_module_database_helpers(self):
+        assert genesis_module.supports_database() is True
+        assert genesis_module.get_db_filename() == "simulation.db"
+
     def test_genesis_module_function_names(self):
         """Test module function names."""
         functions = genesis_module.get_function_names()

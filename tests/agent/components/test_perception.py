@@ -15,8 +15,40 @@ from unittest.mock import Mock, patch
 from farm.core.agent.components.perception import PerceptionComponent
 from farm.core.agent.config.component_configs import PerceptionConfig
 from farm.core.agent.services import AgentServices
-from farm.core.perception import PerceptionData
+from farm.core.perception import PerceptionContent, PerceptionData
 from farm.core.observations import ObservationConfig
+
+
+class TestPerceptionDataWrapper:
+    """Unit tests for PerceptionData (grid wrapper)."""
+
+    def test_rejects_non_2d_grid(self):
+        with pytest.raises(ValueError, match="2D numpy"):
+            PerceptionData(np.array([1, 2, 3]))
+
+    def test_rejects_invalid_cell_values(self):
+        bad = np.zeros((3, 3), dtype=int)
+        bad[0, 0] = 99
+        with pytest.raises(ValueError, match="invalid"):
+            PerceptionData(bad)
+
+    def test_getitem_shape_array_protocol_and_flat_tensor(self):
+        g = np.zeros((3, 3), dtype=int)
+        pd = PerceptionData(g)
+        assert pd[1, 1] == 0
+        assert pd.shape == (3, 3)
+        assert np.asarray(pd).shape == (3, 3)
+        t = pd.to_tensor()
+        assert t.shape == (9,)
+        t_cpu = pd.to_tensor(device=torch.device("cpu"))
+        assert t_cpu.device.type == "cpu"
+
+    def test_count_content_and_positions(self):
+        g = np.array([[0, 1], [2, 3]], dtype=int)
+        pd = PerceptionData(g)
+        assert pd.count_content(PerceptionContent.EMPTY) == 1
+        assert (0, 1) in pd.get_content_positions(PerceptionContent.RESOURCE)
+        assert (1, 1) in pd.get_content_positions(PerceptionContent.OBSTACLE)
 
 
 class TestPerceptionComponentInitialization:

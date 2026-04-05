@@ -292,6 +292,32 @@ class TestAgentAnalysis:
         output_files = list(tmp_path.glob("*.json"))
         assert len(output_files) > 0
 
+    def test_cluster_agent_behaviors_empty_dataframe(self, tmp_path):
+        ctx = AnalysisContext(output_path=tmp_path)
+        cluster_agent_behaviors(pd.DataFrame(), ctx)
+
+    def test_cluster_agent_behaviors_insufficient_features(self, tmp_path):
+        ctx = AnalysisContext(output_path=tmp_path)
+        df = pd.DataFrame({"successful_actions": [1, 2, 3]})
+        cluster_agent_behaviors(df, ctx)
+
+    def test_cluster_agent_behaviors_too_few_rows_for_k(self, tmp_path):
+        ctx = AnalysisContext(output_path=tmp_path)
+        df = pd.DataFrame(
+            {
+                "successful_actions": [1, 2],
+                "total_actions": [10, 20],
+                "total_rewards": [1.0, 2.0],
+                "lifespan": [1.0, 2.0],
+            }
+        )
+        cluster_agent_behaviors(df, ctx, n_clusters=5)
+
+    def test_plot_behavior_clusters_with_cluster_column(self, tmp_path):
+        ctx = AnalysisContext(output_path=tmp_path)
+        plot_behavior_clusters(pd.DataFrame({"cluster": [0, 0, 1, 1]}), ctx)
+        assert (tmp_path / "behavior_clusters.png").exists()
+
 
 class TestAgentVisualization:
     """Test agent visualization functions."""
@@ -643,6 +669,80 @@ class TestAgentHelperFunctions:
             result = process_agent_data(exp_path)
 
             assert isinstance(result, pd.DataFrame)
+
+    @patch("farm.analysis.agents.data.AgentRepository")
+    @patch("farm.database.session_manager.SessionManager")
+    def test_process_agent_data_loads_sample_agent_row(
+        self, mock_sm_class, mock_repo_class, tmp_path
+    ):
+        from farm.analysis.agents.data import process_agent_data
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        (exp_path / "simulation.db").touch()
+
+        mock_repo = MagicMock()
+        mock_repo_class.return_value = mock_repo
+        mock_repo.get_random_agent_id.return_value = "agent_1"
+
+        info = MagicMock()
+        info.agent_type = "independent"
+        info.birth_time = 0.0
+        info.death_time = 10.0
+        mock_repo.get_agent_info.return_value = info
+        mock_repo.get_agent_performance_metrics.return_value = MagicMock()
+
+        df = process_agent_data(exp_path)
+        assert len(df) == 1
+        assert df.iloc[0]["agent_id"] == "agent_1"
+
+    @patch("farm.analysis.agents.data.AgentRepository")
+    @patch("farm.database.session_manager.SessionManager")
+    def test_process_agent_data_finds_db_under_data_dir(
+        self, mock_sm_class, mock_repo_class, tmp_path
+    ):
+        from farm.analysis.agents.data import process_agent_data
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        data_sub = exp_path / "data"
+        data_sub.mkdir()
+        (data_sub / "simulation.db").touch()
+
+        mock_repo = MagicMock()
+        mock_repo_class.return_value = mock_repo
+        mock_repo.get_random_agent_id.return_value = None
+
+        process_agent_data(exp_path)
+        url = mock_sm_class.call_args[0][0]
+        assert "simulation.db" in url
+
+    @patch(
+        "farm.database.session_manager.SessionManager",
+        side_effect=OSError("db open failed"),
+    )
+    def test_process_agent_data_db_failure_falls_back_to_csv(self, mock_sm, tmp_path):
+        from farm.analysis.agents.data import process_agent_data
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        (exp_path / "simulation.db").touch()
+        data_dir = exp_path / "data"
+        data_dir.mkdir()
+        pd.DataFrame({"agent_id": [1], "lifespan": [10.0]}).to_csv(
+            data_dir / "agents.csv", index=False
+        )
+
+        df = process_agent_data(exp_path)
+        assert len(df) == 1
+
+    def test_process_agent_data_empty_when_no_sources(self, tmp_path):
+        from farm.analysis.agents.data import process_agent_data
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        df = process_agent_data(exp_path)
+        assert df.empty
 
     def test_compute_statistics_helper(self):
         """Test statistics calculation helper."""

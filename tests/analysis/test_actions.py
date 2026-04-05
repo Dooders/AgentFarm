@@ -800,6 +800,52 @@ class TestDataProcessing:
         assert "action_type" in df.columns
         assert "frequency" in df.columns
 
+    @patch("farm.analysis.actions.data.SessionManager")
+    @patch("farm.analysis.actions.data.ActionRepository")
+    def test_process_action_data_parses_details_dict(self, mock_repo_class, mock_session_class, tmp_path):
+        """Resource fields are read from dict action.details when present."""
+        db_path = tmp_path / "simulation.db"
+        db_path.touch()
+        mock_session_class.return_value = MagicMock()
+        mock_repo = MagicMock()
+        mock_repo_class.return_value = mock_repo
+
+        mock_action = MagicMock()
+        mock_action.agent_id = 1
+        mock_action.action_type = "gather"
+        mock_action.step_number = 0
+        mock_action.action_target_id = None
+        mock_action.reward = 0.0
+        mock_action.details = {"agent_resources_before": 10, "agent_resources_after": 8}
+
+        mock_repo.get_actions_by_scope.return_value = [mock_action]
+
+        df = process_action_data(tmp_path, use_database=True)
+        assert not df.empty
+
+    @patch("farm.analysis.actions.data.SessionManager")
+    @patch("farm.analysis.actions.data.ActionRepository")
+    def test_process_action_data_parses_details_json_string(self, mock_repo_class, mock_session_class, tmp_path):
+        """Resource fields are read from JSON-encoded action.details."""
+        db_path = tmp_path / "simulation.db"
+        db_path.touch()
+        mock_session_class.return_value = MagicMock()
+        mock_repo = MagicMock()
+        mock_repo_class.return_value = mock_repo
+
+        mock_action = MagicMock()
+        mock_action.agent_id = 2
+        mock_action.action_type = "move"
+        mock_action.step_number = 1
+        mock_action.action_target_id = None
+        mock_action.reward = 0.0
+        mock_action.details = json.dumps({"resources_before": 3, "resources_after": 1})
+
+        mock_repo.get_actions_by_scope.return_value = [mock_action]
+
+        df = process_action_data(tmp_path, use_database=True)
+        assert not df.empty
+
     def test_process_action_data_from_csv(self, tmp_path):
         """Test processing action data from CSV file."""
         # Create mock data directory and CSV

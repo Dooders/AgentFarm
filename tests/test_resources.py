@@ -6,6 +6,10 @@ def test_resource_depletion_and_regeneration():
 
     assert r.is_depleted() is False
 
+    assert r.consume(0) == 0.0
+    assert r.consume(-1.0) == 0.0
+    assert r.amount == 5.0
+
     # Consume more than available should clamp at 0
     r.consume(7.5)
     assert r.amount == 0

@@ -93,6 +93,9 @@ omit =
     # visualization.py: Tk/matplotlib-Tk GUI code that requires a live
     # display; headless/Xvfb testing is out of scope for the default suite.
     farm/core/visualization.py
+    # observation_render.py: static/interactive observation viewers (matplotlib +
+    # HTML/JS); exercised manually and in focused runs, not the default suite.
+    farm/core/observation_render.py
     # Modules with tests - not omitted from coverage:
     # farm/database/data_logging.py          (tests/database/test_data_logging.py)
     # farm/database/experiment_database.py   (tests/database/test_experiment_database.py)

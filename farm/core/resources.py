@@ -36,7 +36,4 @@ class Resource:
 
     def regenerate(self, regen_amount):
         """Regenerate some amount of the resource up to max_amount."""
-        if self.max_amount is not None:
-            self.amount = min(self.amount + regen_amount, self.max_amount)
-        else:
-            self.amount += regen_amount
+        self.amount = min(self.amount + regen_amount, self.max_amount)

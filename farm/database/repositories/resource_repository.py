@@ -276,11 +276,10 @@ class ResourceRepository(BaseRepository[ResourceModel]):
         """
 
         def query_distribution(session):
-            # Get aggregated resource distribution by position
+            # Aggregated distribution by (x, y). ResourceModel has no z column; use 0.0 for API parity.
             result = session.query(
                 ResourceModel.position_x,
                 ResourceModel.position_y,
-                ResourceModel.position_z,
                 func.sum(ResourceModel.amount).label('total_amount'),
                 func.count(ResourceModel.id).label('resource_count'),
                 func.avg(ResourceModel.amount).label('average_amount')
@@ -290,7 +289,6 @@ class ResourceRepository(BaseRepository[ResourceModel]):
             ).group_by(
                 ResourceModel.position_x,
                 ResourceModel.position_y,
-                ResourceModel.position_z
             ).order_by(
                 func.sum(ResourceModel.amount).desc()
             ).all()
@@ -299,7 +297,7 @@ class ResourceRepository(BaseRepository[ResourceModel]):
                 {
                     'position_x': row.position_x,
                     'position_y': row.position_y,
-                    'position_z': row.position_z or 0.0,
+                    'position_z': 0.0,
                     'total_amount': row.total_amount,
                     'resource_count': row.resource_count,
                     'average_amount': row.average_amount

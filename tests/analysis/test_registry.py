@@ -2,6 +2,8 @@
 Tests for module registry.
 """
 
+import importlib
+
 import pytest
 
 from farm.analysis.exceptions import ModuleNotFoundError
@@ -9,6 +11,7 @@ from farm.analysis.registry import (
     ModuleRegistry,
     get_module,
     get_module_names,
+    get_modules,
     list_modules,
     register_modules,
     registry,
@@ -98,6 +101,10 @@ class TestModuleRegistry:
         assert minimal_module.name in listing
         assert minimal_module.description in listing
 
+    def test_list_modules_empty_registry(self):
+        reg = ModuleRegistry()
+        assert reg.list_modules() == "No modules registered"
+
 
 class TestRegisterModules:
     """Tests for register_modules function."""
@@ -149,6 +156,29 @@ class TestRegisterModules:
         # The test passes if the function handles the error gracefully and returns a count
         assert count >= 0
 
+    def test_register_invalid_path_no_attribute(self, config_service_mock):
+        """Module path must include '.attribute' (comma-separated env style paths)."""
+        config_service_mock.set_module_paths(["not_a_dotted_module_path"])
+
+        count = register_modules(config_service=config_service_mock)
+
+        assert count >= 0
+
+    def test_register_modules_unexpected_error_from_import(self, config_service_mock, monkeypatch):
+        config_service_mock.set_module_paths(["farm.analysis.population.module.population_module"])
+        real_import = importlib.import_module
+
+        def import_wrapper(name, package=None):
+            if name == "farm.analysis.population.module":
+                raise RuntimeError("unexpected load failure")
+            return real_import(name, package=package)
+
+        monkeypatch.setattr(importlib, "import_module", import_wrapper)
+
+        count = register_modules(config_service=config_service_mock)
+
+        assert count >= 0
+
 
 class TestConvenienceFunctions:
     """Tests for module convenience functions."""
@@ -174,3 +204,8 @@ class TestConvenienceFunctions:
 
         listing = list_modules()
         assert minimal_module.name in listing
+
+    def test_get_modules(self, minimal_module):
+        registry.register(minimal_module)
+        all_modules = get_modules()
+        assert all_modules[minimal_module.name] is minimal_module
