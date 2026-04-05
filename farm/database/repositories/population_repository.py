@@ -134,6 +134,10 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
                 Average number of independently operating agents
             - control_agents : float
                 Average number of control group agents
+            - order_agents : float
+                Average number of order-type agents
+            - chaos_agents : float
+                Average number of chaos-type agents
         """
         # Query all steps and extract JSON values, then calculate averages
         query = session.query(
@@ -148,17 +152,23 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
         system_counts = []
         independent_counts = []
         control_counts = []
-        
+        order_counts = []
+        chaos_counts = []
+
         for step in steps:
             agent_counts = step.agent_type_counts or {}
             system_counts.append(agent_counts.get("system", 0))
             independent_counts.append(agent_counts.get("independent", 0))
             control_counts.append(agent_counts.get("control", 0))
+            order_counts.append(agent_counts.get("order", 0))
+            chaos_counts.append(agent_counts.get("chaos", 0))
 
         return AgentDistribution(
             system_agents=float(statistics.mean(system_counts)) if system_counts else 0.0,
             independent_agents=float(statistics.mean(independent_counts)) if independent_counts else 0.0,
             control_agents=float(statistics.mean(control_counts)) if control_counts else 0.0,
+            order_agents=float(statistics.mean(order_counts)) if order_counts else 0.0,
+            chaos_agents=float(statistics.mean(chaos_counts)) if chaos_counts else 0.0,
         )
 
     def get_states(

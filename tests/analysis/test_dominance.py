@@ -29,6 +29,7 @@ from farm.analysis.dominance import (
     plot_feature_importance,
     run_dominance_classification,
 )
+from farm.analysis.dominance.compute import DOMINANCE_AGENT_TYPES
 from farm.analysis.dominance.ml import prepare_features_for_classification, train_classifier
 from farm.analysis.dominance.validation import validate_sim_data
 
@@ -115,7 +116,7 @@ class TestDominanceComputations:
         computer = DominanceComputer()
         result = computer.compute_population_dominance(mock_session)
 
-        assert result in ["system", "independent", "control"]
+        assert result in DOMINANCE_AGENT_TYPES
 
     def test_compute_population_dominance_no_data(self, mock_session):
         """Test population dominance with no data."""
@@ -134,7 +135,7 @@ class TestDominanceComputations:
         computer = DominanceComputer()
         result = computer.compute_survival_dominance(mock_session)
 
-        assert result in ["system", "independent", "control"] or result is None
+        assert result in DOMINANCE_AGENT_TYPES or result is None
 
     def test_compute_survival_dominance_no_agents(self, mock_session):
         """Test survival dominance with no agents."""
@@ -805,7 +806,7 @@ class TestEdgeCases:
         result = computer.compute_population_dominance(mock_session)
 
         # Should pick one deterministically
-        assert result in ["system", "independent", "control"]
+        assert result in DOMINANCE_AGENT_TYPES
 
     def test_compute_survival_with_all_alive_agents(self, mock_session):
         """Test survival dominance with all agents alive."""
@@ -827,7 +828,7 @@ class TestEdgeCases:
         result = computer.compute_survival_dominance(mock_session)
 
         # Should compute based on birth time
-        assert result in ["system", "independent", "control"] or result is None
+        assert result in DOMINANCE_AGENT_TYPES or result is None
 
     def test_analyze_switch_factors_empty_df(self):
         """Test analyzing switch factors with empty DataFrame."""
@@ -986,6 +987,30 @@ class TestDominanceHelperFunctions:
 
         assert isinstance(result, dict)
         assert "system_agents" in result
+        assert result.get("order_agents", 0) == 0
+        assert result.get("chaos_agents", 0) == 0
+
+    def test_get_agent_survival_stats_order_type(self, mock_session):
+        """Order agents must be counted in survival stats (not skipped as unknown)."""
+        from farm.analysis.dominance.data import get_agent_survival_stats
+
+        agents = []
+        for i in range(3):
+            agent = MagicMock()
+            agent.agent_id = f"o{i}"
+            agent.agent_type = "order"
+            agent.birth_time = 0
+            agent.death_time = 20 + i if i < 2 else None
+            agents.append(agent)
+
+        final_step = MagicMock()
+        final_step.step_number = 100
+        mock_session.query.return_value.all.return_value = agents
+        mock_session.query.return_value.order_by.return_value.first.return_value = final_step
+
+        result = get_agent_survival_stats(mock_session)
+        assert "order_count" in result
+        assert result["order_count"] == 3
 
     def test_save_dominance_data_to_db(self, sample_dominance_data):
         """Test saving dominance data to database."""

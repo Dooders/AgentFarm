@@ -15,6 +15,7 @@ from farm.analysis.common.metrics import (
     group_and_analyze,
     split_and_compare_groups,
 )
+from farm.analysis.dominance.constants import DOMINANCE_AGENT_TYPES
 from farm.analysis.dominance.interfaces import (
     DominanceAnalyzerProtocol,
     DominanceComputerProtocol,
@@ -69,7 +70,7 @@ class DominanceAnalyzer:
                 return group_correlations
 
             # Use the utility function to group and analyze
-            agent_types = ["system", "independent", "control"]
+            agent_types = list(DOMINANCE_AGENT_TYPES)
             type_results = group_and_analyze(
                 result_df,
                 group_column="comprehensive_dominance",

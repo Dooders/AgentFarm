@@ -7,6 +7,7 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 
 from farm.analysis.common.context import AnalysisContext
+from farm.analysis.dominance.constants import DOMINANCE_AGENT_TYPES
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -36,21 +37,27 @@ def plot_dominance_distribution(df, output_path: Optional[str] = None, ctx: Opti
         axes = [axes]
 
     # Define consistent agent order and color scheme
-    agent_types = ["system", "independent", "control"]
+    agent_types = list(DOMINANCE_AGENT_TYPES)
     colors = {
         "system": "blue",
         "independent": "red",
         "control": "#DAA520",
-    }  # Goldenrod for control
+        "order": "#9932CC",
+        "chaos": "#FF8C00",
+    }  # Goldenrod for control; orchid / dark orange for order / chaos
 
     # Define mapping between different agent type naming formats
     agent_type_mapping = {
         "SystemAgent": "system",
         "IndependentAgent": "independent",
         "ControlAgent": "control",
+        "OrderAgent": "order",
+        "ChaosAgent": "chaos",
         "system": "system",
         "independent": "independent",
         "control": "control",
+        "order": "order",
+        "chaos": "chaos",
     }
 
     # Plot each dominance measure
@@ -256,7 +263,7 @@ def plot_reproduction_vs_dominance(df, output_path: Optional[str] = None, ctx: O
     important_metrics = []
 
     # Include base reproduction metrics for each agent type
-    for agent_type in ["system", "independent", "control"]:
+    for agent_type in DOMINANCE_AGENT_TYPES:
         for base_metric in [
             "reproduction_rate",
             "reproduction_success_rate",
@@ -466,17 +473,27 @@ def plot_dominance_comparison(df, output_path: Optional[str] = None, ctx: Option
         "survival_dominance",
         "comprehensive_dominance",
     ]
-    agent_types = ["system", "independent", "control"]
-    colors = {"system": "blue", "independent": "green", "control": "red"}
+    agent_types = list(DOMINANCE_AGENT_TYPES)
+    colors = {
+        "system": "blue",
+        "independent": "green",
+        "control": "red",
+        "order": "#9932CC",
+        "chaos": "#FF8C00",
+    }
 
     # Define mapping between different agent type naming formats
     agent_type_mapping = {
         "SystemAgent": "system",
         "IndependentAgent": "independent",
         "ControlAgent": "control",
+        "OrderAgent": "order",
+        "ChaosAgent": "chaos",
         "system": "system",
         "independent": "independent",
         "control": "control",
+        "order": "order",
+        "chaos": "chaos",
     }
 
     # 2. Dominance distribution comparison (as percentages)
@@ -656,42 +673,44 @@ def plot_dominance_switches(df, output_path: Optional[str] = None, ctx: Optional
     plt.close()
 
     # 2. Average dominance period duration by agent type
-    plt.figure(figsize=(10, 6))
-    agent_types = ["system", "independent", "control"]
-    avg_periods = [df[f"{agent_type}_avg_dominance_period"].mean() for agent_type in agent_types]
+    agent_types = list(DOMINANCE_AGENT_TYPES)
+    period_types = [t for t in agent_types if f"{t}_avg_dominance_period" in df.columns]
+    if period_types:
+        plt.figure(figsize=(10, 6))
+        avg_periods = [df[f"{agent_type}_avg_dominance_period"].mean() for agent_type in period_types]
 
-    bars = plt.bar(agent_types, avg_periods)
+        bars = plt.bar(period_types, avg_periods)
 
-    # Add value labels on top of bars
-    for bar in bars:
-        height = bar.get_height()
-        plt.text(
-            bar.get_x() + bar.get_width() / 2.0,
-            height + 0.1,
-            f"{height:.1f}",
-            ha="center",
-            va="bottom",
+        # Add value labels on top of bars
+        for bar in bars:
+            height = bar.get_height()
+            plt.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height + 0.1,
+                f"{height:.1f}",
+                ha="center",
+                va="bottom",
+            )
+
+        plt.title("Average Dominance Period Duration by Agent Type")
+        plt.xlabel("Agent Type")
+        plt.ylabel("Average Steps")
+
+        # Add caption for the second plot
+        caption = (
+            "How long each agent type typically remains dominant before being "
+            "replaced by another type. Longer bars indicate that when this agent type becomes dominant, "
+            "it tends to maintain dominance for more simulation steps."
         )
+        plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
-    plt.title("Average Dominance Period Duration by Agent Type")
-    plt.xlabel("Agent Type")
-    plt.ylabel("Average Steps")
-
-    # Add caption for the second plot
-    caption = (
-        "How long each agent type typically remains dominant before being "
-        "replaced by another type. Longer bars indicate that when this agent type becomes dominant, "
-        "it tends to maintain dominance for more simulation steps."
-    )
-    plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
-
-    # Adjust layout to make room for caption
-    plt.tight_layout(rect=(0, 0.07, 1, 0.95))
-    if not output_path:
-        raise ValueError("output_path is required")
-    output_file = os.path.join(output_path, "avg_dominance_period.png")
-    plt.savefig(output_file)
-    plt.close()
+        # Adjust layout to make room for caption
+        plt.tight_layout(rect=(0, 0.07, 1, 0.95))
+        if not output_path:
+            raise ValueError("output_path is required")
+        output_file = os.path.join(output_path, "avg_dominance_period.png")
+        plt.savefig(output_file)
+        plt.close()
 
     # 3. Phase-specific switch frequency
     if "early_phase_switches" in df.columns:
@@ -735,7 +754,8 @@ def plot_dominance_switches(df, output_path: Optional[str] = None, ctx: Optional
     # 4. Transition matrix heatmap (average across all simulations)
     if all(f"{from_type}_to_{to_type}" in df.columns for from_type in agent_types for to_type in agent_types):
         plt.figure(figsize=(10, 8))
-        transition_data = np.zeros((3, 3))
+        n = len(agent_types)
+        transition_data = np.zeros((n, n))
 
         for i, from_type in enumerate(agent_types):
             for j, to_type in enumerate(agent_types):
@@ -810,7 +830,7 @@ def plot_dominance_stability(df, output_path: Optional[str] = None, ctx: Optiona
     df["dominance_stability"] = 1 / (df["switches_per_step"] + 0.01)  # Add small constant to avoid division by zero
 
     # Plot relationship between stability and dominance score for each agent type
-    for agent_type in ["system", "independent", "control"]:
+    for agent_type in DOMINANCE_AGENT_TYPES:
         score_col = f"{agent_type}_dominance_score"
         if score_col in df.columns:
             plt.scatter(df["dominance_stability"], df[score_col], label=agent_type, alpha=0.7)
@@ -1007,7 +1027,7 @@ def plot_comprehensive_score_breakdown(df, output_path: Optional[str] = None, ct
     logger.info("Generating comprehensive score breakdown chart...")
 
     # Extract the components of the comprehensive dominance score for each agent type
-    agent_types = ["system", "independent", "control"]
+    agent_types = list(DOMINANCE_AGENT_TYPES)
     components = [
         "auc",
         "recency_weighted_auc",

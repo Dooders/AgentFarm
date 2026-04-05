@@ -38,6 +38,14 @@
           "type": "integer",
           "default": 10
         },
+        "order_agents": {
+          "type": "integer",
+          "default": 0
+        },
+        "chaos_agents": {
+          "type": "integer",
+          "default": 0
+        },
         "initial_resource_level": {
           "type": "integer",
           "default": 0
@@ -79,7 +87,9 @@
           "default": {
             "SystemAgent": 0.33,
             "IndependentAgent": 0.33,
-            "ControlAgent": 0.34
+            "ControlAgent": 0.34,
+            "OrderAgent": 0.0,
+            "ChaosAgent": 0.0
           }
         },
         "seed": {

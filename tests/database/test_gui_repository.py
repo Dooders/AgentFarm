@@ -164,7 +164,7 @@ class TestGUIRepository(unittest.TestCase):
         # Mock metrics
         mock_metrics = Mock(spec=SimulationStepModel)
         mock_metrics.total_agents = 10
-        mock_metrics.agent_type_counts = {"system": 5}
+        mock_metrics.agent_type_counts = {"system": 5, "order": 2, "chaos": 1}
         mock_metrics.total_resources = 1000.0
         mock_metrics.average_agent_resources = 100.0
         mock_metrics.births = 2
@@ -194,6 +194,8 @@ class TestGUIRepository(unittest.TestCase):
         self.assertEqual(len(result["agent_states"]), 1)
         self.assertEqual(len(result["resource_states"]), 1)
         self.assertEqual(result["metrics"]["total_agents"], 10)
+        self.assertEqual(result["metrics"]["order_agents"], 2)
+        self.assertEqual(result["metrics"]["chaos_agents"], 1)
 
     def test_get_simulation_data_no_metrics(self):
         """Test get_simulation_data when metrics don't exist."""
@@ -221,6 +223,8 @@ class TestGUIRepository(unittest.TestCase):
         result = self.repository.get_simulation_data(step_number=1)
 
         self.assertEqual(result["metrics"]["total_agents"], 0)
+        self.assertEqual(result["metrics"]["order_agents"], 0)
+        self.assertEqual(result["metrics"]["chaos_agents"], 0)
         self.assertEqual(result["metrics"]["births"], 0)
 
 

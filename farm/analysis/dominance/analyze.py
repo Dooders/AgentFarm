@@ -28,6 +28,7 @@ from farm.analysis.common.metrics import (
 )
 from farm.analysis.core import BaseAnalysisModule
 from farm.analysis.database_utils import import_multi_table_data
+from farm.analysis.dominance.constants import DOMINANCE_AGENT_TYPES
 from farm.analysis.dominance.compute import DominanceComputer
 from farm.analysis.dominance.data import (
     get_agent_survival_stats,
@@ -121,28 +122,21 @@ def process_single_simulation(session, iteration, config, **kwargs):
         }
 
         # Add dominance scores
-        for agent_type in ["system", "independent", "control"]:
+        for agent_type in DOMINANCE_AGENT_TYPES:
             if comprehensive_dominance:
-                sim_data[f"{agent_type}_dominance_score"] = comprehensive_dominance[
-                    "scores"
-                ][agent_type]
-                sim_data[f"{agent_type}_auc"] = comprehensive_dominance["metrics"][
-                    "auc"
-                ][agent_type]
-                sim_data[f"{agent_type}_recency_weighted_auc"] = (
-                    comprehensive_dominance["metrics"]["recency_weighted_auc"][
-                        agent_type
-                    ]
-                )
-                sim_data[f"{agent_type}_dominance_duration"] = comprehensive_dominance[
-                    "metrics"
-                ]["dominance_duration"][agent_type]
-                sim_data[f"{agent_type}_growth_trend"] = comprehensive_dominance[
-                    "metrics"
-                ]["growth_trends"][agent_type]
-                sim_data[f"{agent_type}_final_ratio"] = comprehensive_dominance[
-                    "metrics"
-                ]["final_ratios"][agent_type]
+                scores = comprehensive_dominance.get("scores") or {}
+                metrics = comprehensive_dominance.get("metrics") or {}
+                auc = metrics.get("auc") or {}
+                rw_auc = metrics.get("recency_weighted_auc") or {}
+                dom_dur = metrics.get("dominance_duration") or {}
+                growth = metrics.get("growth_trends") or {}
+                final_r = metrics.get("final_ratios") or {}
+                sim_data[f"{agent_type}_dominance_score"] = scores.get(agent_type)
+                sim_data[f"{agent_type}_auc"] = auc.get(agent_type)
+                sim_data[f"{agent_type}_recency_weighted_auc"] = rw_auc.get(agent_type)
+                sim_data[f"{agent_type}_dominance_duration"] = dom_dur.get(agent_type)
+                sim_data[f"{agent_type}_growth_trend"] = growth.get(agent_type)
+                sim_data[f"{agent_type}_final_ratio"] = final_r.get(agent_type)
             else:
                 # Set default values when comprehensive_dominance is None
                 sim_data[f"{agent_type}_dominance_score"] = None
@@ -158,23 +152,21 @@ def process_single_simulation(session, iteration, config, **kwargs):
             sim_data["switches_per_step"] = dominance_switches["switches_per_step"]
 
             # Add average dominance periods
-            for agent_type in ["system", "independent", "control"]:
-                sim_data[f"{agent_type}_avg_dominance_period"] = dominance_switches[
-                    "avg_dominance_periods"
-                ][agent_type]
+            avg_periods = dominance_switches.get("avg_dominance_periods") or {}
+            for agent_type in DOMINANCE_AGENT_TYPES:
+                sim_data[f"{agent_type}_avg_dominance_period"] = avg_periods.get(agent_type)
 
             # Add phase-specific switch counts
+            phase_sw = dominance_switches.get("phase_switches") or {}
             for phase in ["early", "middle", "late"]:
-                sim_data[f"{phase}_phase_switches"] = dominance_switches[
-                    "phase_switches"
-                ][phase]
+                sim_data[f"{phase}_phase_switches"] = phase_sw.get(phase)
 
             # Add transition matrix data
-            for from_type in ["system", "independent", "control"]:
-                for to_type in ["system", "independent", "control"]:
-                    sim_data[f"{from_type}_to_{to_type}"] = dominance_switches[
-                        "transition_probabilities"
-                    ][from_type][to_type]
+            trans_prob = dominance_switches.get("transition_probabilities") or {}
+            for from_type in DOMINANCE_AGENT_TYPES:
+                row = trans_prob.get(from_type) or {}
+                for to_type in DOMINANCE_AGENT_TYPES:
+                    sim_data[f"{from_type}_to_{to_type}"] = row.get(to_type)
 
         # Add all other data
         if initial_data:
@@ -706,7 +698,7 @@ class DominanceAnalysis(BaseAnalysisModule):
             }
 
         # Group and analyze by agent type
-        agent_types = ["system", "independent", "control"]
+        agent_types = list(DOMINANCE_AGENT_TYPES)
         return self.group_and_analyze(
             group_column="comprehensive_dominance",
             group_values=agent_types,
