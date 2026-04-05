@@ -20,8 +20,9 @@ Technical Details:
 """
 
 import math
+from collections import Counter
 from enum import IntEnum
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
 import numpy as np
 
@@ -1273,6 +1274,23 @@ def pass_action(agent: "AgentCore") -> dict:
         }
 
 
+def _message_for_delivery_to_recipient(msg: Any) -> Any:
+    """Return a message instance safe to place in a recipient inbox.
+
+    Broadcasts are copied with a shallow-copied ``content`` dict so one neighbour
+    cannot mutate another's delivered payload. Unicasts use the original object.
+
+    Defined with a lazy ``dataclasses.replace`` import so :mod:`farm.core.action`
+    does not import the agent communication component at module load (circular).
+    """
+    from dataclasses import replace
+
+    recipient_id = getattr(msg, "recipient_id", None)
+    if recipient_id is None:
+        return replace(msg, content=dict(msg.content))
+    return msg
+
+
 def communicate_action(agent: "AgentCore") -> dict:
     """Execute the communicate action for the given agent.
 
@@ -1366,7 +1384,7 @@ def communicate_action(agent: "AgentCore") -> dict:
         }
 
         # Queue the message in the sender's outbox
-        message = comm_comp.send(
+        comm_comp.send(
             message_type=MessageType.INFO,
             content=payload,
             recipient_id=None,  # broadcast
@@ -1377,6 +1395,7 @@ def communicate_action(agent: "AgentCore") -> dict:
         # unicast messages (recipient_id set) are delivered only to the
         # matching agent if it is among the eligible recipients.
         outbox = comm_comp.flush_outbox()
+        flushed_by_type = Counter(m.message_type.value for m in outbox)
         delivered = 0
         for msg in outbox:
             recipient_id = getattr(msg, "recipient_id", None)
@@ -1389,7 +1408,7 @@ def communicate_action(agent: "AgentCore") -> dict:
 
                 recipient_comm = recipient.get_component("communication")
                 if recipient_comm is not None:
-                    recipient_comm.receive(msg)
+                    recipient_comm.receive(_message_for_delivery_to_recipient(msg))
                     delivered += 1
                     if recipient_id is not None:
                         break
@@ -1413,8 +1432,9 @@ def communicate_action(agent: "AgentCore") -> dict:
             "details": {
                 "communication_range": comm_range,
                 "nearby_agents": len(recipients),
+                "messages_flushed": len(outbox),
                 "messages_delivered": delivered,
-                "message_type": message.message_type.value,
+                "messages_by_type": dict(flushed_by_type),
                 "reward_earned": reward,
                 "note": ineligible_note,
             },

@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import numpy as np
 
+from farm.core.action import get_action_count
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule, _ALGORITHM_REGISTRY
 
@@ -19,7 +20,7 @@ class TestDecisionModuleAlgorithmRegistry(unittest.TestCase):
         self.mock_agent = Mock()
         self.mock_agent.agent_id = "test_agent_1"
 
-        self.action_space = spaces.Discrete(7)
+        self.action_space = spaces.Discrete(get_action_count())
         self.observation_space = spaces.Box(
             low=-1, high=1, shape=(8,), dtype=np.float32
         )
@@ -77,7 +78,7 @@ class TestDecisionModulePerAgentIsolation(unittest.TestCase):
         """Set up test fixtures."""
         from gymnasium import spaces
 
-        self.action_space = spaces.Discrete(7)
+        self.action_space = spaces.Discrete(get_action_count())
         self.observation_space = spaces.Box(
             low=-1, high=1, shape=(8,), dtype=np.float32
         )
@@ -126,7 +127,7 @@ class TestDecisionModuleTrainingFlows(unittest.TestCase):
         self.mock_agent = Mock()
         self.mock_agent.agent_id = "test_agent_1"
 
-        self.action_space = spaces.Discrete(7)
+        self.action_space = spaces.Discrete(get_action_count())
         self.observation_space = spaces.Box(
             low=-1, high=1, shape=(8,), dtype=np.float32
         )

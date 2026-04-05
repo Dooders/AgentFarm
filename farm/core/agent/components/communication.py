@@ -7,7 +7,8 @@ inspired by the FIPA ACL (Foundation for Intelligent Physical Agents Agent
 Communication Language) standard and classic publish/subscribe paradigms:
 
 - **Asynchronous delivery** — senders push to an outbox; recipients read from an
-  inbox.  Delivery occurs once per simulation step via :func:`flush_outbox`.
+  inbox.  Queued messages persist across steps until :meth:`CommunicationComponent.flush_outbox`
+  runs (typically when the agent executes the ``communicate`` action).
 - **Proximity-limited broadcast** — by default, broadcast messages only reach
   agents within ``communication_range`` distance.
 - **Typed messages** — each message carries a :class:`MessageType` that recipients
@@ -24,8 +25,9 @@ Supported message types
 Design notes
 ------------
 The component is **optional** — agents without it simply cannot send or receive
-messages.  The outbox is flushed by the action system so that messages from step
-*t* arrive in recipients' inboxes before those recipients act in step *t+1*.
+messages.  The outbox is **not** cleared at step boundaries; call :meth:`flush_outbox`
+from the ``communicate`` action to deliver pending messages.  Recipients observe
+them in a later step depending on simulation turn order.
 """
 
 from __future__ import annotations
@@ -75,7 +77,7 @@ class Message:
         message_type:   Semantic type of the message.
         content:        Arbitrary payload (must be JSON-serialisable).
         step:           Simulation step when the message was created.
-        priority:       Higher value = higher priority (default 0.0).
+        priority:       Reserved for future prioritisation (not used for ordering yet).
         recipient_id:   Target agent ID, or ``None`` for a broadcast.
     """
 
@@ -96,9 +98,9 @@ class CommunicationComponent(AgentComponent):
 
     Responsibilities:
     - Maintain a bounded inbox queue of received :class:`Message` objects.
-    - Accumulate outbound messages in an outbox list per step.
+    - Accumulate outbound messages in a bounded outbox until :meth:`flush_outbox`.
     - Expose helpers for sending and reading messages.
-    - Clear outbox at start of each step; clear inbox can be done explicitly.
+    - Clear inbox explicitly via :meth:`clear_inbox`; outbox drains on flush or terminate.
     """
 
     def __init__(self, services: AgentServices, config: CommunicationConfig):
@@ -111,7 +113,7 @@ class CommunicationComponent(AgentComponent):
         super().__init__(services, "CommunicationComponent")
         self.config = config
         self._inbox: Deque[Message] = deque(maxlen=config.inbox_capacity)
-        self._outbox: List[Message] = []
+        self._outbox: Deque[Message] = deque(maxlen=config.outbox_capacity)
         self._messages_sent: int = 0
         self._messages_received: int = 0
 
@@ -120,8 +122,8 @@ class CommunicationComponent(AgentComponent):
     # ------------------------------------------------------------------
 
     def on_step_start(self) -> None:
-        """Clear the outbox at the start of every step."""
-        self._outbox.clear()
+        """Outbox is left intact so :meth:`send` queues can span step boundaries."""
+        pass
 
     def on_step_end(self) -> None:
         """No-op; outbox flushing is done by the communicate action."""

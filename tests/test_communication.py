@@ -7,7 +7,7 @@ Covers:
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 from farm.core.agent import (
     AgentCore,
@@ -63,6 +63,7 @@ class TestCommunicationConfig:
         cfg = CommunicationConfig()
         assert cfg.communication_range == 50.0
         assert cfg.inbox_capacity == 20
+        assert cfg.outbox_capacity == 20
         assert cfg.broadcast_cost == 0.0
         assert cfg.reward_per_message == 0.01
 
@@ -142,12 +143,12 @@ class TestCommunicationComponent:
         assert comp.outbox_size == 0
         assert comp.messages_sent == 2
 
-    def test_on_step_start_clears_outbox(self, agent):
+    def test_on_step_start_preserves_outbox(self, agent):
         comp = agent.get_component("communication")
         comp.send(MessageType.INFO, {})
         assert comp.outbox_size == 1
         comp.on_step_start()
-        assert comp.outbox_size == 0
+        assert comp.outbox_size == 1
 
     def test_on_terminate_clears_inbox_and_outbox(self, agent):
         comp = agent.get_component("communication")
@@ -171,6 +172,20 @@ class TestCommunicationComponent:
         msgs = comp.get_messages()
         steps = [m.step for m in msgs]
         assert steps == [2, 3, 4]
+
+    def test_outbox_capacity_bounded(self):
+        """Queued sends beyond outbox_capacity should drop oldest."""
+        cfg = CommunicationConfig(outbox_capacity=3)
+        services = AgentServices(spatial_service=Mock())
+        comp = CommunicationComponent(services, cfg)
+
+        for i in range(5):
+            comp.send(MessageType.INFO, {"i": i})
+
+        assert comp.outbox_size == 3
+        flushed = comp.flush_outbox()
+        assert len(flushed) == 3
+        assert [m.content["i"] for m in flushed] == [2, 3, 4]
 
     def test_broadcast_flag(self, agent):
         comp = agent.get_component("communication")
@@ -235,6 +250,8 @@ class TestCommunicateAction:
 
         assert result["success"] is True
         assert result["details"]["messages_delivered"] == 1
+        assert result["details"]["messages_flushed"] == 1
+        assert result["details"]["messages_by_type"] == {"info": 1}
 
         recipient_comp = recipient.get_component("communication")
         assert recipient_comp.inbox_size == 1
@@ -352,6 +369,38 @@ class TestCommunicateAction:
         assert len(threat_msgs) == 1
         assert threat_msgs[0].recipient_id == "target_001"
         assert len(bystander_comm.get_messages(MessageType.THREAT_ALERT)) == 0
+
+    def test_broadcast_info_payload_independent_per_recipient(self, mock_services, factory):
+        """Broadcast delivery uses shallow-copied content dicts per neighbour."""
+        sender = factory.create_default_agent("sender", (50.0, 50.0), initial_resources=100.0)
+        a = factory.create_default_agent("a", (55.0, 55.0), initial_resources=50.0)
+        b = factory.create_default_agent("b", (56.0, 56.0), initial_resources=50.0)
+        mock_services.spatial_service.get_nearby.return_value = {"agents": [a, b]}
+
+        communicate_action(sender)
+        ma = a.get_component("communication").get_messages()[0]
+        mb = b.get_component("communication").get_messages()[0]
+        assert ma is not mb
+        ma.content["mutated"] = True
+        assert "mutated" not in mb.content
+
+    def test_prequeued_send_survives_step_start_until_communicate(self, mock_services, factory):
+        """Outbox persists across on_step_start; communicate flushes queued + INFO."""
+        sender = factory.create_default_agent("sender", (50.0, 50.0), initial_resources=100.0)
+        recipient = factory.create_default_agent("recipient", (55.0, 55.0), initial_resources=50.0)
+        mock_services.spatial_service.get_nearby.return_value = {"agents": [recipient]}
+
+        sender_comm = sender.get_component("communication")
+        sender_comm.send(MessageType.CUSTOM, {"queued": True})
+        sender_comm.on_step_start()
+
+        result = communicate_action(sender)
+        assert result["success"] is True
+        assert result["details"]["messages_by_type"] == {"custom": 1, "info": 1}
+
+        inbox = recipient.get_component("communication").get_messages()
+        types = {m.message_type for m in inbox}
+        assert MessageType.CUSTOM in types and MessageType.INFO in types
 
 
 # ---------------------------------------------------------------------------

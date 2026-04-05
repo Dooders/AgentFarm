@@ -81,6 +81,9 @@ class CommunicationConfig:
     inbox_capacity: int = 20
     """Maximum number of messages stored in the inbox before old ones are dropped."""
 
+    outbox_capacity: int = 20
+    """Maximum queued outbound messages before oldest are dropped (per agent)."""
+
     broadcast_cost: float = 0.0
     """Resource cost per broadcast message (0.0 = free by default)."""
 

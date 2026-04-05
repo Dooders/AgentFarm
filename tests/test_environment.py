@@ -889,6 +889,7 @@ class TestEnvironment(unittest.TestCase):
             "MOVE",
             "REPRODUCE",
             "PASS",
+            "COMMUNICATE",
         ]
 
         for action_name in expected_actions:
@@ -902,6 +903,7 @@ class TestEnvironment(unittest.TestCase):
         self.assertEqual(ActionType.MOVE, 4)
         self.assertEqual(ActionType.REPRODUCE, 5)
         self.assertEqual(ActionType.PASS, 6)
+        self.assertEqual(ActionType.COMMUNICATE, 7)
 
         # Test action space matches the enabled action mapping (not raw enum)
         self.assertEqual(len(self.env._action_mapping), self.env.action_space().n)

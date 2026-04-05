@@ -117,10 +117,11 @@ AgentFarm implements an asynchronous **inbox/outbox message-passing** model insp
 
 | Concept | Implementation |
 |---|---|
-| **Asynchronous delivery** | Senders push to an outbox; recipients read from a bounded inbox. |
+| **Asynchronous delivery** | Senders push to an outbox; recipients read from a bounded inbox. Queued sends survive across simulation steps until the agent runs **communicate** (which calls `flush_outbox`). The outbox is **not** cleared at step boundaries. |
 | **Proximity-limited broadcast** | The `communicate` action delivers messages only to agents within `communication_range` (default 50 units). |
 | **Typed messages** | Each `Message` carries a `MessageType` so recipients can filter on semantics. |
 | **Bounded inbox** | `inbox_capacity` (default 20) prevents memory growth; oldest messages are dropped when full. |
+| **Bounded outbox** | `outbox_capacity` (default 20); oldest queued outbound messages are dropped when the queue is full. |
 | **Optional component** | Agents without `CommunicationComponent` simply cannot send or receive messages. |
 
 ##### Supported message types
@@ -152,9 +153,11 @@ comm.send(MessageType.THREAT_ALERT,
           content={"attacker_id": "enemy_007", "position": (40, 60)},
           recipient_id="ally_003")
 
-# Messages are delivered when the 'communicate' action executes.
-# Broadcast messages (recipient_id=None) go to every eligible neighbour;
-# unicast messages (recipient_id set) are routed only to the named agent.
+# Messages are delivered when the 'communicate' action executes (flush).
+# You may call send() in an earlier step and still deliver on a later communicate,
+# within outbox_capacity. Broadcast messages (recipient_id=None) go to every
+# eligible neighbour; unicast messages (recipient_id set) are routed only to the
+# named agent.
 
 # ── Receiving ────────────────────────────────────────────────────
 # Read all inbox messages
@@ -176,6 +179,7 @@ from farm.core.agent.config import CommunicationConfig
 cfg = CommunicationConfig(
     communication_range=80.0,   # wider broadcast radius
     inbox_capacity=50,           # larger inbox
+    outbox_capacity=50,          # more queued outbound messages before oldest drop
     reward_per_message=0.02,     # higher reward for communicating
 )
 # Pass via AgentComponentConfig.communication
@@ -187,7 +191,7 @@ When an agent selects the **communicate** action it:
 
 1. Queries the spatial index for agents within `communication_range`.
 2. Composes an `INFO` broadcast carrying `resource_level`, `position`, `health`, and `agent_type`.
-3. Delivers the message to the inbox of every eligible neighbour.
+3. Flushes the outbox (including any messages queued earlier via `send()`), delivering each to eligible neighbours' inboxes. Broadcast payloads are shallow-copied per recipient so neighbours cannot mutate each other's copy.
 4. Earns a small reward proportional to successful deliveries.
 
 The action weight in the global registry is **0.1** (lower than move/gather so communication does not dominate agent policy by default).
