@@ -53,10 +53,14 @@ def test_run_simulation_persisted_db_invariants(tmp_path):
 
     con = sqlite3.connect(str(db_file))
     try:
-        status, end_time, _rs = con.execute(
+        simulation_row = con.execute(
             "SELECT status, end_time, results_summary FROM simulations WHERE simulation_id = ?",
             (simulation_id,),
         ).fetchone()
+        assert simulation_row is not None, (
+            f"expected simulations row for simulation_id {simulation_id}"
+        )
+        status, end_time, _rs = simulation_row
         assert status == "completed"
         assert end_time is not None
 

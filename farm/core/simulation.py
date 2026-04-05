@@ -286,7 +286,7 @@ def run_simulation(
     )
 
     # Initialize start_time here so it's available in both code paths
-    start_time = datetime.now()
+    start_time = datetime.now(timezone.utc)
 
     try:
         # Set up database path (None if path is None)
@@ -502,7 +502,6 @@ def run_simulation(
         if environment.db:
             environment.db.logger.flush_all_buffers()
 
-            final_db_path_abs = os.path.abspath(db_path) if db_path else None
             termination_reason = (
                 "resources_depleted"
                 if environment.cached_total_resources == 0
@@ -520,7 +519,6 @@ def run_simulation(
                     "final_population": len(environment.agents),
                     "termination_reason": termination_reason,
                 },
-                simulation_db_path=final_db_path_abs,
             )
 
             # Persist in-memory database to disk if configured and db_path is provided
@@ -551,6 +549,12 @@ def run_simulation(
                             reason="not_in_memory_database",
                             db_type=type(environment.db).__name__,
                         )
+                    # Update simulation_db_path only after successful persistence
+                    final_db_path_abs = os.path.abspath(db_path)
+                    environment.db.update_simulation_record(
+                        simulation_id,
+                        simulation_db_path=final_db_path_abs,
+                    )
                 except Exception as e:
                     logger.error(
                         "database_persistence_failed",
@@ -612,7 +616,7 @@ def run_simulation(
                 )
 
     # Calculate summary statistics
-    elapsed_time = datetime.now() - start_time
+    elapsed_time = datetime.now(timezone.utc) - start_time
     total_duration = elapsed_time.total_seconds()
     avg_step_time_ms = (total_duration * 1000) / max(environment.time, 1)
 

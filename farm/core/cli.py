@@ -137,9 +137,22 @@ def main():
             return
 
         # Tk and matplotlib's Tk backend are optional; lazy-import so CLI/tests import without them.
-        import tkinter as tk
+        try:
+            import tkinter as tk
 
-        from farm.core.visualization import SimulationVisualizer
+            from farm.core.visualization import SimulationVisualizer
+        except ImportError as exc:
+            logger.error(
+                "visualization_dependencies_unavailable",
+                mode="visualize",
+                error=str(exc),
+                guidance=(
+                    "Visualization mode requires optional GUI dependencies. "
+                    "Install tkinter/Tk for your Python environment and ensure "
+                    "any Tk-backed visualization dependencies are available."
+                ),
+            )
+            return
 
         root = tk.Tk()
         visualizer = SimulationVisualizer(root, db_path=args.db_path)
