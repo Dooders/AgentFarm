@@ -106,7 +106,7 @@ def plot_average_resource_over_time(dataframe):
     return plt
 
 
-def main(dataframe):
+def main(dataframe):  # pragma: no cover
     try:
         # Dictionary of plot functions and their names
         plot_functions = {

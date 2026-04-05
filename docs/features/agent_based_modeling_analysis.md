@@ -104,8 +104,23 @@ Agent Core Attributes
 - Combat and defense capabilities
 - Communication with nearby agents  ← implemented via CommunicationComponent
 - Learning through reinforcement
-- Memory and experience tracking
+- Memory and experience tracking    ← see scope note below
 ```
+
+#### Memory and Experience Tracking
+
+**Current scope (implemented):**
+
+| Component | Description |
+|---|---|
+| **RL experience replay** | `SimpleReplayBuffer` / `ExperienceReplayBuffer` in `farm/core/decision/algorithms/rl_base.py` store `(state, action, reward, next_state, done)` tuples used for training DQN-style policies. This is the primary form of "experience tracking" in production agents. |
+| **Redis-backed episodic memory** (optional) | `farm/memory/redis_memory.py` and `farm/memory/base_memory.py` provide an optional, agent-scoped episodic store that records per-step states, actions, rewards, and perceptions in Redis. Supports timeline retrieval, spatial search, and metadata filtering. Requires a running Redis instance and is not enabled by default. See [Redis agent memory](../redis_agent_memory.md). |
+
+There is **no** general-purpose long-term cognitive memory (episodic, semantic, or associative) active in the default simulation stack today. The `Memory and experience tracking` capability listed above refers exclusively to the two components described here.
+
+**Planned / experimental:**
+
+A hierarchical memory architecture (Short-Term Memory → Intermediate Memory → Long-Term Memory with progressive compression) is under active research in the `memory_agent` experiment. This would give agents biologically-inspired, multi-tier memory with importance-weighted retention and cross-tier experience replay. See the [Memory Agent experiment docs](../experiments/memory_agent/README.md) for the full design. A roadmap issue will be filed to track promotion of this experiment into the core framework.
 
 #### Agent-to-Agent (A2A) Communication
 

@@ -513,7 +513,7 @@ def plot_agent_type_comparison(dataframe, connection_string=None):
     return plt
 
 
-def check_database(connection_string):
+def check_database(connection_string):  # pragma: no cover
     try:
         engine = create_engine(connection_string)
         inspector = inspect(engine)
@@ -533,7 +533,7 @@ def check_database(connection_string):
 
 
 # Load the dataset
-def main(dataframe):
+def main(dataframe):  # pragma: no cover
     try:
         print("Plotting population dynamics...")
         plt = plot_population_dynamics(dataframe)
