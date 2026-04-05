@@ -531,6 +531,8 @@ class DataRetriever:
                     system_agents=type_ratios.get("system", 0.0),
                     independent_agents=type_ratios.get("independent", 0.0),
                     control_agents=type_ratios.get("control", 0.0),
+                    order_agents=type_ratios.get("order", 0.0),
+                    chaos_agents=type_ratios.get("chaos", 0.0),
                 ),
             )
 

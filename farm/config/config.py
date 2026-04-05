@@ -160,12 +160,16 @@ class PopulationConfig:
     system_agents: int = 10
     independent_agents: int = 10
     control_agents: int = 10
+    order_agents: int = 0
+    chaos_agents: int = 0
     max_population: int = 3000
     agent_type_ratios: Dict[str, float] = field(
         default_factory=lambda: {
             "SystemAgent": 0.33,
             "IndependentAgent": 0.33,
             "ControlAgent": 0.34,
+            "OrderAgent": 0.0,
+            "ChaosAgent": 0.0,
         }
     )
 
@@ -460,7 +464,13 @@ class VisualizationConfig:
     birth_radius_scale: int = 4
     death_mark_scale: float = 1.5
     agent_colors: Dict[str, str] = field(
-        default_factory=lambda: {"SystemAgent": "blue", "IndependentAgent": "red", "ControlAgent": "#DAA520"}
+        default_factory=lambda: {
+            "SystemAgent": "blue",
+            "IndependentAgent": "red",
+            "ControlAgent": "#DAA520",
+            "OrderAgent": "purple",
+            "ChaosAgent": "orange",
+        }
     )
     min_font_size: int = 10
     font_scale_factor: int = 40
@@ -473,6 +483,8 @@ class VisualizationConfig:
             "system_agents": "#50c878",
             "independent_agents": "#e74c3c",
             "control_agents": "#DAA520",
+            "order_agents": "#9932CC",
+            "chaos_agents": "#FF8C00",
             "total_resources": "#f39c12",
             "average_agent_resources": "#9b59b6",
         }
@@ -703,6 +715,20 @@ class SimulationConfig:
                 "min_resource_threshold": 0.125,
                 "share_weight": 0.15,
                 "attack_weight": 0.15,
+            },
+            "OrderAgent": {
+                "gather_efficiency_multiplier": 0.6,
+                "gather_cost_multiplier": 0.35,
+                "min_resource_threshold": 0.3,
+                "share_weight": 0.25,
+                "attack_weight": 0.02,
+            },
+            "ChaosAgent": {
+                "gather_efficiency_multiplier": 0.5,
+                "gather_cost_multiplier": 0.15,
+                "min_resource_threshold": 0.03,
+                "share_weight": 0.02,
+                "attack_weight": 0.45,
             },
         }
     )
@@ -1030,6 +1056,8 @@ class SimulationConfig:
                     "system_agents",
                     "independent_agents",
                     "control_agents",
+                    "order_agents",
+                    "chaos_agents",
                     "max_population",
                     "agent_type_ratios",
                 ],

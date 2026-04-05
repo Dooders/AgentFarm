@@ -290,6 +290,8 @@ visualization:
     SystemAgent: "blue"
     IndependentAgent: "red"
     ControlAgent: "#DAA520"
+    OrderAgent: "purple"
+    ChaosAgent: "orange"
   min_font_size: 10
   font_scale_factor: 40
   font_family: "arial"

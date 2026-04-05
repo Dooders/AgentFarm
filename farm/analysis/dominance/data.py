@@ -1,5 +1,8 @@
+from typing import Optional
+
 from scipy.spatial.distance import euclidean
 
+from farm.analysis.dominance.constants import DOMINANCE_AGENT_TYPES
 from farm.database.data_types import GenomeId
 from farm.database.models import (
     ActionModel,
@@ -12,6 +15,30 @@ from farm.database.models import (
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+_AGENT_TYPE_TO_CANONICAL = {
+    "SystemAgent": "system",
+    "IndependentAgent": "independent",
+    "ControlAgent": "control",
+    "OrderAgent": "order",
+    "ChaosAgent": "chaos",
+    "system": "system",
+    "independent": "independent",
+    "control": "control",
+    "order": "order",
+    "chaos": "chaos",
+}
+
+
+def _canonical_agent_type_label(raw: str) -> Optional[str]:
+    if raw is None or raw == "":
+        return None
+    if raw in _AGENT_TYPE_TO_CANONICAL:
+        return _AGENT_TYPE_TO_CANONICAL[raw]
+    low = raw.lower()
+    if low in DOMINANCE_AGENT_TYPES:
+        return low
+    return None
 
 
 def get_final_population_counts(sim_session):
@@ -27,6 +54,8 @@ def get_final_population_counts(sim_session):
         "system_agents": agent_counts.get("system", 0),
         "independent_agents": agent_counts.get("independent", 0),
         "control_agents": agent_counts.get("control", 0),
+        "order_agents": agent_counts.get("order", 0),
+        "chaos_agents": agent_counts.get("chaos", 0),
         "total_agents": final_step.total_agents,
         "final_step": final_step.step_number,
     }
@@ -42,18 +71,7 @@ def get_agent_survival_stats(sim_session):
         logger.info(f"Found {len(agents)} agents")
 
         # Initialize counters and accumulators
-        stats = {
-            "system": {"count": 0, "alive": 0, "dead": 0, "total_survival": 0},
-            "independent": {"count": 0, "alive": 0, "dead": 0, "total_survival": 0},
-            "control": {"count": 0, "alive": 0, "dead": 0, "total_survival": 0},
-        }
-
-        # Map from database agent types to our internal types
-        agent_type_map = {
-            "SystemAgent": "system",
-            "IndependentAgent": "independent",
-            "ControlAgent": "control",
-        }
+        stats = {t: {"count": 0, "alive": 0, "dead": 0, "total_survival": 0} for t in DOMINANCE_AGENT_TYPES}
 
         # Get the final step number for calculating survival of still-alive agents
         final_step = sim_session.query(SimulationStepModel).order_by(SimulationStepModel.step_number.desc()).first()
@@ -61,13 +79,8 @@ def get_agent_survival_stats(sim_session):
         logger.info(f"Final step number: {final_step_number}")
 
         for agent in agents:
-            # Map the agent type from the database to our internal type
-            if agent.agent_type in agent_type_map:
-                agent_type = agent_type_map[agent.agent_type]
-            else:
-                agent_type = agent.agent_type.lower()
-
-            if agent_type not in stats:
+            agent_type = _canonical_agent_type_label(getattr(agent, "agent_type", ""))
+            if agent_type is None:
                 logger.warning(f"Unknown agent type: {agent.agent_type}")
                 continue
 
@@ -117,10 +130,22 @@ def get_initial_positions_and_resources(sim_session, config):
     if not initial_agents or not initial_resources:
         return {}
 
-    # Count initial agents by type
-    system_count = sum(1 for agent in initial_agents if agent.agent_type == "SystemAgent")
-    independent_count = sum(1 for agent in initial_agents if agent.agent_type == "IndependentAgent")
-    control_count = sum(1 for agent in initial_agents if agent.agent_type == "ControlAgent")
+    # Count initial agents by type (DB stores lowercase slugs; accept legacy PascalCase)
+    def _is_agent_type(agent, *labels: str) -> bool:
+        raw = (agent.agent_type or "").lower()
+        return raw in {lab.lower() for lab in labels}
+
+    system_count = sum(
+        1 for agent in initial_agents if _is_agent_type(agent, "system", "SystemAgent")
+    )
+    independent_count = sum(
+        1 for agent in initial_agents if _is_agent_type(agent, "independent", "IndependentAgent")
+    )
+    control_count = sum(
+        1 for agent in initial_agents if _is_agent_type(agent, "control", "ControlAgent")
+    )
+    order_count = sum(1 for agent in initial_agents if _is_agent_type(agent, "order", "OrderAgent"))
+    chaos_count = sum(1 for agent in initial_agents if _is_agent_type(agent, "chaos", "ChaosAgent"))
 
     # Count resources and total resource amount
     resource_count = len(initial_resources)
@@ -132,10 +157,12 @@ def get_initial_positions_and_resources(sim_session, config):
     resource_positions = [(resource.position_x, resource.position_y, resource.amount) for resource in initial_resources]
 
     # Set initial count values
-    result: dict[str, int | float] = {
+    result: dict = {
         "initial_system_count": system_count,
         "initial_independent_count": independent_count,
         "initial_control_count": control_count,
+        "initial_order_count": order_count,
+        "initial_chaos_count": chaos_count,
         "initial_resource_count": resource_count,
         "initial_resource_amount": resource_amount,
     }
@@ -171,7 +198,7 @@ def get_initial_positions_and_resources(sim_session, config):
             result[f"{agent_type}_resource_amount_in_range"] = resource_amount_in_range
 
     # Calculate relative advantages (differences between agent types)
-    agent_types = ["system", "independent", "control"]
+    agent_types = list(DOMINANCE_AGENT_TYPES)
     for i, type1 in enumerate(agent_types):
         for type2 in agent_types[i + 1 :]:
             # Difference in nearest resource distance
@@ -236,22 +263,11 @@ def get_reproduction_stats(sim_session):
             # Create a mapping of agent IDs to normalized agent types
             agents_raw = {agent.agent_id: agent.agent_type for agent in sim_session.query(AgentModel).all()}
 
-            # Normalize agent types (handle different case formats)
             agents = {}
             for agent_id, agent_type in agents_raw.items():
-                # Convert to lowercase for comparison
-                agent_type_lower = agent_type.lower()
-
-                # Map to standard types based on substring matching
-                if "system" in agent_type_lower:
-                    normalized_type = "system"
-                elif "independent" in agent_type_lower:
-                    normalized_type = "independent"
-                elif "control" in agent_type_lower:
-                    normalized_type = "control"
-                else:
+                normalized_type = _canonical_agent_type_label(agent_type)
+                if normalized_type is None:
                     normalized_type = "unknown"
-
                 agents[agent_id] = normalized_type
 
             logger.info(f"Found {len(agents)} agents in database")
@@ -266,33 +282,15 @@ def get_reproduction_stats(sim_session):
             logger.error(f"Error querying agents: {e}")
             return {}
 
-        # Initialize counters
-        stats = {
-            "system": {
-                "attempts": 0,
-                "successes": 0,
-                "failures": 0,
-                "first_reproduction_time": float("inf"),
-                "resources_spent": 0,
-                "offspring_resources": 0,
-            },
-            "independent": {
-                "attempts": 0,
-                "successes": 0,
-                "failures": 0,
-                "first_reproduction_time": float("inf"),
-                "resources_spent": 0,
-                "offspring_resources": 0,
-            },
-            "control": {
-                "attempts": 0,
-                "successes": 0,
-                "failures": 0,
-                "first_reproduction_time": float("inf"),
-                "resources_spent": 0,
-                "offspring_resources": 0,
-            },
+        empty_repro = {
+            "attempts": 0,
+            "successes": 0,
+            "failures": 0,
+            "first_reproduction_time": float("inf"),
+            "resources_spent": 0,
+            "offspring_resources": 0,
         }
+        stats = {t: dict(empty_repro) for t in DOMINANCE_AGENT_TYPES}
 
         # Process successful reproductions
         unknown_agent_types = set()
@@ -405,7 +403,7 @@ def get_reproduction_stats(sim_session):
                     result[f"{agent_type}_first_reproduction_time"] = -1  # No successful reproduction
 
         # Calculate relative advantages (differences between agent types)
-        agent_types = ["system", "independent", "control"]
+        agent_types = list(DOMINANCE_AGENT_TYPES)
         for i, type1 in enumerate(agent_types):
             for type2 in agent_types[i + 1 :]:
                 # Difference in reproduction success rate

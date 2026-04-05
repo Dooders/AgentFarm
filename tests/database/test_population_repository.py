@@ -66,10 +66,10 @@ class TestPopulationRepository(unittest.TestCase):
     def test_get_agent_type_distribution(self):
         """Test get_agent_type_distribution calculates averages."""
         mock_step1 = Mock()
-        mock_step1.agent_type_counts = {"system": 5, "independent": 3, "control": 2}
+        mock_step1.agent_type_counts = {"system": 5, "independent": 3, "control": 2, "order": 1, "chaos": 0}
 
         mock_step2 = Mock()
-        mock_step2.agent_type_counts = {"system": 6, "independent": 4, "control": 2}
+        mock_step2.agent_type_counts = {"system": 6, "independent": 4, "control": 2, "order": 0, "chaos": 2}
 
         mock_query = Mock()
         mock_query.all.return_value = [mock_step1, mock_step2]
@@ -85,6 +85,8 @@ class TestPopulationRepository(unittest.TestCase):
         self.assertEqual(result.system_agents, 5.5)
         self.assertEqual(result.independent_agents, 3.5)
         self.assertEqual(result.control_agents, 2.0)
+        self.assertEqual(result.order_agents, 0.5)
+        self.assertEqual(result.chaos_agents, 1.0)
 
     def test_get_agent_type_distribution_empty(self):
         """Test get_agent_type_distribution with no data."""
@@ -101,6 +103,8 @@ class TestPopulationRepository(unittest.TestCase):
         self.assertEqual(result.system_agents, 0.0)
         self.assertEqual(result.independent_agents, 0.0)
         self.assertEqual(result.control_agents, 0.0)
+        self.assertEqual(result.order_agents, 0.0)
+        self.assertEqual(result.chaos_agents, 0.0)
 
     def test_get_states(self):
         """Test get_states returns agent states."""

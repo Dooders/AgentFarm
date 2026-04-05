@@ -185,17 +185,23 @@ def get_columns_data_by_agent_type(
         system_counts = []
         independent_counts = []
         control_counts = []
-        
+        order_counts = []
+        chaos_counts = []
+
         for row in query:
             counts = extract_agent_counts_from_json(row[1])
             system_counts.append(counts.get("system", 0))
             independent_counts.append(counts.get("independent", 0))
             control_counts.append(counts.get("control", 0))
+            order_counts.append(counts.get("order", 0))
+            chaos_counts.append(counts.get("chaos", 0))
 
         populations = {
             "system_agents": np.array(system_counts),
             "independent_agents": np.array(independent_counts),
             "control_agents": np.array(control_counts),
+            "order_agents": np.array(order_counts),
+            "chaos_agents": np.array(chaos_counts),
         }
 
         max_steps = len(steps)

@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import pandas as pd
 
+from farm.analysis.dominance.constants import DOMINANCE_AGENT_TYPES
 from farm.database.models import AgentModel, SimulationStepModel
 from farm.utils.logging import get_logger
 
@@ -9,6 +10,33 @@ if TYPE_CHECKING:
     from farm.analysis.dominance.interfaces import DominanceAnalyzerProtocol
 
 logger = get_logger(__name__)
+
+_ALIASES_TO_CANONICAL = {
+    "system": "system",
+    "systemagent": "system",
+    "independent": "independent",
+    "independentagent": "independent",
+    "control": "control",
+    "controlagent": "control",
+    "order": "order",
+    "orderagent": "order",
+    "chaos": "chaos",
+    "chaosagent": "chaos",
+}
+
+
+def _canonical_agent_type(raw: Optional[str]) -> Optional[str]:
+    """Map stored agent_type strings to a dominance key, or None if unknown."""
+    if not raw:
+        return None
+    key = "".join(c for c in raw.lower() if c.isalnum())
+    return _ALIASES_TO_CANONICAL.get(key)
+
+
+def _counts_from_step_agent_json(agent_type_counts: Optional[Dict[str, Any]]) -> Dict[str, int]:
+    """Build per-type counts dict with all standard keys (missing -> 0)."""
+    data = agent_type_counts or {}
+    return {t: int(data.get(t, 0)) for t in DOMINANCE_AGENT_TYPES}
 
 
 class DominanceComputer:
@@ -41,11 +69,7 @@ class DominanceComputer:
             return None
         # Create a dictionary of agent counts from JSON column
         agent_counts = final_step.agent_type_counts or {}
-        counts = {
-            "system": agent_counts.get("system", 0),
-            "independent": agent_counts.get("independent", 0),
-            "control": agent_counts.get("control", 0),
-        }
+        counts = _counts_from_step_agent_json(agent_counts)
         # Return the key with the maximum count
         return max(counts.items(), key=lambda x: x[1])[0]
 
@@ -63,23 +87,24 @@ class DominanceComputer:
         final_step = sim_session.query(SimulationStepModel).order_by(SimulationStepModel.step_number.desc()).first()
         final_step_number = final_step.step_number if final_step else 0
 
-        survival_by_type = {}
-        count_by_type = {}
+        survival_by_type: Dict[str, float] = {t: 0.0 for t in DOMINANCE_AGENT_TYPES}
+        count_by_type: Dict[str, int] = {t: 0 for t in DOMINANCE_AGENT_TYPES}
         for agent in agents:
+            canon = _canonical_agent_type(getattr(agent, "agent_type", None))
+            if canon is None:
+                continue
             # For alive agents, use the final step as the death time
             if agent.death_time is not None:
                 survival = agent.death_time - agent.birth_time
             else:
                 survival = final_step_number - agent.birth_time
 
-            survival_by_type.setdefault(agent.agent_type, 0)
-            count_by_type.setdefault(agent.agent_type, 0)
-            survival_by_type[agent.agent_type] += survival
-            count_by_type[agent.agent_type] += 1
+            survival_by_type[canon] += survival
+            count_by_type[canon] += 1
 
         avg_survival = {
-            agent_type: (survival_by_type[agent_type] / count_by_type[agent_type])
-            for agent_type in survival_by_type
+            agent_type: survival_by_type[agent_type] / count_by_type[agent_type]
+            for agent_type in DOMINANCE_AGENT_TYPES
             if count_by_type[agent_type] > 0
         }
         if not avg_survival:
@@ -105,7 +130,7 @@ class DominanceComputer:
             return None
 
         # Initialize tracking variables
-        agent_types = ["system", "independent", "control"]
+        agent_types = list(DOMINANCE_AGENT_TYPES)
         current_dominant = None
         previous_dominant = None
         dominance_periods = {agent_type: [] for agent_type in agent_types}
@@ -119,18 +144,15 @@ class DominanceComputer:
         # Process each simulation step
         for step_idx, step in enumerate(sim_steps):
             # Determine which type is dominant in this step
-            agent_counts = step.agent_type_counts or {}
-            counts = {
-                "system": agent_counts.get("system", 0),
-                "independent": agent_counts.get("independent", 0),
-                "control": agent_counts.get("control", 0),
-            }
+            counts = _counts_from_step_agent_json(step.agent_type_counts)
 
             # Skip steps with no agents
             if sum(counts.values()) == 0:
                 continue
 
-            current_dominant = max(counts.items(), key=lambda x: x[1])[0]
+            # Tie-break: first key in DOMINANCE_AGENT_TYPES wins (deterministic)
+            dominant_count = max(counts.values())
+            current_dominant = next(t for t in agent_types if counts[t] == dominant_count)
 
             # If this is the first step with agents, initialize
             if previous_dominant is None:
@@ -226,7 +248,7 @@ class DominanceComputer:
             return None
 
         # Initialize metrics
-        agent_types = ["system", "independent", "control"]
+        agent_types = list(DOMINANCE_AGENT_TYPES)
         total_steps = len(sim_steps)
 
         # Calculate Area Under the Curve (agent-steps)
@@ -260,15 +282,11 @@ class DominanceComputer:
                 # Track agent counts for trend analysis
                 agent_counts[agent_type].append(agent_count)
 
-            # Determine which type was dominant in this step
-            step_agent_counts = step.agent_type_counts or {}
-            counts = {
-                "system": step_agent_counts.get("system", 0),
-                "independent": step_agent_counts.get("independent", 0),
-                "control": step_agent_counts.get("control", 0),
-            }
-            dominant_type = max(counts.items(), key=lambda x: x[1])[0] if any(counts.values()) else None
-            if dominant_type:
+            # Determine which type was dominant in this step (deterministic tie-break)
+            counts = _counts_from_step_agent_json(step.agent_type_counts)
+            if any(counts.values()):
+                dominant_count = max(counts.values())
+                dominant_type = next(t for t in agent_types if counts[t] == dominant_count)
                 dominance_duration[dominant_type] += 1
 
         # Calculate growth trends in the latter half
@@ -296,9 +314,10 @@ class DominanceComputer:
         total_final_agents = final_step.total_agents
         final_ratios = {}
 
+        final_json = final_step.agent_type_counts or {}
         if total_final_agents > 0:
             for agent_type in agent_types:
-                agent_count = getattr(final_step, f"{agent_type}_agents")
+                agent_count = int(final_json.get(agent_type, 0))
                 final_ratios[agent_type] = agent_count / total_final_agents
         else:
             final_ratios = {agent_type: 0 for agent_type in agent_types}
