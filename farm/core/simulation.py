@@ -36,7 +36,7 @@ import json
 import os
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -502,6 +502,27 @@ def run_simulation(
         if environment.db:
             environment.db.logger.flush_all_buffers()
 
+            final_db_path_abs = os.path.abspath(db_path) if db_path else None
+            termination_reason = (
+                "resources_depleted"
+                if environment.cached_total_resources == 0
+                else "agents_extinct"
+                if len(environment.agents) == 0
+                else "completed"
+            )
+            environment.db.update_simulation_record(
+                simulation_id,
+                status="completed",
+                end_time=datetime.now(timezone.utc),
+                results_summary={
+                    "total_steps": environment.time,
+                    "max_steps_configured": num_steps,
+                    "final_population": len(environment.agents),
+                    "termination_reason": termination_reason,
+                },
+                simulation_db_path=final_db_path_abs,
+            )
+
             # Persist in-memory database to disk if configured and db_path is provided
             if config.database.persist_db_on_completion and db_path is not None:
                 try:
@@ -549,6 +570,24 @@ def run_simulation(
             error_message=str(e),
             exc_info=True,
         )
+        if "environment" in locals() and getattr(environment, "db", None):
+            try:
+                environment.db.logger.flush_all_buffers()
+                environment.db.update_simulation_record(
+                    simulation_id,
+                    status="failed",
+                    end_time=datetime.now(timezone.utc),
+                    results_summary={
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                    },
+                )
+            except Exception as update_err:
+                logger.warning(
+                    "simulation_status_update_failed",
+                    simulation_id=simulation_id,
+                    error=str(update_err),
+                )
         if "environment" in locals():
             try:
                 environment.cleanup()
