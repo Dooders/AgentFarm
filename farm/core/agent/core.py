@@ -151,6 +151,8 @@ class AgentCore:
             "system": "SystemAgent",
             "independent": "IndependentAgent",
             "control": "ControlAgent",
+            "order": "OrderAgent",
+            "chaos": "ChaosAgent",
         }
         config_key = agent_type_map.get(agent_type.lower())
         

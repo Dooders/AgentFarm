@@ -186,6 +186,18 @@ class SimulationVisualizer:
                 "color": "#DAA520",  # Changed to goldenrod
                 "column": right_column,
             },
+            "order_agents": {
+                "var": tk.StringVar(value="0"),
+                "label": "Order Agents",
+                "color": "#9932CC",  # Dark orchid
+                "column": left_column,
+            },
+            "chaos_agents": {
+                "var": tk.StringVar(value="0"),
+                "label": "Chaos Agents",
+                "color": "#FF8C00",  # Dark orange
+                "column": right_column,
+            },
             "total_resources": {
                 "var": tk.StringVar(value="0"),
                 "label": "Total Resources",
@@ -270,12 +282,20 @@ class SimulationVisualizer:
             )[
                 0
             ],  # Changed to soft yellow
+            "order_agents": self.ax1.plot(
+                [], [], color="#9932CC", label="Order Agents"
+            )[0],
+            "chaos_agents": self.ax1.plot(
+                [], [], color="#FF8C00", label="Chaos Agents"
+            )[0],
             "resources": self.ax2.plot([], [], "g-", label="Resources")[0],
             "system_agents_future": self.ax1.plot([], [], "b-", alpha=0.3)[0],
             "independent_agents_future": self.ax1.plot([], [], "r-", alpha=0.3)[0],
             "control_agents_future": self.ax1.plot([], [], color="#FFD700", alpha=0.3)[
                 0
             ],  # Changed to soft yellow
+            "order_agents_future": self.ax1.plot([], [], color="#9932CC", alpha=0.3)[0],
+            "chaos_agents_future": self.ax1.plot([], [], color="#FF8C00", alpha=0.3)[0],
             "resources_future": self.ax2.plot([], [], "g-", alpha=0.3)[0],
             "current_step": self.ax1.axvline(
                 x=0, color="gray", linestyle="--", alpha=0.5
@@ -716,15 +736,19 @@ class SimulationVisualizer:
 
             # Convert to numpy arrays for better performance
             steps = np.array(history["steps"])
-            system_agents = np.array(history["metrics"]["system_agents"])
-            independent_agents = np.array(history["metrics"]["independent_agents"])
-            control_agents = np.array(history["metrics"]["control_agents"])
+            system_agents = np.array(history["metrics"].get("system_agents", [0] * len(steps)))
+            independent_agents = np.array(history["metrics"].get("independent_agents", [0] * len(steps)))
+            control_agents = np.array(history["metrics"].get("control_agents", [0] * len(steps)))
+            order_agents = np.array(history["metrics"].get("order_agents", [0] * len(steps)))
+            chaos_agents = np.array(history["metrics"].get("chaos_agents", [0] * len(steps)))
             total_resources = np.array(history["metrics"]["total_resources"])
 
             # Update all lines with full data
             self.lines["system_agents"].set_data(steps, system_agents)
             self.lines["independent_agents"].set_data(steps, independent_agents)
             self.lines["control_agents"].set_data(steps, control_agents)
+            self.lines["order_agents"].set_data(steps, order_agents)
+            self.lines["chaos_agents"].set_data(steps, chaos_agents)
             self.lines["resources"].set_data(steps, total_resources)
 
             # Update current step line
@@ -733,6 +757,8 @@ class SimulationVisualizer:
                 max(system_agents),
                 max(independent_agents),
                 max(control_agents),
+                max(order_agents),
+                max(chaos_agents),
                 max(total_resources),
             )
             self.lines["current_step"].set_ydata([0, max_y])
@@ -741,7 +767,13 @@ class SimulationVisualizer:
             self.ax1.set_xlim(0, max(steps) + 10)
             self.ax1.set_ylim(
                 0,
-                max(max(system_agents), max(independent_agents), max(control_agents))
+                max(
+                    max(system_agents),
+                    max(independent_agents),
+                    max(control_agents),
+                    max(order_agents),
+                    max(chaos_agents),
+                )
                 * 1.1,
             )
             self.ax2.set_ylim(0, max(total_resources) * 1.1)

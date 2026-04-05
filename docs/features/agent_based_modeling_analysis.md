@@ -30,6 +30,7 @@
 3. [Practical Examples](#practical-examples)
    - [Example 1: Basic agent-based simulation](#example-1-basic-agent-based-simulation)
    - [Examples 2–4 (replaced)](#examples-24-replaced)
+   - [Example 2: Order vs. Chaos scenario](#example-2-order-vs-chaos-scenario)
 4. [Advanced features](#advanced-features)
 5. [Performance optimization](#performance-optimization)
    - [Efficient spatial queries](#efficient-spatial-queries)
@@ -83,9 +84,11 @@ AgentFarm enables you to create sophisticated multi-agent simulations where agen
 
 AgentFarm supports multiple agent types, each with distinct behaviors:
 
-- **System Agents**: Cooperative agents that prioritize collective goals and resource sharing
-- **Independent Agents**: Self-oriented agents focused on individual survival and resource acquisition
-- **Control Agents**: Baseline agents for experimental comparison
+- **System Agents** (`agent_type="system"`): Cooperative agents that prioritize collective goals and resource sharing. They have high sharing weights and low attack weights, making them well-suited for studying cooperative emergence.
+- **Independent Agents** (`agent_type="independent"`): Self-oriented agents focused on individual survival and resource acquisition. They gather resources aggressively but rarely share, making them useful for studying competitive dynamics.
+- **Control Agents** (`agent_type="control"`): Baseline agents with balanced parameters for experimental comparison. They serve as a neutral reference point in mixed-type experiments.
+- **Order Agents** (`agent_type="order"`): Structure-seeking agents that favor stability, predictable resource gathering, and cautious behavior. They maintain high resource reserves, share moderately with neighbors, and avoid combat. Use them to study the emergence of organized, rule-following societies.
+- **Chaos Agents** (`agent_type="chaos"`): Disruption-oriented agents that act recklessly, attack frequently, and ignore cooperative norms. They keep minimal resource reserves and rarely share. Use them to study instability, adversarial dynamics, and the breakdown of cooperative strategies.
 - **Custom Agents**: Define your own agent types with specialized behaviors
 
 #### Agent Capabilities
@@ -561,6 +564,59 @@ if __name__ == "__main__":
 ### Examples 2–4 (replaced)
 
 Longer tutorials for cooperation studies, multi-run comparisons, and sweeps belong in **[Usage examples](../usage_examples.md)** and the **`tests/`** suite. For multiple runs with a single driver, use **`ExperimentRunner`** (`farm.runners.experiment_runner`) and read `_create_iteration_config` for how variation dicts map to `SimulationConfig`. For comparing SQLite outputs, use **`farm.database.simulation_comparison`** (session-based helpers) or **`farm.analysis.comparative_analysis.compare_simulations`**, depending on your workflow.
+
+### Example 2: Order vs. Chaos scenario
+
+```python
+from farm.config import SimulationConfig
+from farm.core.simulation import run_simulation
+from farm.core.analysis import SimulationAnalyzer
+
+
+def run_order_vs_chaos():
+    config = SimulationConfig.from_centralized_config(environment="development")
+    config.environment.width = 50
+    config.environment.height = 50
+
+    # Mix of all agent types
+    config.population.system_agents = 5
+    config.population.independent_agents = 5
+    config.population.control_agents = 5
+    config.population.order_agents = 10   # Structure-seeking, cooperative
+    config.population.chaos_agents = 10   # Disruptive, aggressive
+
+    config.resources.initial_resources = 300
+    config.resources.resource_regen_rate = 0.03
+    config.max_steps = 500
+    config.seed = 42
+
+    env = run_simulation(
+        num_steps=config.max_steps,
+        config=config,
+        path="simulations",
+        save_config=True,
+    )
+
+    analyzer = SimulationAnalyzer(env.db.db_path, simulation_id=env.simulation_id)
+    survival = analyzer.calculate_survival_rates()
+    print(survival.head())
+
+
+if __name__ == "__main__":
+    run_order_vs_chaos()
+```
+
+**Order Agent characteristics** (`agent_type="order"`):
+- High minimum resource threshold (0.3) — maintains stable reserves
+- Moderate sharing weight (0.25) — cooperative with neighbors
+- Very low attack weight (0.02) — avoids conflict
+- Moderate gather efficiency (0.6) — consistent and reliable
+
+**Chaos Agent characteristics** (`agent_type="chaos"`):
+- Very low minimum resource threshold (0.03) — reckless resource management
+- Very low sharing weight (0.02) — non-cooperative
+- Very high attack weight (0.45) — aggressive and disruptive
+- Moderate gather efficiency (0.5) — unpredictable gathering
 
 ---
 

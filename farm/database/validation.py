@@ -674,6 +674,8 @@ class StatisticalValidator:
             agent_type_counts.get("system", 0),
             agent_type_counts.get("independent", 0),
             agent_type_counts.get("control", 0),
+            agent_type_counts.get("order", 0),
+            agent_type_counts.get("chaos", 0),
         )
 
         # Get actual agent counts
@@ -708,6 +710,22 @@ class StatisticalValidator:
             {"step": latest_step},
         ).scalar()
 
+        actual_order = self.session.execute(
+            text("""
+            SELECT COUNT(*) FROM agents 
+            WHERE agent_type = 'order' AND (death_time IS NULL OR death_time > :step)
+        """),
+            {"step": latest_step},
+        ).scalar()
+
+        actual_chaos = self.session.execute(
+            text("""
+            SELECT COUNT(*) FROM agents 
+            WHERE agent_type = 'chaos' AND (death_time IS NULL OR death_time > :step)
+        """),
+            {"step": latest_step},
+        ).scalar()
+
         violations = 0
         issues = []
 
@@ -731,6 +749,14 @@ class StatisticalValidator:
         if abs(step_counts[3] - actual_control) > tolerance:
             violations += 1
             issues.append(f"Control agents: step={step_counts[3]}, actual={actual_control}")
+
+        if abs(step_counts[4] - actual_order) > tolerance:
+            violations += 1
+            issues.append(f"Order agents: step={step_counts[4]}, actual={actual_order}")
+
+        if abs(step_counts[5] - actual_chaos) > tolerance:
+            violations += 1
+            issues.append(f"Chaos agents: step={step_counts[5]}, actual={actual_chaos}")
 
         if violations > 0:
             self.report.add_result(
