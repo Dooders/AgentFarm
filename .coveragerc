@@ -112,12 +112,6 @@ omit =
     farm/database/simulation.py
     farm/database/utilities.py
     farm/database/validation.py
-    farm/memory/base_memory.py
-    farm/memory/redis_memory.py
-    farm/research/research.py
-    farm/runners/batch_runner.py
-    farm/runners/experiment_runner.py
-    farm/runners/parallel_experiment_runner.py
     farm/utils/chart_analyzer_validator.py
     farm/utils/config_utils.py
     farm/utils/logging/test_helpers.py
