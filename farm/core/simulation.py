@@ -332,7 +332,7 @@ def run_simulation(
             # Create simulation record for in-memory database
             environment.db.add_simulation_record(
                 simulation_id=simulation_id,
-                start_time=datetime.now(),
+                start_time=datetime.now(timezone.utc),
                 status="running",
                 parameters=config.to_dict(),
             )
@@ -396,7 +396,7 @@ def run_simulation(
                 if "FOREIGN KEY constraint failed" in str(e):
                     environment.db.add_simulation_record(
                         simulation_id=simulation_id,
-                        start_time=datetime.now(),
+                        start_time=datetime.now(timezone.utc),
                         status="running",
                         parameters=config.to_dict(),
                     )
