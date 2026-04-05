@@ -221,10 +221,6 @@ class TestChartSimulation(unittest.TestCase):
             result = chart_simulation.plot_agent_type_comparison(df)
         self.assertIsNotNone(result)
 
-
-if __name__ == "__main__":
-    unittest.main()
-
     def test_functions_exist(self):
         """Verify all public chart functions are present."""
         for name in [
