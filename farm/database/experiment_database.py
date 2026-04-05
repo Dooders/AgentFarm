@@ -38,6 +38,10 @@ from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+#: Prefix used for the placeholder simulation_id passed to the parent
+#: SimulationDatabase when ExperimentDatabase has no per-simulation context.
+EXPERIMENT_SIMULATION_ID_PREFIX = "_experiment_"
+
 
 class ExperimentDataLogger(DataLogger):
     #! Just update data logger
@@ -388,7 +392,11 @@ class ExperimentDatabase(SimulationDatabase):
         # Initialize the parent class with a placeholder simulation_id derived
         # from the experiment_id so that the base DataLogger can be created.
         # Individual simulations use separate SimulationContext loggers.
-        super().__init__(db_path, config=config, simulation_id=f"_experiment_{experiment_id}")
+        super().__init__(
+            db_path,
+            config=config,
+            simulation_id=f"{EXPERIMENT_SIMULATION_ID_PREFIX}{experiment_id}",
+        )
 
         # Override simulation_id to None – ExperimentDatabase operates at the
         # experiment level, not at the individual simulation level.

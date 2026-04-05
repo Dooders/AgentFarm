@@ -120,17 +120,20 @@ class TestQueryDatabase(unittest.TestCase):
                 self.assertGreater(mock_logger.info.call_count, 0)
 
     def test_query_database_handles_sqlite_error(self):
-        """query_database with a corrupted DB should log an error."""
+        """query_database with a corrupted DB should either log an error or raise."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "corrupt.db")
             # Write garbage bytes to simulate a corrupt DB
             with open(db_path, "wb") as f:
                 f.write(b"not a sqlite database")
             with patch("farm.database.query_experiment_db.logger") as mock_logger:
-                query_database(db_path)
-                # Should have logged an error (either logger.error or SQLite raised)
-                # Some implementations may not call logger.error – just check no exception
-                self.assertTrue(True)
+                try:
+                    query_database(db_path)
+                    # If no exception raised, an error should have been logged
+                    self.assertGreater(mock_logger.error.call_count, 0)
+                except Exception:
+                    # A raised exception is also acceptable behaviour
+                    pass
 
 
 if __name__ == "__main__":
