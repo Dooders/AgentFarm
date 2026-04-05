@@ -84,9 +84,6 @@ class CommunicationConfig:
     broadcast_cost: float = 0.0
     """Resource cost per broadcast message (0.0 = free by default)."""
 
-    direct_cost: float = 0.0
-    """Resource cost per direct (unicast) message (0.0 = free by default)."""
-
     reward_per_message: float = 0.01
     """Small reward given for successfully delivering a message."""
 

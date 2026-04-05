@@ -64,7 +64,6 @@ class TestCommunicationConfig:
         assert cfg.communication_range == 50.0
         assert cfg.inbox_capacity == 20
         assert cfg.broadcast_cost == 0.0
-        assert cfg.direct_cost == 0.0
         assert cfg.reward_per_message == 0.01
 
     def test_custom_values(self):
@@ -292,6 +291,33 @@ class TestCommunicateAction:
 
         result = communicate_action(sender)
         assert result["success"] is False
+
+    def test_communicate_broadcast_cost_deducted(self, mock_services, factory):
+        """Non-zero broadcast_cost is deducted when communication succeeds."""
+        sender = factory.create_default_agent("sender", (50.0, 50.0), initial_resources=100.0)
+        sender.config = AgentComponentConfig(communication=CommunicationConfig(broadcast_cost=5.0))
+        recipient = factory.create_default_agent("recipient", (55.0, 55.0), initial_resources=50.0)
+        mock_services.spatial_service.get_nearby.return_value = {"agents": [recipient]}
+
+        before = sender.resource_level
+        result = communicate_action(sender)
+
+        assert result["success"] is True
+        assert sender.resource_level == before - 5.0
+
+    def test_communicate_insufficient_resources_for_cost(self, mock_services, factory):
+        """Action fails when broadcast_cost exceeds available resources."""
+        sender = factory.create_default_agent("sender", (50.0, 50.0), initial_resources=3.0)
+        sender.config = AgentComponentConfig(communication=CommunicationConfig(broadcast_cost=5.0))
+        recipient = factory.create_default_agent("recipient", (55.0, 55.0), initial_resources=50.0)
+        mock_services.spatial_service.get_nearby.return_value = {"agents": [recipient]}
+
+        before = sender.resource_level
+        result = communicate_action(sender)
+
+        assert result["success"] is False
+        assert "Insufficient resources" in result["error"]
+        assert sender.resource_level == before
 
 
 # ---------------------------------------------------------------------------

@@ -1288,6 +1288,7 @@ def communicate_action(agent: "AgentCore") -> dict:
     - Broadcasts an ``INFO`` message containing ``resource_level`` and ``position``.
     - Delivers the message to the :class:`CommunicationComponent` inbox of every
       nearby agent that also has the component attached.
+    - Deducts ``config.communication.broadcast_cost`` from resources when non-zero.
     - Provides a small reward (``config.communication.reward_per_message``) scaled
       by the number of messages successfully delivered.
     - Logs delivery count and source agent for analysis.
@@ -1339,6 +1340,22 @@ def communicate_action(agent: "AgentCore") -> dict:
                 "error": "No nearby agents within communication range",
                 "details": {"communication_range": comm_range},
             }
+
+        broadcast_cost = agent.config.communication.broadcast_cost
+        if broadcast_cost > 0:
+            if not check_resource_requirement(agent, broadcast_cost, "communicate"):
+                return {
+                    "success": False,
+                    "error": (
+                        f"Insufficient resources for communicate action "
+                        f"(need {broadcast_cost}, have {agent.resource_level})"
+                    ),
+                    "details": {
+                        "required": broadcast_cost,
+                        "agent_resources": agent.resource_level,
+                    },
+                }
+            agent.resource_level -= broadcast_cost
 
         # Compose the broadcast payload
         payload = {

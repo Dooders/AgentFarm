@@ -366,6 +366,7 @@ class Environment(AECEnv):
             ActionType.MOVE: "move",
             ActionType.REPRODUCE: "reproduce",
             ActionType.PASS: "pass",
+            ActionType.COMMUNICATE: "communicate",
         }
 
         # Get enabled actions from config, or use all available if not specified

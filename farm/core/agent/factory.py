@@ -19,6 +19,7 @@ from farm.core.agent.components.reward import RewardComponent
 from farm.core.agent.config.component_configs import AgentComponentConfig
 from farm.core.agent.core import AgentCore
 from farm.core.agent.services import AgentServices
+from farm.core.action import get_action_count
 from farm.core.decision.decision import DecisionModule
 
 
@@ -190,7 +191,7 @@ class AgentFactory:
 
                 if action_space is None:
                     # Default to discrete action space with standard action count
-                    action_space = spaces.Discrete(7)  # Standard action count
+                    action_space = spaces.Discrete(get_action_count())
 
                 if observation_space is None:
                     # Default to box observation space with standard dimension
