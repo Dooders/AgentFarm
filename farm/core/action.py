@@ -1372,15 +1372,27 @@ def communicate_action(agent: "AgentCore") -> dict:
             recipient_id=None,  # broadcast
         )
 
-        # Immediately flush and deliver to each recipient's inbox
+        # Immediately flush and deliver to each recipient's inbox.
+        # Broadcast messages (recipient_id=None) go to every nearby agent;
+        # unicast messages (recipient_id set) are delivered only to the
+        # matching agent if it is among the eligible recipients.
         outbox = comm_comp.flush_outbox()
         delivered = 0
         for msg in outbox:
+            target_recipient_id = getattr(msg, "recipient_id", None)
             for recipient in recipients:
+                if (
+                    target_recipient_id is not None
+                    and recipient.agent_id != target_recipient_id
+                ):
+                    continue
+
                 recipient_comm = recipient.get_component("communication")
                 if recipient_comm is not None:
                     recipient_comm.receive(msg)
                     delivered += 1
+                    if target_recipient_id is not None:
+                        break
 
         # Small reward per successful delivery
         reward_per_msg = agent.config.communication.reward_per_message

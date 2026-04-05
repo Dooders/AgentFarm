@@ -319,6 +319,40 @@ class TestCommunicateAction:
         assert "Insufficient resources" in result["error"]
         assert sender.resource_level == before
 
+    def test_communicate_unicast_delivers_only_to_target(self, mock_services, factory):
+        """A message with recipient_id is routed only to the matching agent."""
+        sender = factory.create_default_agent("sender", (50.0, 50.0), initial_resources=100.0)
+        target = factory.create_default_agent("target_001", (55.0, 55.0), initial_resources=50.0)
+        bystander = factory.create_default_agent("bystander_001", (57.0, 57.0), initial_resources=50.0)
+
+        # Pre-queue a unicast message addressed to target_001 only
+        sender_comm = sender.get_component("communication")
+        sender_comm.send(
+            MessageType.THREAT_ALERT,
+            content={"alert": "test"},
+            recipient_id="target_001",
+        )
+
+        # Both agents are within communication range
+        mock_services.spatial_service.get_nearby.return_value = {"agents": [target, bystander]}
+
+        result = communicate_action(sender)
+        assert result["success"] is True
+
+        target_comm = target.get_component("communication")
+        bystander_comm = bystander.get_component("communication")
+
+        # Target receives: unicast THREAT_ALERT + broadcast INFO = 2 messages
+        # Bystander receives: broadcast INFO only = 1 message (unicast not delivered)
+        assert target_comm.inbox_size == 2
+        assert bystander_comm.inbox_size == 1
+
+        # Confirm the unicast message reached only the intended target
+        threat_msgs = target_comm.get_messages(MessageType.THREAT_ALERT)
+        assert len(threat_msgs) == 1
+        assert threat_msgs[0].recipient_id == "target_001"
+        assert len(bystander_comm.get_messages(MessageType.THREAT_ALERT)) == 0
+
 
 # ---------------------------------------------------------------------------
 # ActionType and action space

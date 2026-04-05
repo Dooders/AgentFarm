@@ -145,12 +145,16 @@ comm = agent.get_component("communication")
 # Queue a broadcast (all nearby agents within communication_range)
 comm.send(MessageType.RESOURCE_OFFER, content={"amount": 10})
 
-# Queue a direct message to a specific agent
+# Queue a direct message to a specific agent (unicast).
+# Only the agent with agent_id="ally_003" will receive it,
+# provided it is within communication_range and alive.
 comm.send(MessageType.THREAT_ALERT,
           content={"attacker_id": "enemy_007", "position": (40, 60)},
           recipient_id="ally_003")
 
 # Messages are delivered when the 'communicate' action executes.
+# Broadcast messages (recipient_id=None) go to every eligible neighbour;
+# unicast messages (recipient_id set) are routed only to the named agent.
 
 # ── Receiving ────────────────────────────────────────────────────
 # Read all inbox messages
@@ -206,7 +210,7 @@ The implementation covers the foundational layer.  Researchers wishing to build 
 
 - [ ] **Dialogue protocols** — multi-turn conversations (e.g. CNP negotiation) require a correlation ID and state machine per dialogue.
 - [ ] **Performative semantics** — messages currently carry raw `content` dicts; adding FIPA-style performatives would allow generic middleware.
-- [ ] **Direct unicast routing** — the `communicate` action currently broadcasts; a unicast variant should verify the recipient is within range and deliver only to the named agent.
+- [x] **Direct unicast routing** — unicast messages (with `recipient_id` set) are routed by the `communicate` action to the named agent only if it is within range and alive.
 - [ ] **Message persistence / logging** — sent messages are not written to the simulation database; add a `CommunicationEvent` row to the data model.
 - [ ] **Observation integration** — the perception system (channels) does not yet include inbox-message features; consider adding a `message_channel` to the observation pipeline.
 - [ ] **Scalability** — for very large populations (>10 000 agents), per-message spatial queries may become expensive; consider a region-based message bus.
