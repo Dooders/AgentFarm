@@ -1,12 +1,10 @@
 import argparse
 import json
 import os
-import tkinter as tk
 from datetime import datetime
 
 from farm.core.analysis import SimulationAnalyzer
 from farm.config import SimulationConfig
-from farm.core.visualization import SimulationVisualizer
 from farm.runners.experiment_runner import ExperimentRunner
 from farm.utils.logging import configure_logging, get_logger
 
@@ -137,6 +135,11 @@ def main():
         if not os.path.exists(args.db_path):
             logger.error("database_file_not_found", db_path=args.db_path)
             return
+
+        # Tk and matplotlib's Tk backend are optional; lazy-import so CLI/tests import without them.
+        import tkinter as tk
+
+        from farm.core.visualization import SimulationVisualizer
 
         root = tk.Tk()
         visualizer = SimulationVisualizer(root, db_path=args.db_path)
