@@ -44,7 +44,8 @@ def run_analysis(database_path: str, output_dir: str, save_charts: bool = True):
         save_charts: Whether to save charts to files or keep in memory
     """
     # Setup environment
-    setup_environment()
+    config_service = EnvConfigService()
+    setup_environment(config_service)
 
     # Create output directory if saving charts
     if save_charts:
@@ -77,7 +78,7 @@ def run_analysis(database_path: str, output_dir: str, save_charts: bool = True):
         print(preview)
 
 
-def main():
+def main():  # pragma: no cover
     print("Loading data from database...")
     connection_string = "sqlite:///simulations/simulation.db"
     engine = create_engine(connection_string)

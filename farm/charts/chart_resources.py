@@ -69,7 +69,7 @@ def plot_average_resource_density(dataframe, grid_size):
     plt.show()
 
 # Load the dataset
-def main(dataframe):
+def main(dataframe):  # pragma: no cover
 
     try:
 

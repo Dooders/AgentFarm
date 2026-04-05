@@ -77,7 +77,7 @@ def analyze_experience_details(dataframe):
         print(f"Experience ID: {row['experience_id']}, Module Type: {row['module_type']}, Action: {row['action_taken']}, Reward: {row['reward']}")
 
 # Load the dataset
-def main(dataframe):
+def main(dataframe):  # pragma: no cover
 
     try:
 
