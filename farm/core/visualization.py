@@ -736,9 +736,9 @@ class SimulationVisualizer:
 
             # Convert to numpy arrays for better performance
             steps = np.array(history["steps"])
-            system_agents = np.array(history["metrics"]["system_agents"])
-            independent_agents = np.array(history["metrics"]["independent_agents"])
-            control_agents = np.array(history["metrics"]["control_agents"])
+            system_agents = np.array(history["metrics"].get("system_agents", [0] * len(steps)))
+            independent_agents = np.array(history["metrics"].get("independent_agents", [0] * len(steps)))
+            control_agents = np.array(history["metrics"].get("control_agents", [0] * len(steps)))
             order_agents = np.array(history["metrics"].get("order_agents", [0] * len(steps)))
             chaos_agents = np.array(history["metrics"].get("chaos_agents", [0] * len(steps)))
             total_resources = np.array(history["metrics"]["total_resources"])

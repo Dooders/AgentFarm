@@ -116,6 +116,10 @@ class SimulationState:
     system_agents: int
     independent_agents: int
     control_agents: int
+    # Note: order_agents and chaos_agents have defaults to maintain backward compatibility
+    # with code that constructs SimulationState without these fields. They are logically
+    # grouped with the other agent-count fields above, but Python dataclass rules require
+    # fields with defaults to follow all fields without defaults.
     total_resources: float
     average_agent_resources: float
     births: int

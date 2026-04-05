@@ -682,6 +682,7 @@ def run_simulation(
         return (
             config.population.system_agents
             + config.population.independent_agents
+            + config.population.control_agents
             + config.population.order_agents
             + config.population.chaos_agents
         )
