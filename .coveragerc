@@ -65,12 +65,6 @@ omit =
     farm/charts/chart_simulation.py
     farm/charts/chart_states.py
     farm/charts/llm_client.py
-    farm/config/cli.py
-    farm/config/monitor.py
-    farm/config/schema.py
-    farm/config/template.py
-    farm/config/validation.py
-    farm/config/watcher.py
     farm/core/analysis.py
     farm/core/cli.py
     farm/core/decision/algorithms/ensemble.py
