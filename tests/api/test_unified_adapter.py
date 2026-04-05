@@ -142,6 +142,68 @@ class TestUnifiedAdapter:
         assert event.event_type == "simulation_started"
         assert event.simulation_id == simulation_id
 
+    def test_start_simulation_controller_failure_sets_error(self, temp_workspace):
+        session_path = temp_workspace / "test_session"
+        session_path.mkdir(parents=True)
+
+        adapter = UnifiedAdapter(session_path)
+
+        simulation_id = str(uuid.uuid4())
+        mock_controller = Mock()
+        mock_controller.initialize_simulation.side_effect = RuntimeError("init failed")
+        adapter._simulations[simulation_id] = {
+            "controller": mock_controller,
+            "status": SimulationStatus.CREATED,
+            "start_time": None,
+            "end_time": None,
+            "error_message": None,
+            "current_step": 0,
+            "total_steps": 1000,
+        }
+
+        with pytest.raises(RuntimeError, match="init failed"):
+            adapter.start_simulation(simulation_id)
+
+        sim_info = adapter._simulations[simulation_id]
+        assert sim_info["status"] == SimulationStatus.ERROR
+        assert "init failed" in sim_info["error_message"]
+        assert any(e.event_type == "simulation_error" for e in adapter._event_history)
+
+    def test_start_simulation_monitor_callbacks_update_state(self, temp_workspace):
+        session_path = temp_workspace / "test_session"
+        session_path.mkdir(parents=True)
+
+        adapter = UnifiedAdapter(session_path)
+
+        simulation_id = str(uuid.uuid4())
+        mock_controller = Mock()
+        adapter._simulations[simulation_id] = {
+            "controller": mock_controller,
+            "status": SimulationStatus.CREATED,
+            "start_time": None,
+            "end_time": None,
+            "error_message": None,
+            "current_step": 0,
+            "total_steps": 1000,
+        }
+
+        adapter.start_simulation(simulation_id)
+
+        on_step = next(
+            c.args[1] for c in mock_controller.register_step_callback.call_args_list if c.args[0] == "monitor"
+        )
+        on_status = next(
+            c.args[1]
+            for c in mock_controller.register_status_callback.call_args_list
+            if c.args[0] == "monitor"
+        )
+
+        on_step(42)
+        assert adapter._simulations[simulation_id]["current_step"] == 42
+
+        on_status("paused")
+        assert adapter._simulations[simulation_id]["status"] == SimulationStatus.PAUSED
+
     def test_start_simulation_nonexistent(self, temp_workspace):
         """Test starting a non-existent simulation."""
         session_path = temp_workspace / "test_session"
@@ -319,6 +381,42 @@ class TestUnifiedAdapter:
         assert results.simulation_id == simulation_id
         assert results.status == SimulationStatus.COMPLETED
         assert results.total_steps == 1000
+
+    def test_get_simulation_results_collects_data_files(self, temp_workspace):
+        session_path = temp_workspace / "test_session"
+        session_path.mkdir(parents=True)
+
+        adapter = UnifiedAdapter(session_path)
+
+        simulation_id = str(uuid.uuid4())
+        sim_dir = session_path / "sim_out" / simulation_id
+        sim_dir.mkdir(parents=True)
+        (sim_dir / "metrics.json").write_text("{}")
+        (sim_dir / "notes.txt").write_text("ignored")
+
+        mock_controller = Mock()
+        mock_controller.get_state.return_value = {
+            "agent_count": 2,
+            "resource_count": 1,
+        }
+
+        start = datetime.now()
+        end = datetime.fromtimestamp(start.timestamp() + 2.0)
+        adapter._simulations[simulation_id] = {
+            "controller": mock_controller,
+            "status": SimulationStatus.COMPLETED,
+            "current_step": 10,
+            "total_steps": 10,
+            "start_time": start,
+            "end_time": end,
+            "error_message": None,
+            "directory": sim_dir,
+        }
+
+        results = adapter.get_simulation_results(simulation_id)
+
+        assert results.analysis_available is True
+        assert any(str(p).endswith("metrics.json") for p in results.data_files)
 
     def test_get_simulation_results_nonexistent(self, temp_workspace):
         """Test getting results for non-existent simulation."""
@@ -513,6 +611,36 @@ class TestUnifiedAdapter:
         with pytest.raises(ValueError, match="Experiment .* not found"):
             adapter.get_experiment_status("nonexistent-experiment")
 
+    def test_get_experiment_status_syncs_iteration_from_controller_state(
+        self, temp_workspace
+    ):
+        session_path = temp_workspace / "test_session"
+        session_path.mkdir(parents=True)
+
+        adapter = UnifiedAdapter(session_path)
+
+        experiment_id = str(uuid.uuid4())
+        mock_controller = Mock()
+        mock_controller.get_state.return_value = {
+            "current_iteration": 3,
+            "total_iterations": 9,
+        }
+
+        adapter._experiments[experiment_id] = {
+            "controller": mock_controller,
+            "status": ExperimentStatus.RUNNING,
+            "current_iteration": 0,
+            "total_iterations": 1,
+            "start_time": datetime.now(),
+            "end_time": None,
+            "error_message": None,
+        }
+
+        status = adapter.get_experiment_status(experiment_id)
+
+        assert status.current_iteration == 3
+        assert status.total_iterations == 9
+
     def test_get_experiment_results_success(self, temp_workspace):
         """Test getting experiment results successfully."""
         session_path = temp_workspace / "test_session"
@@ -548,6 +676,38 @@ class TestUnifiedAdapter:
         assert results.status == ExperimentStatus.COMPLETED
         assert results.total_iterations == 10
         assert results.completed_iterations == 10
+
+    def test_get_experiment_results_collects_data_files(self, temp_workspace):
+        session_path = temp_workspace / "test_session"
+        session_path.mkdir(parents=True)
+
+        adapter = UnifiedAdapter(session_path)
+
+        experiment_id = str(uuid.uuid4())
+        exp_dir = session_path / "exp_out" / experiment_id
+        exp_dir.mkdir(parents=True)
+        (exp_dir / "summary.csv").write_text("a\n")
+
+        mock_controller = Mock()
+        mock_controller.get_state.return_value = {"current_iteration": 10}
+
+        start = datetime.now()
+        end = datetime.fromtimestamp(start.timestamp() + 1.0)
+        adapter._experiments[experiment_id] = {
+            "controller": mock_controller,
+            "status": ExperimentStatus.COMPLETED,
+            "current_iteration": 10,
+            "total_iterations": 10,
+            "start_time": start,
+            "end_time": end,
+            "error_message": None,
+            "directory": exp_dir,
+        }
+
+        results = adapter.get_experiment_results(experiment_id)
+
+        assert results.analysis_available is True
+        assert any(str(p).endswith("summary.csv") for p in results.data_files)
 
     def test_get_experiment_results_nonexistent(self, temp_workspace):
         """Test getting results for non-existent experiment."""

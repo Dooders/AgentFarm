@@ -168,8 +168,6 @@ def get_analysis_function(name):
     callable
         The requested analysis function
     """
-    if not _ANALYSIS_FUNCTIONS:
-        register_analysis()
     return _ANALYSIS_FUNCTIONS.get(name)
 
 
@@ -187,8 +185,6 @@ def get_analysis_functions(group="all"):
     list
         List of analysis functions in the requested group
     """
-    if not _ANALYSIS_GROUPS:
-        register_analysis()
     return _ANALYSIS_GROUPS.get(group, [])
 
 
@@ -201,9 +197,6 @@ def get_module_info():
     dict
         Dictionary containing module information
     """
-    if not _ANALYSIS_GROUPS:
-        register_analysis()
-
     return {
         "name": "dominance",
         "description": "Analysis of agent dominance patterns in simulations",

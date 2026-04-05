@@ -388,6 +388,16 @@ class TestSocialBehaviorModule:
             == "Analysis of social behaviors including cooperation, competition, networks, and group dynamics"
         )
 
+    def test_analyze_comprehensive_placeholder_and_db_helpers(self, tmp_path):
+        ctx = AnalysisContext(output_path=tmp_path)
+        fn = social_behavior_module.get_function("analyze_comprehensive")
+        assert fn is not None
+        fn(pd.DataFrame({"x": [1]}), ctx)
+
+        assert social_behavior_module.supports_database() is True
+        assert social_behavior_module.get_db_filename() == "simulation.db"
+        assert social_behavior_module.get_db_loader() is None
+
     def test_social_behavior_module_function_names(self):
         """Test module function names."""
         functions = social_behavior_module.get_function_names()

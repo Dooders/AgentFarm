@@ -531,6 +531,14 @@ class TestComparativeModule:
         """Test module validator."""
         validator = comparative_module.get_validator()
         assert validator is not None
+        ok, msg = validator(pd.DataFrame())
+        assert ok is False
+        assert "empty" in msg.lower()
+        ok, msg = validator(pd.DataFrame({"label": ["a", "b"]}))
+        assert ok is False
+        assert "numeric" in msg.lower()
+        ok, msg = validator(pd.DataFrame({"x": [1.0, 2.0]}))
+        assert ok is True
 
     def test_module_all_functions_registered(self):
         """Test that all expected functions are registered."""

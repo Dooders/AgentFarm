@@ -38,6 +38,10 @@ from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+#: Prefix used for the placeholder simulation_id passed to the parent
+#: SimulationDatabase when ExperimentDatabase has no per-simulation context.
+EXPERIMENT_SIMULATION_ID_PREFIX = "_experiment_"
+
 
 class ExperimentDataLogger(DataLogger):
     #! Just update data logger
@@ -371,6 +375,17 @@ class ExperimentDatabase(SimulationDatabase):
     This class extends SimulationDatabase to support multiple simulations
     in a single database file. Each simulation is tagged with a unique
     simulation_id, enabling data to be filtered by simulation.
+
+    Notes
+    -----
+    **Experiment-level** instances expose ``simulation_id`` as ``None`` because
+    there is no single simulation row. The parent ``SimulationDatabase`` still
+    constructs a ``DataLogger``, which requires a non-empty simulation id; that
+    logger keeps the placeholder
+    ``f"{EXPERIMENT_SIMULATION_ID_PREFIX}{experiment_id}"``. Per-simulation work
+    uses :class:`SimulationContext`, which replaces logging with an
+    ``ExperimentDataLogger`` tied to the real simulation id. Do not assume
+    ``db.simulation_id == db.logger.simulation_id`` on an ``ExperimentDatabase``.
     """
 
     def __init__(self, db_path: str, experiment_id: str, config=None):
@@ -385,9 +400,18 @@ class ExperimentDatabase(SimulationDatabase):
         config : SimulationConfig, optional
             Configuration object with database settings
         """
-        # Initialize the parent class without a simulation_id
-        super().__init__(db_path, config=config, simulation_id=None)
+        # Initialize the parent class with a placeholder simulation_id derived
+        # from the experiment_id so that the base DataLogger can be created.
+        # Individual simulations use separate SimulationContext loggers.
+        super().__init__(
+            db_path,
+            config=config,
+            simulation_id=f"{EXPERIMENT_SIMULATION_ID_PREFIX}{experiment_id}",
+        )
 
+        # Override simulation_id to None – ExperimentDatabase operates at the
+        # experiment level, not at the individual simulation level.
+        self.simulation_id = None
         self.experiment_id = experiment_id
 
         # Create the experiment record

@@ -298,6 +298,10 @@ class TestAdvantageModule:
             == "Analysis of relative advantages between agent types and their impact on dominance patterns"
         )
 
+    def test_advantage_module_database_helpers(self):
+        assert advantage_module.supports_database() is True
+        assert advantage_module.get_db_filename() == "simulation.db"
+
     def test_advantage_module_function_names(self):
         """Test module function names."""
         functions = advantage_module.get_function_names()

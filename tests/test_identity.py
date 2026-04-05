@@ -1,9 +1,15 @@
 import unittest
 
+import farm.utils.identity as identity_mod
 from farm.utils.identity import Identity, IdentityConfig
 
 
 class TestIdentity(unittest.TestCase):
+    def test_generate_short_uuid_computes_padding_when_none(self):
+        """Cover auto pad_length from alphabet size (UUID bit width)."""
+        short = identity_mod._generate_short_uuid(identity_mod.DEFAULT_ALPHABET, pad_length=None)
+        self.assertGreater(len(short), 0)
+
     def test_simulation_id_default_prefix(self):
         identity = Identity()
         sim_id = str(identity.simulation_id())

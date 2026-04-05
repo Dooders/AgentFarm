@@ -159,16 +159,11 @@ class TestResourceRepository(unittest.TestCase):
         self.assertEqual(result[0]["position_x"], 10.0)
         self.assertEqual(result[0]["amount"], 50.0)
 
-    @unittest.skip("Skipping test due to bug in actual code: ResourceModel.position_z doesn't exist")
     def test_get_resource_distribution_data(self):
         """Test get_resource_distribution_data returns aggregated data."""
-        # Note: The actual code tries to query ResourceModel.position_z which doesn't exist
-        # This is a bug in the actual code. We'll skip this test for now.
-        # TODO: Fix the actual code to remove position_z from the query, then re-enable this test
         mock_row = Mock()
         mock_row.position_x = 10.0
         mock_row.position_y = 20.0
-        mock_row.position_z = None
         mock_row.total_amount = 500.0
         mock_row.resource_count = 10
         mock_row.average_amount = 50.0
@@ -188,6 +183,7 @@ class TestResourceRepository(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["position_x"], 10.0)
+        self.assertEqual(result[0]["position_z"], 0.0)
         self.assertEqual(result[0]["total_amount"], 500.0)
         self.assertEqual(result[0]["resource_count"], 10)
 

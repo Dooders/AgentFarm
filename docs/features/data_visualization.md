@@ -529,12 +529,9 @@ chart_agents.plot_agent_types_over_time(
 )
 # Shows: Proportion of each agent type over time
 
-# Reproduction success
-chart_agents.plot_reproduction_success_rate(
-    db_path="simulation.db",
-    output_path="charts/"
-)
-# Shows: Reproduction success rate by agent type
+# Reproduction success (DataFrame must include step_number, births, deaths)
+chart_agents.plot_reproduction_success_rate(simulation_metrics_df)
+# Shows: Births as a share of birth+death events per step
 
 # Lineage analysis
 chart_agents.plot_lineage_size(
