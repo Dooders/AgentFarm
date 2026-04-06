@@ -25,7 +25,7 @@ def _load_resource_positions_for_hotspots(ctx: AnalysisContext) -> pd.DataFrame:
     exp_path = Path(exp_raw)
     if not exp_path.is_dir():
         return pd.DataFrame()
-    spatial = process_spatial_data(exp_path)
+    spatial = process_spatial_data(exp_path, resources_only=True)
     if not isinstance(spatial, dict):
         return pd.DataFrame()
     resource_df = spatial.get("resource_positions", pd.DataFrame())

@@ -12,12 +12,19 @@ from farm.database.repositories.agent_repository import AgentRepository
 from farm.database.repositories.resource_repository import ResourceRepository
 
 
-def process_spatial_data(experiment_path: Path, use_database: bool = True, **kwargs) -> pd.DataFrame:
+def process_spatial_data(
+    experiment_path: Path,
+    use_database: bool = True,
+    resources_only: bool = False,
+    **kwargs,
+) -> pd.DataFrame:
     """Process spatial data from experiment.
 
     Args:
         experiment_path: Path to experiment directory
         use_database: Whether to use database or direct file access
+        resources_only: When True, skip loading agent positions (faster when only
+            resource data is needed, e.g. for hotspot analysis).
         **kwargs: Additional options
 
     Returns:
@@ -35,18 +42,19 @@ def process_spatial_data(experiment_path: Path, use_database: bool = True, **kwa
             # Load data using SessionManager directly
             db_uri = f"sqlite:///{db_path}"
             session_manager = SessionManager(db_uri)
-            agent_repo = AgentRepository(session_manager)
             resource_repo = ResourceRepository(session_manager)
-
-            # Get agent position data
-            agent_data = agent_repo.get_agent_positions_over_time()
 
             # Get resource position data
             resource_data = resource_repo.get_resource_positions_over_time()
-
-            # Convert to DataFrames
-            agent_df = pd.DataFrame(agent_data) if agent_data else pd.DataFrame()
             resource_df = pd.DataFrame(resource_data) if resource_data else pd.DataFrame()
+
+            if resources_only:
+                agent_df = pd.DataFrame()
+            else:
+                agent_repo = AgentRepository(session_manager)
+                # Get agent position data
+                agent_data = agent_repo.get_agent_positions_over_time()
+                agent_df = pd.DataFrame(agent_data) if agent_data else pd.DataFrame()
 
             # Combine spatial data
             spatial_data = {

@@ -232,9 +232,9 @@ class TestResourceComputations:
         assert abs(hotspots['hotspot_intensity']) < 1e-8
 
     def test_compute_resource_hotspots_spatial_threshold(self):
-        """Spatial mode: cells above mean + 2σ get coordinates and per-step stats."""
+        """Spatial mode: cells above mean + 1σ get coordinates and per-step stats."""
         df = pd.DataFrame({'step': [0], 'total_resources': [100.0]})
-        # Five cells: four low, one high — high cell clears mean + 2·σ (sample std across cells)
+        # Five cells: four low, one high — high cell clears mean + 1·σ (sample std across cells)
         spatial = pd.DataFrame(
             {
                 'step': [0, 0, 0, 0, 0],
@@ -272,6 +272,17 @@ class TestResourceComputations:
         disp = out['spatial']['centroid_displacements']
         assert len(disp) == 1
         assert disp[0] > 9.0
+
+    def test_compute_resource_hotspots_invalid_sigma(self):
+        """Invalid hotspot_sigma values raise ValueError."""
+        df = pd.DataFrame({'step': [0], 'total_resources': [10.0]})
+        import pytest
+        with pytest.raises(ValueError):
+            compute_resource_hotspots(df, hotspot_sigma=-1.0)
+        with pytest.raises(ValueError):
+            compute_resource_hotspots(df, hotspot_sigma=float('nan'))
+        with pytest.raises(ValueError):
+            compute_resource_hotspots(df, hotspot_sigma=float('inf'))
 
 
 class TestResourceAnalysis:

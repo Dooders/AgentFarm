@@ -2,6 +2,7 @@
 Resource statistical computations.
 """
 
+import math
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -334,6 +335,11 @@ def compute_resource_hotspots(
         ``spatial`` block, and legacy scalar keys when ``total_resources`` is present.
     """
     out: Dict[str, Any] = {}
+
+    if not math.isfinite(hotspot_sigma) or hotspot_sigma < 0:
+        raise ValueError(
+            f"hotspot_sigma must be a finite non-negative number, got {hotspot_sigma!r}"
+        )
 
     spatial_block: Dict[str, Any] = {}
     if spatial_resource_positions is not None and not spatial_resource_positions.empty:
