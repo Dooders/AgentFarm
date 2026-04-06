@@ -2,16 +2,34 @@
 Resource analysis functions.
 """
 
-import pandas as pd
 import json
+from pathlib import Path
+
+import pandas as pd
 
 from farm.analysis.common.context import AnalysisContext
+from farm.analysis.spatial.data import process_spatial_data
 from farm.analysis.resources.compute import (
     compute_resource_statistics,
     compute_consumption_patterns,
     compute_resource_efficiency,
     compute_resource_hotspots,
 )
+
+
+def _load_resource_positions_for_hotspots(ctx: AnalysisContext) -> pd.DataFrame:
+    """Load per-step resource grid rows from the experiment database if available."""
+    exp_raw = ctx.metadata.get("experiment_path")
+    if not exp_raw:
+        return pd.DataFrame()
+    exp_path = Path(exp_raw)
+    if not exp_path.is_dir():
+        return pd.DataFrame()
+    spatial = process_spatial_data(exp_path)
+    if not isinstance(spatial, dict):
+        return pd.DataFrame()
+    resource_df = spatial.get("resource_positions", pd.DataFrame())
+    return resource_df if isinstance(resource_df, pd.DataFrame) else pd.DataFrame()
 
 
 def analyze_resource_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
@@ -28,7 +46,11 @@ def analyze_resource_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) 
     stats = compute_resource_statistics(df)
     consumption = compute_consumption_patterns(df)
     efficiency = compute_resource_efficiency(df)
-    hotspots = compute_resource_hotspots(df)
+    resource_positions = _load_resource_positions_for_hotspots(ctx)
+    sigma = float(ctx.get_config("resource_hotspot_sigma", 2.0))
+    hotspots = compute_resource_hotspots(
+        df, spatial_resource_positions=resource_positions, hotspot_sigma=sigma
+    )
 
     # Combine results
     results = {
@@ -104,7 +126,11 @@ def analyze_hotspots(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
     """
     ctx.logger.info("Analyzing resource hotspots...")
 
-    hotspots = compute_resource_hotspots(df)
+    resource_positions = _load_resource_positions_for_hotspots(ctx)
+    sigma = float(ctx.get_config("resource_hotspot_sigma", 2.0))
+    hotspots = compute_resource_hotspots(
+        df, spatial_resource_positions=resource_positions, hotspot_sigma=sigma
+    )
 
     # Save hotspot analysis
     output_file = ctx.get_output_file("hotspot_analysis.json")

@@ -202,6 +202,7 @@ class TestResourceComputations:
         hotspots = compute_resource_hotspots(sample_resource_data)
 
         assert isinstance(hotspots, dict)
+        assert hotspots.get('mode') == 'timeseries_fallback'
         assert 'max_concentration' in hotspots
         assert 'avg_concentration' in hotspots
         assert 'concentration_ratio' in hotspots
@@ -213,7 +214,9 @@ class TestResourceComputations:
 
         result = compute_resource_hotspots(df)
 
-        assert result == {}
+        assert result.get('mode') == 'timeseries_fallback'
+        assert result.get('spatial') is None
+        assert 'max_concentration' not in result
 
     def test_compute_resource_hotspots_uniform(self):
         """Test hotspots with uniform distribution."""
@@ -223,9 +226,52 @@ class TestResourceComputations:
 
         hotspots = compute_resource_hotspots(df)
 
+        assert hotspots.get('mode') == 'timeseries_fallback'
         # Uniform distribution should have ratio of 1.0
         assert abs(hotspots['concentration_ratio'] - 1.0) < 1e-8
         assert abs(hotspots['hotspot_intensity']) < 1e-8
+
+    def test_compute_resource_hotspots_spatial_threshold(self):
+        """Spatial mode: cells above mean + 2σ get coordinates and per-step stats."""
+        df = pd.DataFrame({'step': [0], 'total_resources': [100.0]})
+        # Five cells: four low, one high — high cell clears mean + 2·σ (sample std across cells)
+        spatial = pd.DataFrame(
+            {
+                'step': [0, 0, 0, 0, 0],
+                'position_x': [0.0, 1.0, 2.0, 3.0, 4.0],
+                'position_y': [0.0, 0.0, 0.0, 0.0, 0.0],
+                'amount': [10.0, 10.0, 10.0, 10.0, 100.0],
+            }
+        )
+        # 1σ threshold: with few cells, 2σ can exceed the peak (inflated sample std)
+        out = compute_resource_hotspots(df, spatial_resource_positions=spatial, hotspot_sigma=1.0)
+        assert out['mode'] == 'spatial'
+        assert out['spatial'] is not None
+        assert out['spatial']['n_steps'] == 1
+        assert out['spatial']['threshold_sigma'] == 1.0
+        step0 = out['spatial']['per_step'][0]
+        assert step0['n_hotspot_cells'] >= 1
+        hi = max(step0['hotspot_cells'], key=lambda h: h['cell_amount'])
+        assert hi['position_x'] == 4.0
+        assert hi['position_y'] == 0.0
+        assert 'max_concentration' in out
+
+    def test_compute_resource_hotspots_spatial_centroid_displacement(self):
+        """Hotspot centroid moves between consecutive steps."""
+        df = pd.DataFrame({'step': [0, 1], 'total_resources': [10.0, 10.0]})
+        spatial = pd.DataFrame(
+            {
+                'step': [0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+                'position_x': [0.0, 1.0, 2.0, 3.0, 4.0, 0.0, 1.0, 2.0, 3.0, 10.0],
+                'position_y': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                'amount': [100.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 100.0],
+            }
+        )
+        out = compute_resource_hotspots(df, spatial_resource_positions=spatial, hotspot_sigma=1.0)
+        assert out['mode'] == 'spatial'
+        disp = out['spatial']['centroid_displacements']
+        assert len(disp) == 1
+        assert disp[0] > 9.0
 
 
 class TestResourceAnalysis:
@@ -575,6 +621,7 @@ class TestEdgeCases:
 
         hotspots = compute_resource_hotspots(df)
 
+        assert hotspots.get('mode') == 'timeseries_fallback'
         # Should detect high concentration
         assert hotspots['concentration_ratio'] > 1.0
         assert hotspots['hotspot_intensity'] > 0.0
