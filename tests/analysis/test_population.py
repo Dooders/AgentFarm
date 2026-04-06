@@ -673,7 +673,7 @@ class TestPopulationHelperFunctions:
             ),
         ]
 
-        with patch("farm.analysis.population.data.SessionManager") as mock_sm:
+        with patch("farm.analysis.sql_loaders.SessionManager") as mock_sm:
             mock_session = MagicMock()
             mock_sm.return_value.__enter__.return_value = mock_session
 
@@ -681,7 +681,7 @@ class TestPopulationHelperFunctions:
             mock_repo = MagicMock()
             mock_repo.get_population_over_time.return_value = mock_population_data
 
-            with patch("farm.analysis.population.data.PopulationRepository", return_value=mock_repo):
+            with patch("farm.analysis.sql_loaders.PopulationRepository", return_value=mock_repo):
                 result = process_population_data(exp_path)
 
                 assert isinstance(result, pd.DataFrame)
