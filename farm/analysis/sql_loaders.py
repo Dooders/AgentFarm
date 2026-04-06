@@ -188,9 +188,3 @@ def resources_merged_with_positions_from_sqlite(db_path: str) -> Tuple[pd.DataFr
         return df, positions_df
     finally:
         session_manager.cleanup()
-
-
-def resources_merged_dataframe_from_sqlite(db_path: str) -> pd.DataFrame:
-    """Merged resource metrics DataFrame used by the resources analysis module."""
-    df, _ = resources_merged_with_positions_from_sqlite(db_path)
-    return df
