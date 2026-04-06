@@ -152,7 +152,15 @@ def compute_efficiency_metrics(df: pd.DataFrame) -> Dict[str, float]:
 
 def _timeseries_hotspot_metrics(df: pd.DataFrame) -> Dict[str, Any]:
     """Scalar concentration metrics from global total_resources over time."""
-    total_resources = df["total_resources"].values
+    series = df["total_resources"].dropna()
+    if series.empty:
+        return {
+            "max_concentration": 0.0,
+            "avg_concentration": 0.0,
+            "concentration_ratio": 0.0,
+            "hotspot_intensity": 0.0,
+        }
+    total_resources = series.values
     mean_resources = float(np.mean(total_resources))
     max_resources = float(np.max(total_resources))
     concentration_ratio = max_resources / (mean_resources + 1e-6)

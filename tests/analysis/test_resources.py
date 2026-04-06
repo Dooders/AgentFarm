@@ -777,3 +777,76 @@ class TestResourceHelperFunctions:
         assert 'mean' in stats
         assert 'median' in stats
         assert stats['mean'] == 30.0
+
+
+class TestTimeriesHotspotEdgeCases:
+    """Edge cases for _timeseries_hotspot_metrics."""
+
+    def test_empty_total_resources_column(self):
+        """_timeseries_hotspot_metrics returns zeroed dict for all-NaN series."""
+        from farm.analysis.resources.compute import _timeseries_hotspot_metrics
+
+        df = pd.DataFrame({"total_resources": [np.nan, np.nan]})
+        result = _timeseries_hotspot_metrics(df)
+        assert result["max_concentration"] == 0.0
+        assert result["avg_concentration"] == 0.0
+        assert result["concentration_ratio"] == 0.0
+        assert result["hotspot_intensity"] == 0.0
+
+    def test_compute_resource_hotspots_empty_timeseries_fallback(self):
+        """compute_resource_hotspots falls back gracefully when total_resources is all NaN."""
+        df = pd.DataFrame({"total_resources": [np.nan, np.nan]})
+        result = compute_resource_hotspots(df)
+        assert result.get("mode") == "timeseries_fallback"
+        assert result["max_concentration"] == 0.0
+
+
+class TestSigmaConfigHandling:
+    """Tests for resource_hotspot_sigma config coercion edge cases."""
+
+    def test_analyze_resource_patterns_none_sigma_uses_default(self, tmp_path, sample_resource_data):
+        """None config value for resource_hotspot_sigma falls back to 2.0 without error."""
+        ctx = AnalysisContext(output_path=tmp_path, config={"resource_hotspot_sigma": None})
+        # Should not raise
+        analyze_resource_patterns(sample_resource_data, ctx)
+
+    def test_analyze_hotspots_empty_string_sigma_uses_default(self, tmp_path, sample_resource_data):
+        """Empty-string or whitespace-only config value for resource_hotspot_sigma falls back to 2.0."""
+        ctx = AnalysisContext(output_path=tmp_path, config={"resource_hotspot_sigma": ""})
+        analyze_hotspots(sample_resource_data, ctx)
+        # Whitespace-only should also fall back
+        ctx2 = AnalysisContext(output_path=tmp_path, config={"resource_hotspot_sigma": "  "})
+        analyze_hotspots(sample_resource_data, ctx2)
+
+    def test_analyze_hotspots_invalid_sigma_raises(self, tmp_path, sample_resource_data):
+        """Non-numeric string config value for resource_hotspot_sigma raises ValueError."""
+        ctx = AnalysisContext(output_path=tmp_path, config={"resource_hotspot_sigma": "bad_value"})
+        with pytest.raises(ValueError, match="resource_hotspot_sigma"):
+            analyze_hotspots(sample_resource_data, ctx)
+
+    def test_analyze_resource_patterns_custom_sigma(self, tmp_path, sample_resource_data):
+        """Numeric string or float config value for resource_hotspot_sigma is accepted."""
+        ctx = AnalysisContext(output_path=tmp_path, config={"resource_hotspot_sigma": "3.5"})
+        analyze_resource_patterns(sample_resource_data, ctx)
+
+
+class TestNormalizeDbUrl:
+    """Tests for _normalize_db_url in sql_loaders."""
+
+    def test_sqlite_url_passthrough(self):
+        """Full sqlite:/// URL is returned unchanged."""
+        from farm.analysis.sql_loaders import _normalize_db_url
+        url = "sqlite:///path/to/db.db"
+        assert _normalize_db_url(url) == url
+
+    def test_plain_path_prepends_sqlite(self):
+        """Plain filesystem path gets sqlite:/// prepended."""
+        from farm.analysis.sql_loaders import _normalize_db_url
+        result = _normalize_db_url("/tmp/sim.db")
+        assert result == "sqlite:////tmp/sim.db"
+
+    def test_non_sqlite_url_raises(self):
+        """Non-sqlite URL scheme raises ValueError."""
+        from farm.analysis.sql_loaders import _normalize_db_url
+        with pytest.raises(ValueError, match="Unsupported database URL"):
+            _normalize_db_url("postgresql://localhost/mydb")

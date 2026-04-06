@@ -23,12 +23,18 @@ from farm.database.session_manager import SessionManager
 def _normalize_db_url(db_path: str) -> str:
     """Return a SQLAlchemy SQLite URL for *db_path*.
 
-    If *db_path* is already a full URL (contains ``://``), it is returned unchanged.
-    Otherwise ``sqlite:///`` is prepended so the result is a valid SQLite URL
-    that :class:`~farm.database.session_manager.SessionManager` will use directly.
+    If *db_path* is already a full SQLite URL starting with ``sqlite:///``,
+    it is returned unchanged. Plain filesystem paths are converted to SQLite
+    URLs by prepending ``sqlite:///``. Any other URL scheme is rejected so it
+    cannot be misinterpreted later by
+    :class:`~farm.database.session_manager.SessionManager`.
     """
-    if "://" in db_path:
+    if db_path.startswith("sqlite:///"):
         return db_path
+    if "://" in db_path:
+        raise ValueError(
+            f"Unsupported database URL {db_path!r}; expected a filesystem path or a 'sqlite:///' URL."
+        )
     return f"sqlite:///{db_path}"
 
 

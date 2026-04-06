@@ -34,6 +34,8 @@ class AnalysisRequest:
         group: Function group to execute (default: "all")
         processor_kwargs: Arguments for data processor
         analysis_kwargs: Arguments for specific analysis functions
+        config: Configuration options forwarded to :class:`~farm.analysis.common.context.AnalysisContext`
+            (e.g. ``{"resource_hotspot_sigma": 3.0}``).
         enable_caching: Whether to use cached results if available
         force_refresh: Force recomputation even if cache exists
         progress_callback: Optional callback for progress updates
@@ -46,6 +48,7 @@ class AnalysisRequest:
     group: str = "all"
     processor_kwargs: Dict[str, Any] = field(default_factory=dict)
     analysis_kwargs: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    config: Dict[str, Any] = field(default_factory=dict)
     enable_caching: bool = True
     force_refresh: bool = False
     progress_callback: Optional[Callable[[str, float], None]] = None
@@ -67,6 +70,7 @@ class AnalysisRequest:
             "group": self.group,
             "processor_kwargs": self.processor_kwargs,
             "analysis_kwargs": self.analysis_kwargs,
+            "config": self.config,
             "metadata": self.metadata,
         }
 
@@ -83,6 +87,7 @@ class AnalysisRequest:
             "group": self.group,
             "processor_kwargs": self.processor_kwargs,
             "analysis_kwargs": self.analysis_kwargs,
+            "config": self.config,
         }
 
         # Create deterministic hash
@@ -554,6 +559,7 @@ class AnalysisService:
                 processor_kwargs=request.processor_kwargs,
                 analysis_kwargs=request.analysis_kwargs,
                 progress_callback=request.progress_callback,
+                config=request.config,
             )
 
             # Cache result if enabled
@@ -630,6 +636,7 @@ class AnalysisService:
         group: str = "all",
         processor_kwargs: Optional[Dict[str, Any]] = None,
         analysis_kwargs: Optional[Dict[str, Dict[str, Any]]] = None,
+        config: Optional[Dict[str, Any]] = None,
         enable_caching: bool = True,
         force_refresh: bool = False,
         progress_callback: Optional[Callable[[str, float], None]] = None,
@@ -650,6 +657,9 @@ class AnalysisService:
             group: Function group passed to each module.
             processor_kwargs: Shared processor kwargs for every request.
             analysis_kwargs: Shared analysis kwargs for every request.
+            config: Optional configuration dict forwarded to every
+                :class:`~farm.analysis.common.context.AnalysisContext` in the suite
+                (e.g. ``{"resource_hotspot_sigma": 3.0}``).
             enable_caching: Whether to use the analysis cache.
             force_refresh: Force recomputation for every module.
             progress_callback: Optional progress callback for each request.
@@ -680,9 +690,16 @@ class AnalysisService:
 
         proc_kw = processor_kwargs or {}
         anal_kw = analysis_kwargs or {}
+        cfg = config or {}
 
         requests: List[AnalysisRequest] = []
         for name in module_names:
+            safe_name = Path(name).name
+            if safe_name != name or ".." in name:
+                raise ConfigurationError(
+                    f"Module name {name!r} contains path separators or '..' and cannot be used "
+                    "as an output directory component."
+                )
             mod_out = output_path / name
             requests.append(
                 AnalysisRequest(
@@ -692,6 +709,7 @@ class AnalysisService:
                     group=group,
                     processor_kwargs=dict(proc_kw),
                     analysis_kwargs=dict(anal_kw),
+                    config=dict(cfg),
                     enable_caching=enable_caching,
                     force_refresh=force_refresh,
                     progress_callback=progress_callback,

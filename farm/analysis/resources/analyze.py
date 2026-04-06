@@ -52,7 +52,16 @@ def analyze_resource_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) 
     consumption = compute_consumption_patterns(df)
     efficiency = compute_resource_efficiency(df)
     resource_positions = _load_resource_positions_for_hotspots(df, ctx)
-    sigma = float(ctx.get_config("resource_hotspot_sigma", 2.0))
+    raw_sigma = ctx.get_config("resource_hotspot_sigma", 2.0)
+    if raw_sigma is None or (isinstance(raw_sigma, str) and not raw_sigma.strip()):
+        sigma = 2.0
+    else:
+        try:
+            sigma = float(raw_sigma)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid configuration for 'resource_hotspot_sigma': {raw_sigma!r}"
+            ) from exc
     hotspots = compute_resource_hotspots(
         df, spatial_resource_positions=resource_positions, hotspot_sigma=sigma
     )
@@ -132,7 +141,16 @@ def analyze_hotspots(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
     ctx.logger.info("Analyzing resource hotspots...")
 
     resource_positions = _load_resource_positions_for_hotspots(df, ctx)
-    sigma = float(ctx.get_config("resource_hotspot_sigma", 2.0))
+    raw_sigma = ctx.get_config("resource_hotspot_sigma", 2.0)
+    if raw_sigma is None or (isinstance(raw_sigma, str) and not raw_sigma.strip()):
+        sigma = 2.0
+    else:
+        try:
+            sigma = float(raw_sigma)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid configuration for 'resource_hotspot_sigma': {raw_sigma!r}"
+            ) from exc
     hotspots = compute_resource_hotspots(
         df, spatial_resource_positions=resource_positions, hotspot_sigma=sigma
     )

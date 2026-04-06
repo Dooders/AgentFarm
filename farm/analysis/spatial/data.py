@@ -46,17 +46,20 @@ def process_spatial_data(
             # Load data using SessionManager directly
             db_uri = f"sqlite:///{db_path}"
             session_manager = SessionManager(db_uri)
-            resource_repo = ResourceRepository(session_manager)
+            try:
+                resource_repo = ResourceRepository(session_manager)
 
-            # Get resource position data
-            resource_data = resource_repo.get_resource_positions_over_time()
-            resource_df = pd.DataFrame(resource_data) if resource_data else pd.DataFrame()
+                # Get resource position data
+                resource_data = resource_repo.get_resource_positions_over_time()
+                resource_df = pd.DataFrame(resource_data) if resource_data else pd.DataFrame()
 
-            agent_df = pd.DataFrame()
-            if not resources_only:
-                agent_repo = AgentRepository(session_manager)
-                agent_data = agent_repo.get_agent_positions_over_time()
-                agent_df = pd.DataFrame(agent_data) if agent_data else pd.DataFrame()
+                agent_df = pd.DataFrame()
+                if not resources_only:
+                    agent_repo = AgentRepository(session_manager)
+                    agent_data = agent_repo.get_agent_positions_over_time()
+                    agent_df = pd.DataFrame(agent_data) if agent_data else pd.DataFrame()
+            finally:
+                session_manager.cleanup()
 
             # Combine spatial data
             spatial_data = {

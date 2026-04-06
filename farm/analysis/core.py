@@ -220,6 +220,7 @@ class BaseAnalysisModule:
         analysis_kwargs: Optional[Dict[str, Dict[str, Any]]] = None,
         progress_callback: Optional[Callable[[str, float], None]] = None,
         error_mode: Optional[ErrorHandlingMode] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> tuple[Path, Optional[pd.DataFrame]]:
         """Run complete analysis workflow.
 
@@ -231,6 +232,8 @@ class BaseAnalysisModule:
             analysis_kwargs: Arguments for specific analysis functions
             progress_callback: Optional progress callback
             error_mode: Override error handling mode for this run
+            config: Optional configuration dict forwarded to :class:`AnalysisContext`
+                (e.g. ``{"resource_hotspot_sigma": 3.0}``).
 
         Returns:
             Tuple of (output_path, processed_dataframe, list_of_errors)
@@ -248,6 +251,7 @@ class BaseAnalysisModule:
         # Create analysis context
         ctx = AnalysisContext(
             output_path=output_path,
+            config=config or {},
             progress_callback=progress_callback,
             metadata={"experiment_path": str(experiment_path)},
         )

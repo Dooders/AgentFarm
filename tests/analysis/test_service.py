@@ -675,3 +675,59 @@ class TestAnalysisService:
         suite_ab = _make_result(["alpha", "beta"])
         suite_ac = _make_result(["alpha", "gamma"])
         assert suite_ab._default_slug() != suite_ac._default_slug()
+
+    def test_run_suite_rejects_path_traversal_module_name(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        """Module names containing '..' or path separators are rejected."""
+        registry.register(_stub_module("safe_module", mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+
+        with pytest.raises(ConfigurationError, match="path separators"):
+            service.run_suite(
+                experiment_path=exp_path,
+                output_path=tmp_path / "out",
+                modules=["../etc/passwd"],
+                enable_caching=False,
+                write_unified_summary=False,
+            )
+
+    def test_run_suite_config_forwarded_to_context(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        """Config dict passed to run_suite is forwarded to each AnalysisRequest."""
+        captured_configs = []
+
+        class ConfigCapturingModule(BaseAnalysisModule):
+            def __init__(self):
+                super().__init__(name="cfg_capture", description="cfg capture")
+
+            def register_functions(self):
+                def capture_func(df, ctx, **kwargs):
+                    captured_configs.append(dict(ctx.config))
+
+                capture_func.__name__ = "capture_func"
+                self._functions = {"capture_func": capture_func}
+                self._groups = {"all": [capture_func]}
+
+            def get_data_processor(self):
+                return mock_data_processor
+
+        registry.register(ConfigCapturingModule())
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+
+        service.run_suite(
+            experiment_path=exp_path,
+            output_path=tmp_path / "out",
+            modules=["cfg_capture"],
+            config={"resource_hotspot_sigma": 3.5},
+            enable_caching=False,
+            write_unified_summary=False,
+        )
+
+        assert len(captured_configs) == 1
+        assert captured_configs[0].get("resource_hotspot_sigma") == 3.5
