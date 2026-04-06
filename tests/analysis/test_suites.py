@@ -19,6 +19,17 @@ def test_list_builtin_suite_names_includes_full():
     assert "social" in names
 
 
+def test_list_builtin_suite_names_is_sorted():
+    names = list_builtin_suite_names()
+    assert names == sorted(names), "list_builtin_suite_names() must return a fully sorted list"
+
+
+def test_list_builtin_suite_names_full_position():
+    names = list_builtin_suite_names()
+    # 'full' should be placed in sorted order, not always at the end
+    assert names.index("full") == sorted(names).index("full")
+
+
 def test_resolve_explicit_modules_order_and_dedupe():
     out = resolve_suite_module_names(modules=["a", "b", "a", "c"])
     assert out == ["a", "b", "c"]

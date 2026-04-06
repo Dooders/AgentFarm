@@ -162,10 +162,12 @@ class AnalysisSuiteResult:
 
     Attributes:
         suite_name: Built-in suite name if used, else None when only ``modules`` was given.
-        modules_requested: Module names that were run (order preserved).
+        modules_requested: Full list of module names planned for this run (order preserved).
         experiment_path: Experiment data path common to all requests.
         output_base: Base directory; per-module outputs live under ``output_base / <module_name>``.
-        results: One :class:`AnalysisResult` per module, same order as ``modules_requested``.
+        results: One :class:`AnalysisResult` per module actually executed (may be shorter than
+            ``modules_requested`` when ``fail_fast=True`` stops early).
+        modules_executed: Module names that were actually executed, derived from ``results``.
         summary: Cross-module aggregate (paths, counts, per-module summaries, timing).
     """
 
@@ -174,6 +176,7 @@ class AnalysisSuiteResult:
     experiment_path: Path
     output_base: Path
     results: List[AnalysisResult]
+    modules_executed: List[str] = field(init=False)
     summary: Dict[str, Any] = field(init=False)
 
     def __post_init__(self) -> None:
@@ -181,6 +184,7 @@ class AnalysisSuiteResult:
             self.experiment_path = Path(self.experiment_path)
         if isinstance(self.output_base, str):
             self.output_base = Path(self.output_base)
+        self.modules_executed = [r.module_name for r in self.results]
         self.summary = self._build_summary()
 
     def _build_summary(self) -> Dict[str, Any]:
@@ -192,6 +196,7 @@ class AnalysisSuiteResult:
         return {
             "suite": self.suite_name,
             "modules_requested": list(self.modules_requested),
+            "modules_executed": list(self.modules_executed),
             "experiment_path": str(self.experiment_path.resolve()),
             "output_base": str(self.output_base.resolve()),
             "timestamp": datetime.now().isoformat(),
@@ -207,15 +212,30 @@ class AnalysisSuiteResult:
         return {
             "suite_name": self.suite_name,
             "modules_requested": self.modules_requested,
+            "modules_executed": self.modules_executed,
             "experiment_path": str(self.experiment_path.resolve()),
             "output_base": str(self.output_base.resolve()),
             "summary": self.summary,
         }
 
+    def _default_slug(self) -> str:
+        """Return a deterministic slug for file naming.
+
+        For named suites this is the suite name. For custom module lists the slug
+        is ``custom_`` followed by an 8-character SHA-1 prefix of the sorted
+        module names, so that distinct module combinations produce distinct
+        filenames and multiple runs with the same combination are idempotent.
+        """
+        if self.suite_name:
+            return self.suite_name
+        key = ",".join(sorted(self.modules_requested))
+        digest = hashlib.sha1(key.encode()).hexdigest()[:8]
+        return f"custom_{digest}"
+
     def save_unified_summary(self, path: Optional[Path] = None) -> Path:
         """Write ``summary`` (and top-level identifiers) to JSON."""
         if path is None:
-            slug = self.suite_name or "custom_suite"
+            slug = self._default_slug()
             path = self.output_base / f"{slug}_suite_summary.json"
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -230,7 +250,7 @@ class AnalysisSuiteResult:
             fmt_list = [formats]
         else:
             fmt_list = list(formats)
-        slug = self.suite_name or "custom_suite"
+        slug = self._default_slug()
         out: Dict[str, Path] = {}
         base = self.output_base
         base.mkdir(parents=True, exist_ok=True)
@@ -255,12 +275,17 @@ class AnalysisSuiteResult:
 
     def _markdown_report_body(self) -> str:
         title = self.suite_name or "custom suite"
+        planned = self.modules_requested
+        executed = self.modules_executed
+        modules_line = f"- **Modules planned:** {', '.join(planned)}"
+        if executed != planned:
+            modules_line += f"\n- **Modules executed:** {', '.join(executed)}"
         lines = [
             f"# Analysis suite: {title}",
             "",
             f"- **Experiment:** `{self.experiment_path}`",
             f"- **Output base:** `{self.output_base}`",
-            f"- **Modules:** {', '.join(self.modules_requested)}",
+            modules_line,
             f"- **Success:** {self.summary['success_count']}/{len(self.results)}",
             f"- **Total time (s):** {self.summary['total_execution_time']:.4f}",
             "",
@@ -279,6 +304,11 @@ class AnalysisSuiteResult:
 
     def _html_report_body(self) -> str:
         title = html.escape(self.suite_name or "custom suite")
+        planned = html.escape(", ".join(self.modules_requested))
+        executed = html.escape(", ".join(self.modules_executed))
+        modules_items = f"<li>Modules planned: {planned}</li>"
+        if self.modules_executed != self.modules_requested:
+            modules_items += f"<li>Modules executed: {executed}</li>"
         rows = []
         for r in self.results:
             err = html.escape(r.error or "")
@@ -301,6 +331,7 @@ class AnalysisSuiteResult:
             "<ul>"
             f"<li>Experiment: <code>{exp}</code></li>"
             f"<li>Output base: <code>{ob}</code></li>"
+            f"{modules_items}"
             f"<li>Success: {self.summary['success_count']}/{len(self.results)}</li>"
             f"<li>Total time (s): {self.summary['total_execution_time']:.4f}</li>"
             "</ul>"

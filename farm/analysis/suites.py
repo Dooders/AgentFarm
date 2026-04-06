@@ -20,8 +20,8 @@ BUILTIN_SUITE_MODULES: Dict[str, Tuple[str, ...]] = {
 
 
 def list_builtin_suite_names() -> List[str]:
-    """Return built-in suite names, including ``full``."""
-    return sorted(BUILTIN_SUITE_MODULES.keys()) + ["full"]
+    """Return built-in suite names, including ``full``, in sorted order."""
+    return sorted([*BUILTIN_SUITE_MODULES.keys(), "full"])
 
 
 def resolve_suite_module_names(

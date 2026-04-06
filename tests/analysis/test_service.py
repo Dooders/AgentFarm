@@ -536,3 +536,142 @@ class TestAnalysisService:
                 enable_caching=False,
                 write_unified_summary=False,
             )
+
+    def test_run_suite_modules_executed_tracks_actual_results(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        """modules_executed should reflect only the modules that actually ran."""
+        registry.register(_stub_module("alpha", mock_data_processor))
+        registry.register(_stub_module("beta", mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=tmp_path / "suite_out",
+            modules=["alpha", "beta"],
+            enable_caching=False,
+            write_unified_summary=False,
+        )
+
+        # In the success case both lists must match
+        assert suite.modules_requested == ["alpha", "beta"]
+        assert suite.modules_executed == ["alpha", "beta"]
+        assert suite.summary["modules_requested"] == ["alpha", "beta"]
+        assert suite.summary["modules_executed"] == ["alpha", "beta"]
+
+    def test_run_suite_fail_fast_modules_executed_is_shorter(
+        self, config_service_mock, tmp_path
+    ):
+        """When fail_fast stops early, modules_executed must be a prefix of modules_requested."""
+        from farm.analysis.core import SimpleDataProcessor
+
+        def ok_processor(data, **kwargs):
+            import pandas as pd
+            return pd.DataFrame({"test": [1]})
+
+        def bad_processor(data, **kwargs):
+            raise RuntimeError("intentional data-processing failure")
+
+        ok_proc = SimpleDataProcessor(ok_processor)
+        bad_proc = SimpleDataProcessor(bad_processor)
+
+        registry.register(_stub_module("alpha", ok_proc))
+
+        class FailingModule(BaseAnalysisModule):
+            def __init__(self):
+                super().__init__(name="broken", description="always fails at data load")
+
+            def register_functions(self):
+                def noop(df, ctx, **kwargs):
+                    return {}
+
+                noop.__name__ = "noop"
+                self._functions = {"noop": noop}
+                self._groups = {"all": [noop]}
+
+            def get_data_processor(self):
+                return bad_proc
+
+        registry.register(FailingModule())
+        registry.register(_stub_module("gamma", ok_proc))
+
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=tmp_path / "suite_out",
+            modules=["alpha", "broken", "gamma"],
+            enable_caching=False,
+            write_unified_summary=False,
+            fail_fast=True,
+        )
+
+        # Full planned list is preserved on modules_requested
+        assert suite.modules_requested == ["alpha", "broken", "gamma"]
+        # Only the modules that actually ran appear in modules_executed
+        assert "gamma" not in suite.modules_executed
+        assert suite.summary["modules_requested"] == ["alpha", "broken", "gamma"]
+        assert "gamma" not in suite.summary["modules_executed"]
+
+    def test_run_suite_custom_slug_deterministic(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        """Custom suite slugs should be deterministic hashes, not 'custom_suite'."""
+        registry.register(_stub_module("alpha", mock_data_processor))
+        registry.register(_stub_module("beta", mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=tmp_path / "suite_out",
+            modules=["alpha", "beta"],
+            enable_caching=False,
+            write_unified_summary=True,
+        )
+
+        # Slug must not be the generic "custom_suite" literal
+        slug = suite._default_slug()
+        assert slug != "custom_suite"
+        assert slug.startswith("custom_")
+        # Same module combination produces the same slug (deterministic)
+        assert slug == suite._default_slug()
+        # Summary file uses the hash slug
+        summary_files = list((tmp_path / "suite_out").glob("*_suite_summary.json"))
+        assert len(summary_files) == 1
+        assert summary_files[0].name.startswith("custom_")
+        assert "custom_suite_suite_summary" not in summary_files[0].name
+
+    def test_run_suite_different_module_combinations_different_slugs(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        """Two different module combinations must produce different slugs."""
+
+        def _make_result(mods):
+            results = [
+                AnalysisResult(
+                    module_name=m,
+                    success=True,
+                    output_path=tmp_path / m,
+                    execution_time=0.0,
+                )
+                for m in mods
+            ]
+            return AnalysisSuiteResult(
+                suite_name=None,
+                modules_requested=mods,
+                experiment_path=tmp_path,
+                output_base=tmp_path / "out",
+                results=results,
+            )
+
+        suite_ab = _make_result(["alpha", "beta"])
+        suite_ac = _make_result(["alpha", "gamma"])
+        assert suite_ab._default_slug() != suite_ac._default_slug()
