@@ -4,85 +4,40 @@ from typing import Any, Dict, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from sqlalchemy import case, func
 
+from farm.analysis.sql_loaders import (
+    competitive_interactions_from_session,
+    resource_distribution_from_session,
+    resource_efficiency_from_session,
+    survival_rates_from_session,
+)
 from farm.core.social_dynamics import compute_social_dynamics_trends, social_dynamics_per_step
 from farm.database.database import SimulationDatabase
-from farm.database.models import ActionModel, AgentModel, AgentStateModel, SimulationStepModel
 
 
 class SimulationAnalyzer:
+    """SQL-backed simulation summaries.
+
+    Uses the same query definitions as :mod:`farm.analysis.sql_loaders`, which also
+    feed the population and resources analysis modules' database loaders. For file
+    databases this matches :class:`farm.analysis.service.AnalysisService` module
+    inputs built from the same SQLite schema.
+    """
+
     def __init__(self, db_path: str = "simulation.db", simulation_id: str = None):
         self.db = SimulationDatabase(db_path, simulation_id=simulation_id)
 
     def calculate_survival_rates(self) -> pd.DataFrame:
         """Calculate survival rates for different agent types over time."""
-
-        def _query(session):
-            query = (
-                session.query(
-                    SimulationStepModel.step_number,
-                    func.count(
-                        case((AgentModel.agent_type == "system", 1), else_=None)
-                    ).label("system_alive"),
-                    func.count(
-                        case(
-                            (AgentModel.agent_type == "independent", 1), else_=None
-                        )
-                    ).label("independent_alive"),
-                )
-                .join(
-                    AgentStateModel,
-                    SimulationStepModel.step_number == AgentStateModel.step_number,
-                )
-                .join(AgentModel, AgentStateModel.agent_id == AgentModel.agent_id)
-                .group_by(SimulationStepModel.step_number)
-                .order_by(SimulationStepModel.step_number)
-            )
-
-            results = query.all()
-            return pd.DataFrame(
-                results, columns=["step", "system_alive", "independent_alive"]
-            )
-
-        return self.db._execute_in_transaction(_query)
+        return self.db._execute_in_transaction(
+            lambda session: survival_rates_from_session(session, self.db.simulation_id)
+        )
 
     def analyze_resource_distribution(self) -> pd.DataFrame:
         """Analyze resource accumulation and distribution patterns."""
-
-        def _query(session):
-            query = (
-                session.query(
-                    SimulationStepModel.step_number,
-                    AgentModel.agent_type,
-                    func.avg(AgentStateModel.resource_level).label("avg_resources"),
-                    func.min(AgentStateModel.resource_level).label("min_resources"),
-                    func.max(AgentStateModel.resource_level).label("max_resources"),
-                    func.count().label("agent_count"),
-                )
-                .join(
-                    AgentStateModel,
-                    SimulationStepModel.step_number == AgentStateModel.step_number,
-                )
-                .join(AgentModel, AgentStateModel.agent_id == AgentModel.agent_id)
-                .group_by(SimulationStepModel.step_number, AgentModel.agent_type)
-                .order_by(SimulationStepModel.step_number)
-            )
-
-            results = query.all()
-            return pd.DataFrame(
-                results,
-                columns=[
-                    "step",
-                    "agent_type",
-                    "avg_resources",
-                    "min_resources",
-                    "max_resources",
-                    "agent_count",
-                ],
-            )
-
-        return self.db._execute_in_transaction(_query)
+        return self.db._execute_in_transaction(
+            lambda session: resource_distribution_from_session(session, self.db.simulation_id)
+        )
 
     def analyze_competitive_interactions(self) -> pd.DataFrame:
         """Analyze patterns in competitive interactions.
@@ -90,23 +45,9 @@ class SimulationAnalyzer:
         Derives combat encounters from the actions table by counting attack actions.
         When the database is scoped to a simulation, only that simulation's rows are used.
         """
-
-        def _query(session):
-            query = (
-                session.query(
-                    ActionModel.step_number,
-                    func.count(ActionModel.action_id).label("competitive_interactions"),
-                )
-                .filter(ActionModel.action_type == "attack")
-            )
-            if self.db.simulation_id is not None:
-                query = query.filter(ActionModel.simulation_id == self.db.simulation_id)
-            query = query.group_by(ActionModel.step_number).order_by(ActionModel.step_number)
-
-            results = query.all()
-            return pd.DataFrame(results, columns=["step", "competitive_interactions"])
-
-        return self.db._execute_in_transaction(_query)
+        return self.db._execute_in_transaction(
+            lambda session: competitive_interactions_from_session(session, self.db.simulation_id)
+        )
 
     def social_dynamics_per_step(self) -> pd.DataFrame:
         """Per-step cooperation and competition rates from targeted social actions."""
@@ -146,17 +87,9 @@ class SimulationAnalyzer:
 
     def analyze_resource_efficiency(self) -> pd.DataFrame:
         """Analyze resource utilization efficiency over time."""
-
-        def _query(session):
-            query = session.query(
-                SimulationStepModel.step_number,
-                SimulationStepModel.resource_efficiency.label("efficiency"),
-            ).order_by(SimulationStepModel.step_number)
-
-            results = query.all()
-            return pd.DataFrame(results, columns=["step", "efficiency"])
-
-        return self.db._execute_in_transaction(_query)
+        return self.db._execute_in_transaction(
+            lambda session: resource_efficiency_from_session(session, self.db.simulation_id)
+        )
 
     def generate_report(self, output_file: str = "simulation_report.html"):
         """Generate an HTML report with analysis results."""
