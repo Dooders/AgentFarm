@@ -207,8 +207,8 @@ class AnalysisSuiteResult:
         return {
             "suite_name": self.suite_name,
             "modules_requested": self.modules_requested,
-            "experiment_path": str(self.experiment_path),
-            "output_base": str(self.output_base),
+            "experiment_path": str(self.experiment_path.resolve()),
+            "output_base": str(self.output_base.resolve()),
             "summary": self.summary,
         }
 
