@@ -63,6 +63,7 @@ from farm.analysis import (
     significant_events,
     social_behavior,
     spatial,
+    system_dynamics,
     temporal,
 )
 from farm.analysis.common.context import (

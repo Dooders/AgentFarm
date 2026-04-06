@@ -20,8 +20,10 @@ Add a `farm/analysis/system_dynamics/` module (following the existing `BaseAnaly
 
 ## Acceptance Criteria
 
-- [ ] Module follows `BaseAnalysisModule` template in `farm/analysis/template/`
-- [ ] Registered in `farm/analysis/registry.py`
-- [ ] At least one cross-module correlation analysis (e.g. resource–population)
-- [ ] Tests in `tests/analysis/test_system_dynamics.py`
-- [ ] Accessible via `AnalysisService` with `module_name="system_dynamics"`
+- [x] Module follows `BaseAnalysisModule` pattern (same as `population` / `resources` / `temporal`; there is no `farm/analysis/template/` package in-tree)
+- [x] Registered in `farm/analysis/registry.py`
+- [x] Cross-module correlation: resource–population (levels + first differences), action–reward lags, scarcity vs population volatility; optional Granger on changes
+- [x] Tests in `tests/analysis/test_system_dynamics.py`
+- [x] Accessible via `AnalysisService` with `module_name="system_dynamics"`
+
+**Implementation:** `farm/analysis/system_dynamics/` — merged per-step frame from population, resources, and temporal loaders; groups `all` (foundation submodule runs + synthesis + report), `synthesis` (cross-domain metrics + unified JSON/HTML), `foundation` (reference runs only).
