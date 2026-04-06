@@ -48,11 +48,9 @@ def process_spatial_data(
             resource_data = resource_repo.get_resource_positions_over_time()
             resource_df = pd.DataFrame(resource_data) if resource_data else pd.DataFrame()
 
-            if resources_only:
-                agent_df = pd.DataFrame()
-            else:
+            agent_df = pd.DataFrame()
+            if not resources_only:
                 agent_repo = AgentRepository(session_manager)
-                # Get agent position data
                 agent_data = agent_repo.get_agent_positions_over_time()
                 agent_df = pd.DataFrame(agent_data) if agent_data else pd.DataFrame()
 

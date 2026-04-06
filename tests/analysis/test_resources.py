@@ -276,7 +276,6 @@ class TestResourceComputations:
     def test_compute_resource_hotspots_invalid_sigma(self):
         """Invalid hotspot_sigma values raise ValueError."""
         df = pd.DataFrame({'step': [0], 'total_resources': [10.0]})
-        import pytest
         with pytest.raises(ValueError):
             compute_resource_hotspots(df, hotspot_sigma=-1.0)
         with pytest.raises(ValueError):
