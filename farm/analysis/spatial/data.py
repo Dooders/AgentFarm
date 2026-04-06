@@ -3,13 +3,17 @@ Spatial data processing for analysis.
 """
 
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
-import pandas as pd
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
+import pandas as pd
 
 from farm.database.session_manager import SessionManager
 from farm.database.repositories.agent_repository import AgentRepository
 from farm.database.repositories.resource_repository import ResourceRepository
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def process_spatial_data(
@@ -17,7 +21,7 @@ def process_spatial_data(
     use_database: bool = True,
     resources_only: bool = False,
     **kwargs,
-) -> pd.DataFrame:
+) -> Dict[str, pd.DataFrame]:
     """Process spatial data from experiment.
 
     Args:
@@ -28,7 +32,7 @@ def process_spatial_data(
         **kwargs: Additional options
 
     Returns:
-        DataFrame with spatial metrics over time
+        Dict with ``agent_positions`` and ``resource_positions`` DataFrames.
     """
     # Try to load from database first
     spatial_data = None
@@ -61,8 +65,7 @@ def process_spatial_data(
             }
 
     except Exception as e:
-        # If database loading fails, return empty spatial data
-        pass
+        logger.debug("Spatial database load failed: %s", e, exc_info=True)
 
     if spatial_data is None:
         # Return empty spatial data structure

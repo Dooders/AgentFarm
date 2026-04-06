@@ -209,14 +209,12 @@ class TestResourceComputations:
         assert 'hotspot_intensity' in hotspots
 
     def test_compute_resource_hotspots_empty(self):
-        """Test hotspots with missing data."""
+        """No spatial data and no total_resources returns legacy empty dict."""
         df = pd.DataFrame({'step': range(10)})
 
         result = compute_resource_hotspots(df)
 
-        assert result.get('mode') == 'timeseries_fallback'
-        assert result.get('spatial') is None
-        assert 'max_concentration' not in result
+        assert result == {}
 
     def test_compute_resource_hotspots_uniform(self):
         """Test hotspots with uniform distribution."""
@@ -282,6 +280,25 @@ class TestResourceComputations:
             compute_resource_hotspots(df, hotspot_sigma=float('nan'))
         with pytest.raises(ValueError):
             compute_resource_hotspots(df, hotspot_sigma=float('inf'))
+
+    def test_compute_resource_hotspots_truncates_serialized_cells(self, monkeypatch):
+        """Large per-step hotspot lists cap JSON cells; counts use full set."""
+        from farm.analysis.resources import compute as res_compute
+
+        monkeypatch.setattr(res_compute, "MAX_SERIALIZED_HOTSPOT_CELLS_PER_STEP", 2)
+        df = pd.DataFrame({"step": [0], "total_resources": [100.0]})
+        rows = []
+        for i in range(10):
+            rows.append({"step": 0, "position_x": float(i), "position_y": 0.0, "amount": 10.0})
+        for i in range(10, 20):
+            rows.append({"step": 0, "position_x": float(i), "position_y": 0.0, "amount": 20.0})
+        spatial = pd.DataFrame(rows)
+        out = compute_resource_hotspots(df, spatial_resource_positions=spatial, hotspot_sigma=0.5)
+        step0 = out["spatial"]["per_step"][0]
+        assert step0["n_hotspot_cells"] == 10
+        assert step0["hotspot_cells_truncated"] is True
+        assert len(step0["hotspot_cells"]) == 2
+        assert len(out["spatial"]["persistent_hotspot_cells"]) == 10
 
 
 class TestResourceAnalysis:
@@ -713,6 +730,33 @@ class TestResourceHelperFunctions:
 
             assert isinstance(result, pd.DataFrame)
             assert len(result) == 2  # Should load from CSV fallback
+
+    def test_process_resource_data_stores_positions_in_attrs(self, tmp_path, monkeypatch):
+        """DB loader attaches resource grid DataFrame for hotspot analysis (single DB round-trip)."""
+        import farm.analysis.resources.data as res_data
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        (exp_path / "simulation.db").touch()
+
+        merged = pd.DataFrame({"step": [0], "total_resources": [1.0]})
+        positions = pd.DataFrame(
+            {
+                "step": [0],
+                "position_x": [1.0],
+                "position_y": [2.0],
+                "amount": [3.0],
+            }
+        )
+
+        def fake_bundle(_path):
+            return merged.copy(), positions.copy()
+
+        monkeypatch.setattr(res_data, "find_database_path", lambda _p: exp_path / "simulation.db")
+        monkeypatch.setattr(res_data, "resources_merged_with_positions_from_sqlite", fake_bundle)
+
+        result = res_data.process_resource_data(exp_path)
+        assert result.attrs[res_data.RESOURCE_POSITIONS_DATAFRAME_ATTR].equals(positions)
 
     def test_calculate_trend_helper(self):
         """Test trend calculation helper."""

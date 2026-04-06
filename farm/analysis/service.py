@@ -667,6 +667,11 @@ class AnalysisService:
 
         module_names = resolve_suite_module_names(suite=suite, modules=modules)
         if not module_names:
+            n_registered = len(get_module_names())
+            logger.warning(
+                "No analysis modules to run (analysis registry has %s registered name(s)).",
+                n_registered,
+            )
             raise ConfigurationError(
                 "No modules to run: use a non-empty `modules` list, register modules for `suite='full'`, "
                 "or choose another built-in suite."

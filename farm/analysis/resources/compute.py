@@ -210,6 +210,20 @@ def _hotspots_for_step(
     return hotspots, meta
 
 
+# Limit JSON payload size; centroids, mass, and persistence use the full hotspot set in-memory.
+MAX_SERIALIZED_HOTSPOT_CELLS_PER_STEP = 500
+
+
+def _hotspot_cells_for_export(
+    hotspots: List[Dict[str, Any]], max_cells: int
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """Subset of cells for serialization (highest |z_score| first)."""
+    if len(hotspots) <= max_cells:
+        return list(hotspots), False
+    sorted_h = sorted(hotspots, key=lambda h: abs(h["z_score"]), reverse=True)
+    return sorted_h[:max_cells], True
+
+
 def _weighted_centroid(cells: List[Dict[str, Any]]) -> Optional[List[float]]:
     if not cells:
         return None
@@ -227,7 +241,12 @@ def _compute_spatial_resource_hotspots(
     resource_positions: pd.DataFrame,
     sigma_multiplier: float = 2.0,
 ) -> Dict[str, Any]:
-    """Threshold-based hotspot detection on per-cell resource amounts per simulation step."""
+    """Threshold-based hotspot detection on per-cell resource amounts per simulation step.
+
+    Each step's ``hotspot_cells`` in the returned structure may be truncated to
+    :data:`MAX_SERIALIZED_HOTSPOT_CELLS_PER_STEP` (highest |z_score|); centroids,
+    mass totals, and persistence use the full hotspot set.
+    """
     required = {"step", "position_x", "position_y", "amount"}
     if resource_positions.empty or not required.issubset(resource_positions.columns):
         return {}
@@ -236,26 +255,29 @@ def _compute_spatial_resource_hotspots(
     if df.empty:
         return {}
 
-    per_step: List[Dict[str, Any]] = []
+    step_entries: List[Tuple[Dict[str, Any], List[Dict[str, Any]]]] = []
     n_hotspots_per_step: List[int] = []
     mass_per_step: List[float] = []
     centroids: List[Optional[List[float]]] = []
     for step, step_df in df.groupby("step", sort=True):
         hotspots, grid_meta = _hotspots_for_step(step_df, sigma_multiplier)
+        cells_json, truncated = _hotspot_cells_for_export(
+            hotspots, MAX_SERIALIZED_HOTSPOT_CELLS_PER_STEP
+        )
         centroid = _weighted_centroid(hotspots)
         total_mass = sum(h["cell_amount"] for h in hotspots)
-        per_step.append(
-            {
-                "step": int(step),
-                "n_hotspot_cells": len(hotspots),
-                "grid_mean_amount": grid_meta["mean"],
-                "grid_std_amount": grid_meta["std"],
-                "threshold": grid_meta["threshold"],
-                "hotspot_centroid": centroid,
-                "total_hotspot_amount": float(total_mass),
-                "hotspot_cells": hotspots,
-            }
-        )
+        row = {
+            "step": int(step),
+            "n_hotspot_cells": len(hotspots),
+            "grid_mean_amount": grid_meta["mean"],
+            "grid_std_amount": grid_meta["std"],
+            "threshold": grid_meta["threshold"],
+            "hotspot_centroid": centroid,
+            "total_hotspot_amount": float(total_mass),
+            "hotspot_cells": cells_json,
+            "hotspot_cells_truncated": truncated,
+        }
+        step_entries.append((row, hotspots))
         n_hotspots_per_step.append(len(hotspots))
         mass_per_step.append(float(total_mass))
         centroids.append(centroid)
@@ -272,12 +294,13 @@ def _compute_spatial_resource_hotspots(
     n_arr = np.array(n_hotspots_per_step, dtype=float)
     mass_arr = np.array(mass_per_step, dtype=float)
 
-    # Per-cell persistence: how often the same (x,y) appears as a hotspot across steps
+    # Per-cell persistence uses full hotspot sets, not the capped JSON lists.
     cell_counts: Dict[Tuple[Any, Any], int] = {}
-    for row in per_step:
-        for h in row["hotspot_cells"]:
+    for _, hotspots in step_entries:
+        for h in hotspots:
             key = _cell_key(h["position_x"], h["position_y"])
             cell_counts[key] = cell_counts.get(key, 0) + 1
+    per_step = [row for row, _ in step_entries]
     n_steps = len(per_step)
     persistent_cells = [
         {
@@ -331,11 +354,11 @@ def compute_resource_hotspots(
             the hotspot threshold (default 2).
 
     Returns:
-        Dictionary with ``mode`` ('spatial' or 'timeseries_fallback'), optional
-        ``spatial`` block, and legacy scalar keys when ``total_resources`` is present.
+        Empty dict when there is neither usable spatial data nor a ``total_resources``
+        column. Otherwise includes ``mode`` (``spatial`` or ``timeseries_fallback``),
+        optional ``spatial`` output, and legacy scalar keys when ``total_resources``
+        is present.
     """
-    out: Dict[str, Any] = {}
-
     if not math.isfinite(hotspot_sigma) or hotspot_sigma < 0:
         raise ValueError(
             f"hotspot_sigma must be a finite non-negative number, got {hotspot_sigma!r}"
@@ -347,15 +370,22 @@ def compute_resource_hotspots(
             spatial_resource_positions, sigma_multiplier=hotspot_sigma
         )
 
-    if spatial_block:
-        out["mode"] = "spatial"
-        out["spatial"] = spatial_block
-    else:
-        out["mode"] = "timeseries_fallback"
-        out["spatial"] = None
+    has_timeseries = "total_resources" in df.columns
 
-    if "total_resources" not in df.columns:
+    if spatial_block:
+        out: Dict[str, Any] = {
+            "mode": "spatial",
+            "spatial": spatial_block,
+        }
+        if has_timeseries:
+            out.update(_timeseries_hotspot_metrics(df))
         return out
 
-    out.update(_timeseries_hotspot_metrics(df))
-    return out
+    if not has_timeseries:
+        return {}
+
+    return {
+        "mode": "timeseries_fallback",
+        "spatial": None,
+        **_timeseries_hotspot_metrics(df),
+    }

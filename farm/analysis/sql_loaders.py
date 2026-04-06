@@ -7,7 +7,7 @@ population/resources combat-related pipelines read the same definitions.
 
 from __future__ import annotations
 
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple
 
 import pandas as pd
 from sqlalchemy import case, func
@@ -153,8 +153,8 @@ def population_dataframe_from_sqlite(db_path: str) -> pd.DataFrame:
     )
 
 
-def resources_merged_dataframe_from_sqlite(db_path: str) -> pd.DataFrame:
-    """Merged resource metrics DataFrame used by the resources analysis module."""
+def resources_merged_with_positions_from_sqlite(db_path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Load merged resource metrics and per-cell resource positions in one DB session."""
     session_manager = SessionManager(_normalize_db_url(db_path))
     try:
         repository = ResourceRepository(session_manager)
@@ -182,6 +182,15 @@ def resources_merged_dataframe_from_sqlite(db_path: str) -> pd.DataFrame:
         df["distribution_efficiency"] = efficiency.distribution_efficiency
         df["consumption_efficiency"] = efficiency.consumption_efficiency
         df["regeneration_rate"] = efficiency.regeneration_rate
-        return df
+
+        raw_positions = repository.get_resource_positions_over_time()
+        positions_df = pd.DataFrame(raw_positions) if raw_positions else pd.DataFrame()
+        return df, positions_df
     finally:
         session_manager.cleanup()
+
+
+def resources_merged_dataframe_from_sqlite(db_path: str) -> pd.DataFrame:
+    """Merged resource metrics DataFrame used by the resources analysis module."""
+    df, _ = resources_merged_with_positions_from_sqlite(db_path)
+    return df

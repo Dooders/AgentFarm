@@ -9,6 +9,7 @@ import pandas as pd
 
 from farm.analysis.common.context import AnalysisContext
 from farm.analysis.spatial.data import process_spatial_data
+from farm.analysis.resources.data import RESOURCE_POSITIONS_DATAFRAME_ATTR
 from farm.analysis.resources.compute import (
     compute_resource_statistics,
     compute_consumption_patterns,
@@ -17,8 +18,12 @@ from farm.analysis.resources.compute import (
 )
 
 
-def _load_resource_positions_for_hotspots(ctx: AnalysisContext) -> pd.DataFrame:
-    """Load per-step resource grid rows from the experiment database if available."""
+def _load_resource_positions_for_hotspots(df: pd.DataFrame, ctx: AnalysisContext) -> pd.DataFrame:
+    """Resolve per-step resource grid rows: DataFrame attrs from DB load, else spatial fallback."""
+    cached = df.attrs.get(RESOURCE_POSITIONS_DATAFRAME_ATTR) if hasattr(df, "attrs") else None
+    if isinstance(cached, pd.DataFrame) and not cached.empty:
+        return cached
+
     exp_raw = ctx.metadata.get("experiment_path")
     if not exp_raw:
         return pd.DataFrame()
@@ -46,7 +51,7 @@ def analyze_resource_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) 
     stats = compute_resource_statistics(df)
     consumption = compute_consumption_patterns(df)
     efficiency = compute_resource_efficiency(df)
-    resource_positions = _load_resource_positions_for_hotspots(ctx)
+    resource_positions = _load_resource_positions_for_hotspots(df, ctx)
     sigma = float(ctx.get_config("resource_hotspot_sigma", 2.0))
     hotspots = compute_resource_hotspots(
         df, spatial_resource_positions=resource_positions, hotspot_sigma=sigma
@@ -126,7 +131,7 @@ def analyze_hotspots(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
     """
     ctx.logger.info("Analyzing resource hotspots...")
 
-    resource_positions = _load_resource_positions_for_hotspots(ctx)
+    resource_positions = _load_resource_positions_for_hotspots(df, ctx)
     sigma = float(ctx.get_config("resource_hotspot_sigma", 2.0))
     hotspots = compute_resource_hotspots(
         df, spatial_resource_positions=resource_positions, hotspot_sigma=sigma
