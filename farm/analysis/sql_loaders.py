@@ -7,7 +7,7 @@ population/resources combat-related pipelines read the same definitions.
 
 from __future__ import annotations
 
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import pandas as pd
 from sqlalchemy import case, func
@@ -20,7 +20,19 @@ from farm.database.repositories.resource_repository import ResourceRepository
 from farm.database.session_manager import SessionManager
 
 
-def survival_rates_from_session(session: Session) -> pd.DataFrame:
+def _normalize_db_url(db_path: str) -> str:
+    """Return a SQLAlchemy SQLite URL for *db_path*.
+
+    If *db_path* is already a full URL (contains ``://``), it is returned unchanged.
+    Otherwise ``sqlite:///`` is prepended so the result is a valid SQLite URL
+    that :class:`~farm.database.session_manager.SessionManager` will use directly.
+    """
+    if "://" in db_path:
+        return db_path
+    return f"sqlite:///{db_path}"
+
+
+def survival_rates_from_session(session: Session, simulation_id: Optional[str] = None) -> pd.DataFrame:
     """Per-step counts of alive system vs independent agents (legacy analyzer schema)."""
     query = (
         session.query(
@@ -30,14 +42,19 @@ def survival_rates_from_session(session: Session) -> pd.DataFrame:
         )
         .join(AgentStateModel, SimulationStepModel.step_number == AgentStateModel.step_number)
         .join(AgentModel, AgentStateModel.agent_id == AgentModel.agent_id)
-        .group_by(SimulationStepModel.step_number)
-        .order_by(SimulationStepModel.step_number)
     )
+    if simulation_id is not None:
+        query = query.filter(
+            SimulationStepModel.simulation_id == simulation_id,
+            AgentStateModel.simulation_id == simulation_id,
+            AgentModel.simulation_id == simulation_id,
+        )
+    query = query.group_by(SimulationStepModel.step_number).order_by(SimulationStepModel.step_number)
     results = query.all()
     return pd.DataFrame(results, columns=["step", "system_alive", "independent_alive"])
 
 
-def resource_distribution_from_session(session: Session) -> pd.DataFrame:
+def resource_distribution_from_session(session: Session, simulation_id: Optional[str] = None) -> pd.DataFrame:
     """Per-step per-agent-type resource stats (legacy analyzer schema)."""
     query = (
         session.query(
@@ -50,8 +67,15 @@ def resource_distribution_from_session(session: Session) -> pd.DataFrame:
         )
         .join(AgentStateModel, SimulationStepModel.step_number == AgentStateModel.step_number)
         .join(AgentModel, AgentStateModel.agent_id == AgentModel.agent_id)
-        .group_by(SimulationStepModel.step_number, AgentModel.agent_type)
-        .order_by(SimulationStepModel.step_number)
+    )
+    if simulation_id is not None:
+        query = query.filter(
+            SimulationStepModel.simulation_id == simulation_id,
+            AgentStateModel.simulation_id == simulation_id,
+            AgentModel.simulation_id == simulation_id,
+        )
+    query = query.group_by(SimulationStepModel.step_number, AgentModel.agent_type).order_by(
+        SimulationStepModel.step_number
     )
     results = query.all()
     return pd.DataFrame(
@@ -60,7 +84,7 @@ def resource_distribution_from_session(session: Session) -> pd.DataFrame:
     )
 
 
-def competitive_interactions_from_session(session: Session) -> pd.DataFrame:
+def competitive_interactions_from_session(session: Session, simulation_id: Optional[str] = None) -> pd.DataFrame:
     """Attack counts per step (legacy analyzer schema)."""
     query = (
         session.query(
@@ -68,28 +92,30 @@ def competitive_interactions_from_session(session: Session) -> pd.DataFrame:
             func.count(ActionModel.action_id).label("competitive_interactions"),
         )
         .filter(ActionModel.action_type == "attack")
-        .group_by(ActionModel.step_number)
-        .order_by(ActionModel.step_number)
     )
+    if simulation_id is not None:
+        query = query.filter(ActionModel.simulation_id == simulation_id)
+    query = query.group_by(ActionModel.step_number).order_by(ActionModel.step_number)
     results = query.all()
     return pd.DataFrame(results, columns=["step", "competitive_interactions"])
 
 
-def resource_efficiency_from_session(session: Session) -> pd.DataFrame:
+def resource_efficiency_from_session(session: Session, simulation_id: Optional[str] = None) -> pd.DataFrame:
     """Per-step resource_efficiency from simulation_steps (legacy analyzer schema)."""
-    query = (
-        session.query(
-            SimulationStepModel.step_number,
-            SimulationStepModel.resource_efficiency.label("efficiency"),
-        ).order_by(SimulationStepModel.step_number)
+    query = session.query(
+        SimulationStepModel.step_number,
+        SimulationStepModel.resource_efficiency.label("efficiency"),
     )
+    if simulation_id is not None:
+        query = query.filter(SimulationStepModel.simulation_id == simulation_id)
+    query = query.order_by(SimulationStepModel.step_number)
     results = query.all()
     return pd.DataFrame(results, columns=["step", "efficiency"])
 
 
 def run_dataframe_on_sqlite(db_path: str, query_fn: Callable[[Session], pd.DataFrame]) -> pd.DataFrame:
     """Run a session callback that returns a DataFrame against a SQLite file or URI path."""
-    session_manager = SessionManager(f"sqlite:///{db_path}")
+    session_manager = SessionManager(_normalize_db_url(db_path))
 
     def _run(session: Session) -> pd.DataFrame:
         return query_fn(session)
@@ -102,7 +128,7 @@ def run_dataframe_on_sqlite(db_path: str, query_fn: Callable[[Session], pd.DataF
 
 def population_rows_from_sqlite(db_path: str) -> List[Population]:
     """Population time series used by the population analysis module."""
-    session_manager = SessionManager(f"sqlite:///{db_path}")
+    session_manager = SessionManager(_normalize_db_url(db_path))
     try:
         repository = PopulationRepository(session_manager)
         return repository.get_population_over_time()
@@ -129,7 +155,7 @@ def population_dataframe_from_sqlite(db_path: str) -> pd.DataFrame:
 
 def resources_merged_dataframe_from_sqlite(db_path: str) -> pd.DataFrame:
     """Merged resource metrics DataFrame used by the resources analysis module."""
-    session_manager = SessionManager(f"sqlite:///{db_path}")
+    session_manager = SessionManager(_normalize_db_url(db_path))
     try:
         repository = ResourceRepository(session_manager)
         distribution = repository.resource_distribution()

@@ -29,11 +29,15 @@ class SimulationAnalyzer:
 
     def calculate_survival_rates(self) -> pd.DataFrame:
         """Calculate survival rates for different agent types over time."""
-        return self.db._execute_in_transaction(survival_rates_from_session)
+        return self.db._execute_in_transaction(
+            lambda session: survival_rates_from_session(session, self.db.simulation_id)
+        )
 
     def analyze_resource_distribution(self) -> pd.DataFrame:
         """Analyze resource accumulation and distribution patterns."""
-        return self.db._execute_in_transaction(resource_distribution_from_session)
+        return self.db._execute_in_transaction(
+            lambda session: resource_distribution_from_session(session, self.db.simulation_id)
+        )
 
     def analyze_competitive_interactions(self) -> pd.DataFrame:
         """Analyze patterns in competitive interactions.
@@ -41,24 +45,9 @@ class SimulationAnalyzer:
         Derives combat encounters from the actions table by counting attack actions.
         When the database is scoped to a simulation, only that simulation's rows are used.
         """
-        return self.db._execute_in_transaction(competitive_interactions_from_session)
-
-        def _query(session):
-            query = (
-                session.query(
-                    ActionModel.step_number,
-                    func.count(ActionModel.action_id).label("competitive_interactions"),
-                )
-                .filter(ActionModel.action_type == "attack")
-            )
-            if self.db.simulation_id is not None:
-                query = query.filter(ActionModel.simulation_id == self.db.simulation_id)
-            query = query.group_by(ActionModel.step_number).order_by(ActionModel.step_number)
-
-            results = query.all()
-            return pd.DataFrame(results, columns=["step", "competitive_interactions"])
-
-        return self.db._execute_in_transaction(_query)
+        return self.db._execute_in_transaction(
+            lambda session: competitive_interactions_from_session(session, self.db.simulation_id)
+        )
 
     def social_dynamics_per_step(self) -> pd.DataFrame:
         """Per-step cooperation and competition rates from targeted social actions."""
@@ -98,7 +87,9 @@ class SimulationAnalyzer:
 
     def analyze_resource_efficiency(self) -> pd.DataFrame:
         """Analyze resource utilization efficiency over time."""
-        return self.db._execute_in_transaction(resource_efficiency_from_session)
+        return self.db._execute_in_transaction(
+            lambda session: resource_efficiency_from_session(session, self.db.simulation_id)
+        )
 
     def generate_report(self, output_file: str = "simulation_report.html"):
         """Generate an HTML report with analysis results."""
