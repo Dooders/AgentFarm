@@ -168,8 +168,23 @@ class TestSocialBehaviorComputations:
 
         assert "clustering_metrics" in metrics or "error" in metrics
 
-    def test_compute_cooperation_competition_metrics(self, mock_session):
+    @patch("farm.analysis.social_behavior.compute.social_dynamics_per_step")
+    def test_compute_cooperation_competition_metrics(self, mock_per_step, mock_session):
         """Test cooperation vs competition metrics."""
+        mock_per_step.return_value = pd.DataFrame(
+            {
+                "step": [1, 2],
+                "cooperation_actions": [2, 1],
+                "share_actions": [2, 1],
+                "attack_events": [1, 1],
+                "steal_events": [0, 0],
+                "total_social_interactions": [3, 2],
+                "cooperation_rate": [2 / 3, 0.5],
+                "share_rate": [2 / 3, 0.5],
+                "competition_intensity": [1 / 3, 0.5],
+                "competition_intensity_including_steal": [1 / 3, 0.5],
+            }
+        )
         # Mock cooperative actions (share)
         mock_coop = [(i, i + 1, "share", i * 10, "SystemAgent") for i in range(5)]
         # Mock competitive actions (attack)
@@ -193,8 +208,14 @@ class TestSocialBehaviorComputations:
 
         metrics = compute_cooperation_competition_metrics(mock_session)
 
-        # Should have some metrics even if structure differs
         assert isinstance(metrics, dict)
+        assert "per_step_rates" in metrics
+        assert len(metrics["per_step_rates"]) == 2
+        assert "trends" in metrics
+        assert "resource_sharing_index" in metrics
+        # Mock returns coop+comp rows for every action query; cooperation totals count all 8 rows.
+        assert metrics["resource_sharing_index"] == pytest.approx(5 / 8)
+        assert "combat_escalation" in metrics
 
     def test_compute_reproduction_social_patterns(self, mock_session):
         """Test reproduction social patterns computation."""

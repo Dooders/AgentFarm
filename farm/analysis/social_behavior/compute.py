@@ -16,6 +16,11 @@ import pandas as pd
 from sqlalchemy import and_, desc, func, or_
 from sqlalchemy.orm import Session
 
+from farm.core.social_dynamics import (
+    compute_social_dynamics_trends,
+    per_step_records_for_json,
+    social_dynamics_per_step,
+)
 from farm.database.models import (
     ActionModel,
     AgentModel,
@@ -509,7 +514,9 @@ def compute_spatial_clustering(session: Session, step: Optional[int] = None) -> 
     return results
 
 
-def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
+def compute_cooperation_competition_metrics(
+    session: Session, simulation_id: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Compute metrics related to cooperative and competitive behaviors.
 
@@ -671,6 +678,22 @@ def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
     results["competition"]["with_agent_type"] = {
         k: dict(v) for k, v in results["competition"]["with_agent_type"].items()
     }
+
+    per_step_df = social_dynamics_per_step(session, simulation_id=simulation_id)
+    results["per_step_rates"] = per_step_records_for_json(per_step_df)
+    results["trends"] = compute_social_dynamics_trends(per_step_df)
+
+    coop_total = results["cooperation"]["total_actions"]
+    share_n = results["cooperation"]["action_types"].get("share", 0)
+    results["resource_sharing_index"] = (share_n / coop_total) if coop_total > 0 else None
+
+    if len(per_step_df) >= 2 and "competition_intensity" in per_step_df.columns:
+        ci = per_step_df["competition_intensity"].astype(float)
+        deltas = ci.diff().dropna()
+        if len(deltas):
+            results["combat_escalation"] = {"mean_delta_competition_intensity": float(deltas.mean())}
+    else:
+        results["combat_escalation"] = {}
 
     return results
 

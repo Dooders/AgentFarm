@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sqlalchemy import case, func
 
+from farm.core.social_dynamics import compute_social_dynamics_trends, social_dynamics_per_step
 from farm.database.database import SimulationDatabase
 from farm.database.models import ActionModel, AgentModel, AgentStateModel, SimulationStepModel
 
@@ -85,8 +86,9 @@ class SimulationAnalyzer:
 
     def analyze_competitive_interactions(self) -> pd.DataFrame:
         """Analyze patterns in competitive interactions.
-        
+
         Derives combat encounters from the actions table by counting attack actions.
+        When the database is scoped to a simulation, only that simulation's rows are used.
         """
 
         def _query(session):
@@ -96,14 +98,51 @@ class SimulationAnalyzer:
                     func.count(ActionModel.action_id).label("competitive_interactions"),
                 )
                 .filter(ActionModel.action_type == "attack")
-                .group_by(ActionModel.step_number)
-                .order_by(ActionModel.step_number)
             )
+            if self.db.simulation_id is not None:
+                query = query.filter(ActionModel.simulation_id == self.db.simulation_id)
+            query = query.group_by(ActionModel.step_number).order_by(ActionModel.step_number)
 
             results = query.all()
             return pd.DataFrame(results, columns=["step", "competitive_interactions"])
 
         return self.db._execute_in_transaction(_query)
+
+    def social_dynamics_per_step(self) -> pd.DataFrame:
+        """Per-step cooperation and competition rates from targeted social actions."""
+        return self.db._execute_in_transaction(
+            lambda session: social_dynamics_per_step(session, self.db.simulation_id)
+        )
+
+    def measure_cooperation_levels(self) -> pd.DataFrame:
+        """Cooperation intensity per step: share/assist/defend counts and cooperation_rate."""
+        df = self.social_dynamics_per_step()
+        if df.empty:
+            return df
+        cols = [
+            "step",
+            "share_actions",
+            "cooperation_actions",
+            "total_social_interactions",
+            "share_rate",
+            "cooperation_rate",
+        ]
+        return df[[c for c in cols if c in df.columns]].copy()
+
+    def measure_competition_intensity(self) -> pd.DataFrame:
+        """Competition intensity per step: attacks (and steals) vs social interaction volume."""
+        df = self.social_dynamics_per_step()
+        if df.empty:
+            return df
+        cols = [
+            "step",
+            "attack_events",
+            "steal_events",
+            "total_social_interactions",
+            "competition_intensity",
+            "competition_intensity_including_steal",
+        ]
+        return df[[c for c in cols if c in df.columns]].copy()
 
     def analyze_resource_efficiency(self) -> pd.DataFrame:
         """Analyze resource utilization efficiency over time."""
@@ -201,7 +240,8 @@ def analyze_simulation(simulation_data: Any) -> Dict[str, Any]:
     Analyze simulation data and return metrics.
 
     Runs the same SQL-backed summaries as :class:`SimulationAnalyzer` (survival,
-    resource distribution, competitive interactions, resource efficiency).
+    resource distribution, competitive interactions, resource efficiency), plus
+    per-step cooperation and competition dynamics.
 
     Args:
         simulation_data: :class:`SimulationDatabase` instance or path to the
@@ -221,12 +261,14 @@ def analyze_simulation(simulation_data: Any) -> Dict[str, Any]:
     resource_dist = analyzer.analyze_resource_distribution()
     combat = analyzer.analyze_competitive_interactions()
     efficiency = analyzer.analyze_resource_efficiency()
+    social = analyzer.social_dynamics_per_step()
 
     metrics: Dict[str, Any] = {
         "survival_rates_row_count": len(survival),
         "resource_distribution_row_count": len(resource_dist),
         "competitive_interactions_row_count": len(combat),
         "resource_efficiency_row_count": len(efficiency),
+        "social_dynamics_row_count": len(social),
     }
     if simulation_id is not None:
         metrics["simulation_id"] = simulation_id
@@ -249,6 +291,16 @@ def analyze_simulation(simulation_data: Any) -> Dict[str, Any]:
             combat["competitive_interactions"].sum()
         )
 
+    if not social.empty:
+        if "cooperation_rate" in social.columns:
+            cr = social["cooperation_rate"].dropna()
+            if len(cr):
+                metrics["mean_cooperation_rate"] = _json_safe_number(float(cr.mean()))
+        if "competition_intensity" in social.columns:
+            ci = social["competition_intensity"].dropna()
+            if len(ci):
+                metrics["mean_competition_intensity"] = _json_safe_number(float(ci.mean()))
+
     statistics: Dict[str, Any] = {}
     if not survival.empty:
         for col in ("system_alive", "independent_alive"):
@@ -258,5 +310,15 @@ def analyze_simulation(simulation_data: Any) -> Dict[str, Any]:
         statistics["resource_efficiency"] = _series_describe_dict(efficiency["efficiency"])
     if not resource_dist.empty and "avg_resources" in resource_dist.columns:
         statistics["avg_resources"] = _series_describe_dict(resource_dist["avg_resources"])
+    if not social.empty:
+        if "cooperation_rate" in social.columns:
+            statistics["cooperation_rate"] = _series_describe_dict(social["cooperation_rate"].dropna())
+        if "competition_intensity" in social.columns:
+            statistics["competition_intensity"] = _series_describe_dict(
+                social["competition_intensity"].dropna()
+            )
+        trends = compute_social_dynamics_trends(social)
+        if trends:
+            statistics["social_dynamics_trends"] = {k: _json_safe_number(v) for k, v in trends.items()}
 
     return {"metrics": metrics, "statistics": statistics}
