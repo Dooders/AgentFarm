@@ -6,14 +6,37 @@ import pytest
 from pathlib import Path
 import time
 
+from farm.analysis.core import BaseAnalysisModule
 from farm.analysis.service import (
     AnalysisRequest,
     AnalysisResult,
     AnalysisCache,
-    AnalysisService
+    AnalysisService,
+    AnalysisSuiteResult,
 )
 from farm.analysis.exceptions import ModuleNotFoundError, ConfigurationError
 from farm.analysis.registry import registry
+
+
+def _stub_module(name: str, mock_data_processor):
+    """Minimal analysis module with the given registry name."""
+
+    class StubModule(BaseAnalysisModule):
+        def __init__(self):
+            super().__init__(name=name, description=f"stub {name}")
+
+        def register_functions(self):
+            def stub_func(df, ctx, **kwargs):
+                return {"module": name}
+
+            stub_func.__name__ = "stub_func"
+            self._functions = {"stub_func": stub_func}
+            self._groups = {"all": [stub_func]}
+
+        def get_data_processor(self):
+            return mock_data_processor
+
+    return StubModule()
 
 
 class TestAnalysisRequest:
@@ -98,7 +121,7 @@ class TestAnalysisResult:
         assert result.success
         assert result.module_name == "test"
         assert result.dataframe is sample_simulation_data
-        assert result.cache_hit == False
+        assert not result.cache_hit
 
     def test_failed_result(self, temp_output_dir):
         """Test failed result."""
@@ -123,7 +146,7 @@ class TestAnalysisResult:
         )
 
         data = result.to_dict()
-        assert data['success'] == True
+        assert data['success']
         assert data['module_name'] == 'test'
         assert data['execution_time'] == 1.5
         assert data['dataframe_shape'] == sample_simulation_data.shape
@@ -415,3 +438,101 @@ class TestAnalysisService:
         # Clear cache
         count = service.clear_cache()
         assert count >= 1
+
+    def test_run_suite_named_modules_list(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        registry.register(_stub_module("alpha", mock_data_processor))
+        registry.register(_stub_module("beta", mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        out_base = tmp_path / "suite_out"
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=out_base,
+            modules=["alpha", "beta"],
+            enable_caching=False,
+            write_unified_summary=False,
+        )
+
+        assert isinstance(suite, AnalysisSuiteResult)
+        assert suite.suite_name is None
+        assert suite.modules_requested == ["alpha", "beta"]
+        assert len(suite.results) == 2
+        assert all(r.success for r in suite.results)
+        assert suite.summary["success_count"] == 2
+        assert suite.summary["all_successful"] is True
+        assert "alpha" in suite.summary["per_module"]
+        assert "beta" in suite.summary["per_module"]
+        assert (out_base / "alpha").is_dir()
+        assert (out_base / "beta").is_dir()
+
+    def test_run_suite_builtin_system_dynamics(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        for mod_name in ("population", "resources", "temporal"):
+            registry.register(_stub_module(mod_name, mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        out_base = tmp_path / "sd_out"
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=out_base,
+            suite="system_dynamics",
+            enable_caching=False,
+            write_unified_summary=True,
+            report_formats="markdown",
+        )
+
+        assert suite.suite_name == "system_dynamics"
+        assert suite.modules_requested == ["population", "resources", "temporal"]
+        assert suite.summary["suite"] == "system_dynamics"
+        summary_file = out_base / "system_dynamics_suite_summary.json"
+        assert summary_file.is_file()
+        md_file = out_base / "system_dynamics_suite_report.md"
+        assert md_file.is_file()
+        assert "population" in md_file.read_text(encoding="utf-8")
+
+    def test_run_suite_agent_behavior(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        for mod_name in ("actions", "agents", "spatial", "learning"):
+            registry.register(_stub_module(mod_name, mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        out_base = tmp_path / "ab_out"
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=out_base,
+            suite="agent_behavior",
+            enable_caching=False,
+            write_unified_summary=False,
+        )
+
+        assert suite.suite_name == "agent_behavior"
+        assert len(suite.results) == 4
+        assert suite.summary["success_count"] == 4
+
+    def test_run_suite_full_empty_registry_raises(
+        self, config_service_mock, tmp_path
+    ):
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        with pytest.raises(ConfigurationError, match="No modules to run"):
+            service.run_suite(
+                experiment_path=exp_path,
+                output_path=tmp_path / "out",
+                suite="full",
+                enable_caching=False,
+                write_unified_summary=False,
+            )
