@@ -9,6 +9,8 @@ from unittest.mock import patch, MagicMock, Mock
 import numpy as np
 import pandas as pd
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from farm.analysis.social_behavior import (
     social_behavior_module,
@@ -29,6 +31,7 @@ from farm.analysis.social_behavior import (
     load_social_behavior_data_from_db,
 )
 from farm.analysis.common.context import AnalysisContext
+from farm.database.models import ActionModel, AgentModel, Base, Simulation
 
 
 @pytest.fixture
@@ -593,3 +596,87 @@ class TestEdgeCases:
         insights = extract_social_behavior_insights(minimal_metrics)
 
         assert isinstance(insights, dict)
+
+
+class TestCooperationCompetitionSimulationScope:
+    """Real DB: cooperation/competition totals respect ``simulation_id``."""
+
+    @pytest.fixture
+    def db_session(self):
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        sess = Session()
+        try:
+            yield sess
+        finally:
+            sess.close()
+            engine.dispose()
+
+    def test_metrics_respect_simulation_id(self, db_session):
+        for sid in ("sim-a", "sim-b"):
+            db_session.add(
+                Simulation(
+                    simulation_id=sid,
+                    parameters={},
+                    simulation_db_path=":memory:",
+                    status="completed",
+                )
+            )
+        db_session.add(
+            AgentModel(
+                simulation_id="sim-a",
+                agent_id="ag1",
+                birth_time=0,
+                agent_type="system",
+                position_x=0.0,
+                position_y=0.0,
+                initial_resources=1.0,
+                starting_health=1.0,
+            )
+        )
+        db_session.add(
+            AgentModel(
+                simulation_id="sim-b",
+                agent_id="ag2",
+                birth_time=0,
+                agent_type="system",
+                position_x=0.0,
+                position_y=0.0,
+                initial_resources=1.0,
+                starting_health=1.0,
+            )
+        )
+        for _ in range(2):
+            db_session.add(
+                ActionModel(
+                    simulation_id="sim-a",
+                    step_number=1,
+                    agent_id="ag1",
+                    action_type="share",
+                    action_target_id="ag2",
+                )
+            )
+        for _ in range(3):
+            db_session.add(
+                ActionModel(
+                    simulation_id="sim-b",
+                    step_number=1,
+                    agent_id="ag2",
+                    action_type="attack",
+                    action_target_id="ag1",
+                )
+            )
+        db_session.commit()
+
+        m_a = compute_cooperation_competition_metrics(db_session, simulation_id="sim-a")
+        assert m_a["cooperation"]["total_actions"] == 2
+        assert m_a["competition"]["total_actions"] == 0
+
+        m_b = compute_cooperation_competition_metrics(db_session, simulation_id="sim-b")
+        assert m_b["cooperation"]["total_actions"] == 0
+        assert m_b["competition"]["total_actions"] == 3
+
+        m_all = compute_cooperation_competition_metrics(db_session, simulation_id=None)
+        assert m_all["cooperation"]["total_actions"] == 2
+        assert m_all["competition"]["total_actions"] == 3

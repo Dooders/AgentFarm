@@ -126,7 +126,12 @@ def scarcity_population_volatility(df: pd.DataFrame, window: int = 5) -> Dict[st
 def granger_resource_population_changes(
     df: pd.DataFrame, maxlag: int = 3
 ) -> Dict[str, Any]:
-    """Granger causality on first differences (resources -> population and reverse)."""
+    """Granger causality on first differences (resources -> population and reverse).
+
+    P-values are aggregated via :func:`statsmodels.tsa.stattools.grangercausalitytests`
+    return structure (0.14.x); the minimum p-value across F-tests and lags is reported
+    and may need revisiting if statsmodels changes that layout.
+    """
     try:
         from statsmodels.tsa.stattools import grangercausalitytests
     except ImportError:
@@ -143,6 +148,7 @@ def granger_resource_population_changes(
         return {"available": False, "reason": "insufficient_observations", "n": len(g)}
 
     def _min_pvalue(res: Dict[int, Any]) -> float:
+        # Coupled to statsmodels grangercausalitytests nested dict/tuple layout.
         pvals: List[float] = []
         for lag in range(1, maxlag + 1):
             if lag not in res:

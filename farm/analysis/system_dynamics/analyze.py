@@ -4,6 +4,7 @@ System dynamics analysis: foundation module runs plus cross-domain synthesis and
 
 from __future__ import annotations
 
+import html
 import json
 from pathlib import Path
 
@@ -22,17 +23,29 @@ logger = get_logger(__name__)
 def run_foundation_analyses(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
     """Run population, resources, and temporal analysis groups into subfolders.
 
-    Failures are logged and skipped so synthesis can still run on merged data.
+    Failures are logged and recorded under ``metadata['_system_dynamics']['foundation_runs']``
+    so reports can surface partial failures. By default synthesis still runs; pass
+    ``strict_foundation=True`` to re-raise after the first foundation error.
     """
     del df  # Uses experiment_path from context
+    strict_foundation = bool(kwargs.get("strict_foundation", False))
+    bundle = ctx.metadata.setdefault("_system_dynamics", {})
+    runs = bundle.setdefault("foundation_runs", {})
+
     exp_raw = ctx.metadata.get("experiment_path")
     if not exp_raw:
         ctx.logger.warning("No experiment_path in context; skipping foundation analyses")
+        runs["_skipped"] = {"ok": False, "error": "missing experiment_path"}
+        if strict_foundation:
+            raise ValueError("strict_foundation requires experiment_path in context metadata")
         return
 
     experiment_path = Path(exp_raw)
     if not experiment_path.is_dir():
         ctx.logger.warning("experiment_path is not a directory: %s", experiment_path)
+        runs["_skipped"] = {"ok": False, "error": f"not a directory: {experiment_path}"}
+        if strict_foundation:
+            raise NotADirectoryError(str(experiment_path))
         return
 
     ref_root = ctx.output_path / "_system_dynamics_refs"
@@ -53,8 +66,12 @@ def run_foundation_analyses(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
                 group=group,
             )
             ctx.logger.info("Foundation submodule %s completed -> %s", name, out_dir)
+            runs[name] = {"ok": True, "output_dir": str(out_dir)}
         except Exception as err:
             ctx.logger.warning("Foundation submodule %s failed: %s", name, err)
+            runs[name] = {"ok": False, "error": str(err), "output_dir": str(out_dir)}
+            if strict_foundation:
+                raise
 
 
 def analyze_system_dynamics_synthesis(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
@@ -90,6 +107,7 @@ def write_unified_system_dynamics_report(df: pd.DataFrame, ctx: AnalysisContext,
         "experiment_path": ctx.metadata.get("experiment_path"),
         "synthesis": synthesis,
         "foundation_outputs": foundation_meta,
+        "foundation_runs": bundle.get("foundation_runs"),
     }
 
     json_path = ctx.get_output_file("system_dynamics_report.json")
@@ -113,18 +131,23 @@ def _write_summary_html(path: Path, report: dict) -> None:
     r_diff = fd.get("pearson_r")
     feedback = (syn.get("feedback_loop_candidates") or {}).get("count", "—")
 
+    exp_line = html.escape(str(report.get("experiment_path") or ""))
+    r_level_e = html.escape(str(r_level))
+    r_diff_e = html.escape(str(r_diff))
+    feedback_e = html.escape(str(feedback))
+
     lines = [
         "<!DOCTYPE html>",
         "<html><head><meta charset='utf-8'><title>System dynamics report</title></head><body>",
         "<h1>System dynamics</h1>",
-        f"<p>Experiment: {report.get('experiment_path', '')}</p>",
+        f"<p>Experiment: {exp_line}</p>",
         "<h2>Resource–population</h2>",
         "<ul>",
-        f"<li>Levels Pearson r: {r_level}</li>",
-        f"<li>First-difference Pearson r: {r_diff}</li>",
+        f"<li>Levels Pearson r: {r_level_e}</li>",
+        f"<li>First-difference Pearson r: {r_diff_e}</li>",
         "</ul>",
         "<h2>Feedback-loop candidates</h2>",
-        f"<p>Heuristic periods flagged: {feedback}</p>",
+        f"<p>Heuristic periods flagged: {feedback_e}</p>",
         "<p>See <code>system_dynamics_report.json</code> for full detail.</p>",
         "</body></html>",
     ]

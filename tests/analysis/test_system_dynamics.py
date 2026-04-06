@@ -9,8 +9,11 @@ import pandas as pd
 import pytest
 
 from farm.analysis.common.context import AnalysisContext
+from farm.analysis.population.module import population_module
 from farm.analysis.registry import registry
+from farm.analysis.resources.module import resources_module
 from farm.analysis.service import AnalysisRequest, AnalysisService
+from farm.analysis.temporal.module import temporal_module
 from farm.analysis.system_dynamics.compute import (
     resource_population_coupling,
     synthesize_system_dynamics,
@@ -19,6 +22,7 @@ from farm.analysis.system_dynamics.compute import (
 from farm.analysis.system_dynamics.data import process_system_dynamics_data
 from farm.analysis.system_dynamics.analyze import (
     analyze_system_dynamics_synthesis,
+    run_foundation_analyses,
     write_unified_system_dynamics_report,
 )
 from farm.analysis.system_dynamics.module import system_dynamics_module
@@ -130,6 +134,66 @@ class TestAnalyzeAndReport:
         bundle = json.loads(rep.read_text(encoding="utf-8"))
         assert bundle["module"] == "system_dynamics"
         assert "synthesis" in bundle
+        assert "foundation_runs" in bundle
+
+    def test_html_escapes_experiment_path(self, coupled_system_df, tmp_path):
+        ctx = AnalysisContext(
+            output_path=tmp_path,
+            metadata={"experiment_path": str(tmp_path / "exp")},
+        )
+        ctx.metadata["experiment_path"] = "/tmp/<script>x</script>"
+        analyze_system_dynamics_synthesis(coupled_system_df, ctx)
+        write_unified_system_dynamics_report(coupled_system_df, ctx)
+        html_text = (tmp_path / "system_dynamics_report.html").read_text(encoding="utf-8")
+        assert "<script>" not in html_text
+        assert "&lt;script&gt;" in html_text
+
+
+class TestFoundationRuns:
+    def test_foundation_runs_recorded(self, coupled_system_df, tmp_path):
+        exp = tmp_path / "exp"
+        exp.mkdir()
+
+        def noop_run(**kwargs):
+            Path(kwargs["output_path"]).mkdir(parents=True, exist_ok=True)
+
+        ctx = AnalysisContext(
+            output_path=tmp_path,
+            metadata={"experiment_path": str(exp)},
+        )
+        with (
+            patch.object(
+                population_module,
+                "run_analysis",
+                side_effect=RuntimeError("population failed"),
+            ),
+            patch.object(resources_module, "run_analysis", side_effect=noop_run),
+            patch.object(temporal_module, "run_analysis", side_effect=noop_run),
+        ):
+            run_foundation_analyses(coupled_system_df, ctx)
+
+        runs = ctx.metadata["_system_dynamics"]["foundation_runs"]
+        assert runs["population"]["ok"] is False
+        assert "population failed" in runs["population"]["error"]
+        assert runs["resources"]["ok"] is True
+        assert runs["temporal"]["ok"] is True
+
+    def test_strict_foundation_raises(self, coupled_system_df, tmp_path):
+        exp = tmp_path / "exp"
+        exp.mkdir()
+        ctx = AnalysisContext(
+            output_path=tmp_path,
+            metadata={"experiment_path": str(exp)},
+        )
+        with patch.object(
+            population_module,
+            "run_analysis",
+            side_effect=RuntimeError("population failed"),
+        ):
+            with pytest.raises(RuntimeError, match="population failed"):
+                run_foundation_analyses(
+                    coupled_system_df, ctx, strict_foundation=True
+                )
 
 
 class TestRegistryAndService:

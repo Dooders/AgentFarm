@@ -9,7 +9,7 @@ from farm.utils.logging import get_logger
 import json
 import math
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -514,6 +514,21 @@ def compute_spatial_clustering(session: Session, step: Optional[int] = None) -> 
     return results
 
 
+def _agent_ids_from_social_action_rows(rows: List[Any]) -> Set[str]:
+    """Collect initiator and target agent ids from ORM rows or 5-tuple mocks."""
+    ids: Set[str] = set()
+    for action in rows:
+        if hasattr(action, "agent_id"):
+            ids.add(action.agent_id)
+            if action.action_target_id:
+                ids.add(action.action_target_id)
+        else:
+            ids.add(action[0])
+            if action[1]:
+                ids.add(action[1])
+    return ids
+
+
 def compute_cooperation_competition_metrics(
     session: Session, simulation_id: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -524,6 +539,9 @@ def compute_cooperation_competition_metrics(
     ----------
     session : Session
         SQLAlchemy database session
+    simulation_id : str, optional
+        When set, restrict cooperation/competition action rows and agent-type lookups
+        to this simulation (multi-run SQLite databases).
 
     Returns
     -------
@@ -533,8 +551,7 @@ def compute_cooperation_competition_metrics(
     # Cooperation includes sharing resources, helping defenses
     # Competition includes attacks, resource competition
 
-    # Get cooperation actions
-    cooperation_actions = (
+    coop_q = (
         session.query(
             ActionModel.agent_id,
             ActionModel.action_target_id,
@@ -547,11 +564,12 @@ def compute_cooperation_competition_metrics(
             ActionModel.action_type.in_(["share", "assist", "defend"]),
             ActionModel.action_target_id.isnot(None),
         )
-        .all()
     )
+    if simulation_id is not None:
+        coop_q = coop_q.filter(ActionModel.simulation_id == simulation_id)
+    cooperation_actions = coop_q.all()
 
-    # Get competition actions (attacks)
-    competition_actions = (
+    comp_q = (
         session.query(
             ActionModel.agent_id,
             ActionModel.action_target_id,
@@ -564,11 +582,25 @@ def compute_cooperation_competition_metrics(
             ActionModel.action_type.in_(["attack", "steal"]),
             ActionModel.action_target_id.isnot(None),
         )
-        .all()
     )
+    if simulation_id is not None:
+        comp_q = comp_q.filter(ActionModel.simulation_id == simulation_id)
+    competition_actions = comp_q.all()
 
-    # Get agent types
-    agent_type_results = session.query(AgentModel.agent_id, AgentModel.agent_type).all()
+    if simulation_id is None:
+        agent_type_results = session.query(AgentModel.agent_id, AgentModel.agent_type).all()
+    else:
+        id_union = _agent_ids_from_social_action_rows(
+            list(cooperation_actions) + list(competition_actions)
+        )
+        if not id_union:
+            agent_type_results = []
+        else:
+            agent_type_results = (
+                session.query(AgentModel.agent_id, AgentModel.agent_type)
+                .filter(AgentModel.agent_id.in_(id_union))
+                .all()
+            )
     agent_types = {}
     for result in agent_type_results:
         if hasattr(result, "agent_id"):
