@@ -9,13 +9,18 @@ from farm.utils.logging import get_logger
 import json
 import math
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import pandas as pd
 from sqlalchemy import and_, desc, func, or_
 from sqlalchemy.orm import Session
 
+from farm.core.social_dynamics import (
+    compute_social_dynamics_trends,
+    per_step_records_for_json,
+    social_dynamics_per_step,
+)
 from farm.database.models import (
     ActionModel,
     AgentModel,
@@ -509,7 +514,24 @@ def compute_spatial_clustering(session: Session, step: Optional[int] = None) -> 
     return results
 
 
-def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
+def _agent_ids_from_social_action_rows(rows: List[Any]) -> Set[str]:
+    """Collect initiator and target agent ids from ORM rows or 5-tuple mocks."""
+    ids: Set[str] = set()
+    for action in rows:
+        if hasattr(action, "agent_id"):
+            ids.add(action.agent_id)
+            if action.action_target_id:
+                ids.add(action.action_target_id)
+        else:
+            ids.add(action[0])
+            if action[1]:
+                ids.add(action[1])
+    return ids
+
+
+def compute_cooperation_competition_metrics(
+    session: Session, simulation_id: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Compute metrics related to cooperative and competitive behaviors.
 
@@ -517,6 +539,9 @@ def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
     ----------
     session : Session
         SQLAlchemy database session
+    simulation_id : str, optional
+        When set, restrict cooperation/competition action rows and agent-type lookups
+        to this simulation (multi-run SQLite databases).
 
     Returns
     -------
@@ -526,8 +551,7 @@ def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
     # Cooperation includes sharing resources, helping defenses
     # Competition includes attacks, resource competition
 
-    # Get cooperation actions
-    cooperation_actions = (
+    coop_q = (
         session.query(
             ActionModel.agent_id,
             ActionModel.action_target_id,
@@ -540,11 +564,12 @@ def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
             ActionModel.action_type.in_(["share", "assist", "defend"]),
             ActionModel.action_target_id.isnot(None),
         )
-        .all()
     )
+    if simulation_id is not None:
+        coop_q = coop_q.filter(ActionModel.simulation_id == simulation_id)
+    cooperation_actions = coop_q.all()
 
-    # Get competition actions (attacks)
-    competition_actions = (
+    comp_q = (
         session.query(
             ActionModel.agent_id,
             ActionModel.action_target_id,
@@ -557,11 +582,25 @@ def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
             ActionModel.action_type.in_(["attack", "steal"]),
             ActionModel.action_target_id.isnot(None),
         )
-        .all()
     )
+    if simulation_id is not None:
+        comp_q = comp_q.filter(ActionModel.simulation_id == simulation_id)
+    competition_actions = comp_q.all()
 
-    # Get agent types
-    agent_type_results = session.query(AgentModel.agent_id, AgentModel.agent_type).all()
+    if simulation_id is None:
+        agent_type_results = session.query(AgentModel.agent_id, AgentModel.agent_type).all()
+    else:
+        id_union = _agent_ids_from_social_action_rows(
+            list(cooperation_actions) + list(competition_actions)
+        )
+        if not id_union:
+            agent_type_results = []
+        else:
+            agent_type_results = (
+                session.query(AgentModel.agent_id, AgentModel.agent_type)
+                .filter(AgentModel.agent_id.in_(id_union))
+                .all()
+            )
     agent_types = {}
     for result in agent_type_results:
         if hasattr(result, "agent_id"):
@@ -671,6 +710,24 @@ def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
     results["competition"]["with_agent_type"] = {
         k: dict(v) for k, v in results["competition"]["with_agent_type"].items()
     }
+
+    per_step_df = social_dynamics_per_step(session, simulation_id=simulation_id)
+    results["per_step_rates"] = per_step_records_for_json(per_step_df)
+    results["trends"] = compute_social_dynamics_trends(per_step_df)
+
+    coop_total = results["cooperation"]["total_actions"]
+    share_n = results["cooperation"]["action_types"].get("share", 0)
+    results["resource_sharing_index"] = (share_n / coop_total) if coop_total > 0 else None
+
+    if len(per_step_df) >= 2 and "competition_intensity" in per_step_df.columns:
+        ci = per_step_df["competition_intensity"].astype(float)
+        deltas = ci.diff().dropna()
+        if len(deltas):
+            results["combat_escalation"] = {"mean_delta_competition_intensity": float(deltas.mean())}
+        else:
+            results["combat_escalation"] = {}
+    else:
+        results["combat_escalation"] = {}
 
     return results
 

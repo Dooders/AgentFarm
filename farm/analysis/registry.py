@@ -221,6 +221,7 @@ def _register_builtin_modules() -> int:
         # Environment and resource analysis modules
         "farm.analysis.spatial.module.spatial_module",
         "farm.analysis.temporal.module.temporal_module",
+        "farm.analysis.system_dynamics.module.system_dynamics_module",
         "farm.analysis.resources.module.resources_module",
 
         # Action and event analysis modules
