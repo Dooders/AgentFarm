@@ -14,27 +14,27 @@ Examples
 --------
 Basic comparison using the main comparison function:
     >>> from farm.database.simulation_comparison import compare_simulations
-    >>> differences = compare_simulations(session, sim1_id=1, sim2_id=2)
+    >>> differences = compare_simulations(session, sim1_id="sim-a", sim2_id="sim-b")
     >>> print(differences["metrics"]["total_agents"]["mean_difference"])
     5.321
 
 Get a human-readable summary:
     >>> from farm.database.simulation_comparison import summarize_comparison
-    >>> summary = summarize_comparison(session, sim1_id=1, sim2_id=2)
+    >>> summary = summarize_comparison(session, sim1_id="sim-a", sim2_id="sim-b")
     >>> print(summary)
-    Comparison Summary: Simulation 1 vs 2
+    Comparison Summary: Simulation sim-a vs sim-b
 
     Parameter Changes:
       environment.resource_density: 0.1 -> 0.2
 
     Key Metrics (averages):
-      total_agents: 5.32 higher in simulation 2
-      average_reward: 0.45 lower in simulation 2
+      total_agents: 5.32 higher in simulation sim-b
+      average_reward: 0.45 lower in simulation sim-b
 
 Find significant changes:
     >>> from farm.database.simulation_comparison import get_significant_changes
     >>> significant = get_significant_changes(
-    ...     session, sim1_id=1, sim2_id=2, threshold=0.15
+    ...     session, sim1_id="sim-a", sim2_id="sim-b", threshold=0.15
     ... )
     >>> for metric, change in significant.items():
     ...     print(f"{metric}: {change:+.2f}")
@@ -118,17 +118,17 @@ def format_diff_output(diff: SimulationDifference) -> Dict[str, Any]:
     return report
 
 
-def compare_simulations(session, sim1_id: int, sim2_id: int) -> Dict[str, Any]:
+def compare_simulations(session, sim1_id: str, sim2_id: str) -> Dict[str, Any]:
     """Compare two simulations and return their differences.
 
     Parameters
     ----------
     session : Session
         SQLAlchemy session for database queries
-    sim1_id : int
-        ID of first simulation to compare
-    sim2_id : int
-        ID of second simulation to compare
+    sim1_id : str
+        ``simulation_id`` (primary key) of the first simulation row
+    sim2_id : str
+        ``simulation_id`` (primary key) of the second simulation row
 
     Returns
     -------
@@ -137,7 +137,7 @@ def compare_simulations(session, sim1_id: int, sim2_id: int) -> Dict[str, Any]:
 
     Examples
     --------
-    >>> differences = compare_simulations(session, 1, 2)
+    >>> differences = compare_simulations(session, "sim-a", "sim-b")
     >>> print(differences["metrics"]["total_agents"]["mean_difference"])
     -5.3
     """
@@ -156,17 +156,17 @@ def compare_simulations(session, sim1_id: int, sim2_id: int) -> Dict[str, Any]:
     return format_diff_output(differences)
 
 
-def summarize_comparison(session, sim1_id: int, sim2_id: int) -> str:
+def summarize_comparison(session, sim1_id: str, sim2_id: str) -> str:
     """Generate a human-readable summary of simulation differences.
 
     Parameters
     ----------
     session : Session
         SQLAlchemy session for database queries
-    sim1_id : int
-        ID of first simulation to compare
-    sim2_id : int
-        ID of second simulation to compare
+    sim1_id : str
+        ``simulation_id`` of the first simulation row
+    sim2_id : str
+        ``simulation_id`` of the second simulation row
 
     Returns
     -------
@@ -209,7 +209,7 @@ def summarize_comparison(session, sim1_id: int, sim2_id: int) -> str:
 
 
 def get_significant_changes(
-    session, sim1_id: int, sim2_id: int, threshold: float = 0.1
+    session, sim1_id: str, sim2_id: str, threshold: float = 0.1
 ) -> Dict[str, float]:
     """Identify metrics with significant differences between simulations.
 
@@ -217,10 +217,10 @@ def get_significant_changes(
     ----------
     session : Session
         SQLAlchemy session for database queries
-    sim1_id : int
-        ID of first simulation to compare
-    sim2_id : int
-        ID of second simulation to compare
+    sim1_id : str
+        ``simulation_id`` of the first simulation row
+    sim2_id : str
+        ``simulation_id`` of the second simulation row
     threshold : float, optional
         Minimum relative difference to be considered significant
 

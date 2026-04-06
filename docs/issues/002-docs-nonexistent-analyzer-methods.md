@@ -28,3 +28,7 @@ The "System Dynamics Analysis" section of `docs/features/agent_based_modeling_an
 
 1. Implement the missing methods (thin wrappers over the modern analysis service), **or**
 2. Update the documentation to reflect the actual available API
+
+## Resolution (2026-04-06)
+
+**Option 2:** Updated [agent_based_modeling_analysis.md](../features/agent_based_modeling_analysis.md) so [System Dynamics Analysis](../features/agent_based_modeling_analysis.md#system-dynamics-analysis) and nearby sections only call real `SimulationAnalyzer` methods (`calculate_survival_rates`, `analyze_resource_distribution`, `analyze_resource_efficiency`, `analyze_competitive_interactions`). Removed fictional `TimeSeriesAnalyzer` and incorrect `SimulationComparison` import; fixed example SQL to use `agent_states` / `resource_states` and corrected `agent_actions` column names in the network example. Aligned `farm.database.simulation_comparison` type hints and doc examples with string `simulation_id` primary keys.

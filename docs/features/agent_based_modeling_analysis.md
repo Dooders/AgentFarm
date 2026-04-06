@@ -2,7 +2,7 @@
 
 ![Project Status](https://img.shields.io/badge/feature-agent%20modeling-blue)
 
-> **Documentation note:** Many narrative examples below use **illustrative pseudocode** (for example `BaseAgent`, `run_simulation_batch`, `SimulationConfig(width=...)`, and analyzer methods that are not on `SimulationAnalyzer`). The real API uses **nested** `SimulationConfig` fields (`environment`, `population`, `resources`, …), **`run_simulation(...)`** which returns an **`Environment`**, and **`farm.core.analysis.SimulationAnalyzer`** as implemented in `farm/core/analysis.py`. For sweeps and multi-run studies use **`farm.runners.experiment_runner.ExperimentRunner`**. See [Usage examples](../usage_examples.md).
+> **Documentation note:** Many narrative examples below use **illustrative pseudocode** (for example `BaseAgent`, `run_simulation_batch`, and `SimulationConfig(width=...)` flat constructors). The real API uses **nested** `SimulationConfig` fields (`environment`, `population`, `resources`, …), **`run_simulation(...)`** which returns an **`Environment`**, and **`farm.core.analysis.SimulationAnalyzer`** as implemented in `farm/core/analysis.py` (see [System Dynamics Analysis](#system-dynamics-analysis)). For sweeps and multi-run studies use **`farm.runners.experiment_runner.ExperimentRunner`**. See [Usage examples](../usage_examples.md).
 
 ## Table of Contents
 
@@ -314,74 +314,58 @@ Emergent behaviors are system-level patterns that result from local agent intera
 
 #### System Dynamics Analysis
 
-AgentFarm provides comprehensive tools to analyze system-level dynamics:
+`SimulationAnalyzer` (`farm/core/analysis.py`) runs SQL-backed summaries on a simulation SQLite file. Pass the database path and, when the file stores multiple runs, the same `simulation_id` you used with `run_simulation`:
 
-**Population Dynamics:**
 ```python
 from farm.core.analysis import SimulationAnalyzer
 
-analyzer = SimulationAnalyzer(simulation_db_path)
-
-# Analyze population trends
-population_stats = analyzer.get_population_over_time()
-# Returns: time series of agent counts by type
-
-# Study survival rates
-survival_analysis = analyzer.calculate_survival_rates()
-# Returns: survival probabilities by agent type and time period
+analyzer = SimulationAnalyzer(simulation_db_path, simulation_id=optional_simulation_id)
 ```
 
-**Resource Dynamics:**
+**Population and survival**
+
+`calculate_survival_rates()` returns one row per step with living counts by coarse agent type: `step`, `system_alive`, `independent_alive`.
+
 ```python
-# Track resource distribution and depletion
-resource_stats = analyzer.get_resource_statistics()
-# Returns: resource availability, consumption rates, spatial distribution
-
-# Analyze resource sustainability
-sustainability_metrics = analyzer.assess_resource_sustainability()
-# Returns: depletion rates, recovery patterns, critical thresholds
+survival = analyzer.calculate_survival_rates()
 ```
 
-**Behavioral Dynamics:**
+**Resource dynamics**
+
+`analyze_resource_distribution()` returns per-step, per-`agent_type` aggregates (`avg_resources`, `min_resources`, `max_resources`, `agent_count`). `analyze_resource_efficiency()` returns per-step `efficiency` from `simulation_steps`.
+
 ```python
-# Identify action patterns
-action_analysis = analyzer.analyze_action_distributions()
-# Returns: frequency of each action type over time
-
-# Study decision-making patterns
-decision_patterns = analyzer.get_decision_patterns()
-# Returns: state-action mappings, strategy evolution
+resource_dist = analyzer.analyze_resource_distribution()
+efficiency = analyzer.analyze_resource_efficiency()
 ```
+
+**Combat intensity**
+
+`analyze_competitive_interactions()` counts `attack` actions per step (`step`, `competitive_interactions`). Finer-grained action histograms, sharing networks, and cooperation metrics are not methods on this class; load `agent_actions` with `SimulationDatabase` / pandas or use repositories under `farm.database.repositories`.
 
 #### Example: Observing Emergence
 
 ```python
-# Run simulation with mixed agent population
-config = SimulationConfig(
-    width=100,
-    height=100,
-    system_agents=50,      # Cooperative agents
-    independent_agents=50,  # Competitive agents
-    initial_resources=500,
-    num_steps=1000
+from farm.config import SimulationConfig
+from farm.core.analysis import SimulationAnalyzer
+from farm.core.simulation import run_simulation
+
+config = SimulationConfig.from_centralized_config(environment="development")
+# Configure nested fields, e.g. config.environment.width, config.population.system_agents, …
+
+env = run_simulation(
+    num_steps=config.max_steps,
+    config=config,
+    path="simulations",
+    save_config=True,
 )
 
-results = run_simulation(config)
-
-# Analyze emergent cooperation
-cooperation_metrics = analyzer.measure_cooperation_levels()
-# Observe: Do system agents cluster together?
-# Do they share resources more frequently?
-
-# Analyze competition dynamics
-competition_metrics = analyzer.measure_competition_intensity()
-# Observe: Do combat rates increase with resource scarcity?
-# Do territorial patterns emerge?
-
-# Study resource utilization patterns
-utilization = analyzer.analyze_resource_utilization()
-# Observe: Do different agent types develop different foraging strategies?
-# Does resource clustering emerge?
+analyzer = SimulationAnalyzer(env.db.db_path, simulation_id=env.simulation_id)
+survival = analyzer.calculate_survival_rates()
+resource_dist = analyzer.analyze_resource_distribution()
+combat_by_step = analyzer.analyze_competitive_interactions()
+efficiency = analyzer.analyze_resource_efficiency()
+# Use pandas/plots to relate combat spikes to resource_dist / efficiency trends
 ```
 
 ---
@@ -392,89 +376,37 @@ Understanding how agents interact with each other and respond to environmental c
 
 #### Agent Interaction Tracking
 
-AgentFarm automatically logs and tracks all agent interactions:
+Actions and state are persisted to SQLite (`agent_actions`, `agent_states`, `resource_states`, `health_incidents`, …). `SimulationAnalyzer` exposes **attack counts per step**; detailed event lists and spatial encounter mining are done with SQL or application code.
 
-**Combat Interactions:**
+**Combat (built-in summary):**
 ```python
-# Query combat events
-combat_events = analyzer.get_combat_interactions(
-    start_step=0,
-    end_step=1000,
-    agent_id="agent_001"  # Optional: filter by specific agent
+from farm.core.analysis import SimulationAnalyzer
+
+analyzer = SimulationAnalyzer(simulation_db_path, simulation_id=optional_simulation_id)
+combat_by_step = analyzer.analyze_competitive_interactions()
+# Columns: step, competitive_interactions
+```
+
+**Combat (row-level via SQL):**
+```python
+import pandas as pd
+from farm.database.database import SimulationDatabase
+
+db = SimulationDatabase(simulation_db_path, simulation_id=optional_simulation_id)
+attack_rows = pd.read_sql(
+    """
+    SELECT step_number, agent_id, action_target_id, reward
+    FROM agent_actions
+    WHERE action_type = 'attack'
+    ORDER BY step_number
+    """,
+    db.engine,
 )
-
-# Returns detailed combat logs:
-# - Timestamp and location
-# - Attacker and defender identities
-# - Damage dealt and health changes
-# - Outcome (success/failure/retreat)
 ```
 
-**Resource Sharing:**
-```python
-# Track resource exchange networks
-sharing_network = analyzer.get_resource_sharing_network()
+**Resource sharing, proximity, and environment–behavior correlations**
 
-# Returns graph structure:
-# - Nodes: agents
-# - Edges: sharing events
-# - Edge weights: amount of resources shared
-
-# Analyze sharing patterns
-sharing_stats = analyzer.analyze_sharing_behavior()
-# Returns: sharing frequency, reciprocity rates, network centrality
-```
-
-**Proximity and Encounters:**
-```python
-# Track agent encounters
-encounter_data = analyzer.get_encounter_history(
-    distance_threshold=5.0,  # Within 5 units
-    min_duration=3           # At least 3 steps
-)
-
-# Returns: who met whom, when, and for how long
-```
-
-#### Environmental Influence Analysis
-
-Environment shapes agent behavior in multiple ways:
-
-**Resource Availability:**
-```python
-# Correlate agent behavior with local resource density
-behavior_resource_correlation = analyzer.correlate_behavior_with_resources()
-
-# Returns: statistical relationships between:
-# - Resource availability and agent movement patterns
-# - Resource density and combat frequency
-# - Resource depletion and migration behaviors
-```
-
-**Spatial Distribution:**
-```python
-# Analyze how spatial position influences outcomes
-spatial_analysis = analyzer.analyze_spatial_influences()
-
-# Returns:
-# - Survival probability by location
-# - Resource gathering efficiency by region
-# - Combat frequency heat maps
-```
-
-**Environmental Stressors:**
-```python
-# Track agent responses to environmental changes
-response_analysis = analyzer.analyze_environmental_responses(
-    stressor_type="resource_depletion",
-    threshold=0.3  # 30% resource reduction
-)
-
-# Returns:
-# - Behavioral changes before/after stressor
-# - Adaptation strategies employed
-# - Population-level impacts
-```
+There are no `SimulationAnalyzer` helpers for sharing graphs, encounter history, or spatial heatmaps. Filter `agent_actions` (`action_type='share'`, etc.), join `agent_states` / `resource_states`, or build analysis on top of `SimulationDatabase` and pandas.
 
 #### Interaction Networks
 
@@ -488,12 +420,12 @@ from farm.database.database import SimulationDatabase
 
 db = SimulationDatabase(simulation_db_path)
 
-# Example: Query combat interactions
+# Example: Query combat interactions (add AND simulation_id = :id when sharing one DB across runs)
 combat_query = """
-SELECT attacker_id, defender_id, COUNT(*) as interactions
+SELECT agent_id AS attacker_id, action_target_id AS defender_id, COUNT(*) AS interactions
 FROM agent_actions
 WHERE action_type = 'attack'
-GROUP BY attacker_id, defender_id
+GROUP BY agent_id, action_target_id
 """
 
 # Custom network analysis implementation using pandas/networkx
@@ -531,13 +463,13 @@ import pandas as pd
 
 db = SimulationDatabase(simulation_db_path)
 
-# Query population over time
+# Population over time from per-step state (add AND simulation_id = :id for multi-run DBs)
 population_query = """
-SELECT step, COUNT(*) as population
-FROM agents
-WHERE alive = 1
-GROUP BY step
-ORDER BY step
+SELECT step_number AS step, COUNT(*) AS population
+FROM agent_states
+WHERE current_health > 0
+GROUP BY step_number
+ORDER BY step_number
 """
 
 population_df = pd.read_sql(population_query, db.engine)
@@ -555,12 +487,12 @@ population_trends = {
 
 **Resource Dynamics:**
 ```python
-# Track resource availability over time
+# Total resource amount over time (add AND simulation_id = :id for multi-run DBs)
 resource_query = """
-SELECT step, SUM(amount) as total_resources
-FROM resources
-GROUP BY step
-ORDER BY step
+SELECT step_number AS step, SUM(amount) AS total_resources
+FROM resource_states
+GROUP BY step_number
+ORDER BY step_number
 """
 
 resource_df = pd.read_sql(resource_query, db.engine)
@@ -583,69 +515,22 @@ behavior_df = pd.read_sql(behavior_query, db.engine)
 
 #### Pattern Recognition
 
-Identify recurring patterns and anomalies:
-
-**Cyclical Patterns:**
-```python
-# Detect periodic behaviors
-cycles = ts_analyzer.detect_cycles(
-    metric="population_size",
-    agent_type="SystemAgent"
-)
-
-# Returns:
-# - Cycle period and amplitude
-# - Phase relationships
-# - Cycle stability measures
-```
-
-**Phase Transitions:**
-```python
-# Identify critical transitions
-transitions = ts_analyzer.detect_phase_transitions()
-
-# Returns:
-# - Transition points (step numbers)
-# - Regime characteristics (before/after)
-# - Transition indicators (variance, autocorrelation)
-```
-
-**Anomaly Detection:**
-```python
-# Identify unusual events
-anomalies = ts_analyzer.detect_anomalies(
-    metric="combat_frequency",
-    threshold=3.0  # 3 standard deviations
-)
-
-# Returns: timestamps and descriptions of anomalous events
-```
+There is no `TimeSeriesAnalyzer` in the package. After loading series into pandas (see above), use pandas rolling windows, `statsmodels`, or your own thresholds (for example flag steps where a metric exceeds three standard deviations from its mean) for cycles, regime shifts, and anomalies.
 
 #### Comparative Analysis
 
-Compare multiple simulation runs to identify robust patterns:
+Compare two recorded simulations that live in the **same** experiment database using SQLAlchemy session helpers:
 
 ```python
-from farm.analysis.simulation_comparison import SimulationComparison
+from farm.database.simulation_comparison import compare_simulations, summarize_comparison
 
-# Compare multiple simulations
-comparison = SimulationComparison([
-    "simulation_1.db",
-    "simulation_2.db",
-    "simulation_3.db"
-])
-
-# Identify consistent patterns across runs
-common_patterns = comparison.find_common_patterns()
-
-# Statistical comparison
-statistical_tests = comparison.run_comparative_tests()
-# Returns: ANOVA, t-tests, effect sizes
-
-# Variance decomposition
-variance_analysis = comparison.decompose_variance()
-# Returns: within-run vs between-run variance
+# session: sqlalchemy.orm.Session bound to your DB
+# sim1_id / sim2_id: string simulation_id values (primary key of simulations table)
+diff = compare_simulations(session, sim1_id="sim_001", sim2_id="sim_002")
+summary = summarize_comparison(session, sim1_id="sim_001", sim2_id="sim_002")
 ```
+
+For directory-style outputs and higher-level workflows, see **`farm.analysis.comparative_analysis.compare_simulations`** (writes a placeholder summary today) and the pointers in [Practical Examples](#practical-examples).
 
 ---
 
