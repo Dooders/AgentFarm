@@ -7,27 +7,53 @@ import pandas as pd
 import pytest
 
 from farm.core.analysis import SimulationAnalyzer, analyze_simulation
+from farm.database.database import SimulationDatabase
 
 
 class TestAnalyzeSimulation:
     """Tests for the standalone analyze_simulation helper."""
 
-    def test_returns_dict(self):
-        result = analyze_simulation({"step": 1, "agents": []})
-        assert isinstance(result, dict)
+    @patch("farm.core.analysis.SimulationAnalyzer")
+    def test_returns_dict_with_metrics_and_statistics(self, mock_analyzer_cls):
+        instance = mock_analyzer_cls.return_value
+        instance.calculate_survival_rates.return_value = pd.DataFrame(
+            {"step": [1], "system_alive": [2], "independent_alive": [1]}
+        )
+        instance.analyze_resource_distribution.return_value = pd.DataFrame()
+        instance.analyze_competitive_interactions.return_value = pd.DataFrame()
+        instance.analyze_resource_efficiency.return_value = pd.DataFrame(
+            {"step": [1], "efficiency": [0.5]}
+        )
 
-    def test_has_metrics_and_statistics_keys(self):
-        result = analyze_simulation({})
+        result = analyze_simulation("/tmp/test.db")
+
+        assert isinstance(result, dict)
         assert "metrics" in result
         assert "statistics" in result
-
-    def test_metrics_is_dict(self):
-        result = analyze_simulation({"anything": True})
         assert isinstance(result["metrics"], dict)
-
-    def test_statistics_is_dict(self):
-        result = analyze_simulation(None)
         assert isinstance(result["statistics"], dict)
+        assert result["metrics"]["last_step_system_alive"] == 2
+        assert result["metrics"]["database_basename"] == "test.db"
+        mock_analyzer_cls.assert_called_once_with(db_path="/tmp/test.db", simulation_id=None)
+
+    def test_accepts_simulation_database_instance_empty_schema(self):
+        db = SimulationDatabase(":memory:", simulation_id="sim-1")
+        try:
+            result = analyze_simulation(db)
+        finally:
+            db.close()
+
+        assert result["metrics"]["survival_rates_row_count"] == 0
+        assert result["metrics"]["simulation_id"] == "sim-1"
+        assert "database_basename" not in result["metrics"]
+        assert result["statistics"] == {}
+
+    def test_rejects_non_db_input(self):
+        with pytest.raises(TypeError, match="SimulationDatabase"):
+            analyze_simulation({"step": 1})
+
+        with pytest.raises(TypeError, match="SimulationDatabase"):
+            analyze_simulation(None)
 
 
 class TestSimulationAnalyzerInit:
