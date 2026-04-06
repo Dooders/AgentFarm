@@ -68,10 +68,16 @@ When changing behavior, locate the closest existing patterns in `farm/` and mirr
 | Pytest | `source venv/bin/activate && pytest` | See `AGENTS.md > Commands` table for variants. |
 | Jest (editor) | `cd farm/editor && npm test -- --runInBand` | Requires Node 20 (`nvm use 20`). |
 | Lint | `source venv/bin/activate && ruff check .` | Ruff/Pylint may need to be installed separately if not in your env. |
+| Pytest | `source venv/bin/activate && pytest` | See `AGENTS.md > Commands` table for variants. 2 pre-existing failures in `tests/analysis/test_dominance.py` (pandas `LossySetitemError`). |
+| Jest (editor) | `cd farm/editor && npm test -- --runInBand` | Requires Node 20 (`nvm use 20`). |
+| Lint | `source venv/bin/activate && ruff check .` | 136 pre-existing warnings; these are in the repo, not regressions. |
 
 ### Gotchas
 
 - **API server startup**: Always use `uvicorn farm.api.server:app` instead of `python -m farm.api.server`. The latter's `reload=True` flag causes `WARNING: You must pass the application as an import string to enable 'reload' or 'workers'` and silently exits.
 - **Node version**: The editor tests require Node 20. Use `nvm use 20` (or your Node 20 install) before `npm test`.
+- **Node version**: The editor tests require Node 20. Run `source /home/ubuntu/.nvm/nvm.sh && nvm use 20` before `npm test`.
+- **`python3.12-venv` and `python3-tk`**: Must be installed via `apt` — they are not in `requirements.txt`. The update script handles this.
+- **Ruff/Pylint not in `requirements.txt`**: `ruff` and `pylint` must be `pip install`-ed separately; the update script handles this.
 - **Simulation determinism**: `run_simulation.py` automatically restarts itself with `PYTHONHASHSEED=0` if not set. This is normal behavior, not an error.
 - **Pytest logging noise**: Some tests trigger `structlog` memory-monitor warnings on stderr (`CRITICAL: Memory usage at …`). This is cosmetic and does not indicate test failure — check the actual pass/fail summary line.
