@@ -3,25 +3,36 @@ Spatial data processing for analysis.
 """
 
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
-import pandas as pd
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
+import pandas as pd
 
 from farm.database.session_manager import SessionManager
 from farm.database.repositories.agent_repository import AgentRepository
 from farm.database.repositories.resource_repository import ResourceRepository
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
-def process_spatial_data(experiment_path: Path, use_database: bool = True, **kwargs) -> pd.DataFrame:
+def process_spatial_data(
+    experiment_path: Path,
+    use_database: bool = True,
+    resources_only: bool = False,
+    **kwargs,
+) -> Dict[str, pd.DataFrame]:
     """Process spatial data from experiment.
 
     Args:
         experiment_path: Path to experiment directory
         use_database: Whether to use database or direct file access
+        resources_only: When True, skip loading agent positions (faster when only
+            resource data is needed, e.g. for hotspot analysis).
         **kwargs: Additional options
 
     Returns:
-        DataFrame with spatial metrics over time
+        Dict with ``agent_positions`` and ``resource_positions`` DataFrames.
     """
     # Try to load from database first
     spatial_data = None
@@ -35,18 +46,20 @@ def process_spatial_data(experiment_path: Path, use_database: bool = True, **kwa
             # Load data using SessionManager directly
             db_uri = f"sqlite:///{db_path}"
             session_manager = SessionManager(db_uri)
-            agent_repo = AgentRepository(session_manager)
-            resource_repo = ResourceRepository(session_manager)
+            try:
+                resource_repo = ResourceRepository(session_manager)
 
-            # Get agent position data
-            agent_data = agent_repo.get_agent_positions_over_time()
+                # Get resource position data
+                resource_data = resource_repo.get_resource_positions_over_time()
+                resource_df = pd.DataFrame(resource_data) if resource_data else pd.DataFrame()
 
-            # Get resource position data
-            resource_data = resource_repo.get_resource_positions_over_time()
-
-            # Convert to DataFrames
-            agent_df = pd.DataFrame(agent_data) if agent_data else pd.DataFrame()
-            resource_df = pd.DataFrame(resource_data) if resource_data else pd.DataFrame()
+                agent_df = pd.DataFrame()
+                if not resources_only:
+                    agent_repo = AgentRepository(session_manager)
+                    agent_data = agent_repo.get_agent_positions_over_time()
+                    agent_df = pd.DataFrame(agent_data) if agent_data else pd.DataFrame()
+            finally:
+                session_manager.cleanup()
 
             # Combine spatial data
             spatial_data = {
@@ -55,8 +68,7 @@ def process_spatial_data(experiment_path: Path, use_database: bool = True, **kwa
             }
 
     except Exception as e:
-        # If database loading fails, return empty spatial data
-        pass
+        logger.debug("Spatial database load failed: %s", e, exc_info=True)
 
     if spatial_data is None:
         # Return empty spatial data structure

@@ -110,6 +110,12 @@ from farm.analysis.service import (
     AnalysisRequest,
     AnalysisResult,
     AnalysisService,
+    AnalysisSuiteResult,
+)
+from farm.analysis.suites import (
+    BUILTIN_SUITE_MODULES,
+    list_builtin_suite_names,
+    resolve_suite_module_names,
 )
 from farm.analysis.validation import (
     ColumnValidator,
@@ -165,7 +171,11 @@ __all__ = [
     "AnalysisService",
     "AnalysisRequest",
     "AnalysisResult",
+    "AnalysisSuiteResult",
     "AnalysisCache",
+    "BUILTIN_SUITE_MODULES",
+    "list_builtin_suite_names",
+    "resolve_suite_module_names",
     # Context
     "AnalysisContext",
 ]

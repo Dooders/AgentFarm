@@ -6,14 +6,37 @@ import pytest
 from pathlib import Path
 import time
 
+from farm.analysis.core import BaseAnalysisModule
 from farm.analysis.service import (
     AnalysisRequest,
     AnalysisResult,
     AnalysisCache,
-    AnalysisService
+    AnalysisService,
+    AnalysisSuiteResult,
 )
 from farm.analysis.exceptions import ModuleNotFoundError, ConfigurationError
 from farm.analysis.registry import registry
+
+
+def _stub_module(name: str, mock_data_processor):
+    """Minimal analysis module with the given registry name."""
+
+    class StubModule(BaseAnalysisModule):
+        def __init__(self):
+            super().__init__(name=name, description=f"stub {name}")
+
+        def register_functions(self):
+            def stub_func(df, ctx, **kwargs):
+                return {"module": name}
+
+            stub_func.__name__ = "stub_func"
+            self._functions = {"stub_func": stub_func}
+            self._groups = {"all": [stub_func]}
+
+        def get_data_processor(self):
+            return mock_data_processor
+
+    return StubModule()
 
 
 class TestAnalysisRequest:
@@ -98,7 +121,7 @@ class TestAnalysisResult:
         assert result.success
         assert result.module_name == "test"
         assert result.dataframe is sample_simulation_data
-        assert result.cache_hit == False
+        assert not result.cache_hit
 
     def test_failed_result(self, temp_output_dir):
         """Test failed result."""
@@ -123,7 +146,7 @@ class TestAnalysisResult:
         )
 
         data = result.to_dict()
-        assert data['success'] == True
+        assert data['success']
         assert data['module_name'] == 'test'
         assert data['execution_time'] == 1.5
         assert data['dataframe_shape'] == sample_simulation_data.shape
@@ -415,3 +438,296 @@ class TestAnalysisService:
         # Clear cache
         count = service.clear_cache()
         assert count >= 1
+
+    def test_run_suite_named_modules_list(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        registry.register(_stub_module("alpha", mock_data_processor))
+        registry.register(_stub_module("beta", mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        out_base = tmp_path / "suite_out"
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=out_base,
+            modules=["alpha", "beta"],
+            enable_caching=False,
+            write_unified_summary=False,
+        )
+
+        assert isinstance(suite, AnalysisSuiteResult)
+        assert suite.suite_name is None
+        assert suite.modules_requested == ["alpha", "beta"]
+        assert len(suite.results) == 2
+        assert all(r.success for r in suite.results)
+        assert suite.summary["success_count"] == 2
+        assert suite.summary["all_successful"] is True
+        assert "alpha" in suite.summary["per_module"]
+        assert "beta" in suite.summary["per_module"]
+        assert (out_base / "alpha").is_dir()
+        assert (out_base / "beta").is_dir()
+
+    def test_run_suite_builtin_system_dynamics(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        for mod_name in ("population", "resources", "temporal"):
+            registry.register(_stub_module(mod_name, mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        out_base = tmp_path / "sd_out"
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=out_base,
+            suite="system_dynamics",
+            enable_caching=False,
+            write_unified_summary=True,
+            report_formats="markdown",
+        )
+
+        assert suite.suite_name == "system_dynamics"
+        assert suite.modules_requested == ["population", "resources", "temporal"]
+        assert suite.summary["suite"] == "system_dynamics"
+        summary_file = out_base / "system_dynamics_suite_summary.json"
+        assert summary_file.is_file()
+        md_file = out_base / "system_dynamics_suite_report.md"
+        assert md_file.is_file()
+        assert "population" in md_file.read_text(encoding="utf-8")
+
+    def test_run_suite_agent_behavior(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        for mod_name in ("actions", "agents", "spatial", "learning"):
+            registry.register(_stub_module(mod_name, mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        out_base = tmp_path / "ab_out"
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=out_base,
+            suite="agent_behavior",
+            enable_caching=False,
+            write_unified_summary=False,
+        )
+
+        assert suite.suite_name == "agent_behavior"
+        assert len(suite.results) == 4
+        assert suite.summary["success_count"] == 4
+
+    def test_run_suite_full_empty_registry_raises(
+        self, config_service_mock, tmp_path
+    ):
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        with pytest.raises(ConfigurationError, match="No modules to run"):
+            service.run_suite(
+                experiment_path=exp_path,
+                output_path=tmp_path / "out",
+                suite="full",
+                enable_caching=False,
+                write_unified_summary=False,
+            )
+
+    def test_run_suite_modules_executed_tracks_actual_results(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        """modules_executed should reflect only the modules that actually ran."""
+        registry.register(_stub_module("alpha", mock_data_processor))
+        registry.register(_stub_module("beta", mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=tmp_path / "suite_out",
+            modules=["alpha", "beta"],
+            enable_caching=False,
+            write_unified_summary=False,
+        )
+
+        # In the success case both lists must match
+        assert suite.modules_requested == ["alpha", "beta"]
+        assert suite.modules_executed == ["alpha", "beta"]
+        assert suite.summary["modules_requested"] == ["alpha", "beta"]
+        assert suite.summary["modules_executed"] == ["alpha", "beta"]
+
+    def test_run_suite_fail_fast_modules_executed_is_shorter(
+        self, config_service_mock, tmp_path
+    ):
+        """When fail_fast stops early, modules_executed must be a prefix of modules_requested."""
+        from farm.analysis.core import SimpleDataProcessor
+
+        def ok_processor(data, **kwargs):
+            import pandas as pd
+            return pd.DataFrame({"test": [1]})
+
+        def bad_processor(data, **kwargs):
+            raise RuntimeError("intentional data-processing failure")
+
+        ok_proc = SimpleDataProcessor(ok_processor)
+        bad_proc = SimpleDataProcessor(bad_processor)
+
+        registry.register(_stub_module("alpha", ok_proc))
+
+        class FailingModule(BaseAnalysisModule):
+            def __init__(self):
+                super().__init__(name="broken", description="always fails at data load")
+
+            def register_functions(self):
+                def noop(df, ctx, **kwargs):
+                    return {}
+
+                noop.__name__ = "noop"
+                self._functions = {"noop": noop}
+                self._groups = {"all": [noop]}
+
+            def get_data_processor(self):
+                return bad_proc
+
+        registry.register(FailingModule())
+        registry.register(_stub_module("gamma", ok_proc))
+
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=tmp_path / "suite_out",
+            modules=["alpha", "broken", "gamma"],
+            enable_caching=False,
+            write_unified_summary=False,
+            fail_fast=True,
+        )
+
+        # Full planned list is preserved on modules_requested
+        assert suite.modules_requested == ["alpha", "broken", "gamma"]
+        # Only the modules that actually ran appear in modules_executed
+        assert "gamma" not in suite.modules_executed
+        assert suite.summary["modules_requested"] == ["alpha", "broken", "gamma"]
+        assert "gamma" not in suite.summary["modules_executed"]
+
+    def test_run_suite_custom_slug_deterministic(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        """Custom suite slugs should be deterministic hashes, not 'custom_suite'."""
+        registry.register(_stub_module("alpha", mock_data_processor))
+        registry.register(_stub_module("beta", mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+
+        suite = service.run_suite(
+            experiment_path=exp_path,
+            output_path=tmp_path / "suite_out",
+            modules=["alpha", "beta"],
+            enable_caching=False,
+            write_unified_summary=True,
+        )
+
+        # Slug must not be the generic "custom_suite" literal
+        slug = suite._default_slug()
+        assert slug != "custom_suite"
+        assert slug.startswith("custom_")
+        # Same module combination produces the same slug (deterministic)
+        assert slug == suite._default_slug()
+        # Summary file uses the hash slug
+        summary_files = list((tmp_path / "suite_out").glob("*_suite_summary.json"))
+        assert len(summary_files) == 1
+        assert summary_files[0].name.startswith("custom_")
+        assert "custom_suite_suite_summary" not in summary_files[0].name
+
+    def test_run_suite_different_module_combinations_different_slugs(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        """Two different module combinations must produce different slugs."""
+
+        def _make_result(mods):
+            results = [
+                AnalysisResult(
+                    module_name=m,
+                    success=True,
+                    output_path=tmp_path / m,
+                    execution_time=0.0,
+                )
+                for m in mods
+            ]
+            return AnalysisSuiteResult(
+                suite_name=None,
+                modules_requested=mods,
+                experiment_path=tmp_path,
+                output_base=tmp_path / "out",
+                results=results,
+            )
+
+        suite_ab = _make_result(["alpha", "beta"])
+        suite_ac = _make_result(["alpha", "gamma"])
+        assert suite_ab._default_slug() != suite_ac._default_slug()
+
+    def test_run_suite_rejects_path_traversal_module_name(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        """Module names containing '..' or path separators are rejected."""
+        registry.register(_stub_module("safe_module", mock_data_processor))
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+
+        with pytest.raises(ConfigurationError, match="path separators"):
+            service.run_suite(
+                experiment_path=exp_path,
+                output_path=tmp_path / "out",
+                modules=["../etc/passwd"],
+                enable_caching=False,
+                write_unified_summary=False,
+            )
+
+    def test_run_suite_config_forwarded_to_context(
+        self, config_service_mock, mock_data_processor, tmp_path
+    ):
+        """Config dict passed to run_suite is forwarded to each AnalysisRequest."""
+        captured_configs = []
+
+        class ConfigCapturingModule(BaseAnalysisModule):
+            def __init__(self):
+                super().__init__(name="cfg_capture", description="cfg capture")
+
+            def register_functions(self):
+                def capture_func(df, ctx, **kwargs):
+                    captured_configs.append(dict(ctx.config))
+
+                capture_func.__name__ = "capture_func"
+                self._functions = {"capture_func": capture_func}
+                self._groups = {"all": [capture_func]}
+
+            def get_data_processor(self):
+                return mock_data_processor
+
+        registry.register(ConfigCapturingModule())
+        service = AnalysisService(config_service=config_service_mock, auto_register=False)
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+
+        service.run_suite(
+            experiment_path=exp_path,
+            output_path=tmp_path / "out",
+            modules=["cfg_capture"],
+            config={"resource_hotspot_sigma": 3.5},
+            enable_caching=False,
+            write_unified_summary=False,
+        )
+
+        assert len(captured_configs) == 1
+        assert captured_configs[0].get("resource_hotspot_sigma") == 3.5

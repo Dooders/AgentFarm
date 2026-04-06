@@ -185,6 +185,10 @@ class AnalysisContext:
     def get_config(self, key, default=None) -> Any
 ```
 
+**Analysis-time options** (via `ctx.config` / `get_config`):
+
+- **`resource_hotspot_sigma`** (float, default `2.0`) — For the resources module, number of standard deviations above the per-step cell mean used as the spatial hotspot threshold when grid data is available.
+
 ## Data Flow
 
 ### Standard Analysis Flow

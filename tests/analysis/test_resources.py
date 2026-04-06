@@ -202,13 +202,14 @@ class TestResourceComputations:
         hotspots = compute_resource_hotspots(sample_resource_data)
 
         assert isinstance(hotspots, dict)
+        assert hotspots.get('mode') == 'timeseries_fallback'
         assert 'max_concentration' in hotspots
         assert 'avg_concentration' in hotspots
         assert 'concentration_ratio' in hotspots
         assert 'hotspot_intensity' in hotspots
 
     def test_compute_resource_hotspots_empty(self):
-        """Test hotspots with missing data."""
+        """No spatial data and no total_resources returns legacy empty dict."""
         df = pd.DataFrame({'step': range(10)})
 
         result = compute_resource_hotspots(df)
@@ -223,9 +224,81 @@ class TestResourceComputations:
 
         hotspots = compute_resource_hotspots(df)
 
+        assert hotspots.get('mode') == 'timeseries_fallback'
         # Uniform distribution should have ratio of 1.0
         assert abs(hotspots['concentration_ratio'] - 1.0) < 1e-8
         assert abs(hotspots['hotspot_intensity']) < 1e-8
+
+    def test_compute_resource_hotspots_spatial_threshold(self):
+        """Spatial mode: cells above mean + 1σ get coordinates and per-step stats."""
+        df = pd.DataFrame({'step': [0], 'total_resources': [100.0]})
+        # Five cells: four low, one high — high cell clears mean + 1·σ (sample std across cells)
+        spatial = pd.DataFrame(
+            {
+                'step': [0, 0, 0, 0, 0],
+                'position_x': [0.0, 1.0, 2.0, 3.0, 4.0],
+                'position_y': [0.0, 0.0, 0.0, 0.0, 0.0],
+                'amount': [10.0, 10.0, 10.0, 10.0, 100.0],
+            }
+        )
+        # 1σ threshold: with few cells, 2σ can exceed the peak (inflated sample std)
+        out = compute_resource_hotspots(df, spatial_resource_positions=spatial, hotspot_sigma=1.0)
+        assert out['mode'] == 'spatial'
+        assert out['spatial'] is not None
+        assert out['spatial']['n_steps'] == 1
+        assert out['spatial']['threshold_sigma'] == 1.0
+        step0 = out['spatial']['per_step'][0]
+        assert step0['n_hotspot_cells'] >= 1
+        hi = max(step0['hotspot_cells'], key=lambda h: h['cell_amount'])
+        assert hi['position_x'] == 4.0
+        assert hi['position_y'] == 0.0
+        assert 'max_concentration' in out
+
+    def test_compute_resource_hotspots_spatial_centroid_displacement(self):
+        """Hotspot centroid moves between consecutive steps."""
+        df = pd.DataFrame({'step': [0, 1], 'total_resources': [10.0, 10.0]})
+        spatial = pd.DataFrame(
+            {
+                'step': [0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+                'position_x': [0.0, 1.0, 2.0, 3.0, 4.0, 0.0, 1.0, 2.0, 3.0, 10.0],
+                'position_y': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                'amount': [100.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 100.0],
+            }
+        )
+        out = compute_resource_hotspots(df, spatial_resource_positions=spatial, hotspot_sigma=1.0)
+        assert out['mode'] == 'spatial'
+        disp = out['spatial']['centroid_displacements']
+        assert len(disp) == 1
+        assert disp[0] > 9.0
+
+    def test_compute_resource_hotspots_invalid_sigma(self):
+        """Invalid hotspot_sigma values raise ValueError."""
+        df = pd.DataFrame({'step': [0], 'total_resources': [10.0]})
+        with pytest.raises(ValueError):
+            compute_resource_hotspots(df, hotspot_sigma=-1.0)
+        with pytest.raises(ValueError):
+            compute_resource_hotspots(df, hotspot_sigma=float('nan'))
+        with pytest.raises(ValueError):
+            compute_resource_hotspots(df, hotspot_sigma=float('inf'))
+
+    def test_compute_resource_hotspots_truncates_serialized_cells(self, monkeypatch):
+        """Large per-step hotspot lists cap JSON cells; counts use full set."""
+        from farm.analysis.resources import compute as res_compute
+
+        monkeypatch.setattr(res_compute, "MAX_SERIALIZED_HOTSPOT_CELLS_PER_STEP", 2)
+        df = pd.DataFrame({"step": [0], "total_resources": [100.0]})
+        rows = []
+        for i in range(10):
+            rows.append({"step": 0, "position_x": float(i), "position_y": 0.0, "amount": 10.0})
+        for i in range(10, 20):
+            rows.append({"step": 0, "position_x": float(i), "position_y": 0.0, "amount": 20.0})
+        spatial = pd.DataFrame(rows)
+        out = compute_resource_hotspots(df, spatial_resource_positions=spatial, hotspot_sigma=0.5)
+        step0 = out["spatial"]["per_step"][0]
+        assert step0["n_hotspot_cells"] == 10
+        assert step0["hotspot_cells_truncated"] is True
+        assert len(step0["hotspot_cells"]) == 2
+        assert len(out["spatial"]["persistent_hotspot_cells"]) == 10
 
 
 class TestResourceAnalysis:
@@ -575,6 +648,7 @@ class TestEdgeCases:
 
         hotspots = compute_resource_hotspots(df)
 
+        assert hotspots.get('mode') == 'timeseries_fallback'
         # Should detect high concentration
         assert hotspots['concentration_ratio'] > 1.0
         assert hotspots['hotspot_intensity'] > 0.0
@@ -657,6 +731,33 @@ class TestResourceHelperFunctions:
             assert isinstance(result, pd.DataFrame)
             assert len(result) == 2  # Should load from CSV fallback
 
+    def test_process_resource_data_stores_positions_in_attrs(self, tmp_path, monkeypatch):
+        """DB loader attaches resource grid DataFrame for hotspot analysis (single DB round-trip)."""
+        import farm.analysis.resources.data as res_data
+
+        exp_path = tmp_path / "experiment"
+        exp_path.mkdir()
+        (exp_path / "simulation.db").touch()
+
+        merged = pd.DataFrame({"step": [0], "total_resources": [1.0]})
+        positions = pd.DataFrame(
+            {
+                "step": [0],
+                "position_x": [1.0],
+                "position_y": [2.0],
+                "amount": [3.0],
+            }
+        )
+
+        def fake_bundle(_path):
+            return merged.copy(), positions.copy()
+
+        monkeypatch.setattr(res_data, "find_database_path", lambda _p: exp_path / "simulation.db")
+        monkeypatch.setattr(res_data, "resources_merged_with_positions_from_sqlite", fake_bundle)
+
+        result = res_data.process_resource_data(exp_path)
+        assert result.attrs[res_data.RESOURCE_POSITIONS_DATAFRAME_ATTR].equals(positions)
+
     def test_calculate_trend_helper(self):
         """Test trend calculation helper."""
         from farm.analysis.common.utils import calculate_trend
@@ -676,3 +777,76 @@ class TestResourceHelperFunctions:
         assert 'mean' in stats
         assert 'median' in stats
         assert stats['mean'] == 30.0
+
+
+class TestTimeriesHotspotEdgeCases:
+    """Edge cases for _timeseries_hotspot_metrics."""
+
+    def test_empty_total_resources_column(self):
+        """_timeseries_hotspot_metrics returns zeroed dict for all-NaN series."""
+        from farm.analysis.resources.compute import _timeseries_hotspot_metrics
+
+        df = pd.DataFrame({"total_resources": [np.nan, np.nan]})
+        result = _timeseries_hotspot_metrics(df)
+        assert result["max_concentration"] == 0.0
+        assert result["avg_concentration"] == 0.0
+        assert result["concentration_ratio"] == 0.0
+        assert result["hotspot_intensity"] == 0.0
+
+    def test_compute_resource_hotspots_empty_timeseries_fallback(self):
+        """compute_resource_hotspots falls back gracefully when total_resources is all NaN."""
+        df = pd.DataFrame({"total_resources": [np.nan, np.nan]})
+        result = compute_resource_hotspots(df)
+        assert result.get("mode") == "timeseries_fallback"
+        assert result["max_concentration"] == 0.0
+
+
+class TestSigmaConfigHandling:
+    """Tests for resource_hotspot_sigma config coercion edge cases."""
+
+    def test_analyze_resource_patterns_none_sigma_uses_default(self, tmp_path, sample_resource_data):
+        """None config value for resource_hotspot_sigma falls back to 2.0 without error."""
+        ctx = AnalysisContext(output_path=tmp_path, config={"resource_hotspot_sigma": None})
+        # Should not raise
+        analyze_resource_patterns(sample_resource_data, ctx)
+
+    def test_analyze_hotspots_empty_string_sigma_uses_default(self, tmp_path, sample_resource_data):
+        """Empty-string or whitespace-only config value for resource_hotspot_sigma falls back to 2.0."""
+        ctx = AnalysisContext(output_path=tmp_path, config={"resource_hotspot_sigma": ""})
+        analyze_hotspots(sample_resource_data, ctx)
+        # Whitespace-only should also fall back
+        ctx2 = AnalysisContext(output_path=tmp_path, config={"resource_hotspot_sigma": "  "})
+        analyze_hotspots(sample_resource_data, ctx2)
+
+    def test_analyze_hotspots_invalid_sigma_raises(self, tmp_path, sample_resource_data):
+        """Non-numeric string config value for resource_hotspot_sigma raises ValueError."""
+        ctx = AnalysisContext(output_path=tmp_path, config={"resource_hotspot_sigma": "bad_value"})
+        with pytest.raises(ValueError, match="resource_hotspot_sigma"):
+            analyze_hotspots(sample_resource_data, ctx)
+
+    def test_analyze_resource_patterns_custom_sigma(self, tmp_path, sample_resource_data):
+        """Numeric string or float config value for resource_hotspot_sigma is accepted."""
+        ctx = AnalysisContext(output_path=tmp_path, config={"resource_hotspot_sigma": "3.5"})
+        analyze_resource_patterns(sample_resource_data, ctx)
+
+
+class TestNormalizeDbUrl:
+    """Tests for _normalize_db_url in sql_loaders."""
+
+    def test_sqlite_url_passthrough(self):
+        """Full sqlite:/// URL is returned unchanged."""
+        from farm.analysis.sql_loaders import _normalize_db_url
+        url = "sqlite:///path/to/db.db"
+        assert _normalize_db_url(url) == url
+
+    def test_plain_path_prepends_sqlite(self):
+        """Plain filesystem path gets sqlite:/// prepended."""
+        from farm.analysis.sql_loaders import _normalize_db_url
+        result = _normalize_db_url("/tmp/sim.db")
+        assert result == "sqlite:////tmp/sim.db"
+
+    def test_non_sqlite_url_raises(self):
+        """Non-sqlite URL scheme raises ValueError."""
+        from farm.analysis.sql_loaders import _normalize_db_url
+        with pytest.raises(ValueError, match="Unsupported database URL"):
+            _normalize_db_url("postgresql://localhost/mydb")

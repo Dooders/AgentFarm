@@ -5,16 +5,18 @@ Provides high-level API for running analysis with validation, caching, and progr
 """
 
 import hashlib
+import html
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 import pandas as pd
 
 from farm.analysis.exceptions import ConfigurationError, ModuleNotFoundError
 from farm.analysis.registry import get_module, get_module_names, register_modules
+from farm.analysis.suites import resolve_suite_module_names
 from farm.core.services import IConfigService
 from farm.utils.logging import get_logger
 
@@ -32,6 +34,8 @@ class AnalysisRequest:
         group: Function group to execute (default: "all")
         processor_kwargs: Arguments for data processor
         analysis_kwargs: Arguments for specific analysis functions
+        config: Configuration options forwarded to :class:`~farm.analysis.common.context.AnalysisContext`
+            (e.g. ``{"resource_hotspot_sigma": 3.0}``).
         enable_caching: Whether to use cached results if available
         force_refresh: Force recomputation even if cache exists
         progress_callback: Optional callback for progress updates
@@ -44,6 +48,7 @@ class AnalysisRequest:
     group: str = "all"
     processor_kwargs: Dict[str, Any] = field(default_factory=dict)
     analysis_kwargs: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    config: Dict[str, Any] = field(default_factory=dict)
     enable_caching: bool = True
     force_refresh: bool = False
     progress_callback: Optional[Callable[[str, float], None]] = None
@@ -65,6 +70,7 @@ class AnalysisRequest:
             "group": self.group,
             "processor_kwargs": self.processor_kwargs,
             "analysis_kwargs": self.analysis_kwargs,
+            "config": self.config,
             "metadata": self.metadata,
         }
 
@@ -81,6 +87,7 @@ class AnalysisRequest:
             "group": self.group,
             "processor_kwargs": self.processor_kwargs,
             "analysis_kwargs": self.analysis_kwargs,
+            "config": self.config,
         }
 
         # Create deterministic hash
@@ -152,6 +159,193 @@ class AnalysisResult:
             json.dump(self.to_dict(), f, indent=2)
 
         return path
+
+
+@dataclass
+class AnalysisSuiteResult:
+    """Aggregated result from running multiple analysis modules as a suite.
+
+    Attributes:
+        suite_name: Built-in suite name if used, else None when only ``modules`` was given.
+        modules_requested: Full list of module names planned for this run (order preserved).
+        experiment_path: Experiment data path common to all requests.
+        output_base: Base directory; per-module outputs live under ``output_base / <module_name>``.
+        results: One :class:`AnalysisResult` per module actually executed (may be shorter than
+            ``modules_requested`` when ``fail_fast=True`` stops early).
+        modules_executed: Module names that were actually executed, derived from ``results``.
+        summary: Cross-module aggregate (paths, counts, per-module summaries, timing).
+    """
+
+    suite_name: Optional[str]
+    modules_requested: List[str]
+    experiment_path: Path
+    output_base: Path
+    results: List[AnalysisResult]
+    modules_executed: List[str] = field(init=False)
+    summary: Dict[str, Any] = field(init=False)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.experiment_path, str):
+            self.experiment_path = Path(self.experiment_path)
+        if isinstance(self.output_base, str):
+            self.output_base = Path(self.output_base)
+        self.modules_executed = [r.module_name for r in self.results]
+        self.summary = self._build_summary()
+
+    def _build_summary(self) -> Dict[str, Any]:
+        per_module: Dict[str, Any] = {}
+        for result in self.results:
+            per_module[result.module_name] = result.to_dict()
+        success_count = sum(1 for r in self.results if r.success)
+        total = len(self.results)
+        return {
+            "suite": self.suite_name,
+            "modules_requested": list(self.modules_requested),
+            "modules_executed": list(self.modules_executed),
+            "experiment_path": str(self.experiment_path.resolve()),
+            "output_base": str(self.output_base.resolve()),
+            "timestamp": datetime.now().isoformat(),
+            "all_successful": total > 0 and success_count == total,
+            "success_count": success_count,
+            "failure_count": total - success_count,
+            "total_execution_time": sum(r.execution_time for r in self.results),
+            "per_module": per_module,
+        }
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize suite run to a JSON-friendly dict (includes ``summary``)."""
+        return {
+            "suite_name": self.suite_name,
+            "modules_requested": self.modules_requested,
+            "modules_executed": self.modules_executed,
+            "experiment_path": str(self.experiment_path.resolve()),
+            "output_base": str(self.output_base.resolve()),
+            "summary": self.summary,
+        }
+
+    def _default_slug(self) -> str:
+        """Return a deterministic slug for file naming.
+
+        For named suites this is the suite name. For custom module lists the slug
+        is ``custom_`` followed by an 8-character SHA-1 prefix of the sorted
+        module names, so that distinct module combinations produce distinct
+        filenames and multiple runs with the same combination are idempotent.
+        """
+        if self.suite_name:
+            return self.suite_name
+        key = ",".join(sorted(self.modules_requested))
+        digest = hashlib.sha1(key.encode()).hexdigest()[:8]
+        return f"custom_{digest}"
+
+    def save_unified_summary(self, path: Optional[Path] = None) -> Path:
+        """Write ``summary`` (and top-level identifiers) to JSON."""
+        if path is None:
+            slug = self._default_slug()
+            path = self.output_base / f"{slug}_suite_summary.json"
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = self.to_dict()
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        return path
+
+    def save_reports(self, formats: Union[str, Sequence[str]]) -> Dict[str, Path]:
+        """Write combined Markdown and/or HTML reports under ``output_base``."""
+        if isinstance(formats, str):
+            fmt_list = [formats]
+        else:
+            fmt_list = list(formats)
+        slug = self._default_slug()
+        out: Dict[str, Path] = {}
+        base = self.output_base
+        base.mkdir(parents=True, exist_ok=True)
+        for fmt in fmt_list:
+            low = fmt.lower()
+            if low == "both":
+                out.update(self.save_reports(("markdown", "html")))
+                continue
+            if low == "markdown":
+                p = base / f"{slug}_suite_report.md"
+                p.write_text(self._markdown_report_body(), encoding="utf-8")
+                out["markdown"] = p
+            elif low == "html":
+                p = base / f"{slug}_suite_report.html"
+                p.write_text(self._html_report_body(), encoding="utf-8")
+                out["html"] = p
+            else:
+                raise ConfigurationError(
+                    f"Unknown report format '{fmt}'. Use 'markdown', 'html', or 'both'."
+                )
+        return out
+
+    def _markdown_report_body(self) -> str:
+        title = self.suite_name or "custom suite"
+        planned = self.modules_requested
+        executed = self.modules_executed
+        modules_line = f"- **Modules planned:** {', '.join(planned)}"
+        if executed != planned:
+            modules_line += f"\n- **Modules executed:** {', '.join(executed)}"
+        lines = [
+            f"# Analysis suite: {title}",
+            "",
+            f"- **Experiment:** `{self.experiment_path}`",
+            f"- **Output base:** `{self.output_base}`",
+            modules_line,
+            f"- **Success:** {self.summary['success_count']}/{len(self.results)}",
+            f"- **Total time (s):** {self.summary['total_execution_time']:.4f}",
+            "",
+            "## Per module",
+            "",
+        ]
+        for r in self.results:
+            status = "ok" if r.success else "failed"
+            lines.append(f"### `{r.module_name}` — {status}")
+            lines.append(f"- Output: `{r.output_path}`")
+            lines.append(f"- Time (s): {r.execution_time:.4f}")
+            if r.error:
+                lines.append(f"- Error: {r.error}")
+            lines.append("")
+        return "\n".join(lines)
+
+    def _html_report_body(self) -> str:
+        title = html.escape(self.suite_name or "custom suite")
+        planned = html.escape(", ".join(self.modules_requested))
+        executed = html.escape(", ".join(self.modules_executed))
+        modules_items = f"<li>Modules planned: {planned}</li>"
+        if self.modules_executed != self.modules_requested:
+            modules_items += f"<li>Modules executed: {executed}</li>"
+        rows = []
+        for r in self.results:
+            err = html.escape(r.error or "")
+            status = "ok" if r.success else "failed"
+            op = html.escape(str(r.output_path))
+            rows.append(
+                "<tr>"
+                f"<td>{html.escape(r.module_name)}</td><td>{status}</td>"
+                f"<td>{r.execution_time:.4f}</td>"
+                f"<td><code>{op}</code></td>"
+                f"<td>{err}</td>"
+                "</tr>"
+            )
+        exp = html.escape(str(self.experiment_path))
+        ob = html.escape(str(self.output_base))
+        return (
+            "<!DOCTYPE html><html><head><meta charset='utf-8'/>"
+            f"<title>Suite {title}</title></head><body>"
+            f"<h1>Analysis suite: {title}</h1>"
+            "<ul>"
+            f"<li>Experiment: <code>{exp}</code></li>"
+            f"<li>Output base: <code>{ob}</code></li>"
+            f"{modules_items}"
+            f"<li>Success: {self.summary['success_count']}/{len(self.results)}</li>"
+            f"<li>Total time (s): {self.summary['total_execution_time']:.4f}</li>"
+            "</ul>"
+            "<table border='1' cellpadding='6' cellspacing='0'>"
+            "<thead><tr><th>Module</th><th>Status</th><th>Time (s)</th>"
+            "<th>Output</th><th>Error</th></tr></thead><tbody>"
+            + "".join(rows)
+            + "</tbody></table></body></html>"
+        )
 
 
 class AnalysisCache:
@@ -365,6 +559,7 @@ class AnalysisService:
                 processor_kwargs=request.processor_kwargs,
                 analysis_kwargs=request.analysis_kwargs,
                 progress_callback=request.progress_callback,
+                config=request.config,
             )
 
             # Cache result if enabled
@@ -430,6 +625,118 @@ class AnalysisService:
         logger.info(f"Batch analysis complete: {successful}/{len(results)} successful")
 
         return results
+
+    def run_suite(
+        self,
+        experiment_path: Path,
+        output_path: Path,
+        *,
+        suite: Optional[str] = None,
+        modules: Optional[Sequence[str]] = None,
+        group: str = "all",
+        processor_kwargs: Optional[Dict[str, Any]] = None,
+        analysis_kwargs: Optional[Dict[str, Dict[str, Any]]] = None,
+        config: Optional[Dict[str, Any]] = None,
+        enable_caching: bool = True,
+        force_refresh: bool = False,
+        progress_callback: Optional[Callable[[str, float], None]] = None,
+        fail_fast: bool = False,
+        write_unified_summary: bool = True,
+        report_formats: Optional[Union[str, Sequence[str]]] = None,
+    ) -> AnalysisSuiteResult:
+        """Run a named suite or explicit module list and aggregate results.
+
+        Per-module outputs are written to ``output_path / <module_name>``.
+
+        Args:
+            experiment_path: Path to experiment data.
+            output_path: Base directory for this suite run.
+            suite: Built-in suite name (``system_dynamics``, ``agent_behavior``,
+                ``social``, ``full``).
+            modules: If set, runs these modules in order (``suite`` ignored).
+            group: Function group passed to each module.
+            processor_kwargs: Shared processor kwargs for every request.
+            analysis_kwargs: Shared analysis kwargs for every request.
+            config: Optional configuration dict forwarded to every
+                :class:`~farm.analysis.common.context.AnalysisContext` in the suite
+                (e.g. ``{"resource_hotspot_sigma": 3.0}``).
+            enable_caching: Whether to use the analysis cache.
+            force_refresh: Force recomputation for every module.
+            progress_callback: Optional progress callback for each request.
+            fail_fast: Stop after the first failed module.
+            write_unified_summary: Write ``<suite>_suite_summary.json`` under ``output_path``.
+            report_formats: If set, write combined reports: ``markdown``, ``html``, or ``both``.
+
+        Returns:
+            :class:`AnalysisSuiteResult` with ``results`` and ``summary``.
+        """
+        if isinstance(experiment_path, str):
+            experiment_path = Path(experiment_path)
+        if isinstance(output_path, str):
+            output_path = Path(output_path)
+
+        module_names = resolve_suite_module_names(suite=suite, modules=modules)
+        if not module_names:
+            n_registered = len(get_module_names())
+            logger.warning(
+                "No analysis modules to run (analysis registry has %s registered name(s)).",
+                n_registered,
+            )
+            raise ConfigurationError(
+                "No modules to run: use a non-empty `modules` list, register modules for `suite='full'`, "
+                "or choose another built-in suite."
+            )
+        suite_label = suite if not modules else None
+
+        proc_kw = processor_kwargs or {}
+        anal_kw = analysis_kwargs or {}
+        cfg = config or {}
+
+        requests: List[AnalysisRequest] = []
+        for name in module_names:
+            safe_name = Path(name).name
+            if safe_name != name or ".." in name:
+                raise ConfigurationError(
+                    f"Module name {name!r} contains path separators or '..' and cannot be used "
+                    "as an output directory component."
+                )
+            mod_out = output_path / name
+            requests.append(
+                AnalysisRequest(
+                    module_name=name,
+                    experiment_path=experiment_path,
+                    output_path=mod_out,
+                    group=group,
+                    processor_kwargs=dict(proc_kw),
+                    analysis_kwargs=dict(anal_kw),
+                    config=dict(cfg),
+                    enable_caching=enable_caching,
+                    force_refresh=force_refresh,
+                    progress_callback=progress_callback,
+                    metadata={"suite": suite_label, "suite_modules": module_names},
+                )
+            )
+
+        results = self.run_batch(requests, fail_fast=fail_fast)
+        suite_result = AnalysisSuiteResult(
+            suite_name=suite_label,
+            modules_requested=module_names,
+            experiment_path=experiment_path,
+            output_base=output_path,
+            results=results,
+        )
+
+        if write_unified_summary:
+            suite_result.save_unified_summary()
+
+        if report_formats is not None:
+            rf = report_formats
+            if isinstance(rf, str) and rf.lower() == "both":
+                suite_result.save_reports(("markdown", "html"))
+            else:
+                suite_result.save_reports(rf)
+
+        return suite_result
 
     def get_module_info(self, module_name: str) -> Dict[str, Any]:
         """Get information about a specific module.

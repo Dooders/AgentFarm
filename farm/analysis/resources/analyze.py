@@ -2,16 +2,39 @@
 Resource analysis functions.
 """
 
-import pandas as pd
 import json
+from pathlib import Path
+
+import pandas as pd
 
 from farm.analysis.common.context import AnalysisContext
+from farm.analysis.spatial.data import process_spatial_data
+from farm.analysis.resources.data import RESOURCE_POSITIONS_DATAFRAME_ATTR
 from farm.analysis.resources.compute import (
     compute_resource_statistics,
     compute_consumption_patterns,
     compute_resource_efficiency,
     compute_resource_hotspots,
 )
+
+
+def _load_resource_positions_for_hotspots(df: pd.DataFrame, ctx: AnalysisContext) -> pd.DataFrame:
+    """Resolve per-step resource grid rows: DataFrame attrs from DB load, else spatial fallback."""
+    cached = df.attrs.get(RESOURCE_POSITIONS_DATAFRAME_ATTR) if hasattr(df, "attrs") else None
+    if isinstance(cached, pd.DataFrame) and not cached.empty:
+        return cached
+
+    exp_raw = ctx.metadata.get("experiment_path")
+    if not exp_raw:
+        return pd.DataFrame()
+    exp_path = Path(exp_raw)
+    if not exp_path.is_dir():
+        return pd.DataFrame()
+    spatial = process_spatial_data(exp_path, resources_only=True)
+    if not isinstance(spatial, dict):
+        return pd.DataFrame()
+    resource_df = spatial.get("resource_positions", pd.DataFrame())
+    return resource_df if isinstance(resource_df, pd.DataFrame) else pd.DataFrame()
 
 
 def analyze_resource_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
@@ -28,7 +51,20 @@ def analyze_resource_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) 
     stats = compute_resource_statistics(df)
     consumption = compute_consumption_patterns(df)
     efficiency = compute_resource_efficiency(df)
-    hotspots = compute_resource_hotspots(df)
+    resource_positions = _load_resource_positions_for_hotspots(df, ctx)
+    raw_sigma = ctx.get_config("resource_hotspot_sigma", 2.0)
+    if raw_sigma is None or (isinstance(raw_sigma, str) and not raw_sigma.strip()):
+        sigma = 2.0
+    else:
+        try:
+            sigma = float(raw_sigma)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid configuration for 'resource_hotspot_sigma': {raw_sigma!r}"
+            ) from exc
+    hotspots = compute_resource_hotspots(
+        df, spatial_resource_positions=resource_positions, hotspot_sigma=sigma
+    )
 
     # Combine results
     results = {
@@ -104,7 +140,20 @@ def analyze_hotspots(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
     """
     ctx.logger.info("Analyzing resource hotspots...")
 
-    hotspots = compute_resource_hotspots(df)
+    resource_positions = _load_resource_positions_for_hotspots(df, ctx)
+    raw_sigma = ctx.get_config("resource_hotspot_sigma", 2.0)
+    if raw_sigma is None or (isinstance(raw_sigma, str) and not raw_sigma.strip()):
+        sigma = 2.0
+    else:
+        try:
+            sigma = float(raw_sigma)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid configuration for 'resource_hotspot_sigma': {raw_sigma!r}"
+            ) from exc
+    hotspots = compute_resource_hotspots(
+        df, spatial_resource_positions=resource_positions, hotspot_sigma=sigma
+    )
 
     # Save hotspot analysis
     output_file = ctx.get_output_file("hotspot_analysis.json")
