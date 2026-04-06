@@ -153,6 +153,8 @@ def granger_resource_population_changes(
                 for t in tests.values():
                     if hasattr(t, "pvalue"):
                         pvals.append(float(t.pvalue))
+                    elif isinstance(t, (list, tuple)) and len(t) >= 2:
+                        pvals.append(float(t[1]))
         return float(min(pvals)) if pvals else float("nan")
 
     out: Dict[str, Any] = {"available": True, "maxlag": maxlag, "resource_to_population": {}, "population_to_resource": {}}

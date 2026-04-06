@@ -692,6 +692,8 @@ def compute_cooperation_competition_metrics(
         deltas = ci.diff().dropna()
         if len(deltas):
             results["combat_escalation"] = {"mean_delta_competition_intensity": float(deltas.mean())}
+        else:
+            results["combat_escalation"] = {}
     else:
         results["combat_escalation"] = {}
 
