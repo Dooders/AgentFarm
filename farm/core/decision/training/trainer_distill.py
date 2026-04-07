@@ -231,7 +231,7 @@ class DistillationTrainer:
 
     * Teacher: ``p_t = softmax(z_t / T)``
     * Student: ``p_s = log_softmax(z_s / T)``
-    * Loss:    ``KLDiv(p_s ‖ p_t) * T²``  (``log_target=False`` PyTorch form)
+    * Loss:    ``KLDiv(p_t ‖ p_s) * T²``  (``log_target=False`` PyTorch form)
 
     Parameters
     ----------
@@ -302,6 +302,11 @@ class DistillationTrainer:
             soft/hard loss components, action agreement, and probability
             similarity scores.
         """
+        if len(states) == 0:
+            raise ValueError(
+                "states must be non-empty; got an array with 0 samples."
+            )
+
         if self.config.seed is not None:
             self._set_seed(self.config.seed)
 
@@ -318,6 +323,7 @@ class DistillationTrainer:
 
         metrics = DistillationMetrics()
         best_state_dict: Optional[Dict[str, torch.Tensor]] = None
+        _best_train_loss: float = float("inf")
 
         for epoch in range(self.config.epochs):
             train_loss, soft_loss, hard_loss = self._run_epoch(train_tensor)
@@ -352,6 +358,16 @@ class DistillationTrainer:
                     mean_prob_similarity=round(prob_sim, 4),
                 )
             else:
+                # No val set – track the best training loss and its weights
+                if train_loss < _best_train_loss:
+                    _best_train_loss = train_loss
+                    metrics.best_val_loss = train_loss
+                    metrics.best_epoch = epoch
+                    best_state_dict = {
+                        k: v.cpu().clone()
+                        for k, v in self.student.state_dict().items()
+                    }
+
                 logger.info(
                     "distillation_epoch",
                     epoch=epoch,
@@ -364,13 +380,12 @@ class DistillationTrainer:
             # Apply temperature decay after each epoch
             self._current_temperature *= self.config.temp_decay
 
-        # If no val set, use the minimum train loss as a proxy for best_val_loss
+        # best_state_dict is always set inside the loop (at least one epoch runs
+        # because we validated len(states) > 0 above), so this guard is a safety net.
         if best_state_dict is None:
             best_state_dict = {
                 k: v.cpu().clone() for k, v in self.student.state_dict().items()
             }
-            metrics.best_epoch = self.config.epochs - 1
-            metrics.best_val_loss = min(metrics.train_losses) if metrics.train_losses else 0.0
 
         if checkpoint_path is not None:
             self._save_checkpoint(checkpoint_path, best_state_dict, metrics)
@@ -888,6 +903,16 @@ class StudentValidator:
         if k_values is None:
             k_values = [1, 2, 3]
 
+        if len(states) == 0:
+            raise ValueError(
+                "states must be non-empty; got an array with 0 samples."
+            )
+        invalid_k = [k for k in k_values if not isinstance(k, int) or k <= 0]
+        if invalid_k:
+            raise ValueError(
+                f"k_values must contain positive integers; got invalid values: {invalid_k}"
+            )
+
         tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
 
         with torch.no_grad():
@@ -922,9 +947,12 @@ class StudentValidator:
         student_params = sum(p.numel() for p in self.student.parameters())
         param_ratio = student_params / max(parent_params, 1)
 
-        parent_lat, student_lat = self._measure_latency(
-            states, n_latency_warmup, n_latency_repeats
-        )
+        if n_latency_repeats > 0:
+            parent_lat, student_lat = self._measure_latency(
+                states, n_latency_warmup, n_latency_repeats
+            )
+        else:
+            parent_lat, student_lat = 0.0, 0.0
         latency_ratio = student_lat / max(parent_lat, 1e-9)
 
         return ValidationReport(
