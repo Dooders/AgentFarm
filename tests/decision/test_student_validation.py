@@ -311,6 +311,43 @@ class TestStudentValidatorMetrics:
             assert 0.0 <= v <= 1.0
 
 
+class TestStudentValidatorRobustnessInputValidation:
+    """Robustness slice and states shape validation."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        self.validator = StudentValidator(_make_parent(), _make_student())
+        self.states = _make_states(20)
+
+    def test_states_must_be_2d(self):
+        with pytest.raises(ValueError, match="2D array"):
+            self.validator.validate(np.zeros(INPUT_DIM, dtype=np.float32))
+
+    def test_empty_robustness_slice_raises(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            self.validator.validate(
+                self.states,
+                robustness_slices={"empty": np.empty((0, INPUT_DIM), dtype=np.float32)},
+            )
+
+    def test_robustness_slice_wrong_input_dim_raises(self):
+        bad = np.zeros((5, INPUT_DIM + 1), dtype=np.float32)
+        with pytest.raises(ValueError, match=f"expected {INPUT_DIM}"):
+            self.validator.validate(self.states, robustness_slices={"bad": bad})
+
+    def test_robustness_slice_not_2d_raises(self):
+        with pytest.raises(ValueError, match="2D"):
+            self.validator.validate(
+                self.states,
+                robustness_slices={"flat": np.zeros(INPUT_DIM, dtype=np.float32)},
+            )
+
+    def test_to_dict_strict_json_with_robustness_slices(self):
+        slices = {"edge": _make_states(10, seed=7)}
+        report = self.validator.validate(self.states, robustness_slices=slices)
+        json.dumps(report.to_dict(), allow_nan=False)
+
+
 # ---------------------------------------------------------------------------
 # StudentValidator: identical-network golden cases
 # ---------------------------------------------------------------------------

@@ -884,9 +884,11 @@ class StudentValidator:
             NumPy array of shape ``(N, input_dim)`` – held-out evaluation
             states that were not used during distillation training.
         robustness_slices:
-            Optional mapping of slice name → state array.  Each slice is
-            evaluated independently and its top-1 action agreement is stored
-            in :attr:`ValidationReport.robustness_slice_agreements`.
+            Optional mapping of slice name → state array.  Each slice must be
+            a non-empty 2D array with shape ``(N, input_dim)`` matching
+            ``states``; empty or mis-shaped slices raise :class:`ValueError`.
+            Results are stored in
+            :attr:`ValidationReport.robustness_slice_agreements`.
         k_values:
             Values of *k* for top-k action agreement.  Defaults to
             ``[1, 2, 3]``.
@@ -908,13 +910,38 @@ class StudentValidator:
             raise ValueError(
                 "states must be non-empty; got an array with 0 samples."
             )
+        states_arr = np.asarray(states)
+        if states_arr.ndim != 2:
+            raise ValueError(
+                "states must be a 2D array with shape (N, input_dim); "
+                f"got shape {states_arr.shape!r}"
+            )
+        input_dim = int(states_arr.shape[1])
         invalid_k = [k for k in k_values if not isinstance(k, (int, np.integer)) or k <= 0]
         if invalid_k:
             raise ValueError(
                 f"k_values must contain positive integers; got invalid values: {invalid_k}"
             )
 
-        tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
+        if robustness_slices:
+            for slice_name, slice_states in robustness_slices.items():
+                arr = np.asarray(slice_states)
+                if arr.ndim != 2:
+                    raise ValueError(
+                        f"robustness slice {slice_name!r} must be 2D with shape "
+                        f"(N, {input_dim}); got shape {arr.shape!r}"
+                    )
+                if arr.shape[1] != input_dim:
+                    raise ValueError(
+                        f"robustness slice {slice_name!r} has input_dim {arr.shape[1]}, "
+                        f"expected {input_dim} to match states"
+                    )
+                if arr.shape[0] == 0:
+                    raise ValueError(
+                        f"robustness slice {slice_name!r} must be non-empty; got 0 rows."
+                    )
+
+        tensor = torch.tensor(states_arr, dtype=torch.float32, device=self.device)
 
         with torch.no_grad():
             parent_logits, student_logits = self._get_logits(tensor)
@@ -1031,16 +1058,23 @@ class StudentValidator:
         """
         single = torch.tensor(states[:1], dtype=torch.float32, device=self.device)
 
+        def _sync_cuda_if_needed() -> None:
+            if self.device.type == "cuda":
+                torch.cuda.synchronize(self.device)
+
         def _time_model(model: nn.Module) -> float:
             model.eval()
             with torch.no_grad():
                 for _ in range(n_warmup):
                     model(single)
+            _sync_cuda_if_needed()
             times: List[float] = []
             with torch.no_grad():
                 for _ in range(n_repeats):
+                    _sync_cuda_if_needed()
                     t0 = time.perf_counter()
                     model(single)
+                    _sync_cuda_if_needed()
                     times.append((time.perf_counter() - t0) * 1_000.0)
             return float(np.median(times))
 
