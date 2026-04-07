@@ -1,0 +1,41 @@
+{
+  "action_agreement": 0.9394999742507935,
+  "top_k_agreements": {
+    "1": 0.9394999742507935,
+    "2": 0.9959999918937683,
+    "3": 1.0
+  },
+  "kl_divergence": 0.006049681920558214,
+  "mse": 0.548809826374054,
+  "mae": 0.5866672992706299,
+  "mean_cosine_similarity": 0.7811481356620789,
+  "parent_param_count": 5252,
+  "student_param_count": 1604,
+  "param_ratio": 0.3054074638233054,
+  "parent_inference_ms": 0.04089949993613118,
+  "student_inference_ms": 0.072968500035131,
+  "latency_ratio": 1.7840927187148719,
+  "robustness_slice_agreements": {
+    "low_resource": 0.843999981880188,
+    "high_threat": 0.9365000128746033,
+    "sparse_obs": 0.8855000138282776
+  },
+  "passed": false,
+  "thresholds": {
+    "min_action_agreement": 0.85,
+    "max_kl_divergence": 0.5,
+    "max_mse": 2.0,
+    "min_cosine_similarity": 0.8,
+    "max_param_ratio": 0.9
+  },
+  "pair": "A",
+  "checkpoints": {
+    "parent": "checkpoints/distillation_demo/parent_A.pt",
+    "student": "checkpoints/distillation_demo/student_A.pt"
+  },
+  "states": {
+    "count": 4000,
+    "input_dim": 8,
+    "source": "checkpoints/distillation_demo/states.npy"
+  }
+}

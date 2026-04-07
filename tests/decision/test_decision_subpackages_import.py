@@ -14,7 +14,16 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
 
         self.assertEqual(
             set(training_pkg.__all__),
-            {"AlgorithmTrainer", "ExperienceCollector"},
+            {
+                "AlgorithmTrainer",
+                "DistillationConfig",
+                "DistillationMetrics",
+                "DistillationTrainer",
+                "ExperienceCollector",
+                "StudentValidator",
+                "ValidationReport",
+                "ValidationThresholds",
+            },
         )
 
 

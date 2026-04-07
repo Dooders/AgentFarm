@@ -13,7 +13,7 @@ import torch
 
 np.random.seed(42)  # For reproducibility in tests
 
-from farm.core.decision.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.core.decision.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, StudentQNetwork
 
 
 class TestBaseDQNConfig(unittest.TestCase):
@@ -108,6 +108,79 @@ class TestBaseQNetwork(unittest.TestCase):
                 self.assertTrue(
                     torch.all(module.bias == 0)
                 )  # Bias should be initialized to 0
+
+
+class TestStudentQNetwork(unittest.TestCase):
+    """Test cases for StudentQNetwork class."""
+
+    def test_default_hidden_size_is_half_of_parent(self):
+        """Student hidden size should be half of parent_hidden_size (default 64 -> 32)."""
+        network = StudentQNetwork(input_dim=8, output_dim=4)
+        # First linear layer: input_dim -> student_hidden (32)
+        first_linear = network.network[0]
+        self.assertIsInstance(first_linear, torch.nn.Linear)
+        self.assertEqual(first_linear.out_features, 32)
+
+    def test_custom_parent_hidden_size(self):
+        """Student uses max(16, parent_hidden_size // 2) as hidden size."""
+        network = StudentQNetwork(input_dim=8, output_dim=4, parent_hidden_size=128)
+        first_linear = network.network[0]
+        self.assertEqual(first_linear.out_features, 64)
+
+    def test_floor_applied_for_small_parent(self):
+        """Student hidden size has a floor of 16 even for very small parents."""
+        network = StudentQNetwork(input_dim=8, output_dim=4, parent_hidden_size=8)
+        first_linear = network.network[0]
+        self.assertEqual(first_linear.out_features, 16)
+
+    def test_network_layer_count(self):
+        """StudentQNetwork should have 9 layers (same depth as BaseQNetwork)."""
+        network = StudentQNetwork(input_dim=8, output_dim=4)
+        self.assertEqual(len(network.network), 9)
+
+    def test_forward_pass_batch(self):
+        """Forward pass should handle batched input correctly."""
+        network = StudentQNetwork(input_dim=8, output_dim=4)
+        x = torch.randn(2, 8)
+        output = network(x)
+        self.assertEqual(output.shape, (2, 4))
+
+    def test_forward_pass_single_sample(self):
+        """Forward pass should handle single (unbatched) input correctly."""
+        network = StudentQNetwork(input_dim=8, output_dim=4)
+        x = torch.randn(8)
+        output = network(x)
+        self.assertEqual(output.shape, (4,))
+
+    def test_weight_initialization(self):
+        """Weights should be Xavier-initialised; biases should be zero."""
+        network = StudentQNetwork(input_dim=8, output_dim=4)
+        for module in network.modules():
+            if isinstance(module, torch.nn.Linear):
+                self.assertFalse(torch.all(module.weight == 0))
+                self.assertTrue(torch.all(module.bias == 0))
+
+    def test_input_output_dims_match_parent(self):
+        """Student input/output dims must equal the parent's for action compatibility."""
+        input_dim, output_dim = 10, 6
+        parent = BaseQNetwork(input_dim=input_dim, output_dim=output_dim, hidden_size=64)
+        student = StudentQNetwork(input_dim=input_dim, output_dim=output_dim, parent_hidden_size=64)
+
+        x = torch.randn(3, input_dim)
+        parent_out = parent(x)
+        student_out = student(x)
+
+        self.assertEqual(parent_out.shape, student_out.shape)
+
+    def test_student_smaller_than_parent(self):
+        """Student network should have fewer parameters than its parent."""
+        parent = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
+        student = StudentQNetwork(input_dim=8, output_dim=4, parent_hidden_size=64)
+
+        parent_params = sum(p.numel() for p in parent.parameters())
+        student_params = sum(p.numel() for p in student.parameters())
+
+        self.assertLess(student_params, parent_params)
 
 
 class TestBaseDQNModule(unittest.TestCase):
@@ -248,6 +321,25 @@ class TestBaseDQNModule(unittest.TestCase):
         # After the above assertions, loss is guaranteed to be a float
         assert loss is not None  # type: ignore[unreachable]
         self.assertGreater(loss, 0.0)
+
+    def test_train_restores_q_network_training_mode(self):
+        """TD update runs q_network in eval; prior train/eval state is restored."""
+        module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
+        for i in range(4):
+            state = torch.randn(8).to(module.device)
+            action = i % 4
+            reward = 1.0
+            next_state = torch.randn(8).to(module.device)
+            done = False
+            module.store_experience(state, action, reward, next_state, done)
+
+        module.q_network.train(False)
+        module.train(list(module.memory))
+        self.assertFalse(module.q_network.training)
+
+        module.q_network.train(True)
+        module.train(list(module.memory))
+        self.assertTrue(module.q_network.training)
 
     def test_select_action_exploration(self):
         """Test action selection during exploration."""
