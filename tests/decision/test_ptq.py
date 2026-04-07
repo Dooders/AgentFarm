@@ -2,8 +2,8 @@
 
 Covers:
 - QuantizationConfig validation (modes, dtypes, backends).
-- PostTrainingQuantizer: dynamic quantisation, forward parity, file round-trip.
-- Static quantisation with calibration states.
+- PostTrainingQuantizer: dynamic quantization, forward parity, file round-trip.
+- Static quantization with calibration states.
 - compare_outputs utility.
 - load_quantized_checkpoint helpers (error handling, metadata).
 """
@@ -95,7 +95,7 @@ class TestQuantizationConfig:
 
 
 # ---------------------------------------------------------------------------
-# Dynamic quantisation
+# Dynamic quantization
 # ---------------------------------------------------------------------------
 
 
@@ -128,7 +128,7 @@ class TestDynamicQuantization:
         assert result.linear_layers_quantized == n_linear
 
     def test_forward_parity_action_agreement(self):
-        """Quantised model should agree with float on most actions."""
+        """Quantized model should agree with float on most actions."""
         student = _make_student(seed=1)
         student.eval()
         states = _make_states(n=500, seed=1)
@@ -137,13 +137,13 @@ class TestDynamicQuantization:
         q_model, _ = quantizer.quantize(student)
 
         cmp = compare_outputs(student, q_model, states)
-        # Dynamic quantisation is very close to float; expect ≥ 90% agreement
+        # Dynamic quantization is very close to float; expect ≥ 90% agreement
         assert cmp["action_agreement"] >= 0.90, (
             f"Action agreement too low: {cmp['action_agreement']:.4f}"
         )
 
     def test_forward_parity_q_error(self):
-        """Mean absolute Q-error should be small after dynamic quantisation."""
+        """Mean absolute Q-error should be small after dynamic quantization."""
         student = _make_student(seed=2)
         student.eval()
         states = _make_states(n=500, seed=2)
@@ -156,18 +156,18 @@ class TestDynamicQuantization:
         assert cmp["mean_q_error"] < 0.5, f"Mean Q-error too high: {cmp['mean_q_error']:.4f}"
 
     def test_float_model_unchanged(self):
-        """Dynamic quantisation must not mutate the original model's weights."""
+        """Dynamic quantization must not mutate the original model's weights."""
         student = _make_student(seed=3)
         orig_weights = {k: v.clone() for k, v in student.named_parameters()}
         quantizer = PostTrainingQuantizer(QuantizationConfig(mode="dynamic"))
         quantizer.quantize(student)
         for name, param in student.named_parameters():
             assert torch.allclose(param, orig_weights[name]), (
-                f"Parameter '{name}' was mutated by dynamic quantisation"
+                f"Parameter '{name}' was mutated by dynamic quantization"
             )
 
     def test_base_qnetwork_dynamic(self):
-        """BaseQNetwork is also compatible with dynamic quantisation."""
+        """BaseQNetwork is also compatible with dynamic quantization."""
         model = BaseQNetwork(input_dim=INPUT_DIM, output_dim=OUTPUT_DIM, hidden_size=PARENT_HIDDEN)
         model.eval()
         states = _make_states(n=100)
@@ -178,7 +178,7 @@ class TestDynamicQuantization:
 
 
 # ---------------------------------------------------------------------------
-# Static quantisation
+# Static quantization
 # ---------------------------------------------------------------------------
 
 
@@ -196,7 +196,7 @@ class TestStaticQuantization:
             quantizer.quantize(student, calibration_states=np.array([]).astype("float32"))
 
     def test_static_quantization_runs(self):
-        """Static quantisation should run without error on a small model."""
+        """Static quantization should run without error on a small model."""
         student = _make_student()
         states = _make_states(n=200)
         cfg = QuantizationConfig(
@@ -212,7 +212,7 @@ class TestStaticQuantization:
         assert result.calibration_samples > 0
 
     def test_static_forward_parity(self):
-        """Static quantised model should have reasonable action agreement."""
+        """Static quantized model should have reasonable action agreement."""
         student = _make_student(seed=4)
         states = _make_states(n=300, seed=4)
         cfg = QuantizationConfig(
@@ -224,7 +224,7 @@ class TestStaticQuantization:
         quantizer = PostTrainingQuantizer(cfg)
         q_model, _ = quantizer.quantize(student, calibration_states=states)
         cmp = compare_outputs(student, q_model, states)
-        # Static can be less accurate than dynamic due to activation quantisation
+        # Static can be less accurate than dynamic due to activation quantization
         assert cmp["action_agreement"] >= 0.70, (
             f"Static action agreement too low: {cmp['action_agreement']:.4f}"
         )
@@ -237,7 +237,7 @@ class TestStaticQuantization:
 
 class TestCheckpointRoundTrip:
     def test_save_and_load_dynamic(self):
-        """A dynamic-quantised checkpoint can be saved and reloaded."""
+        """A dynamic-quantized checkpoint can be saved and reloaded."""
         student = _make_student(seed=5)
         states = _make_states(n=100, seed=5)
         quantizer = PostTrainingQuantizer(QuantizationConfig(mode="dynamic"))
@@ -253,7 +253,7 @@ class TestCheckpointRoundTrip:
             q_loaded, meta = load_quantized_checkpoint(path)
             assert isinstance(q_loaded, nn.Module)
 
-            # Outputs must match between original quantised and reloaded model
+            # Outputs must match between original quantized and reloaded model
             q_loaded.eval()
             cmp = compare_outputs(q_model, q_loaded, states)
             assert cmp["action_agreement"] == pytest.approx(1.0), (
@@ -261,7 +261,7 @@ class TestCheckpointRoundTrip:
             )
 
     def test_json_metadata_content(self):
-        """JSON metadata must contain quantisation config and arch_kwargs."""
+        """JSON metadata must contain quantization config and arch_kwargs."""
         student = _make_student()
         quantizer = PostTrainingQuantizer(QuantizationConfig(mode="dynamic"))
         q_model, result = quantizer.quantize(student)

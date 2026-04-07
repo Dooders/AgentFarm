@@ -6,12 +6,12 @@ It supports two modes:
 
 * **Dynamic quantization** (default, weight-only):  Converts ``nn.Linear``
   weight tensors to ``int8`` representation.  Activations remain in ``float32``
-  and are dequantised on-the-fly before each matmul.  No calibration data
+  and are dequantized on-the-fly before each matmul.  No calibration data
   required.
 
 * **Static quantization** (activation-aware):  Inserts ``QuantStub`` /
   ``DeQuantStub`` observers, runs the model over a calibration set to collect
-  activation statistics, then converts to a fully-quantised ``int8`` graph.
+  activation statistics, then converts to a fully-quantized ``int8`` graph.
   Calibration uses the same state distribution as the distillation pipeline.
 
 Architecture compatibility
@@ -26,25 +26,25 @@ layout::
 ``LayerNorm`` is **not** fuseable with ``Linear`` under the standard
 ``fbgemm``/``qnnpack`` backends; it therefore remains in ``float32`` in static
 mode.  ``Dropout`` is a no-op in ``eval()`` mode and is excluded from
-quantisation.
+quantization.
 
 PyTorch version constraints
 ---------------------------
 * Requires **PyTorch ≥ 2.0**.
-* Dynamic quantisation (``torch.ao.quantization.quantize_dynamic``) works on
+* Dynamic quantization (``torch.ao.quantization.quantize_dynamic``) works on
   both CPU and CUDA host; int8 kernel dispatch is **CPU-only** (CUDA keeps
   float32 with weight packing).
-* Static quantisation is CPU-only; use ``backend="qnnpack"`` on ARM or
+* Static quantization is CPU-only; use ``backend="qnnpack"`` on ARM or
   ``backend="fbgemm"`` on x86.
 
 Save / load format
 ------------------
-Quantised models are persisted as full model pickles (``torch.save(model,
-path)``) because ``PackedParams`` and other internal quantised tensor types
+Quantized models are persisted as full model pickles (``torch.save(model,
+path)``) because ``PackedParams`` and other internal quantized tensor types
 cannot be cleanly round-tripped via a plain state-dict.  Loading therefore
 requires ``weights_only=False``; this is expected and documented.
 
-A companion JSON metadata file (``<path>.json``) stores the quantisation
+A companion JSON metadata file (``<path>.json``) stores the quantization
 config and architecture parameters needed to verify the checkpoint and
 re-build a float reference model for comparison.
 
@@ -115,17 +115,17 @@ class QuantizationConfig:
     Attributes
     ----------
     mode:
-        ``"dynamic"`` (default) performs weight-only int8 quantisation without
-        calibration.  ``"static"`` enables activation quantisation and requires
+        ``"dynamic"`` (default) performs weight-only int8 quantization without
+        calibration.  ``"static"`` enables activation quantization and requires
         *calibration_states*.
     dtype:
         Target weight dtype.  ``"qint8"`` (default) maps to
         ``torch.qint8``; ``"quint8"`` maps to ``torch.quint8`` (unsigned,
         useful for ReLU-dominated paths).
     backend:
-        Quantisation backend.  ``"qnnpack"`` is recommended for ARM / mobile;
-        ``"fbgemm"`` for x86.  Dynamic quantisation ignores this setting but
-        static quantisation uses it to set the global ``qconfig``.
+        Quantization backend.  ``"qnnpack"`` is recommended for ARM / mobile;
+        ``"fbgemm"`` for x86.  Dynamic quantization ignores this setting but
+        static quantization uses it to set the global ``qconfig``.
     calibration_batches:
         Number of mini-batches to run through the model in static mode.
         Ignored in dynamic mode.
@@ -158,22 +158,22 @@ class QuantizationConfig:
 
 
 # ---------------------------------------------------------------------------
-# Internal: static-quantisation wrapper
+# Internal: static-quantization wrapper
 # ---------------------------------------------------------------------------
 
 
 class _QuantWrapper(nn.Module):
     """Wrap an arbitrary module with QuantStub / DeQuantStub.
 
-    This allows static-quantisation observers to track activation ranges
+    This allows static-quantization observers to track activation ranges
     across the full forward pass without modifying the inner module's code.
 
     Attributes
     ----------
     quant:
-        ``QuantStub`` that dequantises the float input to the quantised domain.
+        ``QuantStub`` that dequantizes the float input to the quantized domain.
     dequant:
-        ``DeQuantStub`` that dequantises the output back to float.
+        ``DeQuantStub`` that dequantizes the output back to float.
     model:
         The wrapped (inner) module.
     """
@@ -192,18 +192,18 @@ class _QuantWrapper(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# Quantisation report / metadata
+# Quantization report / metadata
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class QuantizationResult:
-    """Summary of a completed post-training quantisation run.
+    """Summary of a completed post-training quantization run.
 
     Attributes
     ----------
     mode:
-        The quantisation mode used (``"dynamic"`` or ``"static"``).
+        The quantization mode used (``"dynamic"`` or ``"static"``).
     dtype:
         The dtype string (``"qint8"`` or ``"quint8"``).
     backend:
@@ -211,13 +211,13 @@ class QuantizationResult:
     calibration_samples:
         Total number of calibration samples used (0 for dynamic mode).
     elapsed_seconds:
-        Wall-clock time (seconds) taken by the quantisation step.
+        Wall-clock time (seconds) taken by the quantization step.
     linear_layers_quantized:
         Number of ``nn.Linear`` layers that were converted.
     float_param_bytes:
-        Estimated byte footprint of float32 weights before quantisation.
+        Estimated byte footprint of float32 weights before quantization.
     quantized_param_bytes:
-        Estimated byte footprint of int8 weights after quantisation (for
+        Estimated byte footprint of int8 weights after quantization (for
         linear layers); note that biases remain in float32.
     notes:
         Free-form notes (e.g. known limitations or fallback behaviour).
@@ -247,12 +247,12 @@ class QuantizationResult:
 
 
 class PostTrainingQuantizer:
-    """Apply post-training quantisation to a float student Q-network.
+    """Apply post-training quantization to a float student Q-network.
 
     Parameters
     ----------
     config:
-        :class:`QuantizationConfig` controlling the quantisation strategy.
+        :class:`QuantizationConfig` controlling the quantization strategy.
 
     Usage
     -----
@@ -291,7 +291,7 @@ class PostTrainingQuantizer:
         Returns
         -------
         quantized_model:
-            The quantised module, ready for ``eval()`` inference.
+            The quantized module, ready for ``eval()`` inference.
         result:
             :class:`QuantizationResult` with summary statistics.
 
@@ -318,7 +318,7 @@ class PostTrainingQuantizer:
         else:
             if calibration_states is None or len(calibration_states) == 0:
                 raise ValueError(
-                    "calibration_states must be provided and non-empty for static quantisation"
+                    "calibration_states must be provided and non-empty for static quantization"
                 )
             q_model, cal_samples = self._static(model, calibration_states)
         elapsed = time.perf_counter() - t0
@@ -350,10 +350,10 @@ class PostTrainingQuantizer:
         result: QuantizationResult,
         arch_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Persist a quantised model and its metadata to *path*.
+        """Persist a quantized model and its metadata to *path*.
 
         The model is saved as a full pickle (``torch.save(model, path)``);
-        this is required because quantised internal tensor types
+        this is required because quantized internal tensor types
         (``PackedParams``) cannot be round-tripped via a plain state-dict.
 
         A companion JSON file at ``<path>.json`` stores the
@@ -363,7 +363,7 @@ class PostTrainingQuantizer:
         Parameters
         ----------
         quantized_model:
-            The quantised ``nn.Module`` returned by :meth:`quantize`.
+            The quantized ``nn.Module`` returned by :meth:`quantize`.
         path:
             Destination file path (e.g. ``"student_A_int8.pt"``).
         result:
@@ -389,7 +389,7 @@ class PostTrainingQuantizer:
     # ------------------------------------------------------------------
 
     def _dynamic(self, model: nn.Module) -> Tuple[nn.Module, int]:
-        """Apply dynamic (weight-only) quantisation."""
+        """Apply dynamic (weight-only) quantization."""
         q_model = tq.quantize_dynamic(
             model,
             {nn.Linear},
@@ -400,7 +400,7 @@ class PostTrainingQuantizer:
     def _static(
         self, model: nn.Module, calibration_states: np.ndarray
     ) -> Tuple[nn.Module, int]:
-        """Apply static (activation-aware) quantisation with calibration."""
+        """Apply static (activation-aware) quantization with calibration."""
         import copy
 
         torch.backends.quantized.engine = self.config.backend
@@ -431,20 +431,20 @@ class PostTrainingQuantizer:
             "LayerNorm layers are not fused and remain in float32 in both dynamic and static modes."
         )
         notes.append(
-            "Dropout layers are no-ops in eval() mode and are not quantised."
+            "Dropout layers are no-ops in eval() mode and are not quantized."
         )
         if self.config.mode == "dynamic":
             notes.append(
-                "Dynamic quantisation: weights are int8; activations are computed in float32 "
-                "(dequantised on-the-fly). No calibration data required."
+                "Dynamic quantization: weights are int8; activations are computed in float32 "
+                "(dequantized on-the-fly). No calibration data required."
             )
         else:
             notes.append(
-                "Static quantisation: both weights and activations are quantised. "
-                "LayerNorm outputs may be requantised depending on backend support."
+                "Static quantization: both weights and activations are quantized. "
+                "LayerNorm outputs may be requantized depending on backend support."
             )
         notes.append(
-            "int8 kernel acceleration is CPU-only; CUDA paths dequantise weights before matmul."
+            "int8 kernel acceleration is CPU-only; CUDA paths dequantize weights before matmul."
         )
         return notes
 
@@ -458,11 +458,11 @@ def load_quantized_checkpoint(
     path: str,
     device: Optional[torch.device] = None,
 ) -> Tuple[nn.Module, Dict[str, Any]]:
-    """Load a quantised model checkpoint saved by :meth:`PostTrainingQuantizer.save_checkpoint`.
+    """Load a quantized model checkpoint saved by :meth:`PostTrainingQuantizer.save_checkpoint`.
 
     .. warning::
         This function calls ``torch.load(path, weights_only=False)`` because
-        quantised ``PackedParams`` tensors cannot be loaded with
+        quantized ``PackedParams`` tensors cannot be loaded with
         ``weights_only=True``.  Only load checkpoints from trusted sources.
 
     Parameters
@@ -475,7 +475,7 @@ def load_quantized_checkpoint(
     Returns
     -------
     model:
-        The deserialised quantised ``nn.Module``, set to ``eval()`` mode.
+        The deserialised quantized ``nn.Module``, set to ``eval()`` mode.
     metadata:
         Dict parsed from the companion ``<path>.json`` file, or an empty
         dict if the JSON file is absent.
@@ -486,7 +486,7 @@ def load_quantized_checkpoint(
         If *path* does not exist.
     """
     if not os.path.isfile(path):
-        raise FileNotFoundError(f"Quantised checkpoint not found: {path}")
+        raise FileNotFoundError(f"Quantized checkpoint not found: {path}")
 
     if device is None:
         device = torch.device("cpu")
@@ -514,14 +514,14 @@ def compare_outputs(
     states: np.ndarray,
     batch_size: int = 256,
 ) -> Dict[str, float]:
-    """Compare Q-value outputs of a float model vs a quantised model.
+    """Compare Q-value outputs of a float model vs a quantized model.
 
     Parameters
     ----------
     float_model:
         Float-precision reference model (e.g. ``StudentQNetwork``).
     quantized_model:
-        Quantised counterpart produced by :class:`PostTrainingQuantizer`.
+        Quantized counterpart produced by :class:`PostTrainingQuantizer`.
     states:
         Numpy array of shape ``(N, input_dim)`` with dtype ``float32``.
     batch_size:
@@ -537,7 +537,7 @@ def compare_outputs(
     * ``"max_q_error"`` – maximum absolute difference over all (state, action)
       pairs.
     * ``"mean_cosine_similarity"`` – mean cosine similarity between float and
-      quantised Q-value vectors.
+      quantized Q-value vectors.
     * ``"n_states"`` – total number of states evaluated.
     """
     float_model.eval()

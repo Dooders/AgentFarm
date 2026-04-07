@@ -3,8 +3,8 @@
 
 This script reads ``student_<pair>.pt`` checkpoints produced by
 ``scripts/run_distillation.py`` and writes ``student_<pair>_int8.pt``
-quantised counterparts (plus companion JSON metadata files) using
-post-training quantisation (PTQ).
+quantized counterparts (plus companion JSON metadata files) using
+post-training quantization (PTQ).
 
 Usage
 -----
@@ -21,7 +21,7 @@ Quantise only student A::
         --student-a-ckpt checkpoints/distillation/student_A.pt \\
         --output-dir checkpoints/quantized
 
-Static quantisation with calibration data::
+Static quantization with calibration data::
 
     python scripts/quantize_distilled.py \\
         --mode static \\
@@ -43,7 +43,7 @@ shape ``(N, input_dim)``) or synthesises ``--n-states`` random normal states
 with ``--seed`` for calibration.  Batch sizes and counts are controlled by
 ``--calibration-batches`` and ``--calibration-batch-size``.
 
-Quantisation hyperparameters
+Quantization hyperparameters
 -----------------------------
 ======================  ============================================
 ``--mode``              ``dynamic`` (default) or ``static``
@@ -57,7 +57,7 @@ Output
 ------
 For each processed pair the script writes:
 
-* ``<output_dir>/student_<pair>_int8.pt``  – quantised model pickle
+* ``<output_dir>/student_<pair>_int8.pt``  – quantized model pickle
 * ``<output_dir>/student_<pair>_int8.pt.json``  – JSON metadata
 
 A final comparison report (action agreement, Q-error) is printed to stdout
@@ -171,12 +171,12 @@ def _run_pair(
         "parent_hidden_size": parent_hidden,
     }
     quantizer.save_checkpoint(q_model, out_path, result, arch_kwargs=arch_kwargs)
-    print(f"  Quantised checkpoint: {out_path}")
+    print(f"  Quantized checkpoint: {out_path}")
     print(f"  Metadata JSON:        {out_path}.json")
 
-    # Report quantisation stats
-    print(f"\n  --- Quantisation summary for student_{pair} ---")
-    print(f"  Linear layers quantised : {result.linear_layers_quantized}")
+    # Report quantization stats
+    print(f"\n  --- Quantization summary for student_{pair} ---")
+    print(f"  Linear layers quantized : {result.linear_layers_quantized}")
     print(
         f"  Float weight bytes      : {result.float_param_bytes:,}"
         f"  →  int8 weight bytes: {result.quantized_param_bytes:,}"
@@ -185,7 +185,7 @@ def _run_pair(
     print(f"  Elapsed (s)             : {result.elapsed_seconds:.3f}")
 
     # Compare outputs
-    print("\n  Comparing float vs quantised outputs …")
+    print("\n  Comparing float vs quantized outputs …")
     cmp = compare_outputs(float_model, q_model, calibration_states)
     print(f"  Action agreement        : {cmp['action_agreement']*100:.2f}%")
     print(f"  Mean Q-error            : {cmp['mean_q_error']:.6f}")
@@ -220,7 +220,7 @@ def _run_pair(
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=(
-            "Post-training quantisation of distilled student checkpoints. "
+            "Post-training quantization of distilled student checkpoints. "
             "Reads student_<pair>.pt, writes student_<pair>_int8.pt."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -246,19 +246,19 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--n-states", type=int, default=1000, help="Synthetic states if no file.")
     p.add_argument("--seed", type=int, default=42, help="RNG seed for synthetic states.")
 
-    # Quantisation hyperparameters
+    # Quantization hyperparameters
     p.add_argument(
         "--mode",
         choices=["dynamic", "static"],
         default="dynamic",
-        help="Quantisation mode: 'dynamic' (weight-only, no calibration) or 'static' (activation-aware).",
+        help="Quantization mode: 'dynamic' (weight-only, no calibration) or 'static' (activation-aware).",
     )
     p.add_argument("--dtype", choices=["qint8", "quint8"], default="qint8")
     p.add_argument(
         "--backend",
         choices=["qnnpack", "fbgemm", "none"],
         default="qnnpack",
-        help="Quantisation backend (static mode only).",
+        help="Quantization backend (static mode only).",
     )
     p.add_argument("--calibration-batches", type=int, default=10)
     p.add_argument("--calibration-batch-size", type=int, default=64)
@@ -267,7 +267,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--output-dir",
         default="checkpoints/quantized",
-        help="Directory to write quantised checkpoints and reports.",
+        help="Directory to write quantized checkpoints and reports.",
     )
     return p.parse_args()
 
@@ -312,7 +312,7 @@ def main() -> None:
             output_dir=args.output_dir,
         )
 
-    print("\nQuantisation complete.")
+    print("\nQuantization complete.")
 
 
 if __name__ == "__main__":

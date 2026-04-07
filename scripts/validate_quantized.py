@@ -1,17 +1,17 @@
 #!/usr/bin/env python
-"""Validate quantised student checkpoints against float references.
+"""Validate quantized student checkpoints against float references.
 
-This script compares the outputs of quantised student models
+This script compares the outputs of quantized student models
 (produced by ``scripts/quantize_distilled.py``) against their float
 counterparts, reporting Q-value error, action agreement, and cosine
 similarity.  It mirrors the structure of ``scripts/validate_distillation.py``
-and is intended to be run after the quantisation step.
+and is intended to be run after the quantization step.
 
 Usage
 -----
 ::
 
-    # Validate both quantised students against their float checkpoints
+    # Validate both quantized students against their float checkpoints
     python scripts/validate_quantized.py \\
         --float-dir   checkpoints/distillation \\
         --quant-dir   checkpoints/quantized \\
@@ -118,7 +118,7 @@ def _resolve(pair: str, explicit: str, directory: str, template: str) -> str:
 def _print_report(pair: str, cmp: dict, meta: dict) -> None:
     sep = "=" * 72
     print(f"\n{sep}")
-    print(f"Quantisation validation report: student_{pair}")
+    print(f"Quantization validation report: student_{pair}")
     print(sep)
     quant_meta = meta.get("quantization", {})
     print(f"Mode            : {quant_meta.get('mode', 'unknown')}")
@@ -138,7 +138,7 @@ def _print_report(pair: str, cmp: dict, meta: dict) -> None:
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Validate quantised student checkpoints against float references.",
+        description="Validate quantized student checkpoints against float references.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("--pair", choices=["A", "B", "both"], default="both")
@@ -148,7 +148,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--float-a-ckpt", default="")
     p.add_argument("--float-b-ckpt", default="")
 
-    # Quantised checkpoints
+    # Quantized checkpoints
     p.add_argument("--quant-dir", default="", help="Dir containing student_A_int8.pt / student_B_int8.pt.")
     p.add_argument("--quant-a-ckpt", default="")
     p.add_argument("--quant-b-ckpt", default="")
@@ -192,7 +192,7 @@ def main() -> None:
         if not float_ckpt:
             raise ValueError(f"Missing float checkpoint path for pair {pair}.")
         if not quant_ckpt:
-            raise ValueError(f"Missing quantised checkpoint path for pair {pair}.")
+            raise ValueError(f"Missing quantized checkpoint path for pair {pair}.")
 
         float_model = _load_float_student(
             float_ckpt, args.input_dim, args.output_dim, args.parent_hidden
