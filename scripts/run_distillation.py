@@ -68,7 +68,11 @@ def _load_network(path: str, input_dim: int, output_dim: int, hidden_size: int) 
     """Load a ``BaseQNetwork`` from a state-dict checkpoint or return random weights."""
     net = BaseQNetwork(input_dim=input_dim, output_dim=output_dim, hidden_size=hidden_size)
     if path and os.path.isfile(path):
-        state = torch.load(path, map_location="cpu")
+        state = torch.load(path, map_location="cpu", weights_only=True)
+        if not isinstance(state, dict):
+            raise ValueError(
+                f"Checkpoint at '{path}' does not contain a state dict (got {type(state).__name__})."
+            )
         net.load_state_dict(state)
         print(f"  Loaded parent weights from: {path}")
     else:

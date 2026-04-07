@@ -122,6 +122,18 @@ class TestDistillationConfig:
         cfg = DistillationConfig(loss_fn="mse")
         assert cfg.loss_fn == "mse"
 
+    def test_invalid_max_grad_norm_zero(self):
+        with pytest.raises(ValueError, match="max_grad_norm"):
+            DistillationConfig(max_grad_norm=0.0)
+
+    def test_invalid_max_grad_norm_negative(self):
+        with pytest.raises(ValueError, match="max_grad_norm"):
+            DistillationConfig(max_grad_norm=-1.0)
+
+    def test_none_max_grad_norm_is_valid(self):
+        cfg = DistillationConfig(max_grad_norm=None)
+        assert cfg.max_grad_norm is None
+
 
 # ---------------------------------------------------------------------------
 # DistillationTrainer: initialization
@@ -189,6 +201,13 @@ class TestDistillationTrainerTrain:
         trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
         metrics = trainer.train(_make_states())
         assert metrics.val_losses == []
+
+    def test_best_val_loss_is_finite_when_no_val_set(self):
+        """When val_fraction==0, best_val_loss must be finite (not inf)."""
+        cfg = _default_cfg(val_fraction=0.0)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        metrics = trainer.train(_make_states())
+        assert np.isfinite(metrics.best_val_loss)
 
     def test_action_agreements_populated_with_val_set(self):
         cfg = _default_cfg(epochs=2, val_fraction=0.2)
@@ -336,9 +355,21 @@ class TestDistillationCheckpointing:
             trainer = DistillationTrainer(_make_teacher(), student, _default_cfg())
             trainer.train(_make_states(), checkpoint_path=ckpt)
 
-            loaded = torch.load(ckpt, map_location="cpu")
+            loaded = torch.load(ckpt, map_location="cpu", weights_only=True)
             new_student = _make_student()
             new_student.load_state_dict(loaded)  # should not raise
+
+    def test_metadata_json_no_infinity_when_no_val_set(self):
+        """best_val_loss must be a finite JSON number even when val_fraction==0."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ckpt = os.path.join(tmpdir, "student.pt")
+            cfg = _default_cfg(val_fraction=0.0)
+            trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+            trainer.train(_make_states(), checkpoint_path=ckpt)
+            # json.load would raise if the file contains 'Infinity'
+            with open(ckpt + ".json") as fh:
+                meta = json.load(fh)
+            assert np.isfinite(meta["metrics"]["best_val_loss"])
 
     def test_no_checkpoint_when_path_none(self):
         """Training without a checkpoint_path should not create any files."""

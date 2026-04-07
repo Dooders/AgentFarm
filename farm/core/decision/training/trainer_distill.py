@@ -129,6 +129,8 @@ class DistillationConfig:
             raise ValueError("batch_size must be >= 1")
         if not 0.0 <= self.val_fraction < 1.0:
             raise ValueError("val_fraction must be in [0, 1)")
+        if self.max_grad_norm is not None and self.max_grad_norm <= 0:
+            raise ValueError("max_grad_norm must be > 0 when specified")
         if self.loss_fn not in ("kl", "mse"):
             raise ValueError("loss_fn must be 'kl' or 'mse'")
 
@@ -301,12 +303,13 @@ class DistillationTrainer:
                     train_loss=round(train_loss, 6),
                 )
 
-        # If no val set, keep the final student weights as best
+        # If no val set, use the minimum train loss as a proxy for best_val_loss
         if best_state_dict is None:
             best_state_dict = {
                 k: v.cpu().clone() for k, v in self.student.state_dict().items()
             }
             metrics.best_epoch = self.config.epochs - 1
+            metrics.best_val_loss = min(metrics.train_losses) if metrics.train_losses else 0.0
 
         if checkpoint_path is not None:
             self._save_checkpoint(checkpoint_path, best_state_dict, metrics)
@@ -386,12 +389,12 @@ class DistillationTrainer:
 
         When ``loss_fn == "kl"`` the loss is temperature-scaled KL divergence
         (multiplied by T² as per Hinton et al. 2015).  When ``loss_fn ==
-        "mse"`` the loss is MSE on the raw logits, so temperature is applied
-        only for consistency with the hard-loss branch.
+        "mse"`` the loss is MSE on the raw Q-value logits (no temperature
+        scaling), which is natural for regression-style Q-value matching.
         """
         T = self.config.temperature
         if self.config.loss_fn == "mse":
-            return F.mse_loss(student_logits / T, teacher_logits / T)
+            return F.mse_loss(student_logits, teacher_logits)
 
         # KL divergence on temperature-softened distributions
         teacher_soft = F.log_softmax(teacher_logits / T, dim=-1)
@@ -527,5 +530,5 @@ class DistillationTrainer:
             "metrics": metrics.to_dict(),
         }
         with open(meta_path, "w") as fh:
-            json.dump(metadata, fh, indent=2)
+            json.dump(metadata, fh, indent=2, allow_nan=False)
         logger.info("distillation_metadata_saved", path=meta_path)
