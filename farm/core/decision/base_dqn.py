@@ -312,6 +312,8 @@ class BaseDQNModule:
             input_dim, output_dim, config.dqn_hidden_size
         ).to(self.device)
         self.target_network.load_state_dict(self.q_network.state_dict())
+        # Target network is only used for stable Q targets; keep dropout off.
+        self.target_network.eval()
         self.optimizer = optim.Adam(
             self.q_network.parameters(), lr=config.learning_rate
         )
