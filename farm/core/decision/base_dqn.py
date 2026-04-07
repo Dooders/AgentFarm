@@ -149,6 +149,102 @@ class BaseQNetwork(nn.Module):
                 self.train()
 
 
+class StudentQNetwork(nn.Module):
+    """Smaller Q-network architecture for student models in knowledge distillation.
+
+    A half-size variant of :class:`BaseQNetwork` designed for use as a student
+    model.  It keeps the same input/output dimensions (so actions remain
+    compatible with parent agents) but reduces the hidden layer width to
+    ``max(16, parent_hidden_size // 2)`` and uses a slightly lower dropout rate
+    (0.05 instead of 0.1) appropriate for a smaller-capacity network.
+
+    Architecture:
+        Input -> Linear(student_hidden) -> LayerNorm -> ReLU -> Dropout(0.05) ->
+        Linear(student_hidden) -> LayerNorm -> ReLU -> Dropout(0.05) ->
+        Linear -> Output
+
+    Attributes:
+        network (nn.Sequential): The complete neural network architecture
+
+    Usage:
+        student = StudentQNetwork(input_dim=8, output_dim=4, parent_hidden_size=64)
+        # hidden size will be 32 (64 // 2)
+    """
+
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        parent_hidden_size: int = 64,
+    ) -> None:
+        """Initialize the student Q-network.
+
+        Parameters:
+            input_dim (int): Dimension of the input state vector
+            output_dim (int): Number of possible actions (output dimension)
+            parent_hidden_size (int): Hidden size of the parent network; the
+                student uses ``max(16, parent_hidden_size // 2)`` as its hidden
+                size, ensuring a sensible floor even for very small parents.
+        """
+        super().__init__()
+        # Floor of 16 ensures the student retains enough capacity for effective
+        # learning; fewer than 16 neurons risks underfitting even simple Q-value
+        # surfaces.
+        student_hidden = max(16, parent_hidden_size // 2)
+
+        self.network = nn.Sequential(
+            nn.Linear(input_dim, student_hidden),
+            nn.LayerNorm(student_hidden),
+            nn.ReLU(),
+            nn.Dropout(0.05),
+            nn.Linear(student_hidden, student_hidden),
+            nn.LayerNorm(student_hidden),
+            nn.ReLU(),
+            nn.Dropout(0.05),
+            nn.Linear(student_hidden, output_dim),
+        )
+
+        self._initialize_weights()
+
+    def _initialize_weights(self) -> None:
+        """Initialize network weights using Xavier/Glorot initialization.
+
+        Ensures proper weight initialization for stable training.
+        """
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.constant_(m.bias, 0.0)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass through the network.
+
+        Handles both single samples and batches. For single samples,
+        adds a batch dimension, processes through the network, and
+        removes the batch dimension from the output.
+
+        Parameters:
+            x (torch.Tensor): Input tensor of shape (input_dim,) or (batch_size, input_dim)
+
+        Returns:
+            torch.Tensor: Q-values for all actions, shape (output_dim,) or (batch_size, output_dim)
+        """
+        # Dropout is disabled during forward passes (matching BaseQNetwork behaviour).
+        # This ensures deterministic Q-value estimates at action-selection time.
+        # The training state is saved and restored so the training loop retains
+        # control over when the module is in train vs eval mode.
+        training_state = self.training
+        self.eval()
+        try:
+            if x.dim() == 1:
+                x = x.unsqueeze(0)
+                return self.network(x).squeeze(0)
+            return self.network(x)
+        finally:
+            if training_state:
+                self.train()
+
+
 class BaseDQNModule:
     """Base class for DQN-based learning modules.
 
