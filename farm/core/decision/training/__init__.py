@@ -2,7 +2,14 @@
 
 from .collector import ExperienceCollector
 from .trainer import AlgorithmTrainer
-from .trainer_distill import DistillationConfig, DistillationMetrics, DistillationTrainer
+from .trainer_distill import (
+    DistillationConfig,
+    DistillationMetrics,
+    DistillationTrainer,
+    StudentValidator,
+    ValidationReport,
+    ValidationThresholds,
+)
 
 __all__ = [
     "AlgorithmTrainer",
@@ -10,4 +17,7 @@ __all__ = [
     "DistillationMetrics",
     "DistillationTrainer",
     "ExperienceCollector",
+    "StudentValidator",
+    "ValidationReport",
+    "ValidationThresholds",
 ]

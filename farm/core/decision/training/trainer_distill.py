@@ -50,6 +50,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
@@ -638,3 +639,381 @@ class DistillationTrainer:
         with open(meta_path, "w") as fh:
             json.dump(metadata, fh, indent=2, allow_nan=False)
         logger.info("distillation_metadata_saved", path=meta_path)
+
+
+# ---------------------------------------------------------------------------
+# Validation thresholds
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ValidationThresholds:
+    """Configurable pass/fail thresholds for parent-student pair validation.
+
+    All fields have conservative defaults that can be tightened per task.
+
+    Attributes
+    ----------
+    min_action_agreement:
+        Minimum required top-1 action match rate (0–1).  The student must
+        agree with the parent's argmax action on at least this fraction of
+        held-out states.
+    max_kl_divergence:
+        Maximum allowed mean KL divergence KL(parent ‖ student) computed on
+        temperature-1 softmax distributions over Q-values.
+    max_mse:
+        Maximum allowed mean squared error between parent and student raw
+        Q-value logits, averaged over states and actions.
+    min_cosine_similarity:
+        Minimum mean cosine similarity between parent and student Q-value
+        vectors across held-out states.
+    max_param_ratio:
+        Maximum allowed ratio of student parameters to parent parameters.
+        Ensures the student is strictly smaller than the parent.
+    """
+
+    min_action_agreement: float = 0.85
+    max_kl_divergence: float = 0.5
+    max_mse: float = 2.0
+    min_cosine_similarity: float = 0.8
+    max_param_ratio: float = 0.9
+
+
+# ---------------------------------------------------------------------------
+# Validation report
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ValidationReport:
+    """Comprehensive behavioural-fidelity report for a parent-student pair.
+
+    Attributes
+    ----------
+    action_agreement:
+        Top-1 argmax action match rate on the evaluation state batch.
+    top_k_agreements:
+        Mapping ``{k: agreement}`` for each k in the requested set.
+        Top-k agreement is the fraction of states where the parent's
+        argmax action appears in the student's top-k actions.
+    kl_divergence:
+        Mean KL divergence KL(p_parent ‖ p_student) where probabilities
+        are temperature-1 softmax distributions over Q-values.
+    mse:
+        Mean squared error between parent and student Q-value logits.
+    mae:
+        Mean absolute error between parent and student Q-value logits.
+    mean_cosine_similarity:
+        Mean cosine similarity between parent and student Q-value vectors.
+    parent_param_count:
+        Total parameter count of the parent network.
+    student_param_count:
+        Total parameter count of the student network.
+    param_ratio:
+        ``student_param_count / parent_param_count`` – lower is better.
+    parent_inference_ms:
+        Median single-sample inference latency of the parent (milliseconds).
+    student_inference_ms:
+        Median single-sample inference latency of the student (milliseconds).
+    latency_ratio:
+        ``student_inference_ms / parent_inference_ms`` – lower is better.
+    robustness_slice_agreements:
+        Per-slice top-1 action agreement dict, keyed by slice name.
+        Empty when no slices were provided.
+    thresholds:
+        The :class:`ValidationThresholds` used to determine pass/fail.
+    """
+
+    action_agreement: float
+    top_k_agreements: Dict[int, float]
+    kl_divergence: float
+    mse: float
+    mae: float
+    mean_cosine_similarity: float
+    parent_param_count: int
+    student_param_count: int
+    param_ratio: float
+    parent_inference_ms: float
+    student_inference_ms: float
+    latency_ratio: float
+    robustness_slice_agreements: Dict[str, float]
+    thresholds: ValidationThresholds
+
+    @property
+    def passed(self) -> bool:
+        """Return ``True`` if all threshold checks pass."""
+        t = self.thresholds
+        return (
+            self.action_agreement >= t.min_action_agreement
+            and self.kl_divergence <= t.max_kl_divergence
+            and self.mse <= t.max_mse
+            and self.mean_cosine_similarity >= t.min_cosine_similarity
+            and self.param_ratio <= t.max_param_ratio
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-serialisable dictionary of all report fields."""
+        return {
+            "action_agreement": self.action_agreement,
+            # JSON requires string keys
+            "top_k_agreements": {str(k): v for k, v in self.top_k_agreements.items()},
+            "kl_divergence": self.kl_divergence,
+            "mse": self.mse,
+            "mae": self.mae,
+            "mean_cosine_similarity": self.mean_cosine_similarity,
+            "parent_param_count": self.parent_param_count,
+            "student_param_count": self.student_param_count,
+            "param_ratio": self.param_ratio,
+            "parent_inference_ms": self.parent_inference_ms,
+            "student_inference_ms": self.student_inference_ms,
+            "latency_ratio": self.latency_ratio,
+            "robustness_slice_agreements": self.robustness_slice_agreements,
+            "passed": self.passed,
+            "thresholds": {
+                "min_action_agreement": self.thresholds.min_action_agreement,
+                "max_kl_divergence": self.thresholds.max_kl_divergence,
+                "max_mse": self.thresholds.max_mse,
+                "min_cosine_similarity": self.thresholds.min_cosine_similarity,
+                "max_param_ratio": self.thresholds.max_param_ratio,
+            },
+        }
+
+
+# ---------------------------------------------------------------------------
+# Student validator
+# ---------------------------------------------------------------------------
+
+
+class StudentValidator:
+    """Behavioural-fidelity validator for parent-student distilled pairs.
+
+    Compares a *student* network against its *parent* (teacher) across
+    multiple dimensions:
+
+    * **Output similarity** – KL divergence, MSE, MAE, and cosine similarity
+      on held-out state batches.
+    * **Action agreement** – top-1 and top-k argmax match rates.
+    * **Efficiency** – parameter count ratio and inference latency ratio.
+    * **Robustness slices** – per-slice action agreement on named state subsets
+      (e.g. low-resource, high-threat, sparse-observation regimes).
+
+    Both models are put into ``eval`` mode with gradients disabled during all
+    validation computations.
+
+    Parameters
+    ----------
+    parent:
+        Parent (teacher) ``nn.Module``.  Put into ``eval`` mode during
+        validation; weights are never modified.
+    student:
+        Student ``nn.Module``.  Put into ``eval`` mode during validation.
+    thresholds:
+        :class:`ValidationThresholds` controlling pass/fail criteria.
+        Defaults to :class:`ValidationThresholds` with conservative values.
+    device:
+        Target PyTorch device.  Defaults to CPU.
+
+    Example
+    -------
+    ::
+
+        from farm.core.decision.base_dqn import BaseQNetwork, StudentQNetwork
+        from farm.core.decision.training.trainer_distill import (
+            DistillationConfig, DistillationTrainer,
+            StudentValidator, ValidationThresholds,
+        )
+
+        parent = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
+        student = StudentQNetwork(input_dim=8, output_dim=4, parent_hidden_size=64)
+
+        # … train student via DistillationTrainer …
+
+        thresholds = ValidationThresholds(min_action_agreement=0.90)
+        validator = StudentValidator(parent, student, thresholds=thresholds)
+        report = validator.validate(eval_states, robustness_slices={"edge": edge_states})
+        print(report.passed, report.to_dict())
+    """
+
+    def __init__(
+        self,
+        parent: nn.Module,
+        student: nn.Module,
+        thresholds: Optional[ValidationThresholds] = None,
+        device: Optional[torch.device] = None,
+    ) -> None:
+        self.parent: nn.Module = parent
+        self.student: nn.Module = student
+        self.thresholds: ValidationThresholds = thresholds or ValidationThresholds()
+        self.device: torch.device = device or torch.device("cpu")
+        self.parent.to(self.device)
+        self.student.to(self.device)
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def validate(
+        self,
+        states: np.ndarray,
+        robustness_slices: Optional[Dict[str, np.ndarray]] = None,
+        k_values: Optional[List[int]] = None,
+        n_latency_warmup: int = 5,
+        n_latency_repeats: int = 50,
+    ) -> ValidationReport:
+        """Run all validation checks and return a :class:`ValidationReport`.
+
+        Parameters
+        ----------
+        states:
+            NumPy array of shape ``(N, input_dim)`` – held-out evaluation
+            states that were not used during distillation training.
+        robustness_slices:
+            Optional mapping of slice name → state array.  Each slice is
+            evaluated independently and its top-1 action agreement is stored
+            in :attr:`ValidationReport.robustness_slice_agreements`.
+        k_values:
+            Values of *k* for top-k action agreement.  Defaults to
+            ``[1, 2, 3]``.
+        n_latency_warmup:
+            Number of forward passes run before timing (to warm CPU/GPU
+            caches and JIT).
+        n_latency_repeats:
+            Number of timed single-sample forward passes; the median is
+            reported to reduce noise.
+
+        Returns
+        -------
+        ValidationReport
+        """
+        if k_values is None:
+            k_values = [1, 2, 3]
+
+        tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
+
+        with torch.no_grad():
+            parent_logits, student_logits = self._get_logits(tensor)
+
+        # -- Output similarity --
+        kl = self._kl_divergence(parent_logits, student_logits)
+        mse = float(F.mse_loss(student_logits, parent_logits).item())
+        mae = float((student_logits - parent_logits).abs().mean().item())
+        cos_sim = self._cosine_similarity(parent_logits, student_logits)
+
+        # -- Action agreement (top-1 and top-k) --
+        parent_actions = parent_logits.argmax(dim=-1)
+        top_k_agreements: Dict[int, float] = {}
+        for k in k_values:
+            k_clamped = min(k, parent_logits.size(-1))
+            topk_student = student_logits.topk(k_clamped, dim=-1).indices
+            matches = (topk_student == parent_actions.unsqueeze(-1)).any(dim=-1)
+            top_k_agreements[k] = float(matches.float().mean().item())
+        # top-1 agreement is the primary scalar; fall back to smallest k
+        action_agreement = top_k_agreements.get(1, top_k_agreements[min(k_values)])
+
+        # -- Robustness slices --
+        slice_agreements: Dict[str, float] = {}
+        if robustness_slices:
+            for name, slice_states in robustness_slices.items():
+                slice_agreements[name] = self._slice_agreement(slice_states)
+
+        # -- Efficiency --
+        parent_params = sum(p.numel() for p in self.parent.parameters())
+        student_params = sum(p.numel() for p in self.student.parameters())
+        param_ratio = student_params / max(parent_params, 1)
+
+        parent_lat, student_lat = self._measure_latency(
+            states, n_latency_warmup, n_latency_repeats
+        )
+        latency_ratio = student_lat / max(parent_lat, 1e-9)
+
+        return ValidationReport(
+            action_agreement=action_agreement,
+            top_k_agreements=top_k_agreements,
+            kl_divergence=kl,
+            mse=mse,
+            mae=mae,
+            mean_cosine_similarity=cos_sim,
+            parent_param_count=parent_params,
+            student_param_count=student_params,
+            param_ratio=param_ratio,
+            parent_inference_ms=parent_lat,
+            student_inference_ms=student_lat,
+            latency_ratio=latency_ratio,
+            robustness_slice_agreements=slice_agreements,
+            thresholds=self.thresholds,
+        )
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    @torch.no_grad()
+    def _get_logits(
+        self, tensor: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Run parent and student in eval mode and return their logits."""
+        self.parent.eval()
+        self.student.eval()
+        parent_logits = self.parent(tensor)
+        student_logits = self.student(tensor)
+        return parent_logits, student_logits
+
+    def _kl_divergence(
+        self,
+        parent_logits: torch.Tensor,
+        student_logits: torch.Tensor,
+    ) -> float:
+        """Mean KL(p_parent ‖ p_student) using temperature-1 softmax."""
+        p_parent = F.softmax(parent_logits, dim=-1)
+        log_p_student = F.log_softmax(student_logits, dim=-1)
+        kl = F.kl_div(log_p_student, p_parent, reduction="batchmean", log_target=False)
+        return float(kl.item())
+
+    def _cosine_similarity(
+        self,
+        parent_logits: torch.Tensor,
+        student_logits: torch.Tensor,
+    ) -> float:
+        """Mean cosine similarity between parent and student Q-value vectors."""
+        cos = F.cosine_similarity(parent_logits, student_logits, dim=-1)
+        return float(cos.mean().item())
+
+    def _slice_agreement(self, slice_states: np.ndarray) -> float:
+        """Top-1 action agreement on a single named state slice."""
+        tensor = torch.tensor(slice_states, dtype=torch.float32, device=self.device)
+        with torch.no_grad():
+            parent_logits, student_logits = self._get_logits(tensor)
+        parent_actions = parent_logits.argmax(dim=-1)
+        student_actions = student_logits.argmax(dim=-1)
+        return float((parent_actions == student_actions).float().mean().item())
+
+    def _measure_latency(
+        self,
+        states: np.ndarray,
+        n_warmup: int,
+        n_repeats: int,
+    ) -> Tuple[float, float]:
+        """Return median single-sample inference latency (ms) for parent and student.
+
+        A single representative state (the first row of *states*) is used for
+        all timing runs so that any per-sample overhead differences between
+        models are not confounded by batch size variation.
+        """
+        single = torch.tensor(states[:1], dtype=torch.float32, device=self.device)
+
+        def _time_model(model: nn.Module) -> float:
+            model.eval()
+            with torch.no_grad():
+                for _ in range(n_warmup):
+                    model(single)
+            times: List[float] = []
+            with torch.no_grad():
+                for _ in range(n_repeats):
+                    t0 = time.perf_counter()
+                    model(single)
+                    times.append((time.perf_counter() - t0) * 1_000.0)
+            return float(np.median(times))
+
+        parent_ms = _time_model(self.parent)
+        student_ms = _time_model(self.student)
+        return parent_ms, student_ms
