@@ -130,35 +130,35 @@ class BaseQNetwork(nn.Module):
         adds a batch dimension, processes through the network, and
         removes the batch dimension from the output.
 
+        Training vs. inference mode (and thus whether dropout is active)
+        is controlled by the caller via ``model.train()`` / ``model.eval()``
+        as is standard in PyTorch — this method does not alter module state.
+
         Parameters:
             x (torch.Tensor): Input tensor of shape (input_dim,) or (batch_size, input_dim)
 
         Returns:
             torch.Tensor: Q-values for all actions, shape (output_dim,) or (batch_size, output_dim)
         """
-        # Ensure deterministic behavior during inference by disabling dropout
-        training_state = self.training
-        self.eval()
-        try:
-            if x.dim() == 1:
-                x = x.unsqueeze(0)
-                result = self.network(x)
-                return result.squeeze(0)
-            return self.network(x)
-        finally:
-            # Restore original training state
-            if training_state:
-                self.train()
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+            result = self.network(x)
+            return result.squeeze(0)
+        return self.network(x)
 
 
 class StudentQNetwork(BaseQNetwork):
     """Smaller Q-network architecture for student models in knowledge distillation.
 
     A half-size variant of :class:`BaseQNetwork` designed for use as a student
-    model.  It keeps the same input/output dimensions (so actions remain
+    model. It keeps the same input/output dimensions (so actions remain
     compatible with parent agents) but reduces the hidden layer width to
-    ``max(16, parent_hidden_size // 2)`` and uses a slightly lower dropout rate
-    (0.05 instead of 0.1) appropriate for a smaller-capacity network.
+    ``max(16, parent_hidden_size // 2)``. The module definition includes
+    ``Dropout(0.05)`` layers between the hidden blocks.
+
+    Training vs. inference mode (and thus whether dropout is active) is
+    controlled by the caller via ``model.train()`` / ``model.eval()`` as is
+    standard in PyTorch.
 
     Architecture:
         Input -> Linear(student_hidden) -> LayerNorm -> ReLU -> Dropout(0.05) ->
@@ -689,28 +689,35 @@ class BaseDQNModule:
                 return self._state_cache[state_hash]
 
         # Exploitation: scale Q-values by weights before argmax
-        with torch.no_grad():
-            q_values = self.q_network(state_tensor)
-            
-            # Apply action weights to Q-values if provided
-            if action_weights is not None and len(action_weights) == self.output_dim:
-                # Convert weights to tensor and scale Q-values
-                weights_tensor = torch.from_numpy(action_weights).to(q_values.device).to(q_values.dtype)
-                scaled_q_values = q_values * weights_tensor
-                action = scaled_q_values.argmax().item()
-            else:
-                action = q_values.argmax().item()
-            
-            # Cache the action only when action_weights is None
-            # (when weights are provided, cached action might be invalid for future calls)
-            # Always update cache to reflect current Q-network state (important for training)
-            if action_weights is None:
-                # Only evict if adding a new entry and cache is full
-                if state_hash not in self._state_cache:
-                    if len(self._state_cache) >= self._max_cache_size:
-                        # Remove a random item if cache is full
-                        self._state_cache.pop(next(iter(self._state_cache)))
-                # Update cache (new entry or updating existing to reflect Q-network updates)
-                self._state_cache[state_hash] = action
+        # Use eval mode for deterministic inference (disables dropout);
+        # training mode is restored afterwards so callers see no side-effects.
+        was_training = self.q_network.training
+        self.q_network.eval()
+        try:
+            with torch.no_grad():
+                q_values = self.q_network(state_tensor)
+
+                # Apply action weights to Q-values if provided
+                if action_weights is not None and len(action_weights) == self.output_dim:
+                    # Convert weights to tensor and scale Q-values
+                    weights_tensor = torch.from_numpy(action_weights).to(q_values.device).to(q_values.dtype)
+                    scaled_q_values = q_values * weights_tensor
+                    action = scaled_q_values.argmax().item()
+                else:
+                    action = q_values.argmax().item()
+
+                # Cache the action only when action_weights is None
+                # (when weights are provided, cached action might be invalid for future calls)
+                # Always update cache to reflect current Q-network state (important for training)
+                if action_weights is None:
+                    # Only evict if adding a new entry and cache is full
+                    if state_hash not in self._state_cache:
+                        if len(self._state_cache) >= self._max_cache_size:
+                            # Remove a random item if cache is full
+                            self._state_cache.pop(next(iter(self._state_cache)))
+                    # Update cache (new entry or updating existing to reflect Q-network updates)
+                    self._state_cache[state_hash] = action
+        finally:
+            self.q_network.train(was_training)
 
         return action
