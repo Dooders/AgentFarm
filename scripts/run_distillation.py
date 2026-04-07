@@ -169,7 +169,12 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--states-file", default="", help="Path to .npy file of states (shape N × input_dim).")
     # Distillation hyperparameters
     p.add_argument("--temperature", type=float, default=3.0, help="Softmax temperature.")
-    p.add_argument("--alpha", type=float, default=0.0, help="Hard-loss blend weight.")
+    p.add_argument(
+        "--alpha",
+        type=float,
+        default=1.0,
+        help="Blending weight for the soft distillation loss (loss = alpha*soft + (1-alpha)*hard).",
+    )
     p.add_argument("--epochs", type=int, default=10, help="Training epochs.")
     p.add_argument("--lr", type=float, default=1e-3, help="Adam learning rate.")
     p.add_argument("--batch-size", type=int, default=32, help="Mini-batch size.")
