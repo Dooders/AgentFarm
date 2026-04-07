@@ -1,10 +1,11 @@
 """Tests for farm/core/decision/training/trainer_distill.py.
 
 Covers:
-- DistillationConfig validation
+- DistillationConfig validation (including new temp_decay field)
 - DistillationTrainer: basic training loop, KL and MSE losses, hard-loss blend,
-  gradient clipping, val/train split, checkpointing, action agreement, and the
-  public evaluate_agreement helper.
+  gradient clipping, val/train split, checkpointing, action agreement,
+  temperature decay, separate soft/hard loss tracking, calibration metrics,
+  and the public evaluate_agreement helper.
 """
 
 from __future__ import annotations
@@ -53,7 +54,8 @@ def _make_states(n: int = 200) -> np.ndarray:
 
 
 def _default_cfg(**kwargs) -> DistillationConfig:
-    defaults = dict(epochs=2, batch_size=16, val_fraction=0.1, seed=42)
+    # alpha=1.0 means pure soft-label distillation (new default semantics)
+    defaults = dict(epochs=2, batch_size=16, val_fraction=0.1, seed=42, alpha=1.0)
     defaults.update(kwargs)
     return DistillationConfig(**defaults)
 
@@ -67,7 +69,8 @@ class TestDistillationConfig:
     def test_defaults(self):
         cfg = DistillationConfig()
         assert cfg.temperature == 3.0
-        assert cfg.alpha == 0.0
+        assert cfg.temp_decay == 1.0
+        assert cfg.alpha == 1.0
         assert cfg.learning_rate == 1e-3
         assert cfg.epochs == 10
         assert cfg.batch_size == 32
@@ -79,6 +82,20 @@ class TestDistillationConfig:
     def test_invalid_temperature(self):
         with pytest.raises(ValueError, match="temperature"):
             DistillationConfig(temperature=0.0)
+
+    def test_invalid_temp_decay_zero(self):
+        with pytest.raises(ValueError, match="temp_decay"):
+            DistillationConfig(temp_decay=0.0)
+
+    def test_invalid_temp_decay_above_one(self):
+        with pytest.raises(ValueError, match="temp_decay"):
+            DistillationConfig(temp_decay=1.1)
+
+    def test_valid_temp_decay_boundary(self):
+        cfg = DistillationConfig(temp_decay=1.0)
+        assert cfg.temp_decay == 1.0
+        cfg2 = DistillationConfig(temp_decay=0.9)
+        assert cfg2.temp_decay == 0.9
 
     def test_invalid_alpha_high(self):
         with pytest.raises(ValueError, match="alpha"):
@@ -190,6 +207,27 @@ class TestDistillationTrainerTrain:
         metrics = trainer.train(_make_states())
         assert len(metrics.train_losses) == 3
 
+    def test_train_soft_losses_length_equals_epochs(self):
+        cfg = _default_cfg(epochs=3)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        metrics = trainer.train(_make_states())
+        assert len(metrics.train_soft_losses) == 3
+
+    def test_train_hard_losses_populated_when_blended(self):
+        """alpha < 1.0 triggers a hard CE loss component each epoch."""
+        cfg = _default_cfg(epochs=3, alpha=0.5)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        metrics = trainer.train(_make_states())
+        assert len(metrics.train_hard_losses) == 3
+        assert all(np.isfinite(v) for v in metrics.train_hard_losses)
+
+    def test_train_hard_losses_empty_in_pure_soft_mode(self):
+        """alpha == 1.0 → pure soft distillation → no hard loss entries."""
+        cfg = _default_cfg(epochs=2, alpha=1.0)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        metrics = trainer.train(_make_states())
+        assert metrics.train_hard_losses == []
+
     def test_val_losses_length_equals_epochs_when_val_set(self):
         cfg = _default_cfg(epochs=3, val_fraction=0.2)
         trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
@@ -216,6 +254,21 @@ class TestDistillationTrainerTrain:
         assert len(metrics.action_agreements) == 2
         for ag in metrics.action_agreements:
             assert 0.0 <= ag <= 1.0
+
+    def test_mean_prob_similarities_populated_with_val_set(self):
+        """Calibration metric populated each epoch when a val set is present."""
+        cfg = _default_cfg(epochs=2, val_fraction=0.2)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        metrics = trainer.train(_make_states(100))
+        assert len(metrics.mean_prob_similarities) == 2
+        for sim in metrics.mean_prob_similarities:
+            assert 0.0 <= sim <= 1.0
+
+    def test_mean_prob_similarities_empty_without_val_set(self):
+        cfg = _default_cfg(val_fraction=0.0)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        metrics = trainer.train(_make_states())
+        assert metrics.mean_prob_similarities == []
 
     def test_train_losses_are_finite(self):
         trainer = DistillationTrainer(_make_teacher(), _make_student(), _default_cfg())
@@ -300,17 +353,36 @@ class TestDistillationLossFunctions:
         assert len(metrics.train_losses) == 2
         assert all(np.isfinite(loss_val) for loss_val in metrics.train_losses)
 
+    def test_mse_produces_no_hard_losses(self):
+        """MSE mode has no hard CE component."""
+        cfg = _default_cfg(loss_fn="mse", alpha=0.5, epochs=2)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        metrics = trainer.train(_make_states())
+        assert metrics.train_hard_losses == []
+
     def test_alpha_blend_with_hard_loss(self):
+        """alpha=0.5 → 50% soft, 50% hard; both components finite."""
         cfg = _default_cfg(alpha=0.5, epochs=2)
         trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
         metrics = trainer.train(_make_states())
         assert all(np.isfinite(loss_val) for loss_val in metrics.train_losses)
+        assert all(np.isfinite(v) for v in metrics.train_hard_losses)
 
-    def test_pure_hard_loss_alpha_one(self):
+    def test_pure_soft_distillation_alpha_one(self):
+        """alpha=1.0 → pure soft distillation; losses finite, no hard component."""
         cfg = _default_cfg(alpha=1.0, epochs=2)
         trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
         metrics = trainer.train(_make_states())
         assert all(np.isfinite(loss_val) for loss_val in metrics.train_losses)
+        assert metrics.train_hard_losses == []
+
+    def test_pure_hard_loss_alpha_zero(self):
+        """alpha=0.0 → pure hard CE supervision; hard losses populated."""
+        cfg = _default_cfg(alpha=0.0, epochs=2)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        metrics = trainer.train(_make_states())
+        assert all(np.isfinite(loss_val) for loss_val in metrics.train_losses)
+        assert len(metrics.train_hard_losses) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -337,16 +409,19 @@ class TestDistillationCheckpointing:
     def test_metadata_json_valid(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             ckpt = os.path.join(tmpdir, "student.pt")
-            cfg = _default_cfg(temperature=5.0, alpha=0.1, loss_fn="mse")
+            cfg = _default_cfg(temperature=5.0, alpha=0.1, loss_fn="mse", temp_decay=0.9)
             trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
             trainer.train(_make_states(), checkpoint_path=ckpt)
             with open(ckpt + ".json") as fh:
                 meta = json.load(fh)
             assert meta["config"]["temperature"] == 5.0
+            assert meta["config"]["temp_decay"] == 0.9
             assert meta["config"]["alpha"] == 0.1
             assert meta["config"]["loss_fn"] == "mse"
             assert "metrics" in meta
             assert "train_losses" in meta["metrics"]
+            assert "train_soft_losses" in meta["metrics"]
+            assert "mean_prob_similarities" in meta["metrics"]
 
     def test_checkpoint_loadable_as_state_dict(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -378,6 +453,60 @@ class TestDistillationCheckpointing:
             trainer = DistillationTrainer(_make_teacher(), _make_student(), _default_cfg())
             trainer.train(_make_states())
             assert set(os.listdir(tmpdir)) == original_files
+
+
+# ---------------------------------------------------------------------------
+# Temperature decay schedule
+# ---------------------------------------------------------------------------
+
+
+class TestTemperatureDecay:
+    def test_no_decay_leaves_temperature_unchanged(self):
+        """temp_decay=1.0 should not alter the effective temperature."""
+        cfg = _default_cfg(temperature=4.0, temp_decay=1.0, epochs=3, val_fraction=0.0)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        trainer.train(_make_states())
+        # After 3 epochs with decay=1.0, temperature is still 4.0 * 1.0^3 = 4.0
+        assert trainer._current_temperature == pytest.approx(4.0)
+
+    def test_decay_reduces_temperature_over_epochs(self):
+        """After N epochs with temp_decay < 1, temperature should be reduced."""
+        initial_temp = 4.0
+        decay = 0.9
+        epochs = 3
+        cfg = _default_cfg(temperature=initial_temp, temp_decay=decay, epochs=epochs, val_fraction=0.0)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        trainer.train(_make_states())
+        expected = initial_temp * (decay**epochs)
+        assert trainer._current_temperature == pytest.approx(expected, rel=1e-5)
+
+    def test_temperature_reset_on_second_train_call(self):
+        """Calling train() twice resets the temperature to the configured value.
+
+        Without a reset, the second run would start from the decayed value
+        (4.0 * 0.5^2 = 1.0) and decay further to 1.0 * 0.5^2 = 0.25.
+        With a proper reset each run starts from 4.0, so both runs end at
+        4.0 * 0.5^2 = 1.0.
+        """
+        initial_temp = 4.0
+        decay = 0.5
+        epochs = 2
+        expected_final = initial_temp * (decay**epochs)  # 1.0
+
+        cfg = _default_cfg(temperature=initial_temp, temp_decay=decay, epochs=epochs, val_fraction=0.0)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        trainer.train(_make_states())
+        assert trainer._current_temperature == pytest.approx(expected_final, rel=1e-5)
+
+        # Second run: temperature is reset to initial_temp, then decays again
+        trainer.train(_make_states())
+        assert trainer._current_temperature == pytest.approx(expected_final, rel=1e-5)
+
+    def test_decayed_training_produces_finite_losses(self):
+        cfg = _default_cfg(temperature=5.0, temp_decay=0.8, epochs=4)
+        trainer = DistillationTrainer(_make_teacher(), _make_student(), cfg)
+        metrics = trainer.train(_make_states())
+        assert all(np.isfinite(v) for v in metrics.train_losses)
 
 
 # ---------------------------------------------------------------------------
