@@ -20,6 +20,9 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
                 "DistillationMetrics",
                 "DistillationTrainer",
                 "ExperienceCollector",
+                "StudentValidator",
+                "ValidationReport",
+                "ValidationThresholds",
             },
         )
 
