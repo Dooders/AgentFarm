@@ -169,3 +169,8 @@ playground.ipynb
 
 # Simulation data
 simulations/
+
+# Generated RL / distillation artifacts (regenerate via scripts/run_distillation.py)
+checkpoints/**/*.pt
+checkpoints/**/*.npy
+checkpoints/**/*.json

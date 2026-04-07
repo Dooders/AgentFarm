@@ -322,6 +322,25 @@ class TestBaseDQNModule(unittest.TestCase):
         assert loss is not None  # type: ignore[unreachable]
         self.assertGreater(loss, 0.0)
 
+    def test_train_restores_q_network_training_mode(self):
+        """TD update runs q_network in eval; prior train/eval state is restored."""
+        module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
+        for i in range(4):
+            state = torch.randn(8).to(module.device)
+            action = i % 4
+            reward = 1.0
+            next_state = torch.randn(8).to(module.device)
+            done = False
+            module.store_experience(state, action, reward, next_state, done)
+
+        module.q_network.train(False)
+        module.train(list(module.memory))
+        self.assertFalse(module.q_network.training)
+
+        module.q_network.train(True)
+        module.train(list(module.memory))
+        self.assertTrue(module.q_network.training)
+
     def test_select_action_exploration(self):
         """Test action selection during exploration."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)

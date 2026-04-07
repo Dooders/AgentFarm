@@ -453,6 +453,13 @@ class BaseDQNModule:
             Training only occurs if the batch size is at least config.batch_size.
             The method uses Double Q-Learning where the main network selects actions
             and the target network evaluates them.
+
+            The main Q-network is run in ``eval()`` mode for this update step so
+            dropout (and LayerNorm running stats) match stable inference-style
+            forwards: Double-DQN next-action selection stays deterministic and
+            behavior stays aligned with historical runs that always evaluated
+            ``BaseQNetwork.forward`` under ``eval()``. Prior ``training`` mode is
+            restored before return.
         """
         if len(batch) < self.config.batch_size:
             return None
@@ -466,37 +473,42 @@ class BaseDQNModule:
             [x[4] for x in batch], device=self.device, dtype=torch.float
         )
 
-        # Get current Q values
-        current_q_values = self.q_network(states).gather(1, actions)
+        was_training = self.q_network.training
+        self.q_network.eval()
+        try:
+            # Get current Q values
+            current_q_values = self.q_network(states).gather(1, actions)
 
-        # Compute target Q values using Double Q-Learning
-        with torch.no_grad():
-            next_actions = self.q_network(next_states).argmax(1, keepdim=True)
-            next_q_values = self.target_network(next_states).gather(1, next_actions)
-            target_q_values = (
-                rewards.unsqueeze(1)
-                + (1 - dones.unsqueeze(1)) * self.gamma * next_q_values
-            )
+            # Compute target Q values using Double Q-Learning
+            with torch.no_grad():
+                next_actions = self.q_network(next_states).argmax(1, keepdim=True)
+                next_q_values = self.target_network(next_states).gather(1, next_actions)
+                target_q_values = (
+                    rewards.unsqueeze(1)
+                    + (1 - dones.unsqueeze(1)) * self.gamma * next_q_values
+                )
 
-        # Compute loss and update network
-        loss = self.criterion(current_q_values, target_q_values)
+            # Compute loss and update network
+            loss = self.criterion(current_q_values, target_q_values)
 
-        self.optimizer.zero_grad()
-        loss.backward()
+            self.optimizer.zero_grad()
+            loss.backward()
 
-        # Apply gradient clipping if enabled (read from learning config when available)
-        learning_cfg = getattr(self, "config", None)
-        # Prefer nested learning config if provided in SimulationConfig style objects
-        nested_learning = getattr(learning_cfg, "learning", None)
-        learning_config = nested_learning or learning_cfg
-        enable_clip = getattr(learning_config, "enable_gradient_clipping", True)
-        if enable_clip:
-            max_norm = getattr(learning_config, "gradient_clip_norm", 1.0)
-            torch.nn.utils.clip_grad_norm_(
-                self.q_network.parameters(), max_norm=max_norm
-            )
+            # Apply gradient clipping if enabled (read from learning config when available)
+            learning_cfg = getattr(self, "config", None)
+            # Prefer nested learning config if provided in SimulationConfig style objects
+            nested_learning = getattr(learning_cfg, "learning", None)
+            learning_config = nested_learning or learning_cfg
+            enable_clip = getattr(learning_config, "enable_gradient_clipping", True)
+            if enable_clip:
+                max_norm = getattr(learning_config, "gradient_clip_norm", 1.0)
+                torch.nn.utils.clip_grad_norm_(
+                    self.q_network.parameters(), max_norm=max_norm
+                )
 
-        self.optimizer.step()
+            self.optimizer.step()
+        finally:
+            self.q_network.train(was_training)
 
         # Soft update target network
         self._soft_update_target_network()

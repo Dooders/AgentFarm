@@ -640,6 +640,7 @@ class DistillationTrainer:
         metadata = {
             "config": {
                 "temperature": self.config.temperature,
+                "final_temperature": self._current_temperature,
                 "temp_decay": self.config.temp_decay,
                 "alpha": self.config.alpha,
                 "learning_rate": self.config.learning_rate,
