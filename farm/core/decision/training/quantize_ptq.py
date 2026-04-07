@@ -1,0 +1,576 @@
+"""Post-training quantization (PTQ) for distilled student Q-networks.
+
+This module applies post-training quantization to ``StudentQNetwork`` (and
+compatible ``BaseQNetwork``) checkpoints produced by the distillation pipeline.
+It supports two modes:
+
+* **Dynamic quantization** (default, weight-only):  Converts ``nn.Linear``
+  weight tensors to ``int8`` representation.  Activations remain in ``float32``
+  and are dequantised on-the-fly before each matmul.  No calibration data
+  required.
+
+* **Static quantization** (activation-aware):  Inserts ``QuantStub`` /
+  ``DeQuantStub`` observers, runs the model over a calibration set to collect
+  activation statistics, then converts to a fully-quantised ``int8`` graph.
+  Calibration uses the same state distribution as the distillation pipeline.
+
+Architecture compatibility
+--------------------------
+``BaseQNetwork`` / ``StudentQNetwork`` use the following ``nn.Sequential``
+layout::
+
+    Linear → LayerNorm → ReLU → Dropout →
+    Linear → LayerNorm → ReLU → Dropout →
+    Linear
+
+``LayerNorm`` is **not** fuseable with ``Linear`` under the standard
+``fbgemm``/``qnnpack`` backends; it therefore remains in ``float32`` in static
+mode.  ``Dropout`` is a no-op in ``eval()`` mode and is excluded from
+quantisation.
+
+PyTorch version constraints
+---------------------------
+* Requires **PyTorch ≥ 2.0**.
+* Dynamic quantisation (``torch.ao.quantization.quantize_dynamic``) works on
+  both CPU and CUDA host; int8 kernel dispatch is **CPU-only** (CUDA keeps
+  float32 with weight packing).
+* Static quantisation is CPU-only; use ``backend="qnnpack"`` on ARM or
+  ``backend="fbgemm"`` on x86.
+
+Save / load format
+------------------
+Quantised models are persisted as full model pickles (``torch.save(model,
+path)``) because ``PackedParams`` and other internal quantised tensor types
+cannot be cleanly round-tripped via a plain state-dict.  Loading therefore
+requires ``weights_only=False``; this is expected and documented.
+
+A companion JSON metadata file (``<path>.json``) stores the quantisation
+config and architecture parameters needed to verify the checkpoint and
+re-build a float reference model for comparison.
+
+Example
+-------
+::
+
+    from farm.core.decision.base_dqn import StudentQNetwork
+    from farm.core.decision.training.quantize_ptq import (
+        QuantizationConfig,
+        PostTrainingQuantizer,
+        load_quantized_checkpoint,
+    )
+
+    # Build / load your float student
+    student = StudentQNetwork(input_dim=8, output_dim=4, parent_hidden_size=64)
+    # ... load weights ...
+
+    # Quantise (dynamic, weight-only)
+    config = QuantizationConfig(mode="dynamic")
+    quantizer = PostTrainingQuantizer(config)
+    q_model, metadata = quantizer.quantize(student)
+
+    # Save
+    quantizer.save_checkpoint(q_model, "student_A_int8.pt", metadata)
+
+    # Load back
+    q_model_loaded, meta = load_quantized_checkpoint("student_A_int8.pt")
+    q_model_loaded.eval()
+    output = q_model_loaded(some_state_tensor)
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import time
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import torch
+import torch.nn as nn
+
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Compatibility shim: torch.ao.quantization was split from torch.quantization
+# in PyTorch 1.13.  Both namespaces exist in 2.x but torch.ao is preferred.
+# ---------------------------------------------------------------------------
+try:
+    import torch.ao.quantization as tq
+except ImportError:  # pragma: no cover
+    import torch.quantization as tq  # type: ignore[no-redef]
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class QuantizationConfig:
+    """Hyperparameters for the post-training quantization pipeline.
+
+    Attributes
+    ----------
+    mode:
+        ``"dynamic"`` (default) performs weight-only int8 quantisation without
+        calibration.  ``"static"`` enables activation quantisation and requires
+        *calibration_states*.
+    dtype:
+        Target weight dtype.  ``"qint8"`` (default) maps to
+        ``torch.qint8``; ``"quint8"`` maps to ``torch.quint8`` (unsigned,
+        useful for ReLU-dominated paths).
+    backend:
+        Quantisation backend.  ``"qnnpack"`` is recommended for ARM / mobile;
+        ``"fbgemm"`` for x86.  Dynamic quantisation ignores this setting but
+        static quantisation uses it to set the global ``qconfig``.
+    calibration_batches:
+        Number of mini-batches to run through the model in static mode.
+        Ignored in dynamic mode.
+    calibration_batch_size:
+        Size of each calibration mini-batch.  Ignored in dynamic mode.
+    """
+
+    mode: str = "dynamic"
+    dtype: str = "qint8"
+    backend: str = "qnnpack"
+    calibration_batches: int = 10
+    calibration_batch_size: int = 64
+
+    def __post_init__(self) -> None:
+        if self.mode not in ("dynamic", "static"):
+            raise ValueError("mode must be 'dynamic' or 'static'")
+        if self.dtype not in ("qint8", "quint8"):
+            raise ValueError("dtype must be 'qint8' or 'quint8'")
+        if self.backend not in ("qnnpack", "fbgemm", "none"):
+            raise ValueError("backend must be 'qnnpack', 'fbgemm', or 'none'")
+        if self.calibration_batches < 1:
+            raise ValueError("calibration_batches must be >= 1")
+        if self.calibration_batch_size < 1:
+            raise ValueError("calibration_batch_size must be >= 1")
+
+    def torch_dtype(self) -> torch.dtype:
+        """Return the ``torch.dtype`` corresponding to *self.dtype*."""
+        mapping = {"qint8": torch.qint8, "quint8": torch.quint8}
+        return mapping[self.dtype]
+
+
+# ---------------------------------------------------------------------------
+# Internal: static-quantisation wrapper
+# ---------------------------------------------------------------------------
+
+
+class _QuantWrapper(nn.Module):
+    """Wrap an arbitrary module with QuantStub / DeQuantStub.
+
+    This allows static-quantisation observers to track activation ranges
+    across the full forward pass without modifying the inner module's code.
+
+    Attributes
+    ----------
+    quant:
+        ``QuantStub`` that dequantises the float input to the quantised domain.
+    dequant:
+        ``DeQuantStub`` that dequantises the output back to float.
+    model:
+        The wrapped (inner) module.
+    """
+
+    def __init__(self, model: nn.Module) -> None:
+        super().__init__()
+        self.quant = tq.QuantStub()
+        self.dequant = tq.DeQuantStub()
+        self.model = model
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.quant(x)
+        x = self.model(x)
+        x = self.dequant(x)
+        return x
+
+
+# ---------------------------------------------------------------------------
+# Quantisation report / metadata
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class QuantizationResult:
+    """Summary of a completed post-training quantisation run.
+
+    Attributes
+    ----------
+    mode:
+        The quantisation mode used (``"dynamic"`` or ``"static"``).
+    dtype:
+        The dtype string (``"qint8"`` or ``"quint8"``).
+    backend:
+        Backend used (``"qnnpack"``, ``"fbgemm"``, or ``"none"``).
+    calibration_samples:
+        Total number of calibration samples used (0 for dynamic mode).
+    elapsed_seconds:
+        Wall-clock time (seconds) taken by the quantisation step.
+    linear_layers_quantized:
+        Number of ``nn.Linear`` layers that were converted.
+    float_param_bytes:
+        Estimated byte footprint of float32 weights before quantisation.
+    quantized_param_bytes:
+        Estimated byte footprint of int8 weights after quantisation (for
+        linear layers); note that biases remain in float32.
+    notes:
+        Free-form notes (e.g. known limitations or fallback behaviour).
+    """
+
+    mode: str
+    dtype: str
+    backend: str
+    calibration_samples: int
+    elapsed_seconds: float
+    linear_layers_quantized: int
+    float_param_bytes: int
+    quantized_param_bytes: int
+    notes: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "QuantizationResult":
+        return cls(**d)
+
+
+# ---------------------------------------------------------------------------
+# Core quantiser
+# ---------------------------------------------------------------------------
+
+
+class PostTrainingQuantizer:
+    """Apply post-training quantisation to a float student Q-network.
+
+    Parameters
+    ----------
+    config:
+        :class:`QuantizationConfig` controlling the quantisation strategy.
+
+    Usage
+    -----
+    ::
+
+        quantizer = PostTrainingQuantizer(QuantizationConfig(mode="dynamic"))
+        q_model, result = quantizer.quantize(student_model)
+        quantizer.save_checkpoint(q_model, "student_A_int8.pt", result)
+    """
+
+    def __init__(self, config: Optional[QuantizationConfig] = None) -> None:
+        self.config = config or QuantizationConfig()
+
+    # ------------------------------------------------------------------
+    # Public interface
+    # ------------------------------------------------------------------
+
+    def quantize(
+        self,
+        model: nn.Module,
+        calibration_states: Optional[np.ndarray] = None,
+    ) -> Tuple[nn.Module, QuantizationResult]:
+        """Quantise *model* and return ``(quantized_model, result)``.
+
+        Parameters
+        ----------
+        model:
+            Float-precision ``nn.Module`` (typically ``StudentQNetwork`` or
+            ``BaseQNetwork``) to quantise.  The original *model* is **not**
+            modified in dynamic mode; a new module is returned.  In static
+            mode a deep copy is wrapped and converted.
+        calibration_states:
+            Numpy array of shape ``(N, input_dim)`` with dtype ``float32``.
+            **Required** when ``config.mode == "static"``; ignored otherwise.
+
+        Returns
+        -------
+        quantized_model:
+            The quantised module, ready for ``eval()`` inference.
+        result:
+            :class:`QuantizationResult` with summary statistics.
+
+        Raises
+        ------
+        ValueError
+            If ``mode == "static"`` and *calibration_states* is ``None`` or
+            empty.
+        """
+        model.eval()
+
+        n_linear = sum(1 for m in model.modules() if isinstance(m, nn.Linear))
+        float_bytes = sum(
+            p.numel() * p.element_size()
+            for name, p in model.named_parameters()
+            if "weight" in name
+        )
+        # int8 is 1 byte per element (vs 4 for float32)
+        q_bytes = float_bytes // 4
+
+        t0 = time.perf_counter()
+        if self.config.mode == "dynamic":
+            q_model, cal_samples = self._dynamic(model)
+        else:
+            if calibration_states is None or len(calibration_states) == 0:
+                raise ValueError(
+                    "calibration_states must be provided and non-empty for static quantisation"
+                )
+            q_model, cal_samples = self._static(model, calibration_states)
+        elapsed = time.perf_counter() - t0
+
+        result = QuantizationResult(
+            mode=self.config.mode,
+            dtype=self.config.dtype,
+            backend=self.config.backend,
+            calibration_samples=cal_samples,
+            elapsed_seconds=elapsed,
+            linear_layers_quantized=n_linear,
+            float_param_bytes=float_bytes,
+            quantized_param_bytes=q_bytes,
+            notes=self._build_notes(),
+        )
+        logger.info(
+            "ptq_complete",
+            mode=self.config.mode,
+            linear_layers=n_linear,
+            calibration_samples=cal_samples,
+            elapsed_s=round(elapsed, 3),
+        )
+        return q_model, result
+
+    def save_checkpoint(
+        self,
+        quantized_model: nn.Module,
+        path: str,
+        result: QuantizationResult,
+        arch_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Persist a quantised model and its metadata to *path*.
+
+        The model is saved as a full pickle (``torch.save(model, path)``);
+        this is required because quantised internal tensor types
+        (``PackedParams``) cannot be round-tripped via a plain state-dict.
+
+        A companion JSON file at ``<path>.json`` stores the
+        :class:`QuantizationResult` and optional architecture kwargs so the
+        checkpoint can be interpreted without running the code.
+
+        Parameters
+        ----------
+        quantized_model:
+            The quantised ``nn.Module`` returned by :meth:`quantize`.
+        path:
+            Destination file path (e.g. ``"student_A_int8.pt"``).
+        result:
+            :class:`QuantizationResult` metadata to persist alongside the model.
+        arch_kwargs:
+            Optional dict of architecture constructor arguments (e.g.
+            ``{"input_dim": 8, "output_dim": 4, "parent_hidden_size": 64}``)
+            recorded in the JSON for documentation purposes.
+        """
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        torch.save(quantized_model, path)
+        meta = {
+            "quantization": result.to_dict(),
+            "arch_kwargs": arch_kwargs or {},
+        }
+        json_path = path + ".json"
+        with open(json_path, "w", encoding="utf-8") as fh:
+            json.dump(meta, fh, indent=2)
+        logger.info("ptq_checkpoint_saved", path=path, json_path=json_path)
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _dynamic(self, model: nn.Module) -> Tuple[nn.Module, int]:
+        """Apply dynamic (weight-only) quantisation."""
+        q_model = tq.quantize_dynamic(
+            model,
+            {nn.Linear},
+            dtype=self.config.torch_dtype(),
+        )
+        return q_model, 0
+
+    def _static(
+        self, model: nn.Module, calibration_states: np.ndarray
+    ) -> Tuple[nn.Module, int]:
+        """Apply static (activation-aware) quantisation with calibration."""
+        import copy
+
+        torch.backends.quantized.engine = self.config.backend
+
+        wrapped = _QuantWrapper(copy.deepcopy(model))
+        wrapped.eval()
+        wrapped.qconfig = tq.get_default_qconfig(self.config.backend)  # type: ignore[attr-defined]
+        tq.prepare(wrapped, inplace=True)
+
+        # Calibration
+        n_states = len(calibration_states)
+        bs = self.config.calibration_batch_size
+        total_samples = 0
+        with torch.no_grad():
+            for batch_idx in range(self.config.calibration_batches):
+                start = (batch_idx * bs) % n_states
+                end = min(start + bs, n_states)
+                batch = torch.from_numpy(calibration_states[start:end])
+                wrapped(batch)
+                total_samples += end - start
+
+        tq.convert(wrapped, inplace=True)
+        return wrapped, total_samples
+
+    def _build_notes(self) -> List[str]:
+        notes = []
+        notes.append(
+            "LayerNorm layers are not fused and remain in float32 in both dynamic and static modes."
+        )
+        notes.append(
+            "Dropout layers are no-ops in eval() mode and are not quantised."
+        )
+        if self.config.mode == "dynamic":
+            notes.append(
+                "Dynamic quantisation: weights are int8; activations are computed in float32 "
+                "(dequantised on-the-fly). No calibration data required."
+            )
+        else:
+            notes.append(
+                "Static quantisation: both weights and activations are quantised. "
+                "LayerNorm outputs may be requantised depending on backend support."
+            )
+        notes.append(
+            "int8 kernel acceleration is CPU-only; CUDA paths dequantise weights before matmul."
+        )
+        return notes
+
+
+# ---------------------------------------------------------------------------
+# Load helper
+# ---------------------------------------------------------------------------
+
+
+def load_quantized_checkpoint(
+    path: str,
+    device: Optional[torch.device] = None,
+) -> Tuple[nn.Module, Dict[str, Any]]:
+    """Load a quantised model checkpoint saved by :meth:`PostTrainingQuantizer.save_checkpoint`.
+
+    .. warning::
+        This function calls ``torch.load(path, weights_only=False)`` because
+        quantised ``PackedParams`` tensors cannot be loaded with
+        ``weights_only=True``.  Only load checkpoints from trusted sources.
+
+    Parameters
+    ----------
+    path:
+        Path to the ``.pt`` file.
+    device:
+        Target device.  Defaults to ``torch.device("cpu")``.
+
+    Returns
+    -------
+    model:
+        The deserialised quantised ``nn.Module``, set to ``eval()`` mode.
+    metadata:
+        Dict parsed from the companion ``<path>.json`` file, or an empty
+        dict if the JSON file is absent.
+
+    Raises
+    ------
+    FileNotFoundError
+        If *path* does not exist.
+    """
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Quantised checkpoint not found: {path}")
+
+    if device is None:
+        device = torch.device("cpu")
+
+    model = torch.load(path, map_location=device, weights_only=False)
+    model.eval()
+
+    json_path = path + ".json"
+    metadata: Dict[str, Any] = {}
+    if os.path.isfile(json_path):
+        with open(json_path, "r", encoding="utf-8") as fh:
+            metadata = json.load(fh)
+
+    return model, metadata
+
+
+# ---------------------------------------------------------------------------
+# Comparison utility
+# ---------------------------------------------------------------------------
+
+
+def compare_outputs(
+    float_model: nn.Module,
+    quantized_model: nn.Module,
+    states: np.ndarray,
+    batch_size: int = 256,
+) -> Dict[str, float]:
+    """Compare Q-value outputs of a float model vs a quantised model.
+
+    Parameters
+    ----------
+    float_model:
+        Float-precision reference model (e.g. ``StudentQNetwork``).
+    quantized_model:
+        Quantised counterpart produced by :class:`PostTrainingQuantizer`.
+    states:
+        Numpy array of shape ``(N, input_dim)`` with dtype ``float32``.
+    batch_size:
+        Number of states to process in each forward pass.
+
+    Returns
+    -------
+    dict with keys:
+
+    * ``"action_agreement"`` – fraction of states where argmax actions match.
+    * ``"mean_q_error"`` – mean absolute difference in Q-values (per action,
+      averaged over states).
+    * ``"max_q_error"`` – maximum absolute difference over all (state, action)
+      pairs.
+    * ``"mean_cosine_similarity"`` – mean cosine similarity between float and
+      quantised Q-value vectors.
+    * ``"n_states"`` – total number of states evaluated.
+    """
+    float_model.eval()
+    quantized_model.eval()
+
+    all_float: List[torch.Tensor] = []
+    all_quant: List[torch.Tensor] = []
+
+    n = len(states)
+    with torch.no_grad():
+        for start in range(0, n, batch_size):
+            batch = torch.from_numpy(states[start : start + batch_size])
+            f_out = float_model(batch).float()
+            q_out = quantized_model(batch)
+            if q_out.is_quantized:
+                q_out = q_out.dequantize()
+            all_float.append(f_out)
+            all_quant.append(q_out.float())
+
+    f = torch.cat(all_float, dim=0)  # (N, output_dim)
+    q = torch.cat(all_quant, dim=0)
+
+    action_agreement = (f.argmax(dim=1) == q.argmax(dim=1)).float().mean().item()
+    abs_diff = (f - q).abs()
+    mean_q_error = abs_diff.mean().item()
+    max_q_error = abs_diff.max().item()
+
+    cos_sim = nn.functional.cosine_similarity(f, q, dim=1).mean().item()
+
+    return {
+        "action_agreement": action_agreement,
+        "mean_q_error": mean_q_error,
+        "max_q_error": max_q_error,
+        "mean_cosine_similarity": cos_sim,
+        "n_states": n,
+    }
