@@ -10,16 +10,19 @@ Key features
 ------------
 - **Teacher frozen**: teacher weights are locked and set to eval mode.
 - **Temperature scaling**: soft targets are produced by dividing teacher
-  (and student) logits by a ``temperature`` before softmax / KL-div.
+  (and student) logits by a ``temperature`` before softmax / KL-div, with an
+  optional per-epoch ``temp_decay`` multiplier.
 - **Loss blending**: the distillation (soft) loss can be blended with a hard
   cross-entropy loss on the teacher's argmax action via the ``alpha``
-  hyperparameter (``loss = alpha * hard + (1 - alpha) * soft``).
+  hyperparameter (``loss = alpha * soft + (1 - alpha) * hard``).
 - **Gradient clipping**: configurable ``max_grad_norm`` keeps training stable.
 - **Validation split**: an optional validation fraction of the replay buffer is
   held out and evaluated each epoch without gradient updates.
 - **Checkpointing**: the student checkpoint with the best validation loss is
   saved to disk, together with a JSON metadata file.
 - **Reproducibility**: an optional ``seed`` resets all RNGs before training.
+- **Calibration metrics**: per-epoch mean probability similarity between
+  teacher and student soft distributions is tracked alongside action agreement.
 
 Typical usage
 -------------
@@ -34,7 +37,7 @@ Typical usage
     teacher = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
     student = StudentQNetwork(input_dim=8, output_dim=4, parent_hidden_size=64)
 
-    cfg = DistillationConfig(temperature=3.0, alpha=0.3, epochs=20)
+    cfg = DistillationConfig(temperature=3.0, alpha=0.7, epochs=20)
     trainer = DistillationTrainer(teacher, student, cfg)
 
     import numpy as np
@@ -76,14 +79,18 @@ class DistillationConfig:
         computing the soft (KL-divergence) distillation loss.  Higher values
         produce softer probability distributions that expose more relative
         ordering information.  Must be > 0.
+    temp_decay:
+        Multiplicative factor applied to ``temperature`` after each epoch
+        (e.g. ``0.95`` decays temperature by 5 % per epoch).  Set to
+        ``1.0`` (the default) to disable decay.  Must be in ``(0, 1]``.
     alpha:
-        Blending weight for the *hard* cross-entropy loss (teacher argmax
-        targets).  The total loss is::
+        Blending weight for the *soft* distillation loss.  The total loss is::
 
-            loss = alpha * hard_ce_loss + (1 - alpha) * kl_distill_loss
+            loss = alpha * soft_loss + (1 - alpha) * hard_loss
 
-        Set ``alpha = 0.0`` for pure distillation, ``alpha = 1.0`` for pure
-        hard-label supervision.
+        Set ``alpha = 1.0`` for pure soft-label distillation (default).
+        Set ``alpha = 0.0`` for pure hard-label supervision.
+        Intermediate values blend both objectives.
     learning_rate:
         Initial learning rate for the Adam optimizer.
     epochs:
@@ -107,7 +114,8 @@ class DistillationConfig:
     """
 
     temperature: float = 3.0
-    alpha: float = 0.0
+    temp_decay: float = 1.0
+    alpha: float = 1.0
     learning_rate: float = 1e-3
     epochs: int = 10
     batch_size: int = 32
@@ -119,6 +127,8 @@ class DistillationConfig:
     def __post_init__(self) -> None:
         if self.temperature <= 0:
             raise ValueError("temperature must be > 0")
+        if not 0.0 < self.temp_decay <= 1.0:
+            raise ValueError("temp_decay must be in (0, 1]")
         if not 0.0 <= self.alpha <= 1.0:
             raise ValueError("alpha must be in [0, 1]")
         if self.learning_rate <= 0:
@@ -147,14 +157,25 @@ class DistillationMetrics:
     Attributes
     ----------
     train_losses:
-        Mean distillation loss per training epoch.
+        Mean total distillation loss per training epoch.
+    train_soft_losses:
+        Mean soft (KL/MSE) distillation loss per training epoch.
+    train_hard_losses:
+        Mean hard CE loss per training epoch (empty when ``alpha == 1.0``,
+        i.e. pure soft-label mode, or when ``loss_fn == "mse"``).
     val_losses:
-        Mean distillation loss per validation epoch (empty when
+        Mean total distillation loss per validation epoch (empty when
         ``val_fraction == 0``).
     action_agreements:
         Fraction of states where the student argmax action matches the
         teacher argmax action, evaluated on the *validation* set after each
         epoch (empty when ``val_fraction == 0``).
+    mean_prob_similarities:
+        Mean probability similarity between teacher and student soft
+        distributions on the validation set, defined as
+        ``1 - mean(|p_t - p_s|)`` averaged over actions and samples.
+        Values near 1 indicate close distributional agreement.
+        Empty when ``val_fraction == 0``.
     best_val_loss:
         Lowest validation loss seen during training.
     best_epoch:
@@ -162,16 +183,22 @@ class DistillationMetrics:
     """
 
     train_losses: List[float] = field(default_factory=list)
+    train_soft_losses: List[float] = field(default_factory=list)
+    train_hard_losses: List[float] = field(default_factory=list)
     val_losses: List[float] = field(default_factory=list)
     action_agreements: List[float] = field(default_factory=list)
+    mean_prob_similarities: List[float] = field(default_factory=list)
     best_val_loss: float = float("inf")
     best_epoch: int = -1
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "train_losses": self.train_losses,
+            "train_soft_losses": self.train_soft_losses,
+            "train_hard_losses": self.train_hard_losses,
             "val_losses": self.val_losses,
             "action_agreements": self.action_agreements,
+            "mean_prob_similarities": self.mean_prob_similarities,
             "best_val_loss": self.best_val_loss,
             "best_epoch": self.best_epoch,
         }
@@ -191,7 +218,19 @@ class DistillationTrainer:
     * **Soft distillation loss** – KL divergence (or MSE) between
       temperature-scaled teacher and student outputs.
     * **Hard supervision loss** – cross-entropy against the teacher's argmax
-      action (only when ``alpha > 0``).
+      action (only when ``alpha < 1.0``).
+
+    The blended objective follows the Hinton et al. (2015) convention::
+
+        loss = alpha * soft_loss + (1 - alpha) * hard_loss
+
+    where ``alpha = 1.0`` (the default) gives pure soft-label distillation.
+
+    For KL mode the soft targets are computed as:
+
+    * Teacher: ``p_t = softmax(z_t / T)``
+    * Student: ``p_s = log_softmax(z_s / T)``
+    * Loss:    ``KLDiv(p_s ‖ p_t) * T²``  (``log_target=False`` PyTorch form)
 
     Parameters
     ----------
@@ -231,6 +270,9 @@ class DistillationTrainer:
             self.student.parameters(), lr=self.config.learning_rate
         )
 
+        # Mutable temperature that can be decayed across epochs
+        self._current_temperature: float = self.config.temperature
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -255,11 +297,15 @@ class DistillationTrainer:
         Returns
         -------
         DistillationMetrics
-            Populated metrics object with per-epoch train/val losses and
-            action agreement scores.
+            Populated metrics object with per-epoch train/val losses, separate
+            soft/hard loss components, action agreement, and probability
+            similarity scores.
         """
         if self.config.seed is not None:
             self._set_seed(self.config.seed)
+
+        # Reset temperature at the start of each training run
+        self._current_temperature = self.config.temperature
 
         train_states, val_states = self._split_states(states)
         train_tensor = torch.tensor(train_states, dtype=torch.float32, device=self.device)
@@ -273,13 +319,17 @@ class DistillationTrainer:
         best_state_dict: Optional[Dict[str, torch.Tensor]] = None
 
         for epoch in range(self.config.epochs):
-            train_loss = self._run_epoch(train_tensor)
+            train_loss, soft_loss, hard_loss = self._run_epoch(train_tensor)
             metrics.train_losses.append(train_loss)
+            metrics.train_soft_losses.append(soft_loss)
+            if hard_loss is not None:
+                metrics.train_hard_losses.append(hard_loss)
 
             if val_tensor is not None and len(val_tensor) > 0:
-                val_loss, agreement = self._evaluate(val_tensor)
+                val_loss, agreement, prob_sim = self._evaluate(val_tensor)
                 metrics.val_losses.append(val_loss)
                 metrics.action_agreements.append(agreement)
+                metrics.mean_prob_similarities.append(prob_sim)
 
                 if val_loss < metrics.best_val_loss:
                     metrics.best_val_loss = val_loss
@@ -292,16 +342,26 @@ class DistillationTrainer:
                 logger.info(
                     "distillation_epoch",
                     epoch=epoch,
+                    temperature=round(self._current_temperature, 6),
                     train_loss=round(train_loss, 6),
+                    train_soft_loss=round(soft_loss, 6),
+                    train_hard_loss=round(hard_loss, 6) if hard_loss is not None else None,
                     val_loss=round(val_loss, 6),
                     action_agreement=round(agreement, 4),
+                    mean_prob_similarity=round(prob_sim, 4),
                 )
             else:
                 logger.info(
                     "distillation_epoch",
                     epoch=epoch,
+                    temperature=round(self._current_temperature, 6),
                     train_loss=round(train_loss, 6),
+                    train_soft_loss=round(soft_loss, 6),
+                    train_hard_loss=round(hard_loss, 6) if hard_loss is not None else None,
                 )
+
+            # Apply temperature decay after each epoch
+            self._current_temperature *= self.config.temp_decay
 
         # If no val set, use the minimum train loss as a proxy for best_val_loss
         if best_state_dict is None:
@@ -335,7 +395,7 @@ class DistillationTrainer:
             Fraction of states where student argmax == teacher argmax.
         """
         tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
-        _, agreement = self._evaluate(tensor)
+        _, agreement, _ = self._evaluate(tensor)
         return agreement
 
     # ------------------------------------------------------------------
@@ -388,19 +448,26 @@ class DistillationTrainer:
         """Compute the soft distillation loss between teacher and student outputs.
 
         When ``loss_fn == "kl"`` the loss is temperature-scaled KL divergence
-        (multiplied by T² as per Hinton et al. 2015).  When ``loss_fn ==
-        "mse"`` the loss is MSE on the raw Q-value logits (no temperature
-        scaling), which is natural for regression-style Q-value matching.
+        (multiplied by T² as per Hinton et al. 2015).  The teacher provides
+        soft probability targets via ``softmax(z_t / T)`` and the student
+        provides log-probabilities via ``log_softmax(z_s / T)``, matching the
+        ``KLDivLoss(log_target=False)`` PyTorch convention.
+
+        When ``loss_fn == "mse"`` the loss is MSE on the raw Q-value logits
+        (no temperature scaling), which is natural for regression-style
+        Q-value matching.
         """
-        T = self.config.temperature
+        T = self._current_temperature
         if self.config.loss_fn == "mse":
             return F.mse_loss(student_logits, teacher_logits)
 
-        # KL divergence on temperature-softened distributions
-        teacher_soft = F.log_softmax(teacher_logits / T, dim=-1)
-        student_soft = F.log_softmax(student_logits / T, dim=-1)
-        # kl_div expects (input=log_probs, target=log_probs) with log_target=True
-        kl = F.kl_div(student_soft, teacher_soft, reduction="batchmean", log_target=True)
+        # KL divergence on temperature-softened distributions (Hinton et al. 2015)
+        # p_t = softmax(z_t / T)  — teacher soft targets (NOT log-space)
+        # p_s = log_softmax(z_s / T) — student log-probabilities
+        # KLDiv(p_s || p_t) with log_target=False: input is log-probs, target is probs
+        teacher_soft = F.softmax(teacher_logits / T, dim=-1)
+        student_log_soft = F.log_softmax(student_logits / T, dim=-1)
+        kl = F.kl_div(student_log_soft, teacher_soft, reduction="batchmean", log_target=False)
         return kl * (T**2)
 
     def _hard_loss(
@@ -416,20 +483,36 @@ class DistillationTrainer:
         self,
         teacher_logits: torch.Tensor,
         student_logits: torch.Tensor,
-    ) -> torch.Tensor:
-        """Blend soft distillation loss with optional hard supervision."""
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+        """Blend soft distillation loss with optional hard supervision.
+
+        Returns
+        -------
+        total_loss : torch.Tensor
+            The combined loss used for the backward pass.
+        soft_loss : torch.Tensor
+            The soft (KL/MSE) distillation loss component.
+        hard_loss : torch.Tensor or None
+            The hard CE loss component; ``None`` when ``alpha == 1.0`` (pure
+            soft mode) or when ``loss_fn == "mse"`` (no hard term).
+        """
         soft_loss = self._distillation_loss(teacher_logits, student_logits)
         alpha = self.config.alpha
-        if alpha == 0.0:
-            return soft_loss
+        # MSE mode has no meaningful hard-label CE term
+        if alpha == 1.0 or self.config.loss_fn == "mse":
+            return soft_loss, soft_loss, None
         hard_loss = self._hard_loss(teacher_logits, student_logits)
-        return alpha * hard_loss + (1.0 - alpha) * soft_loss
+        total = alpha * soft_loss + (1.0 - alpha) * hard_loss
+        return total, soft_loss, hard_loss
 
-    def _run_epoch(self, train_tensor: torch.Tensor) -> float:
-        """Run one training epoch; return mean loss over all mini-batches."""
+    def _run_epoch(self, train_tensor: torch.Tensor) -> Tuple[float, float, Optional[float]]:
+        """Run one training epoch; return (mean_total, mean_soft, mean_hard) loss."""
         self.student.train()
-        total_loss = 0.0
+        total_loss_sum = 0.0
+        soft_loss_sum = 0.0
+        hard_loss_sum = 0.0
         n_batches = 0
+        has_hard = False
 
         for batch in self._iter_batches(train_tensor):
             # Teacher forward (no grad)
@@ -439,33 +522,45 @@ class DistillationTrainer:
             # Student forward
             student_logits = self.student(batch)
 
-            loss = self._compute_loss(teacher_logits, student_logits)
+            total_loss, soft_loss, hard_loss = self._compute_loss(teacher_logits, student_logits)
 
             self.optimizer.zero_grad()
-            loss.backward()
+            total_loss.backward()
             if self.config.max_grad_norm is not None:
                 nn.utils.clip_grad_norm_(
                     self.student.parameters(), self.config.max_grad_norm
                 )
             self.optimizer.step()
 
-            total_loss += loss.item()
+            total_loss_sum += total_loss.item()
+            soft_loss_sum += soft_loss.item()
+            if hard_loss is not None:
+                hard_loss_sum += hard_loss.item()
+                has_hard = True
             n_batches += 1
 
-        return total_loss / max(n_batches, 1)
+        denom = max(n_batches, 1)
+        mean_hard: Optional[float] = (hard_loss_sum / denom) if has_hard else None
+        return total_loss_sum / denom, soft_loss_sum / denom, mean_hard
 
     @torch.no_grad()
     def _evaluate(
         self, val_tensor: torch.Tensor
-    ) -> Tuple[float, float]:
-        """Evaluate distillation loss and action agreement on a state tensor.
+    ) -> Tuple[float, float, float]:
+        """Evaluate distillation loss, action agreement, and probability similarity.
 
         Returns
         -------
         val_loss : float
-            Mean distillation loss on the validation set.
+            Mean total distillation loss on the validation set.
         action_agreement : float
             Top-1 agreement between teacher and student argmax actions.
+        mean_prob_similarity : float
+            Mean probability similarity between teacher and student soft
+            distributions.  Computed per batch as
+            ``1 - mean(|p_t - p_s|)`` where the mean is taken over all
+            actions and all samples; then averaged across batches.  Values
+            near 1.0 indicate close distributional alignment.
         """
         self.student.eval()
         self.teacher.eval()
@@ -474,13 +569,14 @@ class DistillationTrainer:
         n_batches = 0
         n_agree = 0
         n_total = 0
+        prob_sim_sum = 0.0
 
         for batch in self._iter_batches(val_tensor):
             teacher_logits = self.teacher(batch)
             student_logits = self.student(batch)
 
-            loss = self._compute_loss(teacher_logits, student_logits)
-            total_loss += loss.item()
+            total, _, _ = self._compute_loss(teacher_logits, student_logits)
+            total_loss += total.item()
             n_batches += 1
 
             teacher_actions = teacher_logits.argmax(dim=-1)
@@ -488,9 +584,18 @@ class DistillationTrainer:
             n_agree += (teacher_actions == student_actions).sum().item()
             n_total += batch.size(0)
 
+            # Probability similarity: 1 - mean(|p_t - p_s|) averaged over
+            # all actions and all samples in the batch.  Values near 1.0
+            # indicate close distributional alignment.
+            T = self._current_temperature
+            p_t = F.softmax(teacher_logits / T, dim=-1)
+            p_s = F.softmax(student_logits / T, dim=-1)
+            prob_sim_sum += (1.0 - (p_t - p_s).abs().mean()).item()
+
         val_loss = total_loss / max(n_batches, 1)
         agreement = n_agree / max(n_total, 1)
-        return val_loss, agreement
+        mean_prob_similarity = prob_sim_sum / max(n_batches, 1)
+        return val_loss, agreement, mean_prob_similarity
 
     def _save_checkpoint(
         self,
@@ -518,6 +623,7 @@ class DistillationTrainer:
         metadata = {
             "config": {
                 "temperature": self.config.temperature,
+                "temp_decay": self.config.temp_decay,
                 "alpha": self.config.alpha,
                 "learning_rate": self.config.learning_rate,
                 "epochs": self.config.epochs,
