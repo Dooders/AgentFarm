@@ -224,22 +224,22 @@ class TestDistillationTrainerTrain:
     def test_student_weights_updated_after_training(self):
         teacher = _make_teacher()
         student = _make_student()
-        init_params = {k: v.clone() for k, v in student.state_dict().items()}
+        initial_student_params = {k: v.clone() for k, v in student.state_dict().items()}
         trainer = DistillationTrainer(teacher, student, _default_cfg())
         trainer.train(_make_states())
         changed = any(
-            not torch.equal(v, init_params[k]) for k, v in student.state_dict().items()
+            not torch.equal(v, initial_student_params[k]) for k, v in student.state_dict().items()
         )
         assert changed
 
     def test_teacher_weights_unchanged_after_training(self):
         teacher = _make_teacher()
         student = _make_student()
-        teacher_init = {k: v.clone() for k, v in teacher.state_dict().items()}
+        initial_teacher_params = {k: v.clone() for k, v in teacher.state_dict().items()}
         trainer = DistillationTrainer(teacher, student, _default_cfg())
         trainer.train(_make_states())
         for k, v in teacher.state_dict().items():
-            assert torch.equal(v, teacher_init[k])
+            assert torch.equal(v, initial_teacher_params[k])
 
     def test_reproducible_with_seed(self):
         states = _make_states()

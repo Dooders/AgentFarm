@@ -48,7 +48,7 @@ import json
 import os
 import random
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -369,7 +369,7 @@ class DistillationTrainer:
 
     def _iter_batches(
         self, tensor: torch.Tensor
-    ):
+    ) -> Generator[torch.Tensor, None, None]:
         """Yield shuffled mini-batches from a state tensor."""
         n = tensor.size(0)
         perm = torch.randperm(n, device=self.device)
