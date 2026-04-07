@@ -264,8 +264,8 @@ class TestStudentValidatorMetrics:
         report = self.validator.validate(self.states)
         assert report.mae >= 0.0
 
-    def test_mae_leq_mse_scale(self):
-        """MAE <= sqrt(MSE) is not guaranteed but MAE <= MSE for bounded errors."""
+    def test_mae_and_mse_finite_and_non_negative(self):
+        """MAE and MSE are both finite and non-negative."""
         report = self.validator.validate(self.states)
         # Both finite and non-negative is the key property
         assert np.isfinite(report.mae)

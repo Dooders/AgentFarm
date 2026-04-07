@@ -899,16 +899,17 @@ class StudentValidator:
         mae = float((student_logits - parent_logits).abs().mean().item())
         cos_sim = self._cosine_similarity(parent_logits, student_logits)
 
-        # -- Action agreement (top-1 and top-k) --
+        # -- Action agreement (top-1 always computed; top-k for requested values) --
         parent_actions = parent_logits.argmax(dim=-1)
+        student_actions = student_logits.argmax(dim=-1)
+        # Top-1 is always computed independently so action_agreement is unambiguous
+        action_agreement = float((parent_actions == student_actions).float().mean().item())
         top_k_agreements: Dict[int, float] = {}
         for k in k_values:
             k_clamped = min(k, parent_logits.size(-1))
             topk_student = student_logits.topk(k_clamped, dim=-1).indices
             matches = (topk_student == parent_actions.unsqueeze(-1)).any(dim=-1)
             top_k_agreements[k] = float(matches.float().mean().item())
-        # top-1 agreement is the primary scalar; fall back to smallest k
-        action_agreement = top_k_agreements.get(1, top_k_agreements[min(k_values)])
 
         # -- Robustness slices --
         slice_agreements: Dict[str, float] = {}
