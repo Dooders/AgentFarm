@@ -380,8 +380,9 @@ class DistillationTrainer:
             # Apply temperature decay after each epoch
             self._current_temperature *= self.config.temp_decay
 
-        # best_state_dict is always set inside the loop (at least one epoch runs
-        # because we validated len(states) > 0 above), so this guard is a safety net.
+        # best_state_dict is always set inside the loop when epochs > 0 and
+        # training data is non-empty (both are guaranteed above).  This guard
+        # is a safety net for zero-epoch configs.
         if best_state_dict is None:
             best_state_dict = {
                 k: v.cpu().clone() for k, v in self.student.state_dict().items()
@@ -907,7 +908,7 @@ class StudentValidator:
             raise ValueError(
                 "states must be non-empty; got an array with 0 samples."
             )
-        invalid_k = [k for k in k_values if not isinstance(k, int) or k <= 0]
+        invalid_k = [k for k in k_values if not isinstance(k, (int, np.integer)) or k <= 0]
         if invalid_k:
             raise ValueError(
                 f"k_values must contain positive integers; got invalid values: {invalid_k}"
