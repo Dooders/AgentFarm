@@ -512,23 +512,15 @@ class TestRoundTrip:
         model.load_state_dict(child)
         self._assert_forward_ok(model, _make_states())
 
-    def test_quantized_parent_child_loads(self):
-        """A child derived from quantized parents loads into a float model."""
+    def test_parent_child_loads_with_float_state_dicts(self):
+        """A child derived from standard float state dicts loads into a float model.
+
+        Dynamically quantized state dicts may contain packed parameters; handling
+        those checkpoint formats is out of scope for this round-trip test.
+        """
         parent_a = _make_student(0)
         parent_b = _make_student(1)
 
-        # Quantize parents
-        try:
-            import torch.ao.quantization as tq
-        except ImportError:
-            import torch.quantization as tq  # type: ignore[no-redef]
-
-        q_a = tq.quantize_dynamic(parent_a, {nn.Linear}, dtype=torch.qint8)
-        q_b = tq.quantize_dynamic(parent_b, {nn.Linear}, dtype=torch.qint8)
-
-        # Extract state dicts; quantized state dicts may contain PackedParams –
-        # use the float parents' state dicts as the "quantized input" simulation.
-        # For true int8, dequantize manually and test the child loads cleanly.
         child = crossover_quantized_state_dict(
             parent_a.state_dict(), parent_b.state_dict(), mode="random", seed=5
         )

@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import sys
 import time
 from typing import Dict, List
@@ -46,14 +47,12 @@ import torch.nn as nn
 # ---------------------------------------------------------------------------
 # Allow the script to run from the repo root without installing the package
 # ---------------------------------------------------------------------------
-try:
-    from farm.core.decision.base_dqn import BaseQNetwork
-    from farm.core.decision.training.crossover import crossover_quantized_state_dict
-except ImportError as exc:
-    sys.exit(
-        f"Import error: {exc}\n"
-        "Run 'pip install -e .' from the repository root, or activate the venv first."
-    )
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+from farm.core.decision.base_dqn import BaseQNetwork  # noqa: E402
+from farm.core.decision.training.crossover import crossover_quantized_state_dict  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

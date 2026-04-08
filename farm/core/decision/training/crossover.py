@@ -130,13 +130,22 @@ def _validate_state_dicts(
     for k in keys:
         va = sd_a[k]
         vb = sd_b[k]
-        # Only validate tensors (state dicts may contain non-tensor scalars)
-        if not isinstance(va, torch.Tensor) or not isinstance(vb, torch.Tensor):
+        a_is_tensor = isinstance(va, torch.Tensor)
+        b_is_tensor = isinstance(vb, torch.Tensor)
+        # Enforce type parity: both must be tensors or both must be non-tensors.
+        if a_is_tensor != b_is_tensor:
+            raise ValueError(
+                f"Type mismatch at key '{k}': "
+                f"A is {'Tensor' if a_is_tensor else type(va).__name__!r}, "
+                f"B is {'Tensor' if b_is_tensor else type(vb).__name__!r}. "
+                "Both entries must be tensors or both must be non-tensors."
+            )
+        if not a_is_tensor:
+            # Both are non-tensors – no shape to check.
             continue
-        fa = _to_float(va)
-        fb = _to_float(vb)
-        if fa.shape != fb.shape:
-            shape_errors.append(f"  '{k}': A={tuple(fa.shape)}, B={tuple(fb.shape)}")
+        # Compare shapes directly to avoid unnecessary float conversion.
+        if va.shape != vb.shape:
+            shape_errors.append(f"  '{k}': A={tuple(va.shape)}, B={tuple(vb.shape)}")
 
     if shape_errors:
         raise ValueError(
@@ -209,7 +218,7 @@ def _random_crossover(
     keys: List[str],
     rng: np.random.Generator,
     alpha: float,
-) -> Dict[str, torch.Tensor]:
+) -> Dict[str, Any]:
     """Uniform per-tensor random crossover.
 
     Each parameter key is independently assigned to parent A with probability
@@ -229,9 +238,12 @@ def _random_crossover(
 
     Returns
     -------
-    Float32 offspring state dict.
+    Dict[str, Any]
+        Float32 offspring state dict.  Tensor entries are ``float32``; any
+        non-tensor entries (e.g. integer scalars) are deep-copied from
+        parent A.
     """
-    child: Dict[str, torch.Tensor] = {}
+    child: Dict[str, Any] = {}
     choices = rng.random(len(keys))  # uniform [0, 1) for each key
     for i, k in enumerate(keys):
         va = sd_a[k]
@@ -248,7 +260,7 @@ def _layer_crossover(
     sd_a: Dict[str, Any],
     sd_b: Dict[str, Any],
     keys: List[str],
-) -> Dict[str, torch.Tensor]:
+) -> Dict[str, Any]:
     """Layer-group-based crossover.
 
     Parameters are grouped by submodule prefix (``network.N``).  Groups that
@@ -267,10 +279,13 @@ def _layer_crossover(
 
     Returns
     -------
-    Float32 offspring state dict.
+    Dict[str, Any]
+        Float32 offspring state dict.  Tensor entries are ``float32``; any
+        non-tensor entries (e.g. integer scalars) are deep-copied from the
+        selected parent.
     """
     groups = _layer_groups(keys)
-    child: Dict[str, torch.Tensor] = {}
+    child: Dict[str, Any] = {}
     for fallback_idx, (group_name, group_keys) in enumerate(groups.items()):
         block_id = _layer_group_block_id(group_name, fallback_idx)
         parent = sd_a if block_id % 2 == 0 else sd_b
@@ -288,7 +303,7 @@ def _weighted_crossover(
     sd_b: Dict[str, Any],
     keys: List[str],
     alpha: float,
-) -> Dict[str, torch.Tensor]:
+) -> Dict[str, Any]:
     """Weighted-average crossover.
 
     For each tensor parameter:
@@ -313,9 +328,12 @@ def _weighted_crossover(
 
     Returns
     -------
-    Float32 offspring state dict.
+    Dict[str, Any]
+        Float32 offspring state dict.  Tensor entries are ``float32``; any
+        non-tensor entries (e.g. integer scalars) are deep-copied from
+        parent A.
     """
-    child: Dict[str, torch.Tensor] = {}
+    child: Dict[str, Any] = {}
     for k in keys:
         va = sd_a[k]
         vb = sd_b[k]
@@ -489,6 +507,19 @@ def crossover_checkpoints(
     sd_a = torch.load(path_a, map_location="cpu", weights_only=True)
     sd_b = torch.load(path_b, map_location="cpu", weights_only=True)
 
+    if not isinstance(sd_a, dict):
+        raise ValueError(
+            f"Checkpoint at {path_a!r} must contain a state dict, got "
+            f"{type(sd_a).__name__}. Expected output from "
+            "torch.save(model.state_dict(), ...) or the QAT float checkpoint saver."
+        )
+    if not isinstance(sd_b, dict):
+        raise ValueError(
+            f"Checkpoint at {path_b!r} must contain a state dict, got "
+            f"{type(sd_b).__name__}. Expected output from "
+            "torch.save(model.state_dict(), ...) or the QAT float checkpoint saver."
+        )
+
     child = crossover_quantized_state_dict(
         sd_a,
         sd_b,
@@ -517,16 +548,28 @@ ParentSpec = Union[nn.Module, Path, str, Dict[str, Any]]
 def _resolve_parent(
     parent: ParentSpec,
 ) -> Dict[str, Any]:
-    """Resolve *parent* to a float32 CPU state dict.
+    """Resolve *parent* to a state dict for use with :func:`crossover_quantized_state_dict`.
+
+    The returned dict may contain float or quantized tensors; conversion to
+    float32 happens later inside the crossover helpers via :func:`_to_float`.
 
     Accepts:
-    * An ``nn.Module`` – its :meth:`~nn.Module.state_dict` is returned.
-    * A ``str`` or ``pathlib.Path`` pointing to a ``.pt`` file.  If the
-      file contains a full-model pickle (e.g. a quantized checkpoint saved
-      by :meth:`~farm.core.decision.training.quantize_ptq.PostTrainingQuantizer.save_checkpoint`)
-      the model's state dict is extracted automatically.  Plain state-dict
-      files (``torch.save(model.state_dict(), …)``) are also accepted.
+    * An ``nn.Module`` – its :meth:`~nn.Module.state_dict` is returned as-is
+      (potentially on any device / dtype).
+    * A ``str`` or ``pathlib.Path`` pointing to a ``.pt`` file.  Plain
+      state-dict files (``torch.save(model.state_dict(), …)``) are loaded with
+      ``weights_only=True``.  If that fails due to the file containing a
+      full-model pickle, loading is retried with ``weights_only=False`` — see
+      the warning below.  If the loaded object is an ``nn.Module``, its state
+      dict is extracted.
     * A ``dict`` (state dict) – returned as-is without copying.
+
+    .. warning::
+        When *parent* is a path and ``weights_only=True`` loading fails, this
+        function retries with ``weights_only=False``, which can execute
+        arbitrary code during unpickling.  Only use trusted checkpoint files.
+        To avoid this, convert the checkpoint to a plain state-dict file first:
+        ``torch.save(model.state_dict(), path)`` and pass that path instead.
 
     Parameters
     ----------
@@ -536,7 +579,7 @@ def _resolve_parent(
     Returns
     -------
     Dict[str, Any]
-        Float-or-quantized state dict suitable for
+        State dict (float or quantized) suitable for
         :func:`crossover_quantized_state_dict`.
 
     Raises
@@ -550,14 +593,19 @@ def _resolve_parent(
         return parent.state_dict()
 
     if isinstance(parent, (str, Path)):
+        import pickle
+
         path = str(parent)
         if not os.path.isfile(path):
             raise FileNotFoundError(f"Parent checkpoint not found: {path}")
         # Try weights_only=True first (plain state-dict files).  Fall back to
-        # weights_only=False for full-model pickles (quantized checkpoints).
+        # weights_only=False only for the specific errors that indicate a
+        # full-model pickle (e.g. a quantized checkpoint).
+        # WARNING: weights_only=False can execute arbitrary code; only trust
+        # verified checkpoint files.
         try:
             obj = torch.load(path, map_location="cpu", weights_only=True)
-        except Exception:
+        except (pickle.UnpicklingError, RuntimeError):
             obj = torch.load(path, map_location="cpu", weights_only=False)
         # If it's a full nn.Module, extract its state dict.
         if isinstance(obj, nn.Module):
@@ -678,13 +726,17 @@ def initialize_child_from_crossover(
     parent_a:
         First parent – an :class:`torch.nn.Module`, a filesystem path
         (``str`` / :class:`pathlib.Path`) to a ``.pt`` checkpoint, or a
-        pre-loaded state dict (``dict``).  Quantized full-model checkpoints
-        saved by
+        pre-loaded state dict (``dict``).  Inputs must be state-dict
+        compatible after loading/dequantization so the standard network
+        parameter keys used for architecture inference (for example,
+        ``network.0.weight`` and the final layer weight) are present.
+        Plain full-model quantized checkpoints saved by
         :meth:`~farm.core.decision.training.quantize_ptq.PostTrainingQuantizer.save_checkpoint`
-        are supported; their weights are dequantized to float32 internally
-        before crossover.
+        are not supported here unless they have first been converted back
+        into such a float/state-dict representation.
     parent_b:
-        Second parent – same accepted types as *parent_a*.
+        Second parent – same accepted types and compatibility
+        requirements as *parent_a*.
     strategy:
         Crossover strategy.  One of:
 
