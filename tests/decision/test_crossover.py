@@ -23,6 +23,7 @@ import torch.nn as nn
 from farm.core.decision.base_dqn import BaseQNetwork, StudentQNetwork
 from farm.core.decision.training.crossover import (
     CROSSOVER_MODES,
+    _layer_group_block_id,
     _layer_groups,
     _to_float,
     _validate_state_dicts,
@@ -334,20 +335,37 @@ class TestLayerCrossover:
             assert v.dtype == torch.float32
 
     def test_within_group_same_parent(self):
-        """All keys in the same layer group must come from the same parent."""
-        from farm.core.decision.training.crossover import _layer_groups
-
+        """Keys in the same logical block share one parent (Linear + LayerNorm)."""
         sd_a = _make_student(0).state_dict()
         sd_b = _make_student(1).state_dict()
         child = crossover_quantized_state_dict(sd_a, sd_b, mode="layer")
 
         keys = sorted(sd_a.keys())
         groups = _layer_groups(keys)
-        for group_idx, (_, group_keys) in enumerate(groups.items()):
-            expected_parent = sd_a if group_idx % 2 == 0 else sd_b
+        for fallback_idx, (group_name, group_keys) in enumerate(groups.items()):
+            block_id = _layer_group_block_id(group_name, fallback_idx)
+            expected_parent = sd_a if block_id % 2 == 0 else sd_b
             for k in group_keys:
                 assert torch.allclose(child[k], expected_parent[k].float()), (
-                    f"Key '{k}' (group {group_idx}) does not match expected parent"
+                    f"Key '{k}' (group {group_name!r}, block {block_id}) "
+                    "does not match expected parent"
+                )
+
+    def test_layer_crossover_keeps_linear_with_layernorm_when_norms_diverge(self):
+        """Block 0 is A: first Linear and LayerNorm must match even if norms differ."""
+        pa = _make_base(0)
+        pb = _make_base(1)
+        sd_a = pa.state_dict()
+        sd_b = pb.state_dict()
+        # Force LayerNorm params on B away from defaults / from A so mixing would show.
+        sd_b["network.1.weight"] = sd_b["network.1.weight"] + 10.0
+        sd_b["network.1.bias"] = sd_b["network.1.bias"] + 5.0
+
+        child = crossover_quantized_state_dict(sd_a, sd_b, mode="layer")
+        for k in sd_a:
+            if k.startswith("network.0.") or k.startswith("network.1."):
+                assert torch.allclose(child[k], sd_a[k].float()), (
+                    f"Expected block 0 from parent A at {k!r}"
                 )
 
     def test_deterministic(self):

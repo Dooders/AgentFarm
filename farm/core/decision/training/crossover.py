@@ -30,10 +30,10 @@ random
     the RNG seed.
 
 layer
-    Group parameters by their top-level module index (i.e. ``network.0.*``,
-    ``network.4.*``, …) and alternate entire groups between parents: even
-    groups from A, odd groups from B.  Keeps associated weight + bias +
-    LayerNorm parameters together from the same parent.
+    Group parameters by ``nn.Sequential`` submodule (``network.0.*``,
+    ``network.1.*``, …), merge **logical blocks** (Linear + following LayerNorm
+    share one parent; final Linear is its own block), then alternate blocks
+    between parents: even blocks from A, odd from B.
 
 weighted
     For each aligned parameter tensor compute
@@ -171,6 +171,33 @@ def _layer_groups(keys: List[str]) -> Dict[str, List[str]]:
     return groups
 
 
+def _layer_group_block_id(group: str, fallback_idx: int) -> int:
+    """Map a ``network.N``-style group name to a logical block index for layer crossover.
+
+    :class:`~farm.core.decision.base_dqn.BaseQNetwork` uses
+    ``Linear, LayerNorm, ReLU, Dropout`` per hidden stage, so learned parameters
+    sit at submodule indices ``0, 1`` (first stage), ``4, 5`` (second), and
+    ``8`` (output Linear).  Those indices must share the same parent assignment
+    so LayerNorm scaling stays consistent with the preceding Linear.
+
+    For groups that do not match ``network.<int>``, or unknown indices, *fallback_idx*
+    preserves the previous per-group enumeration behavior.
+    """
+    parts = group.split(".")
+    if len(parts) >= 2:
+        try:
+            mod_idx = int(parts[1])
+        except ValueError:
+            return fallback_idx
+        if mod_idx in (0, 1):
+            return 0
+        if mod_idx in (4, 5):
+            return 1
+        if mod_idx == 8:
+            return 2
+    return fallback_idx
+
+
 # ---------------------------------------------------------------------------
 # Crossover mode implementations
 # ---------------------------------------------------------------------------
@@ -224,10 +251,12 @@ def _layer_crossover(
 ) -> Dict[str, torch.Tensor]:
     """Layer-group-based crossover.
 
-    Parameters are grouped by their top-level module index.  Even-indexed
-    groups come from parent A; odd-indexed groups come from parent B.  This
-    keeps weight, bias, and associated LayerNorm parameters from the same
-    parent within each block, avoiding inconsistent feature scaling.
+    Parameters are grouped by submodule prefix (``network.N``).  Groups that
+    belong to the same logical block (Linear + LayerNorm for each hidden stage,
+    and the output Linear on :class:`~farm.core.decision.base_dqn.BaseQNetwork`)
+    are assigned the same parent.  Even-indexed blocks come from parent A;
+    odd-indexed blocks come from parent B, avoiding inconsistent feature scaling
+    between a Linear and its following LayerNorm.
 
     Parameters
     ----------
@@ -242,8 +271,9 @@ def _layer_crossover(
     """
     groups = _layer_groups(keys)
     child: Dict[str, torch.Tensor] = {}
-    for group_idx, (_, group_keys) in enumerate(groups.items()):
-        parent = sd_a if group_idx % 2 == 0 else sd_b
+    for fallback_idx, (group_name, group_keys) in enumerate(groups.items()):
+        block_id = _layer_group_block_id(group_name, fallback_idx)
+        parent = sd_a if block_id % 2 == 0 else sd_b
         for k in group_keys:
             v = parent[k]
             if isinstance(v, torch.Tensor):
@@ -334,10 +364,10 @@ def crossover_quantized_state_dict(
             ``1 - alpha``.  Deterministic given *rng* / *seed*.
 
         ``"layer"``
-            Parameters are grouped by top-level module block.  Even-indexed
-            blocks come from parent A, odd-indexed from parent B.  This keeps
-            the weight, bias, and LayerNorm of each ``Linear`` block together
-            from the same parent.
+            Parameters are grouped by submodule, merged into logical blocks
+            (each hidden Linear + its LayerNorm, then the output Linear for
+            standard Q-networks).  Even-indexed blocks come from parent A,
+            odd-indexed from parent B.
 
         ``"weighted"``
             Child tensor = ``alpha * parent_a + (1 - alpha) * parent_b``
@@ -664,8 +694,9 @@ def initialize_child_from_crossover(
             Controlled by *rng* / the ``seed`` kwarg for reproducibility.
 
         ``"layer"``
-            Parameters are grouped by top-level module block.  Even-indexed
-            groups come from parent A, odd-indexed from parent B.
+            Parameters are grouped into logical blocks (Linear + LayerNorm per
+            stage for standard Q-networks).  Even-indexed blocks come from
+            parent A, odd-indexed from parent B.
 
         ``"weighted"``
             Child tensor = ``alpha * parent_a + (1 - alpha) * parent_b``
@@ -757,9 +788,8 @@ def initialize_child_from_crossover(
     sd_b = _resolve_parent(parent_b)
 
     # ------------------------------------------------------------------
-    # 2 & 3. Validate + infer architecture from parent A
+    # 2. Infer architecture from parent A (keys/shapes validated in crossover)
     # ------------------------------------------------------------------
-    _validate_state_dicts(sd_a, sd_b)  # raises ValueError on mismatch
     input_dim, hidden_size, output_dim = _infer_arch_from_state_dict(sd_a)
 
     # ------------------------------------------------------------------

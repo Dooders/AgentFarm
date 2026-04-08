@@ -279,10 +279,6 @@ class TestCrossoverPerformance:
         assert mean_time < 5.0, f"layer crossover too slow: {mean_time:.3f}s"
         assert metrics["mean_q_error"] >= 0
         assert 0.0 <= metrics["action_agreement"] <= 1.0
-        # Note: when parents are freshly initialised (not trained) both have
-        # identical LayerNorm parameters (PyTorch default: weight=1, bias=0).
-        # The even layer groups contain all nn.Linear layers → child == parent A
-        # in practice for untrained models (q_error≈0, action_agreement≈1.0).
 
     def test_weighted_performance(self, parents, states, ref_q):
         pa, pb = parents
