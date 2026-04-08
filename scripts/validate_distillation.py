@@ -448,10 +448,16 @@ def _validate_cli_args(args: argparse.Namespace) -> None:
     if args.max_relative_return_drop is not None:
         if not 0.0 <= args.max_relative_return_drop <= 1.0:
             raise ValueError("max_relative_return_drop must be in [0, 1] when set")
+        if args.rollout_episodes <= 0:
+            raise ValueError(
+                "max_relative_return_drop requires rollout_episodes > 0"
+            )
     if args.n_states < 1:
         raise ValueError("n_states must be >= 1")
     if args.latency_warmup < 0 or args.latency_repeats < 0:
         raise ValueError("latency_warmup and latency_repeats must be >= 0")
+    if args.max_latency_ratio is not None and args.latency_repeats <= 0:
+        raise ValueError("max_latency_ratio requires latency_repeats > 0")
 
 
 def _merge_rollout(
