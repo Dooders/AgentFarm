@@ -455,6 +455,30 @@ class PostTrainingQuantizer:
 # ---------------------------------------------------------------------------
 
 
+def _load_full_model_checkpoint(
+    path: str,
+    device: Optional[torch.device],
+    not_found_msg: str,
+) -> Tuple[nn.Module, Dict[str, Any]]:
+    """Load a full-model ``.pt`` checkpoint and optional companion JSON metadata."""
+    if not os.path.isfile(path):
+        raise FileNotFoundError(not_found_msg)
+
+    if device is None:
+        device = torch.device("cpu")
+
+    model = torch.load(path, map_location=device, weights_only=False)
+    model.eval()
+
+    json_path = path + ".json"
+    metadata: Dict[str, Any] = {}
+    if os.path.isfile(json_path):
+        with open(json_path, "r", encoding="utf-8") as fh:
+            metadata = json.load(fh)
+
+    return model, metadata
+
+
 def load_quantized_checkpoint(
     path: str,
     device: Optional[torch.device] = None,
@@ -486,22 +510,11 @@ def load_quantized_checkpoint(
     FileNotFoundError
         If *path* does not exist.
     """
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"Quantized checkpoint not found: {path}")
-
-    if device is None:
-        device = torch.device("cpu")
-
-    model = torch.load(path, map_location=device, weights_only=False)
-    model.eval()
-
-    json_path = path + ".json"
-    metadata: Dict[str, Any] = {}
-    if os.path.isfile(json_path):
-        with open(json_path, "r", encoding="utf-8") as fh:
-            metadata = json.load(fh)
-
-    return model, metadata
+    return _load_full_model_checkpoint(
+        path,
+        device,
+        not_found_msg=f"Quantized checkpoint not found: {path}",
+    )
 
 
 # ---------------------------------------------------------------------------

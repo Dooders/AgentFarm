@@ -549,6 +549,10 @@ class TestSaveLoadRoundTrip:
             assert "qat" in meta
             assert meta["qat"]["scope"] == "weight_only"
             assert meta["arch_kwargs"]["input_dim"] == INPUT_DIM
+            assert "quantization" in meta
+            assert meta["quantization"]["mode"] == "qat"
+            assert meta["quantization"]["dtype"] == "qint8"
+            assert meta["quantization"]["backend"] != "unknown"
 
     def test_round_trip_action_agreement(self):
         """Saved and reloaded model must produce identical outputs."""
@@ -600,6 +604,7 @@ class TestSaveLoadRoundTrip:
             with open(path + ".json") as fh:
                 meta = json.load(fh)
             assert "qat" in meta
+            assert "quantization" in meta
             assert "notes" in meta
 
 

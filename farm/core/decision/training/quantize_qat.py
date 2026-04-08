@@ -118,6 +118,8 @@ import torch.nn.functional as F
 
 from farm.utils.logging import get_logger
 
+from .quantize_ptq import QuantizationResult, _load_full_model_checkpoint
+
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -598,7 +600,26 @@ class QATTrainer:
         """
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         torch.save(quantized_model, path)
+        n_linear = sum(1 for m in quantized_model.modules() if isinstance(m, nn.Linear))
+        float_bytes = sum(
+            p.numel() * p.element_size()
+            for name, p in quantized_model.named_parameters()
+            if "weight" in name
+        )
+        q_bytes = float_bytes // 4
+        quant_result = QuantizationResult(
+            mode="qat",
+            dtype=self.config.dtype,
+            backend=str(torch.backends.quantized.engine),
+            calibration_samples=0,
+            elapsed_seconds=0.0,
+            linear_layers_quantized=n_linear,
+            float_param_bytes=float_bytes,
+            quantized_param_bytes=q_bytes,
+            notes=[],
+        )
         meta = {
+            "quantization": quant_result.to_dict(),
             "qat": {
                 "epochs": self.config.epochs,
                 "learning_rate": self.config.learning_rate,
@@ -853,19 +874,8 @@ def load_qat_checkpoint(
     FileNotFoundError
         If *path* does not exist.
     """
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"QAT checkpoint not found: {path}")
-
-    if device is None:
-        device = torch.device("cpu")
-
-    model = torch.load(path, map_location=device, weights_only=False)
-    model.eval()
-
-    json_path = path + ".json"
-    metadata: Dict[str, Any] = {}
-    if os.path.isfile(json_path):
-        with open(json_path, "r", encoding="utf-8") as fh:
-            metadata = json.load(fh)
-
-    return model, metadata
+    return _load_full_model_checkpoint(
+        path,
+        device,
+        not_found_msg=f"QAT checkpoint not found: {path}",
+    )
