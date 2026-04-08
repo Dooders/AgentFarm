@@ -376,6 +376,21 @@ class TestQATTrainerTrain:
         with pytest.raises(ValueError, match="non-empty"):
             trainer.train(np.empty((0, INPUT_DIM), dtype="float32"))
 
+    def test_train_1d_states_raises(self):
+        teacher = _make_teacher()
+        student = _make_student()
+        trainer = QATTrainer(teacher, student, _minimal_cfg())
+        with pytest.raises(ValueError, match="2D"):
+            trainer.train(np.ones((INPUT_DIM,), dtype="float32"))
+
+    def test_train_input_dim_mismatch_raises(self):
+        teacher = _make_teacher()
+        student = _make_student()
+        trainer = QATTrainer(teacher, student, _minimal_cfg())
+        bad_states = np.ones((8, INPUT_DIM + 1), dtype="float32")
+        with pytest.raises(ValueError, match="input_dim mismatch"):
+            trainer.train(bad_states)
+
     def test_train_kl_loss_fn(self):
         """KL loss mode should also converge without errors."""
         teacher = _make_teacher()

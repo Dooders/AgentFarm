@@ -118,7 +118,7 @@ import torch.nn.functional as F
 
 from farm.utils.logging import get_logger
 
-from .quantize_ptq import QuantizationResult, _load_full_model_checkpoint
+from .quantize_ptq import QuantizationResult, _estimate_tensor_bytes, _load_full_model_checkpoint
 
 logger = get_logger(__name__)
 
@@ -444,6 +444,19 @@ class QATTrainer:
         """
         if len(states) == 0:
             raise ValueError("states must be non-empty; got an array with 0 samples.")
+        states_arr = np.asarray(states, dtype=np.float32)
+        if states_arr.ndim != 2:
+            raise ValueError(
+                f"states must be a 2D array with shape (N, input_dim); got {states_arr.shape!r}"
+            )
+        try:
+            expected_input_dim = self._float_student.network[0].in_features
+        except Exception:
+            expected_input_dim = None
+        if expected_input_dim is not None and states_arr.shape[1] != expected_input_dim:
+            raise ValueError(
+                f"states input_dim mismatch: expected {expected_input_dim}, got {states_arr.shape[1]}"
+            )
 
         if not self._prepared:
             self.prepare()
@@ -451,7 +464,7 @@ class QATTrainer:
         if self.config.seed is not None:
             self._set_seed(self.config.seed)
 
-        train_states, val_states = self._split_states(states)
+        train_states, val_states = self._split_states(states_arr)
         train_tensor = torch.tensor(train_states, dtype=torch.float32, device=self.device)
         val_tensor = (
             torch.tensor(val_states, dtype=torch.float32, device=self.device)
@@ -601,12 +614,8 @@ class QATTrainer:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         torch.save(quantized_model, path)
         n_linear = sum(1 for m in quantized_model.modules() if isinstance(m, nn.Linear))
-        float_bytes = sum(
-            p.numel() * p.element_size()
-            for name, p in quantized_model.named_parameters()
-            if "weight" in name
-        )
-        q_bytes = float_bytes // 4
+        float_bytes = _estimate_tensor_bytes(self._float_student.state_dict())
+        q_bytes = _estimate_tensor_bytes(quantized_model.state_dict())
         quant_result = QuantizationResult(
             mode="qat",
             dtype=self.config.dtype,

@@ -218,10 +218,10 @@ class QuantizationResult:
     linear_layers_quantized:
         Number of ``nn.Linear`` layers that were converted.
     float_param_bytes:
-        Estimated byte footprint of float32 weights before quantization.
+        Estimated byte footprint of all tensors in the float model state dict.
     quantized_param_bytes:
-        Estimated byte footprint of int8 weights after quantization (for
-        linear layers); note that biases remain in float32.
+        Estimated byte footprint of all tensors in the quantized model state
+        dict (includes non-quantized tensors such as LayerNorm parameters).
     notes:
         Free-form notes (e.g. known limitations or fallback behaviour).
     """
@@ -307,13 +307,7 @@ class PostTrainingQuantizer:
         model.eval()
 
         n_linear = sum(1 for m in model.modules() if isinstance(m, nn.Linear))
-        float_bytes = sum(
-            p.numel() * p.element_size()
-            for name, p in model.named_parameters()
-            if "weight" in name
-        )
-        # int8 is 1 byte per element (vs 4 for float32)
-        q_bytes = float_bytes // 4
+        float_bytes = _estimate_tensor_bytes(model.state_dict())
 
         t0 = time.perf_counter()
         if self.config.mode == "dynamic":
@@ -325,6 +319,7 @@ class PostTrainingQuantizer:
                 )
             q_model, cal_samples = self._static(model, calibration_states)
         elapsed = time.perf_counter() - t0
+        q_bytes = _estimate_tensor_bytes(q_model.state_dict())
 
         result = QuantizationResult(
             mode=self.config.mode,
@@ -486,6 +481,17 @@ def _load_full_model_checkpoint(
             metadata = json.load(fh)
 
     return model, metadata
+
+
+def _estimate_tensor_bytes(obj: Any) -> int:
+    """Estimate bytes used by all tensors nested inside *obj*."""
+    if torch.is_tensor(obj):
+        return int(obj.numel() * obj.element_size())
+    if isinstance(obj, dict):
+        return sum(_estimate_tensor_bytes(v) for v in obj.values())
+    if isinstance(obj, (tuple, list)):
+        return sum(_estimate_tensor_bytes(v) for v in obj)
+    return 0
 
 
 def load_quantized_checkpoint(

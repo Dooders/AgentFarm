@@ -157,6 +157,10 @@ def _load_states(
             raise ValueError(
                 f"Loaded states must be a 2-D array with shape (N, input_dim); got {states.shape!r}"
             )
+        if states.shape[1] != input_dim:
+            raise ValueError(
+                f"States input_dim mismatch: expected {input_dim}, got {states.shape[1]}"
+            )
         print(f"  Loaded states from {states_file}: shape={states.shape}")
         return states
     rng = np.random.default_rng(seed)

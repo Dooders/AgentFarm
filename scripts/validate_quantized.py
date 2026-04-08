@@ -38,10 +38,8 @@ Inputs
 
 Device
 ------
-Both models run on CPU by default; pass ``--device cuda`` if CUDA is
-available and the quantized checkpoint is CUDA-compatible.  Note that
-int8 kernel acceleration is CPU-only — CUDA simply dequantizes weights
-at runtime.
+Both models run on CPU only. Quantized checkpoints rely on packed int8
+kernels that are not CUDA-compatible in this validation path.
 
 Interpreting the report
 -----------------------
@@ -70,8 +68,6 @@ The JSON report has four top-level sections:
 Known limitations
 -----------------
 - Static quantization performance may vary across PyTorch minor versions.
-- CUDA paths dequantize int8 weights before matmul; the latency ratio
-  on GPU will typically be > 1.
 - Checkpoint sizes reflect Python pickle + metadata overhead and are not
   a pure measure of weight storage.
 """
@@ -239,15 +235,6 @@ def _parse_args() -> argparse.Namespace:
         "--report-only",
         action="store_true",
         help="Emit the report without applying pass/fail thresholds.",
-    )
-
-    # Device: quantized PTQ checkpoints use packed int8 kernels that are
-    # CPU-only; CUDA is not a valid option for this validator.
-    p.add_argument(
-        "--device",
-        default="cpu",
-        choices=["cpu"],
-        help="Compute device for validation. Quantized PTQ checkpoints are CPU-only.",
     )
 
     # Output
