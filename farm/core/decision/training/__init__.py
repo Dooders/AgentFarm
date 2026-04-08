@@ -7,6 +7,11 @@ from .crossover import (
     crossover_quantized_state_dict,
     initialize_child_from_crossover,
 )
+from .finetune import (
+    FineTuner,
+    FineTuningConfig,
+    FineTuningMetrics,
+)
 from .quantize_ptq import (
     PostTrainingQuantizer,
     QuantizationConfig,
@@ -41,6 +46,9 @@ __all__ = [
     "DistillationMetrics",
     "DistillationTrainer",
     "ExperienceCollector",
+    "FineTuner",
+    "FineTuningConfig",
+    "FineTuningMetrics",
     "PostTrainingQuantizer",
     "QATConfig",
     "QATMetrics",
