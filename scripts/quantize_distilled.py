@@ -47,7 +47,7 @@ Quantization hyperparameters
 -----------------------------
 ======================  ============================================
 ``--mode``              ``dynamic`` (default) or ``static``
-``--dtype``             ``qint8`` (default) or ``quint8``
+``--dtype``             ``qint8`` (default)
 ``--backend``           ``qnnpack`` (default) or ``fbgemm``
 ``--calibration-batches``  Number of calibration batches (static only)
 ``--calibration-batch-size``  Batch size for calibration (static only)
@@ -259,7 +259,7 @@ def _parse_args() -> argparse.Namespace:
         default="dynamic",
         help="Quantization mode: 'dynamic' (weight-only, no calibration) or 'static' (activation-aware).",
     )
-    p.add_argument("--dtype", choices=["qint8", "quint8"], default="qint8")
+    p.add_argument("--dtype", choices=["qint8"], default="qint8")
     p.add_argument(
         "--backend",
         choices=["qnnpack", "fbgemm"],

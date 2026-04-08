@@ -94,8 +94,9 @@ class TestQATConfig:
     def test_torch_dtype_qint8(self):
         assert QATConfig(dtype="qint8").torch_dtype() == torch.qint8
 
-    def test_torch_dtype_quint8(self):
-        assert QATConfig(dtype="quint8").torch_dtype() == torch.quint8
+    def test_rejects_quint8_dtype(self):
+        with pytest.raises(ValueError, match="qint8"):
+            QATConfig(dtype="quint8")
 
     def test_invalid_epochs(self):
         with pytest.raises(ValueError, match="epochs"):

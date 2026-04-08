@@ -69,9 +69,9 @@ class TestQuantizationConfig:
         cfg = QuantizationConfig(dtype="qint8")
         assert cfg.torch_dtype() == torch.qint8
 
-    def test_torch_dtype_quint8(self):
-        cfg = QuantizationConfig(dtype="quint8")
-        assert cfg.torch_dtype() == torch.quint8
+    def test_rejects_quint8_dtype(self):
+        with pytest.raises(ValueError, match="qint8"):
+            QuantizationConfig(dtype="quint8")
 
     def test_invalid_mode(self):
         with pytest.raises(ValueError, match="mode"):

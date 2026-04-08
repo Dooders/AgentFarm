@@ -269,12 +269,12 @@ class QATConfig:
             raise ValueError("temperature must be > 0")
         if not 0.0 <= self.alpha <= 1.0:
             raise ValueError("alpha must be in [0, 1]")
-        if self.dtype not in ("qint8", "quint8"):
-            raise ValueError("dtype must be 'qint8' or 'quint8'")
+        if self.dtype != "qint8":
+            raise ValueError("dtype must be 'qint8'")
 
     def torch_dtype(self) -> torch.dtype:
         """Return the ``torch.dtype`` corresponding to *self.dtype*."""
-        return {"qint8": torch.qint8, "quint8": torch.quint8}[self.dtype]
+        return torch.qint8
 
 
 # ---------------------------------------------------------------------------

@@ -52,7 +52,7 @@ QAT hyperparameters (key options)
 ``--loss-fn``              ``mse`` (default) or ``kl`` soft-label distillation
 ``--temperature``          Temperature for KL loss (default: 3.0)
 ``--alpha``                Soft/hard blend for KL mode (default: 1.0 = soft-only)
-``--dtype``                Target dtype ``qint8`` (default) or ``quint8``
+``--dtype``                Target dtype ``qint8`` (default)
 ``--seed``                 RNG seed for reproducibility
 ``--no-convert``           Save only the float QAT checkpoint; skip int8 convert
 =========================  ==================================================
@@ -356,7 +356,7 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--dtype",
-        choices=["qint8", "quint8"],
+        choices=["qint8"],
         default="qint8",
         help="Target quantization dtype.",
     )

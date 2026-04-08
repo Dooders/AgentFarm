@@ -120,9 +120,8 @@ class QuantizationConfig:
         calibration.  ``"static"`` enables activation quantization and requires
         *calibration_states*.
     dtype:
-        Target weight dtype.  ``"qint8"`` (default) maps to
-        ``torch.qint8``; ``"quint8"`` maps to ``torch.quint8`` (unsigned,
-        useful for ReLU-dominated paths).
+        Target weight dtype.  Only ``"qint8"`` is supported by this PTQ
+        implementation.
     backend:
         Quantization backend.  ``"qnnpack"`` is recommended for ARM / mobile;
         ``"fbgemm"`` for x86.  Dynamic quantization ignores this setting but
@@ -143,8 +142,8 @@ class QuantizationConfig:
     def __post_init__(self) -> None:
         if self.mode not in ("dynamic", "static"):
             raise ValueError("mode must be 'dynamic' or 'static'")
-        if self.dtype not in ("qint8", "quint8"):
-            raise ValueError("dtype must be 'qint8' or 'quint8'")
+        if self.dtype != "qint8":
+            raise ValueError("dtype must be 'qint8'")
         if self.backend not in ("qnnpack", "fbgemm", "none"):
             raise ValueError("backend must be 'qnnpack', 'fbgemm', or 'none'")
         if self.mode == "static" and self.backend == "none":
@@ -158,8 +157,7 @@ class QuantizationConfig:
 
     def torch_dtype(self) -> torch.dtype:
         """Return the ``torch.dtype`` corresponding to *self.dtype*."""
-        mapping = {"qint8": torch.qint8, "quint8": torch.quint8}
-        return mapping[self.dtype]
+        return torch.qint8
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +208,7 @@ class QuantizationResult:
     mode:
         The quantization mode used (``"dynamic"`` or ``"static"``).
     dtype:
-        The dtype string (``"qint8"`` or ``"quint8"``).
+        The dtype string (``"qint8"``).
     backend:
         Backend used (``"qnnpack"``, ``"fbgemm"``, or ``"none"``).
     calibration_samples:

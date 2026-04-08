@@ -169,3 +169,10 @@ playground.ipynb
 
 # Simulation data
 simulations/
+
+# Generated distillation/quantization artifacts
+checkpoints/distillation*/
+checkpoints/quantized/
+checkpoints/qat/
+reports/distillation*/
+reports/quantization_validation/
