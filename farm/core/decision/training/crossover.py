@@ -65,6 +65,7 @@ from __future__ import annotations
 
 import copy
 import os
+import pickle
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -134,10 +135,11 @@ def _validate_state_dicts(
         b_is_tensor = isinstance(vb, torch.Tensor)
         # Enforce type parity: both must be tensors or both must be non-tensors.
         if a_is_tensor != b_is_tensor:
+            a_type = "Tensor" if a_is_tensor else type(va).__name__
+            b_type = "Tensor" if b_is_tensor else type(vb).__name__
             raise ValueError(
                 f"Type mismatch at key '{k}': "
-                f"A is {'Tensor' if a_is_tensor else type(va).__name__!r}, "
-                f"B is {'Tensor' if b_is_tensor else type(vb).__name__!r}. "
+                f"A is {a_type}, B is {b_type}. "
                 "Both entries must be tensors or both must be non-tensors."
             )
         if not a_is_tensor:
@@ -593,8 +595,6 @@ def _resolve_parent(
         return parent.state_dict()
 
     if isinstance(parent, (str, Path)):
-        import pickle
-
         path = str(parent)
         if not os.path.isfile(path):
             raise FileNotFoundError(f"Parent checkpoint not found: {path}")
