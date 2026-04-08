@@ -123,9 +123,11 @@ class QuantizationConfig:
         Target weight dtype.  Only ``"qint8"`` is supported by this PTQ
         implementation.
     backend:
-        Quantization backend.  ``"qnnpack"`` is recommended for ARM / mobile;
-        ``"fbgemm"`` for x86.  Dynamic quantization ignores this setting but
-        static quantization uses it to set the global ``qconfig``.
+        Quantization backend. ``"auto"`` (default) picks the best available
+        engine for the current build (preferring ``"x86"``, then ``"fbgemm"``,
+        then ``"qnnpack"``). ``"qnnpack"`` is typically preferred for ARM /
+        mobile; ``"x86"`` / ``"fbgemm"`` for x86. Static quantization uses the
+        resolved backend to set the global ``qconfig``.
     calibration_batches:
         Number of mini-batches to run through the model in static mode.
         Ignored in dynamic mode.
@@ -135,7 +137,7 @@ class QuantizationConfig:
 
     mode: str = "dynamic"
     dtype: str = "qint8"
-    backend: str = "qnnpack"
+    backend: str = "auto"
     calibration_batches: int = 10
     calibration_batch_size: int = 64
 
@@ -144,8 +146,8 @@ class QuantizationConfig:
             raise ValueError("mode must be 'dynamic' or 'static'")
         if self.dtype != "qint8":
             raise ValueError("dtype must be 'qint8'")
-        if self.backend not in ("qnnpack", "fbgemm", "none"):
-            raise ValueError("backend must be 'qnnpack', 'fbgemm', or 'none'")
+        if self.backend not in ("auto", "qnnpack", "fbgemm", "x86", "none"):
+            raise ValueError("backend must be 'auto', 'qnnpack', 'fbgemm', 'x86', or 'none'")
         if self.mode == "static" and self.backend == "none":
             raise ValueError(
                 "backend='none' is not valid for mode='static'; choose 'qnnpack' or 'fbgemm'."
@@ -158,6 +160,30 @@ class QuantizationConfig:
     def torch_dtype(self) -> torch.dtype:
         """Return the ``torch.dtype`` corresponding to *self.dtype*."""
         return torch.qint8
+
+
+def _resolve_quantized_backend(requested_backend: str) -> str:
+    """Resolve a configured backend name to an available torch backend."""
+    supported = tuple(torch.backends.quantized.supported_engines)
+
+    if requested_backend == "auto":
+        for preferred in ("x86", "fbgemm", "qnnpack"):
+            if preferred in supported:
+                return preferred
+        for engine in supported:
+            if engine != "none":
+                return engine
+        raise ValueError(
+            "No usable quantized backend found in torch.backends.quantized.supported_engines."
+        )
+
+    if requested_backend in supported:
+        return requested_backend
+
+    raise ValueError(
+        f"Requested quantized backend {requested_backend!r} is not available in this build. "
+        f"Supported engines: {supported!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +294,7 @@ class PostTrainingQuantizer:
 
     def __init__(self, config: Optional[QuantizationConfig] = None) -> None:
         self.config = config or QuantizationConfig()
+        self.resolved_backend = _resolve_quantized_backend(self.config.backend)
 
     # ------------------------------------------------------------------
     # Public interface
@@ -324,7 +351,7 @@ class PostTrainingQuantizer:
         result = QuantizationResult(
             mode=self.config.mode,
             dtype=self.config.dtype,
-            backend=self.config.backend,
+            backend=self.resolved_backend,
             calibration_samples=cal_samples,
             elapsed_seconds=elapsed,
             linear_layers_quantized=n_linear,
@@ -389,9 +416,9 @@ class PostTrainingQuantizer:
     def _dynamic(self, model: nn.Module) -> Tuple[nn.Module, int]:
         """Apply dynamic (weight-only) quantization."""
         previous_engine = torch.backends.quantized.engine
-        backend_changed = previous_engine != self.config.backend
+        backend_changed = previous_engine != self.resolved_backend
         if backend_changed:
-            torch.backends.quantized.engine = self.config.backend
+            torch.backends.quantized.engine = self.resolved_backend
         try:
             q_model = tq.quantize_dynamic(
                 model,
@@ -410,14 +437,14 @@ class PostTrainingQuantizer:
         import copy
 
         previous_engine = torch.backends.quantized.engine
-        backend_changed = previous_engine != self.config.backend
+        backend_changed = previous_engine != self.resolved_backend
         if backend_changed:
-            torch.backends.quantized.engine = self.config.backend
+            torch.backends.quantized.engine = self.resolved_backend
 
         try:
             wrapped = _QuantWrapper(copy.deepcopy(model).cpu())
             wrapped.eval()
-            wrapped.qconfig = tq.get_default_qconfig(self.config.backend)  # type: ignore[attr-defined]
+            wrapped.qconfig = tq.get_default_qconfig(self.resolved_backend)  # type: ignore[attr-defined]
             tq.prepare(wrapped, inplace=True)
 
             # Calibration: fixed-size batches via circular indexing over states
@@ -479,14 +506,31 @@ def _load_full_model_checkpoint(
     if device is None:
         device = torch.device("cpu")
 
-    model = torch.load(path, map_location=device, weights_only=False)
-    model.eval()
-
     json_path = path + ".json"
     metadata: Dict[str, Any] = {}
     if os.path.isfile(json_path):
         with open(json_path, "r", encoding="utf-8") as fh:
             metadata = json.load(fh)
+
+    quant_meta = metadata.get("quantization", {})
+    preferred_backend = quant_meta.get("backend")
+    supported = set(torch.backends.quantized.supported_engines)
+    previous_engine = torch.backends.quantized.engine
+    backend_changed = (
+        isinstance(preferred_backend, str)
+        and preferred_backend in supported
+        and preferred_backend != "none"
+        and preferred_backend != previous_engine
+    )
+
+    if backend_changed:
+        torch.backends.quantized.engine = preferred_backend
+    try:
+        model = torch.load(path, map_location=device, weights_only=False)
+    finally:
+        if backend_changed:
+            torch.backends.quantized.engine = previous_engine
+    model.eval()
 
     return model, metadata
 
