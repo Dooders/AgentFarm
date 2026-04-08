@@ -31,7 +31,7 @@ Key features
   is not ``"none"`` (i.e. the child came from a quantized / QAT parent),
   :class:`FineTuner` automatically prepares the child with
   :class:`~farm.core.decision.training.quantize_qat.WeightOnlyFakeQuantLinear`
-  layers so that the fine-tuning loss is minimised under the same int8
+  layers so that the fine-tuning loss is minimized under the same int8
   weight approximation as deployment.  After :meth:`FineTuner.finetune` call
   :meth:`FineTuner.convert` and :meth:`FineTuner.save_quantized` to produce
   a PTQ-compatible int8 model.
@@ -357,7 +357,7 @@ class FineTuningMetrics:
 class FineTuner:
     """Fine-tune a crossover child Q-network against a frozen reference model.
 
-    The fine-tuner optimises the *child* network to minimise a combination of:
+    The fine-tuner optimizes the *child* network to minimize a combination of:
 
     * **Soft distillation loss** – KL divergence (or MSE) between
       temperature-scaled reference and child outputs.
@@ -379,7 +379,7 @@ class FineTuner:
     ``config.quantization_applied != "none"``, the fine-tuner deep-copies the
     child and replaces every ``nn.Linear`` with
     :class:`~farm.core.decision.training.quantize_qat.WeightOnlyFakeQuantLinear`
-    before training.  This means the optimiser minimises the distillation
+    before training.  This means the optimizer minimizes the distillation
     objective under the same weight-quantization noise as int8 deployment
     (straight-through estimator, weight-only, identical scope to
     :class:`~farm.core.decision.training.quantize_qat.QATTrainer`).

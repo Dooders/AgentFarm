@@ -162,7 +162,7 @@ pytest tests/decision/test_crossover_performance.py -m slow -v -s
 
 ---
 
-## 9. Post-Crossover Fine-tuning and QAT
+## 8. Post-Crossover Fine-tuning and QAT
 
 After crossover produces a float32 child, the child is often fine-tuned against a frozen reference model (one of the parents, or the distilled teacher) to recover performance.  See `farm/core/decision/training/finetune.py` and `scripts/finetune_child.py`.
 
@@ -236,7 +236,7 @@ full JSON reports with fidelity / latency / size sections.
 
 ---
 
-## 8. References
+## 9. References
 
 - Implementation: `farm/core/decision/training/crossover.py`
 - Training package exports: `farm/core/decision/training/__init__.py`

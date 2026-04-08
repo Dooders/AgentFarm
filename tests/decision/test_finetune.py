@@ -28,10 +28,12 @@ import torch
 
 from farm.core.decision.base_dqn import BaseQNetwork
 from farm.core.decision.training.finetune import (
+    QUANTIZATION_APPLIED_MODES,
     FineTuner,
     FineTuningConfig,
     FineTuningMetrics,
 )
+from farm.core.decision.training.quantize_qat import WeightOnlyFakeQuantLinear
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -548,10 +550,6 @@ def test_package_exports():
 # ---------------------------------------------------------------------------
 # QAT-aware fine-tuning (quantization_applied != "none")
 # ---------------------------------------------------------------------------
-
-
-from farm.core.decision.training.finetune import QUANTIZATION_APPLIED_MODES  # noqa: E402
-from farm.core.decision.training.quantize_qat import WeightOnlyFakeQuantLinear  # noqa: E402
 
 
 class TestFineTuningConfigQAT:
