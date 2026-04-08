@@ -147,6 +147,10 @@ class QuantizationConfig:
             raise ValueError("dtype must be 'qint8' or 'quint8'")
         if self.backend not in ("qnnpack", "fbgemm", "none"):
             raise ValueError("backend must be 'qnnpack', 'fbgemm', or 'none'")
+        if self.mode == "static" and self.backend == "none":
+            raise ValueError(
+                "backend='none' is not valid for mode='static'; choose 'qnnpack' or 'fbgemm'."
+            )
         if self.calibration_batches < 1:
             raise ValueError("calibration_batches must be >= 1")
         if self.calibration_batch_size < 1:
@@ -404,27 +408,34 @@ class PostTrainingQuantizer:
         """Apply static (activation-aware) quantization with calibration."""
         import copy
 
-        torch.backends.quantized.engine = self.config.backend
+        previous_engine = torch.backends.quantized.engine
+        backend_changed = previous_engine != self.config.backend
+        if backend_changed:
+            torch.backends.quantized.engine = self.config.backend
 
-        wrapped = _QuantWrapper(copy.deepcopy(model))
-        wrapped.eval()
-        wrapped.qconfig = tq.get_default_qconfig(self.config.backend)  # type: ignore[attr-defined]
-        tq.prepare(wrapped, inplace=True)
+        try:
+            wrapped = _QuantWrapper(copy.deepcopy(model))
+            wrapped.eval()
+            wrapped.qconfig = tq.get_default_qconfig(self.config.backend)  # type: ignore[attr-defined]
+            tq.prepare(wrapped, inplace=True)
 
-        # Calibration
-        n_states = len(calibration_states)
-        bs = self.config.calibration_batch_size
-        total_samples = 0
-        with torch.no_grad():
-            for batch_idx in range(self.config.calibration_batches):
-                start = (batch_idx * bs) % n_states
-                end = min(start + bs, n_states)
-                batch = torch.from_numpy(calibration_states[start:end])
-                wrapped(batch)
-                total_samples += end - start
+            # Calibration
+            n_states = len(calibration_states)
+            bs = self.config.calibration_batch_size
+            total_samples = 0
+            with torch.no_grad():
+                for batch_idx in range(self.config.calibration_batches):
+                    start = (batch_idx * bs) % n_states
+                    end = min(start + bs, n_states)
+                    batch = torch.from_numpy(calibration_states[start:end])
+                    wrapped(batch)
+                    total_samples += end - start
 
-        tq.convert(wrapped, inplace=True)
-        return wrapped, total_samples
+            tq.convert(wrapped, inplace=True)
+            return wrapped, total_samples
+        finally:
+            if backend_changed:
+                torch.backends.quantized.engine = previous_engine
 
     def _build_notes(self) -> List[str]:
         notes = []
@@ -557,18 +568,26 @@ def compare_outputs(
     float_model.eval()
     quantized_model.eval()
 
+    # Infer the device of the float model so batches are moved there before
+    # the float forward pass.  Quantized models with packed int8 params must
+    # stay on CPU, so they always receive a CPU tensor.
+    try:
+        float_device = next(float_model.parameters()).device
+    except StopIteration:
+        float_device = torch.device("cpu")
+
     all_float: List[torch.Tensor] = []
     all_quant: List[torch.Tensor] = []
 
     n = len(states)
     with torch.no_grad():
         for start in range(0, n, batch_size):
-            batch = torch.from_numpy(states[start : start + batch_size])
-            f_out = float_model(batch).float()
-            q_out = quantized_model(batch)
+            cpu_batch = torch.from_numpy(states[start : start + batch_size])
+            f_out = float_model(cpu_batch.to(float_device)).float()
+            q_out = quantized_model(cpu_batch)
             if q_out.is_quantized:
                 q_out = q_out.dequantize()
-            all_float.append(f_out)
+            all_float.append(f_out.cpu())
             all_quant.append(q_out.float())
 
     f = torch.cat(all_float, dim=0)  # (N, output_dim)
@@ -977,10 +996,13 @@ class QuantizedValidator:
             ``compatible`` is ``True`` when the forward pass succeeds.
             ``error`` is the caught exception or ``None`` on success.
         """
-        probe = torch.from_numpy(states[:1]).to(self.device)
+        # Quantized models with packed int8 params are CPU-only; always probe
+        # on CPU regardless of self.device to avoid a spurious device-mismatch
+        # error that would mask a genuinely incompatible model.
+        cpu_probe = torch.from_numpy(states[:1])
         try:
             with torch.no_grad():
-                out = self.quantized_model(probe)
+                out = self.quantized_model(cpu_probe)
             if out.is_quantized:
                 out = out.dequantize()
             if not torch.isfinite(out).all():
@@ -1004,28 +1026,30 @@ class QuantizedValidator:
         check failed), the quantized latency is returned as ``0.0`` to avoid a
         second error.
         """
-        single = torch.from_numpy(states[:1]).to(self.device)
+        # Float model runs on self.device; quantized model must stay on CPU.
+        float_single = torch.from_numpy(states[:1]).to(self.device)
+        quant_single = torch.from_numpy(states[:1])  # always CPU for int8 kernels
 
         def _sync() -> None:
             if self.device.type == "cuda":
                 torch.cuda.synchronize(self.device)
 
-        def _time_model(model: nn.Module) -> float:
+        def _time_model(model: nn.Module, inp: torch.Tensor) -> float:
             model.eval()
             with torch.no_grad():
                 for _ in range(n_warmup):
-                    model(single)
+                    model(inp)
             _sync()
             times: List[float] = []
             with torch.no_grad():
                 for _ in range(n_repeats):
                     _sync()
                     t0 = time.perf_counter()
-                    model(single)
+                    model(inp)
                     _sync()
                     times.append((time.perf_counter() - t0) * 1_000.0)
             return float(np.median(times)) if times else 0.0
 
-        float_ms = _time_model(self.float_model)
-        quant_ms = 0.0 if skip_quantized else _time_model(self.quantized_model)
+        float_ms = _time_model(self.float_model, float_single)
+        quant_ms = 0.0 if skip_quantized else _time_model(self.quantized_model, quant_single)
         return float_ms, quant_ms

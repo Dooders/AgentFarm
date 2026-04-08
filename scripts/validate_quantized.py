@@ -241,8 +241,14 @@ def _parse_args() -> argparse.Namespace:
         help="Emit the report without applying pass/fail thresholds.",
     )
 
-    # Device
-    p.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+    # Device: quantized PTQ checkpoints use packed int8 kernels that are
+    # CPU-only; CUDA is not a valid option for this validator.
+    p.add_argument(
+        "--device",
+        default="cpu",
+        choices=["cpu"],
+        help="Compute device for validation. Quantized PTQ checkpoints are CPU-only.",
+    )
 
     # Output
     p.add_argument("--report-dir", default="reports/quantization_validation")
@@ -252,9 +258,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
 
-    if args.device == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("CUDA requested but not available.")
-    device = torch.device(args.device)
+    device = torch.device("cpu")
 
     states = _load_states(args.states_file, args.n_states, args.input_dim, args.seed)
     pairs = ["A", "B"] if args.pair == "both" else [args.pair]

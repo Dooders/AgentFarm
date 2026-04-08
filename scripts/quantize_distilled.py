@@ -124,8 +124,14 @@ def _load_states(
     input_dim: int,
     seed: int,
 ) -> np.ndarray:
-    if states_file and os.path.isfile(states_file):
+    if states_file:
+        if not os.path.isfile(states_file):
+            raise FileNotFoundError(f"States file not found: {states_file!r}")
         states = np.load(states_file).astype("float32")
+        if states.ndim != 2:
+            raise ValueError(
+                f"Loaded states must be a 2-D array with shape (N, input_dim); got {states.shape!r}"
+            )
         print(f"  Loaded states from {states_file}: shape={states.shape}")
         return states
     rng = np.random.default_rng(seed)
@@ -256,7 +262,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--dtype", choices=["qint8", "quint8"], default="qint8")
     p.add_argument(
         "--backend",
-        choices=["qnnpack", "fbgemm", "none"],
+        choices=["qnnpack", "fbgemm"],
         default="qnnpack",
         help="Quantization backend (static mode only).",
     )
