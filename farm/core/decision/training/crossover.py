@@ -64,7 +64,9 @@ state-dict files, runs crossover, and saves the offspring.
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Optional, Tuple
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -454,8 +456,6 @@ def crossover_checkpoints(
     Dict[str, torch.Tensor]
         The offspring float32 state dict (also saved to *output_path*).
     """
-    import os
-
     sd_a = torch.load(path_a, map_location="cpu", weights_only=True)
     sd_b = torch.load(path_b, map_location="cpu", weights_only=True)
 
@@ -472,4 +472,346 @@ def crossover_checkpoints(
         os.makedirs(out_dir, exist_ok=True)
     torch.save(child, output_path)
     logger.info("crossover_checkpoint_saved", path=output_path, mode=mode)
+    return child
+
+
+# ---------------------------------------------------------------------------
+# Architecture inference helpers
+# ---------------------------------------------------------------------------
+
+#: Type alias for a parent specification: an nn.Module, a filesystem path, or
+#: a pre-loaded state dict.
+ParentSpec = Union[nn.Module, Path, str, Dict[str, Any]]
+
+
+def _resolve_parent(
+    parent: ParentSpec,
+) -> Dict[str, Any]:
+    """Resolve *parent* to a float32 CPU state dict.
+
+    Accepts:
+    * An ``nn.Module`` – its :meth:`~nn.Module.state_dict` is returned.
+    * A ``str`` or ``pathlib.Path`` pointing to a ``.pt`` file.  If the
+      file contains a full-model pickle (e.g. a quantized checkpoint saved
+      by :meth:`~farm.core.decision.training.quantize_ptq.PostTrainingQuantizer.save_checkpoint`)
+      the model's state dict is extracted automatically.  Plain state-dict
+      files (``torch.save(model.state_dict(), …)``) are also accepted.
+    * A ``dict`` (state dict) – returned as-is without copying.
+
+    Parameters
+    ----------
+    parent:
+        Parent specification.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Float-or-quantized state dict suitable for
+        :func:`crossover_quantized_state_dict`.
+
+    Raises
+    ------
+    TypeError
+        If *parent* is not one of the accepted types.
+    FileNotFoundError
+        If *parent* is a path that does not exist.
+    """
+    if isinstance(parent, nn.Module):
+        return parent.state_dict()
+
+    if isinstance(parent, (str, Path)):
+        path = str(parent)
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Parent checkpoint not found: {path}")
+        # Try weights_only=True first (plain state-dict files).  Fall back to
+        # weights_only=False for full-model pickles (quantized checkpoints).
+        try:
+            obj = torch.load(path, map_location="cpu", weights_only=True)
+        except Exception:
+            obj = torch.load(path, map_location="cpu", weights_only=False)
+        # If it's a full nn.Module, extract its state dict.
+        if isinstance(obj, nn.Module):
+            return obj.state_dict()
+        if isinstance(obj, dict):
+            return obj
+        raise TypeError(
+            f"Checkpoint at {path!r} contains an unsupported object type "
+            f"({type(obj).__name__!r}).  Expected an nn.Module or a state dict."
+        )
+
+    if isinstance(parent, dict):
+        return parent
+
+    raise TypeError(
+        f"parent must be an nn.Module, a path (str / Path), or a state dict "
+        f"(dict); got {type(parent).__name__!r}"
+    )
+
+
+def _infer_arch_from_state_dict(
+    sd: Dict[str, Any],
+) -> Tuple[int, int, int]:
+    """Infer ``(input_dim, hidden_size, output_dim)`` from a Q-network state dict.
+
+    Supports state dicts from :class:`~farm.core.decision.base_dqn.BaseQNetwork`
+    and :class:`~farm.core.decision.base_dqn.StudentQNetwork`.  Both share the
+    same ``nn.Sequential`` layout::
+
+        network.0.weight  – shape (hidden_size, input_dim)
+        network.4.weight  – shape (hidden_size, hidden_size)
+        network.8.weight  – shape (output_dim, hidden_size)
+
+    Parameters
+    ----------
+    sd:
+        State dict (float or quantized).
+
+    Returns
+    -------
+    Tuple[int, int, int]
+        ``(input_dim, hidden_size, output_dim)``.
+
+    Raises
+    ------
+    ValueError
+        If the required keys are absent or have unexpected tensor shapes.
+    """
+    required = ("network.0.weight", "network.4.weight", "network.8.weight")
+    missing = [k for k in required if k not in sd]
+    if missing:
+        raise ValueError(
+            "Cannot infer architecture from state dict: missing keys "
+            + str(missing)
+            + ".  Ensure the state dict is from a BaseQNetwork / StudentQNetwork."
+        )
+
+    def _shape(key: str) -> Tuple[int, ...]:
+        t = sd[key]
+        if isinstance(t, torch.Tensor):
+            if t.is_quantized:
+                return tuple(t.dequantize().shape)
+            return tuple(t.shape)
+        raise ValueError(
+            f"Expected a tensor at key {key!r}, got {type(t).__name__!r}"
+        )
+
+    w0 = _shape("network.0.weight")   # (hidden_size, input_dim)
+    w8 = _shape("network.8.weight")   # (output_dim, hidden_size)
+
+    if len(w0) != 2 or len(w8) != 2:
+        raise ValueError(
+            f"Unexpected weight tensor ranks: network.0.weight={w0}, "
+            f"network.8.weight={w8}."
+        )
+
+    hidden_size = w0[0]
+    input_dim = w0[1]
+    output_dim = w8[0]
+    return input_dim, hidden_size, output_dim
+
+
+# ---------------------------------------------------------------------------
+# Public initializer
+# ---------------------------------------------------------------------------
+
+
+def initialize_child_from_crossover(
+    parent_a: ParentSpec,
+    parent_b: ParentSpec,
+    strategy: str = "random",
+    *,
+    rng: Optional[Union[np.random.Generator, int]] = None,
+    device: Optional[Union[torch.device, str]] = None,
+    **strategy_kwargs: Any,
+) -> nn.Module:
+    """Build and initialise a child ``nn.Module`` from two parents via crossover.
+
+    This is the **single entry point** for constructing an offspring Q-network.
+    It orchestrates the full pipeline:
+
+    1. **Resolve** *parent_a* / *parent_b* to float-or-quantized state dicts
+       (accepts live models, checkpoint paths, or pre-loaded state dicts).
+    2. **Validate** that both parents share identical keys and tensor shapes.
+    3. **Infer** the child architecture (``input_dim``, ``hidden_size``,
+       ``output_dim``) from parent A's state dict.
+    4. **Instantiate** a fresh :class:`~farm.core.decision.base_dqn.BaseQNetwork`
+       on CPU with the inferred dimensions.
+    5. **Run** the requested crossover strategy (delegating to
+       :func:`crossover_quantized_state_dict`) to produce a float32 child
+       state dict.
+    6. **Load** the child state dict with ``strict=True``.
+    7. **Move** the child to *device* (defaults to CPU) and set it to
+       ``eval()`` mode.
+
+    Parameters
+    ----------
+    parent_a:
+        First parent – an :class:`torch.nn.Module`, a filesystem path
+        (``str`` / :class:`pathlib.Path`) to a ``.pt`` checkpoint, or a
+        pre-loaded state dict (``dict``).  Quantized full-model checkpoints
+        saved by
+        :meth:`~farm.core.decision.training.quantize_ptq.PostTrainingQuantizer.save_checkpoint`
+        are supported; their weights are dequantized to float32 internally
+        before crossover.
+    parent_b:
+        Second parent – same accepted types as *parent_a*.
+    strategy:
+        Crossover strategy.  One of:
+
+        ``"random"``
+            Each parameter tensor is independently drawn from parent A with
+            probability *alpha* (default ``0.5``) or from parent B.
+            Controlled by *rng* / the ``seed`` kwarg for reproducibility.
+
+        ``"layer"``
+            Parameters are grouped by top-level module block.  Even-indexed
+            groups come from parent A, odd-indexed from parent B.
+
+        ``"weighted"``
+            Child tensor = ``alpha * parent_a + (1 - alpha) * parent_b``
+            in float32.  Requires *alpha* in *strategy_kwargs*.
+
+    rng:
+        RNG for stochastic strategies.  Accepts a
+        :class:`numpy.random.Generator` or an ``int`` seed.  When ``None``
+        and no ``"seed"`` key is present in *strategy_kwargs*, the RNG is
+        non-reproducible.  Ignored by ``"layer"`` and ``"weighted"``
+        strategies.
+    device:
+        Target device for the returned child.  Accepts a
+        :class:`torch.device` or a device string (e.g. ``"cpu"``,
+        ``"cuda:0"``).  The child is **always constructed on CPU** first,
+        then moved to *device*.  Defaults to ``torch.device("cpu")``.
+    **strategy_kwargs:
+        Additional keyword arguments forwarded to
+        :func:`crossover_quantized_state_dict`, e.g.:
+
+        * ``alpha`` – blend / selection coefficient (float, ``[0, 1]``).
+        * ``seed`` – integer seed (used when *rng* is ``None``).
+
+    Returns
+    -------
+    nn.Module
+        A fresh :class:`~farm.core.decision.base_dqn.BaseQNetwork` in
+        ``eval()`` mode on *device* with weights initialised from the
+        crossover of *parent_a* and *parent_b*.
+
+    Raises
+    ------
+    TypeError
+        If any parent is not an ``nn.Module``, path, or dict.
+    FileNotFoundError
+        If a parent path does not point to an existing file.
+    ValueError
+        If the parents' state dicts have mismatched keys / shapes, or if
+        the architecture cannot be inferred from the state dict, or if
+        *strategy* is not a recognised mode.
+
+    Notes
+    -----
+    **Key alignment**: Both parents must have identical state-dict keys and
+    matching tensor shapes.  Any mismatch raises a ``ValueError`` immediately.
+
+    **Quantized parents**: Quantized tensors (``torch.qint8``) are
+    dequantized to float32 before crossover, so the returned child is
+    always a float-precision model suitable for inference or downstream
+    training / re-quantization.
+
+    **Determinism**: Pass *rng* as an integer seed or a seeded
+    :class:`numpy.random.Generator` for reproducible ``"random"`` crossover.
+    ``"layer"`` and ``"weighted"`` with a fixed *alpha* are fully
+    deterministic.
+
+    Examples
+    --------
+    Using live models::
+
+        from farm.core.decision.base_dqn import BaseQNetwork
+        from farm.core.decision.training.crossover import (
+            initialize_child_from_crossover,
+        )
+
+        parent_a = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
+        parent_b = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
+
+        child = initialize_child_from_crossover(
+            parent_a, parent_b, strategy="weighted", alpha=0.7
+        )
+        out = child(torch.zeros(8))  # shape (4,)
+
+    Using checkpoint paths::
+
+        child = initialize_child_from_crossover(
+            "checkpoints/agent_a.pt",
+            "checkpoints/agent_b.pt",
+            strategy="random",
+            rng=42,
+        )
+    """
+    from farm.core.decision.base_dqn import BaseQNetwork
+
+    # ------------------------------------------------------------------
+    # 1. Resolve parents to state dicts
+    # ------------------------------------------------------------------
+    sd_a = _resolve_parent(parent_a)
+    sd_b = _resolve_parent(parent_b)
+
+    # ------------------------------------------------------------------
+    # 2 & 3. Validate + infer architecture from parent A
+    # ------------------------------------------------------------------
+    _validate_state_dicts(sd_a, sd_b)  # raises ValueError on mismatch
+    input_dim, hidden_size, output_dim = _infer_arch_from_state_dict(sd_a)
+
+    # ------------------------------------------------------------------
+    # 4. Instantiate a fresh child on CPU
+    # ------------------------------------------------------------------
+    child = BaseQNetwork(
+        input_dim=input_dim,
+        output_dim=output_dim,
+        hidden_size=hidden_size,
+    )
+
+    # ------------------------------------------------------------------
+    # 5. Run crossover strategy
+    # ------------------------------------------------------------------
+    # Normalise rng: int → Generator, keep Generator, leave None alone
+    resolved_rng: Optional[np.random.Generator] = None
+    if isinstance(rng, int):
+        resolved_rng = np.random.default_rng(rng)
+    elif isinstance(rng, np.random.Generator):
+        resolved_rng = rng
+    # If rng is None, crossover_quantized_state_dict may still use seed
+    # kwarg from strategy_kwargs.
+
+    child_sd = crossover_quantized_state_dict(
+        sd_a,
+        sd_b,
+        mode=strategy,
+        rng=resolved_rng,
+        **strategy_kwargs,
+    )
+
+    # ------------------------------------------------------------------
+    # 6. Load state dict (strict)
+    # ------------------------------------------------------------------
+    child.load_state_dict(child_sd, strict=True)
+
+    # ------------------------------------------------------------------
+    # 7. Move to device and set eval mode
+    # ------------------------------------------------------------------
+    if device is not None:
+        if isinstance(device, str):
+            device = torch.device(device)
+        child = child.to(device)
+
+    child.eval()
+
+    logger.info(
+        "initialize_child_from_crossover",
+        strategy=strategy,
+        input_dim=input_dim,
+        hidden_size=hidden_size,
+        output_dim=output_dim,
+        device=str(device) if device is not None else "cpu",
+    )
     return child
