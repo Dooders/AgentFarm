@@ -3,12 +3,12 @@
 
 This script compares the outputs of quantized student models
 (produced by ``scripts/quantize_distilled.py``) against their float
-counterparts, reporting Q-value error, action agreement, and cosine
-similarity.  It mirrors the structure of ``scripts/validate_distillation.py``
+counterparts, reporting fidelity, latency, file size, and compatibility
+metadata.  It mirrors the structure of ``scripts/validate_distillation.py``
 and is intended to be run after the quantization step.
 
-Usage
------
+How to run
+----------
 ::
 
     # Validate both quantized students against their float checkpoints
@@ -27,16 +27,53 @@ Usage
 Architecture flags (default 8, 4, 64) must match the values used in
 ``run_distillation.py`` and ``quantize_distilled.py``.
 
-Calibration / state distribution
----------------------------------
-The comparison is meaningful only when *states* come from the same distribution
-as those used for distillation.  Pass ``--states-file`` for real replay data or
-rely on the synthetic default for quick sanity checks.
-
-Output
+Inputs
 ------
-Prints a table of metrics and writes one JSON report per pair under
-``--report-dir``.
+- ``--float-dir`` / ``--float-{a,b}-ckpt``: float student checkpoint(s).
+- ``--quant-dir`` / ``--quant-{a,b}-ckpt``: quantized checkpoint(s)
+  (saved by :class:`PostTrainingQuantizer` or :class:`QATTrainer`).
+- ``--states-file``: optional NumPy ``.npy`` file of shape ``(N, input_dim)``
+  with ``dtype=float32``.  When absent a synthetic standard-normal dataset is
+  used for quick sanity checks.
+
+Device
+------
+Both models run on CPU by default; pass ``--device cuda`` if CUDA is
+available and the quantized checkpoint is CUDA-compatible.  Note that
+int8 kernel acceleration is CPU-only — CUDA simply dequantizes weights
+at runtime.
+
+Interpreting the report
+-----------------------
+The JSON report has four top-level sections:
+
+``fidelity``
+    Action agreement, Q-error, and cosine similarity vs the float model.
+    For dynamic-quantized models expect ≥ 90 % agreement; static and QAT
+    may be lower.
+``latency``
+    Median per-sample inference time (ms) with warmup excluded.  The
+    ``latency_ratio`` (quantized/float) may exceed 1.0 on CPU for small
+    batch sizes — this is expected for dynamic quantization.
+``size``
+    On-disk checkpoint sizes in bytes.  Quantized checkpoints include
+    Python pickle overhead so the raw ratio can differ from the
+    theoretical 4× (float32 → int8) saving.
+``compatibility``
+    PyTorch version, quantization mode/backend/dtype, and a ``compatible``
+    boolean (``True`` when the forward pass completed without error).
+
+``passed``
+    ``True`` when all threshold checks pass.  Set ``--report-only`` to
+    always emit a report without failing.
+
+Known limitations
+-----------------
+- Static quantization performance may vary across PyTorch minor versions.
+- CUDA paths dequantize int8 weights before matmul; the latency ratio
+  on GPU will typically be > 1.
+- Checkpoint sizes reflect Python pickle + metadata overhead and are not
+  a pure measure of weight storage.
 """
 
 from __future__ import annotations
@@ -57,7 +94,8 @@ if _repo_root not in sys.path:
 
 from farm.core.decision.base_dqn import StudentQNetwork  # noqa: E402
 from farm.core.decision.training.quantize_ptq import (  # noqa: E402
-    compare_outputs,
+    QuantizedValidationThresholds,
+    QuantizedValidator,
     load_quantized_checkpoint,
 )
 
@@ -115,20 +153,43 @@ def _resolve(pair: str, explicit: str, directory: str, template: str) -> str:
     return ""
 
 
-def _print_report(pair: str, cmp: dict, meta: dict) -> None:
+def _print_report(pair: str, report_dict: dict) -> None:
     sep = "=" * 72
+    compat = report_dict.get("compatibility", {})
+    fidelity = report_dict.get("fidelity", {})
+    latency = report_dict.get("latency", {})
+    size = report_dict.get("size", {})
+
     print(f"\n{sep}")
     print(f"Quantization validation report: student_{pair}")
     print(sep)
-    quant_meta = meta.get("quantization", {})
-    print(f"Mode            : {quant_meta.get('mode', 'unknown')}")
-    print(f"Dtype           : {quant_meta.get('dtype', 'unknown')}")
-    print(f"Backend         : {quant_meta.get('backend', 'unknown')}")
-    print(f"Action agreement: {cmp['action_agreement']*100:.2f}%")
-    print(f"Mean Q-error    : {cmp['mean_q_error']:.6f}")
-    print(f"Max Q-error     : {cmp['max_q_error']:.6f}")
-    print(f"Cosine similarity: {cmp['mean_cosine_similarity']:.6f}")
-    print(f"States evaluated: {cmp['n_states']}")
+    print(f"Compatible      : {compat.get('compatible', 'unknown')}")
+    print(f"PyTorch version : {compat.get('pytorch_version', 'unknown')}")
+    print(f"Mode            : {compat.get('quantization_mode', 'unknown')}")
+    print(f"Dtype           : {compat.get('quantization_dtype', 'unknown')}")
+    print(f"Backend         : {compat.get('quantization_backend', 'unknown')}")
+    print()
+    print(f"Action agreement    : {fidelity.get('action_agreement', 0)*100:.2f}%")
+    print(f"Mean Q-error        : {fidelity.get('mean_q_error', 0):.6f}")
+    print(f"Max Q-error         : {fidelity.get('max_q_error', 0):.6f}")
+    print(f"Cosine similarity   : {fidelity.get('mean_cosine_similarity', 0):.6f}")
+    print(f"States evaluated    : {fidelity.get('n_states', 0)}")
+    print()
+    print(f"Float latency (ms)  : {latency.get('float_inference_ms', 0):.4f}")
+    print(f"Quant latency (ms)  : {latency.get('quantized_inference_ms', 0):.4f}")
+    print(f"Latency ratio       : {latency.get('latency_ratio', 0):.4f}")
+    print()
+    float_bytes = size.get("float_checkpoint_bytes")
+    quant_bytes = size.get("quantized_checkpoint_bytes")
+    size_ratio = size.get("size_ratio")
+    if float_bytes is not None:
+        print(f"Float size (bytes)  : {float_bytes:,}")
+    if quant_bytes is not None:
+        print(f"Quant size (bytes)  : {quant_bytes:,}")
+    if size_ratio is not None:
+        print(f"Size ratio          : {size_ratio:.4f}")
+    print()
+    print(f"Passed              : {report_dict.get('passed', False)}")
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +224,26 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--n-states", type=int, default=1000)
     p.add_argument("--seed", type=int, default=42)
 
+    # Latency benchmark
+    p.add_argument("--latency-warmup", type=int, default=5,
+                   help="Forward passes excluded from latency timing.")
+    p.add_argument("--latency-repeats", type=int, default=50,
+                   help="Timed single-sample forward passes (median reported).")
+
+    # Thresholds
+    p.add_argument("--min-action-agreement", type=float, default=0.75)
+    p.add_argument("--max-mean-q-error", type=float, default=0.5)
+    p.add_argument("--min-cosine-similarity", type=float, default=0.75)
+    p.add_argument("--max-latency-ratio", type=float, default=2.0)
+    p.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Emit the report without applying pass/fail thresholds.",
+    )
+
+    # Device
+    p.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+
     # Output
     p.add_argument("--report-dir", default="reports/quantization_validation")
     return p.parse_args()
@@ -170,6 +251,10 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
+
+    if args.device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA requested but not available.")
+    device = torch.device(args.device)
 
     states = _load_states(args.states_file, args.n_states, args.input_dim, args.seed)
     pairs = ["A", "B"] if args.pair == "both" else [args.pair]
@@ -185,6 +270,16 @@ def main() -> None:
         "B": _resolve("B", args.quant_b_ckpt, args.quant_dir, "student_{pair}_int8.pt"),
     }
 
+    thresholds = QuantizedValidationThresholds(
+        min_action_agreement=args.min_action_agreement,
+        max_mean_q_error=args.max_mean_q_error,
+        min_cosine_similarity=args.min_cosine_similarity,
+        max_latency_ratio=args.max_latency_ratio,
+        report_only=args.report_only,
+    )
+
+    any_failed = False
+
     for pair in pairs:
         float_ckpt = float_ckpts[pair]
         quant_ckpt = quant_ckpts[pair]
@@ -197,24 +292,44 @@ def main() -> None:
         float_model = _load_float_student(
             float_ckpt, args.input_dim, args.output_dim, args.parent_hidden
         )
-        q_model, meta = load_quantized_checkpoint(quant_ckpt)
+        q_model, meta = load_quantized_checkpoint(quant_ckpt, device=device)
 
-        cmp = compare_outputs(float_model, q_model, states)
-        _print_report(pair, cmp, meta)
+        validator = QuantizedValidator(float_model, q_model, thresholds=thresholds, device=device)
+        report = validator.validate(
+            states,
+            float_checkpoint_path=float_ckpt,
+            quantized_checkpoint_path=quant_ckpt,
+            quantization_metadata=meta,
+            n_latency_warmup=args.latency_warmup,
+            n_latency_repeats=args.latency_repeats,
+        )
 
-        report = {
-            "pair": pair,
-            "float_checkpoint": float_ckpt,
-            "quantized_checkpoint": quant_ckpt,
-            "comparison": cmp,
-            "quantization_metadata": meta,
+        report_dict = report.to_dict()
+        report_dict["pair"] = pair
+        report_dict["checkpoints"] = {
+            "float": float_ckpt,
+            "quantized": quant_ckpt,
         }
+        report_dict["states"] = {
+            "count": int(states.shape[0]),
+            "input_dim": int(states.shape[1]),
+            "source": args.states_file if args.states_file else "synthetic_standard_normal",
+            "seed": args.seed,
+        }
+
+        _print_report(pair, report_dict)
+
         out_path = os.path.join(args.report_dir, f"quantization_validation_{pair}.json")
         with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump(report, fh, indent=2, allow_nan=False)
+            json.dump(report_dict, fh, indent=2, allow_nan=False)
         print(f"JSON report written: {out_path}")
 
+        if not report.passed:
+            any_failed = True
+
     print("\nValidation complete.")
+    if any_failed and not args.report_only:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

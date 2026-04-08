@@ -88,6 +88,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from farm.utils.logging import get_logger
 
@@ -574,3 +575,444 @@ def compare_outputs(
         "mean_cosine_similarity": cos_sim,
         "n_states": n,
     }
+
+
+# ---------------------------------------------------------------------------
+# Quantized validation thresholds
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class QuantizedValidationThresholds:
+    """Pass/fail thresholds for quantized-model validation.
+
+    Defaults are deliberately more lenient than the float-student thresholds in
+    :class:`~farm.core.decision.training.trainer_distill.ValidationThresholds`
+    because quantization introduces a bounded amount of numerical degradation.
+    Use ``report_only=True`` to disable threshold checks and always pass.
+
+    Attributes
+    ----------
+    min_action_agreement:
+        Minimum required top-1 action agreement between float and quantized
+        model (0–1).  Default 0.75.
+    max_mean_q_error:
+        Maximum allowed mean absolute Q-value error.  Default 0.5.
+    min_cosine_similarity:
+        Minimum mean cosine similarity between float and quantized Q-value
+        vectors.  Default 0.75.
+    max_latency_ratio:
+        Maximum allowed ``quantized_ms / float_ms`` latency ratio.  Values
+        > 1 mean the quantized model is slower (possible on CPU for dynamic
+        quantization with small batches).  Default 2.0.
+    report_only:
+        When ``True`` the :attr:`QuantizedValidationReport.passed` property
+        always returns ``True`` regardless of thresholds.  Useful for
+        exploratory runs.
+    """
+
+    min_action_agreement: float = 0.75
+    max_mean_q_error: float = 0.5
+    min_cosine_similarity: float = 0.75
+    max_latency_ratio: float = 2.0
+    report_only: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Quantized validation report
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class QuantizedValidationReport:
+    """Comprehensive validation report comparing a quantized model to its float reference.
+
+    Attributes
+    ----------
+    action_agreement:
+        Fraction of states where float and quantized argmax actions match.
+    mean_q_error:
+        Mean absolute difference in Q-values per (state, action) pair.
+    max_q_error:
+        Maximum absolute difference over all (state, action) pairs.
+    mean_cosine_similarity:
+        Mean cosine similarity between float and quantized Q-value vectors.
+    n_states:
+        Number of states used for fidelity evaluation.
+    float_inference_ms:
+        Median single-sample inference latency of the float model (ms),
+        warmup excluded.
+    quantized_inference_ms:
+        Median single-sample inference latency of the quantized model (ms),
+        warmup excluded.
+    latency_ratio:
+        ``quantized_inference_ms / float_inference_ms``; < 1 means faster.
+    float_checkpoint_bytes:
+        On-disk size of the float checkpoint in bytes; ``None`` if no path
+        was provided.
+    quantized_checkpoint_bytes:
+        On-disk size of the quantized checkpoint in bytes; ``None`` if no
+        path was provided.
+    size_ratio:
+        ``quantized_checkpoint_bytes / float_checkpoint_bytes``; ``None`` if
+        either size is unavailable.
+    pytorch_version:
+        ``torch.__version__`` string at validation time.
+    quantization_mode:
+        Quantization mode string from metadata (e.g. ``"dynamic"``,
+        ``"static"``, ``"qat"``).  Falls back to ``"unknown"`` when metadata
+        is absent.
+    quantization_backend:
+        Backend string from metadata (e.g. ``"qnnpack"``).  Falls back to
+        ``"unknown"``.
+    quantization_dtype:
+        Dtype string from metadata (e.g. ``"qint8"``).  Falls back to
+        ``"unknown"``.
+    compatible:
+        ``True`` when the quantized model successfully completed a forward
+        pass on the validation states without raising an exception.
+    thresholds:
+        The :class:`QuantizedValidationThresholds` used for pass/fail.
+    """
+
+    action_agreement: float
+    mean_q_error: Optional[float]
+    max_q_error: Optional[float]
+    mean_cosine_similarity: float
+    n_states: int
+    float_inference_ms: float
+    quantized_inference_ms: float
+    latency_ratio: float
+    float_checkpoint_bytes: Optional[int]
+    quantized_checkpoint_bytes: Optional[int]
+    size_ratio: Optional[float]
+    pytorch_version: str
+    quantization_mode: str
+    quantization_backend: str
+    quantization_dtype: str
+    compatible: bool
+    thresholds: QuantizedValidationThresholds
+
+    @property
+    def passed(self) -> bool:
+        """Return ``True`` if all threshold checks pass (or ``report_only`` is set)."""
+        if self.thresholds.report_only:
+            return True
+        if not self.compatible:
+            return False
+        t = self.thresholds
+        mean_q_error = self.mean_q_error if self.mean_q_error is not None else float("inf")
+        return (
+            self.action_agreement >= t.min_action_agreement
+            and mean_q_error <= t.max_mean_q_error
+            and self.mean_cosine_similarity >= t.min_cosine_similarity
+            and self.latency_ratio <= t.max_latency_ratio
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-serialisable dict of all report fields."""
+        return {
+            "fidelity": {
+                "action_agreement": self.action_agreement,
+                "mean_q_error": self.mean_q_error,
+                "max_q_error": self.max_q_error,
+                "mean_cosine_similarity": self.mean_cosine_similarity,
+                "n_states": self.n_states,
+            },
+            "latency": {
+                "float_inference_ms": self.float_inference_ms,
+                "quantized_inference_ms": self.quantized_inference_ms,
+                "latency_ratio": self.latency_ratio,
+            },
+            "size": {
+                "float_checkpoint_bytes": self.float_checkpoint_bytes,
+                "quantized_checkpoint_bytes": self.quantized_checkpoint_bytes,
+                "size_ratio": self.size_ratio,
+            },
+            "compatibility": {
+                "compatible": self.compatible,
+                "pytorch_version": self.pytorch_version,
+                "quantization_mode": self.quantization_mode,
+                "quantization_backend": self.quantization_backend,
+                "quantization_dtype": self.quantization_dtype,
+            },
+            "thresholds": {
+                "min_action_agreement": self.thresholds.min_action_agreement,
+                "max_mean_q_error": self.thresholds.max_mean_q_error,
+                "min_cosine_similarity": self.thresholds.min_cosine_similarity,
+                "max_latency_ratio": self.thresholds.max_latency_ratio,
+                "report_only": self.thresholds.report_only,
+            },
+            "passed": self.passed,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Quantized validator
+# ---------------------------------------------------------------------------
+
+
+class QuantizedValidator:
+    """Validate a quantized model against its float reference on fidelity, speed, and size.
+
+    This validator covers all acceptance criteria for a quantized student
+    checkpoint:
+
+    * **Compatibility**: the quantized model is loaded and a forward pass runs
+      without error on the validation state set.
+    * **Fidelity**: action agreement, mean/max Q-error, and cosine similarity
+      vs the float reference (via :func:`compare_outputs`).
+    * **Latency**: per-sample median forward time with a configurable warmup
+      phase excluded (``quantized_ms / float_ms``).
+    * **File size**: on-disk checkpoint sizes if paths are supplied
+      (``quantized_bytes / float_bytes``).
+    * **Compatibility metadata**: PyTorch version, quantization mode, backend,
+      and dtype recorded in the report.
+
+    Parameters
+    ----------
+    float_model:
+        Float-precision reference ``nn.Module`` (e.g. ``StudentQNetwork``).
+    quantized_model:
+        Quantized ``nn.Module`` produced by :class:`PostTrainingQuantizer` or
+        :class:`~farm.core.decision.training.quantize_qat.QATTrainer`.
+    thresholds:
+        Optional :class:`QuantizedValidationThresholds`.  Defaults to
+        conservative quantization-aware values.
+    device:
+        Target device.  Defaults to CPU.
+
+    Example
+    -------
+    ::
+
+        from farm.core.decision.training.quantize_ptq import (
+            QuantizedValidator,
+            QuantizedValidationThresholds,
+            load_quantized_checkpoint,
+        )
+
+        q_model, meta = load_quantized_checkpoint("student_A_int8.pt")
+        validator = QuantizedValidator(float_model, q_model)
+        report = validator.validate(
+            states,
+            float_checkpoint_path="student_A.pt",
+            quantized_checkpoint_path="student_A_int8.pt",
+            quantization_metadata=meta,
+        )
+        print(report.passed, report.to_dict())
+    """
+
+    def __init__(
+        self,
+        float_model: nn.Module,
+        quantized_model: nn.Module,
+        thresholds: Optional[QuantizedValidationThresholds] = None,
+        device: Optional[torch.device] = None,
+    ) -> None:
+        self.float_model = float_model
+        self.quantized_model = quantized_model
+        self.thresholds = thresholds or QuantizedValidationThresholds()
+        self.device = device or torch.device("cpu")
+        self.float_model.to(self.device)
+        # Quantized models with int8 packed params must stay on CPU
+        # (CUDA does not support packed int8 kernels); we move them only if
+        # the device is CPU to avoid a runtime error.
+        if self.device.type == "cpu":
+            try:
+                self.quantized_model.to(self.device)
+            except Exception:
+                pass
+
+    def validate(
+        self,
+        states: np.ndarray,
+        float_checkpoint_path: Optional[str] = None,
+        quantized_checkpoint_path: Optional[str] = None,
+        quantization_metadata: Optional[Dict[str, Any]] = None,
+        n_latency_warmup: int = 5,
+        n_latency_repeats: int = 50,
+        batch_size: int = 256,
+    ) -> QuantizedValidationReport:
+        """Run all validation checks and return a :class:`QuantizedValidationReport`.
+
+        Parameters
+        ----------
+        states:
+            NumPy array of shape ``(N, input_dim)`` with ``dtype=float32``.
+        float_checkpoint_path:
+            Optional path to the float ``.pt`` checkpoint for size comparison.
+        quantized_checkpoint_path:
+            Optional path to the quantized ``.pt`` checkpoint for size
+            comparison.
+        quantization_metadata:
+            Optional dict from :func:`load_quantized_checkpoint` (the
+            companion ``.json`` file).  Used to populate compatibility fields.
+        n_latency_warmup:
+            Forward passes to run before timing (excluded from measurements).
+        n_latency_repeats:
+            Number of timed single-sample forward passes; median is reported.
+        batch_size:
+            Batch size for the :func:`compare_outputs` forward passes.
+
+        Returns
+        -------
+        QuantizedValidationReport
+        """
+        if len(states) == 0:
+            raise ValueError("states must be non-empty; got 0 samples.")
+        states_arr = np.asarray(states, dtype=np.float32)
+        if states_arr.ndim != 2:
+            raise ValueError(
+                f"states must be a 2D array with shape (N, input_dim); got {states_arr.shape!r}"
+            )
+
+        self.float_model.eval()
+        self.quantized_model.eval()
+
+        # -- Compatibility check --
+        compatible, compat_error = self._check_compatibility(states_arr)
+
+        # -- Fidelity metrics --
+        # Skip compare_outputs when incompatible to avoid a second error.
+        if compatible:
+            cmp = compare_outputs(
+                self.float_model, self.quantized_model, states_arr, batch_size=batch_size
+            )
+        else:
+            n = len(states_arr)
+            cmp = {
+                "action_agreement": 0.0,
+                "mean_q_error": None,
+                "max_q_error": None,
+                "mean_cosine_similarity": 0.0,
+                "n_states": n,
+            }
+
+        # -- Latency --
+        float_ms, quant_ms = self._measure_latency(
+            states_arr, n_latency_warmup, n_latency_repeats, skip_quantized=not compatible
+        )
+        latency_ratio = quant_ms / max(float_ms, 1e-9)
+
+        # -- File sizes --
+        float_bytes: Optional[int] = None
+        quant_bytes: Optional[int] = None
+        size_ratio: Optional[float] = None
+        if float_checkpoint_path and os.path.isfile(float_checkpoint_path):
+            float_bytes = os.path.getsize(float_checkpoint_path)
+        if quantized_checkpoint_path and os.path.isfile(quantized_checkpoint_path):
+            quant_bytes = os.path.getsize(quantized_checkpoint_path)
+        if float_bytes is not None and quant_bytes is not None and float_bytes > 0:
+            size_ratio = quant_bytes / float_bytes
+
+        # -- Compatibility metadata --
+        quant_meta = (quantization_metadata or {}).get("quantization", {})
+        quant_mode = quant_meta.get("mode", "unknown")
+        quant_backend = quant_meta.get("backend", "unknown")
+        quant_dtype = quant_meta.get("dtype", "unknown")
+
+        report = QuantizedValidationReport(
+            action_agreement=cmp["action_agreement"],
+            mean_q_error=cmp["mean_q_error"],
+            max_q_error=cmp["max_q_error"],
+            mean_cosine_similarity=cmp["mean_cosine_similarity"],
+            n_states=cmp["n_states"],
+            float_inference_ms=float_ms,
+            quantized_inference_ms=quant_ms,
+            latency_ratio=latency_ratio,
+            float_checkpoint_bytes=float_bytes,
+            quantized_checkpoint_bytes=quant_bytes,
+            size_ratio=size_ratio,
+            pytorch_version=torch.__version__,
+            quantization_mode=quant_mode,
+            quantization_backend=quant_backend,
+            quantization_dtype=quant_dtype,
+            compatible=compatible,
+            thresholds=self.thresholds,
+        )
+
+        if not compatible:
+            logger.warning(
+                "quantized_validator_compat_failure",
+                error=str(compat_error),
+            )
+
+        mean_q_err_log = (
+            round(cmp["mean_q_error"], 6) if cmp["mean_q_error"] is not None else None
+        )
+        logger.info(
+            "quantized_validator_complete",
+            compatible=compatible,
+            action_agreement=round(cmp["action_agreement"], 4),
+            mean_q_error=mean_q_err_log,
+            latency_ratio=round(latency_ratio, 4),
+            passed=report.passed,
+        )
+        return report
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _check_compatibility(self, states: np.ndarray) -> Tuple[bool, Optional[Exception]]:
+        """Run a test forward pass to verify the quantized model is functional.
+
+        Returns
+        -------
+        (compatible, error)
+            ``compatible`` is ``True`` when the forward pass succeeds.
+            ``error`` is the caught exception or ``None`` on success.
+        """
+        probe = torch.from_numpy(states[:1]).to(self.device)
+        try:
+            with torch.no_grad():
+                out = self.quantized_model(probe)
+            if out.is_quantized:
+                out = out.dequantize()
+            if not torch.isfinite(out).all():
+                return False, ValueError("Quantized model produced non-finite outputs.")
+            return True, None
+        except Exception as exc:  # noqa: BLE001
+            return False, exc
+
+    def _measure_latency(
+        self,
+        states: np.ndarray,
+        n_warmup: int,
+        n_repeats: int,
+        skip_quantized: bool = False,
+    ) -> Tuple[float, float]:
+        """Return median single-sample latency (ms) for float and quantized models.
+
+        Uses the first row of *states* as the probe input so that batch-size
+        variation does not confound the comparison.  Warmup passes are excluded
+        from timing.  When *skip_quantized* is ``True`` (e.g. the compatibility
+        check failed), the quantized latency is returned as ``0.0`` to avoid a
+        second error.
+        """
+        single = torch.from_numpy(states[:1]).to(self.device)
+
+        def _sync() -> None:
+            if self.device.type == "cuda":
+                torch.cuda.synchronize(self.device)
+
+        def _time_model(model: nn.Module) -> float:
+            model.eval()
+            with torch.no_grad():
+                for _ in range(n_warmup):
+                    model(single)
+            _sync()
+            times: List[float] = []
+            with torch.no_grad():
+                for _ in range(n_repeats):
+                    _sync()
+                    t0 = time.perf_counter()
+                    model(single)
+                    _sync()
+                    times.append((time.perf_counter() - t0) * 1_000.0)
+            return float(np.median(times)) if times else 0.0
+
+        float_ms = _time_model(self.float_model)
+        quant_ms = 0.0 if skip_quantized else _time_model(self.quantized_model)
+        return float_ms, quant_ms
