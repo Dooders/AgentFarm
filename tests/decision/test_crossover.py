@@ -594,8 +594,306 @@ class TestPublicImports:
             CROSSOVER_MODES,
             crossover_checkpoints,
             crossover_quantized_state_dict,
+            initialize_child_from_crossover,
         )
 
         assert callable(crossover_quantized_state_dict)
         assert callable(crossover_checkpoints)
+        assert callable(initialize_child_from_crossover)
         assert "random" in CROSSOVER_MODES
+
+
+# ---------------------------------------------------------------------------
+# initialize_child_from_crossover
+# ---------------------------------------------------------------------------
+
+
+from farm.core.decision.training.crossover import (
+    initialize_child_from_crossover,
+    _infer_arch_from_state_dict,
+    _resolve_parent,
+)
+
+
+class TestInitializeChildFromCrossover:
+    """End-to-end tests for initialize_child_from_crossover."""
+
+    def _make_base(self, seed: int = 0) -> BaseQNetwork:
+        torch.manual_seed(seed)
+        return BaseQNetwork(
+            input_dim=INPUT_DIM,
+            output_dim=OUTPUT_DIM,
+            hidden_size=PARENT_HIDDEN,
+        )
+
+    def _batch(self) -> torch.Tensor:
+        return torch.zeros(4, INPUT_DIM)
+
+    # ------------------------------------------------------------------
+    # Strategy: all three modes from live nn.Module parents
+    # ------------------------------------------------------------------
+
+    def test_random_strategy_from_modules(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        child = initialize_child_from_crossover(pa, pb, strategy="random", rng=42)
+        assert isinstance(child, nn.Module)
+        out = child(self._batch())
+        assert out.shape == (4, OUTPUT_DIM)
+
+    def test_layer_strategy_from_modules(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        child = initialize_child_from_crossover(pa, pb, strategy="layer")
+        out = child(self._batch())
+        assert out.shape == (4, OUTPUT_DIM)
+
+    def test_weighted_strategy_from_modules(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        child = initialize_child_from_crossover(pa, pb, strategy="weighted", alpha=0.7)
+        out = child(self._batch())
+        assert out.shape == (4, OUTPUT_DIM)
+
+    # ------------------------------------------------------------------
+    # Child is in eval mode
+    # ------------------------------------------------------------------
+
+    def test_child_is_in_eval_mode(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        child = initialize_child_from_crossover(pa, pb, strategy="layer")
+        assert not child.training
+
+    # ------------------------------------------------------------------
+    # RNG as int seed → determinism
+    # ------------------------------------------------------------------
+
+    def test_rng_int_seed_determinism(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        child1 = initialize_child_from_crossover(pa, pb, strategy="random", rng=7)
+        child2 = initialize_child_from_crossover(pa, pb, strategy="random", rng=7)
+        for k, v1 in child1.state_dict().items():
+            v2 = child2.state_dict()[k]
+            assert torch.equal(v1, v2), f"Non-deterministic output at {k!r}"
+
+    # ------------------------------------------------------------------
+    # Accepting state dicts directly
+    # ------------------------------------------------------------------
+
+    def test_accepts_state_dicts(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        child = initialize_child_from_crossover(
+            pa.state_dict(), pb.state_dict(), strategy="weighted", alpha=0.5
+        )
+        out = child(self._batch())
+        assert out.shape == (4, OUTPUT_DIM)
+
+    # ------------------------------------------------------------------
+    # Accepting checkpoint paths
+    # ------------------------------------------------------------------
+
+    def test_accepts_checkpoint_paths_str(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path_a = os.path.join(tmpdir, "pa.pt")
+            path_b = os.path.join(tmpdir, "pb.pt")
+            torch.save(pa.state_dict(), path_a)
+            torch.save(pb.state_dict(), path_b)
+            child = initialize_child_from_crossover(path_a, path_b, strategy="layer")
+            out = child(self._batch())
+            assert out.shape == (4, OUTPUT_DIM)
+
+    def test_accepts_checkpoint_paths_pathlib(self):
+        from pathlib import Path
+
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path_a = Path(tmpdir) / "pa.pt"
+            path_b = Path(tmpdir) / "pb.pt"
+            torch.save(pa.state_dict(), path_a)
+            torch.save(pb.state_dict(), path_b)
+            child = initialize_child_from_crossover(path_a, path_b, strategy="weighted", alpha=0.3)
+            out = child(self._batch())
+            assert out.shape == (4, OUTPUT_DIM)
+
+    # ------------------------------------------------------------------
+    # Weighted crossover correctness: alpha=1.0 → child == parent A
+    # ------------------------------------------------------------------
+
+    def test_weighted_alpha_one_reproduces_parent_a(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        child = initialize_child_from_crossover(pa, pb, strategy="weighted", alpha=1.0)
+        for k, cv in child.state_dict().items():
+            assert torch.allclose(cv, pa.state_dict()[k].float(), atol=1e-6), (
+                f"alpha=1.0 child differs from parent A at {k!r}"
+            )
+
+    def test_weighted_alpha_zero_reproduces_parent_b(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        child = initialize_child_from_crossover(pa, pb, strategy="weighted", alpha=0.0)
+        for k, cv in child.state_dict().items():
+            assert torch.allclose(cv, pb.state_dict()[k].float(), atol=1e-6), (
+                f"alpha=0.0 child differs from parent B at {k!r}"
+            )
+
+    # ------------------------------------------------------------------
+    # Device placement
+    # ------------------------------------------------------------------
+
+    def test_device_cpu_string(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        child = initialize_child_from_crossover(pa, pb, strategy="layer", device="cpu")
+        p = next(child.parameters())
+        assert p.device.type == "cpu"
+
+    def test_device_torch_device(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        child = initialize_child_from_crossover(
+            pa, pb, strategy="layer", device=torch.device("cpu")
+        )
+        p = next(child.parameters())
+        assert p.device.type == "cpu"
+
+    # ------------------------------------------------------------------
+    # Error cases
+    # ------------------------------------------------------------------
+
+    def test_invalid_strategy_raises(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        with pytest.raises(ValueError, match="mode must be one of"):
+            initialize_child_from_crossover(pa, pb, strategy="invalid_mode")
+
+    def test_mismatched_keys_raises(self):
+        pa = self._make_base(0)
+        pb = BaseQNetwork(input_dim=INPUT_DIM, output_dim=OUTPUT_DIM, hidden_size=64)
+        with pytest.raises(ValueError):
+            initialize_child_from_crossover(pa, pb, strategy="layer")
+
+    def test_file_not_found_raises(self):
+        pa = self._make_base(0)
+        with pytest.raises(FileNotFoundError):
+            initialize_child_from_crossover(pa, "/nonexistent/path.pt", strategy="layer")
+
+    def test_invalid_parent_type_raises(self):
+        pa = self._make_base(0)
+        with pytest.raises(TypeError):
+            initialize_child_from_crossover(pa, 12345, strategy="layer")  # type: ignore[arg-type]
+
+    # ------------------------------------------------------------------
+    # Quantized parent inputs (dequantized automatically)
+    # ------------------------------------------------------------------
+
+    def test_quantized_state_dict_parents(self):
+        """Quantized (qint8) tensors in parent state dicts are dequantized."""
+        pa = self._make_base(0)
+        sd_a = pa.state_dict()
+
+        # Manually quantize one weight tensor
+        w = sd_a["network.0.weight"]
+        scale = w.abs().max().item() / 127.0 + 1e-8
+        sd_a["network.0.weight"] = torch.quantize_per_tensor(
+            w, scale=scale, zero_point=0, dtype=torch.qint8
+        )
+
+        pb = self._make_base(1)
+        sd_b = pb.state_dict()
+        w_b = sd_b["network.0.weight"]
+        scale_b = w_b.abs().max().item() / 127.0 + 1e-8
+        sd_b["network.0.weight"] = torch.quantize_per_tensor(
+            w_b, scale=scale_b, zero_point=0, dtype=torch.qint8
+        )
+
+        child = initialize_child_from_crossover(sd_a, sd_b, strategy="layer")
+        out = child(self._batch())
+        assert out.shape == (4, OUTPUT_DIM)
+
+
+# ---------------------------------------------------------------------------
+# _infer_arch_from_state_dict helper tests
+# ---------------------------------------------------------------------------
+
+
+class TestInferArchFromStateDict:
+    def test_infers_from_base_network(self):
+        model = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=32)
+        input_dim, hidden_size, output_dim = _infer_arch_from_state_dict(model.state_dict())
+        assert input_dim == 8
+        assert hidden_size == 32
+        assert output_dim == 4
+
+    def test_infers_from_student_network(self):
+        model = StudentQNetwork(input_dim=10, output_dim=6, parent_hidden_size=64)
+        input_dim, hidden_size, output_dim = _infer_arch_from_state_dict(model.state_dict())
+        assert input_dim == 10
+        assert hidden_size == max(16, 64 // 2)  # 32
+        assert output_dim == 6
+
+    def test_missing_key_raises(self):
+        sd = {"network.0.weight": torch.randn(32, 8)}  # missing other keys
+        with pytest.raises(ValueError, match="missing keys"):
+            _infer_arch_from_state_dict(sd)
+
+
+# ---------------------------------------------------------------------------
+# _resolve_parent helper tests
+# ---------------------------------------------------------------------------
+
+
+class TestResolveParent:
+    def test_resolves_nn_module(self):
+        model = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=32)
+        sd = _resolve_parent(model)
+        assert isinstance(sd, dict)
+        assert "network.0.weight" in sd
+
+    def test_resolves_state_dict(self):
+        sd_in = {"a": torch.tensor(1.0)}
+        sd_out = _resolve_parent(sd_in)
+        assert sd_out is sd_in
+
+    def test_resolves_path_string(self):
+        model = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=32)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model.pt")
+            torch.save(model.state_dict(), path)
+            sd = _resolve_parent(path)
+        assert isinstance(sd, dict)
+        assert "network.0.weight" in sd
+
+    def test_resolves_pathlib_path(self):
+        from pathlib import Path
+
+        model = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=32)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "model.pt"
+            torch.save(model.state_dict(), path)
+            sd = _resolve_parent(path)
+        assert isinstance(sd, dict)
+
+    def test_resolves_full_model_pickle(self):
+        """Full nn.Module pickle (not state dict) is resolved to state dict."""
+        model = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=32)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model_full.pt")
+            torch.save(model, path)
+            sd = _resolve_parent(path)
+        assert isinstance(sd, dict)
+        assert "network.0.weight" in sd
+
+    def test_file_not_found_raises(self):
+        with pytest.raises(FileNotFoundError):
+            _resolve_parent("/no/such/file.pt")
+
+    def test_invalid_type_raises(self):
+        with pytest.raises(TypeError):
+            _resolve_parent(123)  # type: ignore[arg-type]
