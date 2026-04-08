@@ -668,6 +668,7 @@ class ValidationThresholds:
     """Configurable pass/fail thresholds for parent-student pair validation.
 
     All fields have conservative defaults that can be tightened per task.
+    Optional fields set to ``None`` disable that check.
 
     Attributes
     ----------
@@ -687,6 +688,15 @@ class ValidationThresholds:
     max_param_ratio:
         Maximum allowed ratio of student parameters to parent parameters.
         Ensures the student is strictly smaller than the parent.
+    max_mae:
+        When not ``None``, maximum allowed mean absolute error between parent
+        and student Q-value logits.
+    max_latency_ratio:
+        When not ``None``, maximum allowed ratio of student median inference
+        latency to parent median latency (see :class:`StudentValidator`).
+    min_robustness_action_agreement:
+        When not ``None`` and robustness slices are provided, every slice's
+        top-1 action agreement must be at least this value.
     """
 
     min_action_agreement: float = 0.85
@@ -694,6 +704,9 @@ class ValidationThresholds:
     max_mse: float = 2.0
     min_cosine_similarity: float = 0.8
     max_param_ratio: float = 0.9
+    max_mae: Optional[float] = None
+    max_latency_ratio: Optional[float] = None
+    min_robustness_action_agreement: Optional[float] = None
 
 
 # ---------------------------------------------------------------------------
@@ -760,13 +773,25 @@ class ValidationReport:
     def passed(self) -> bool:
         """Return ``True`` if all threshold checks pass."""
         t = self.thresholds
-        return (
+        if not (
             self.action_agreement >= t.min_action_agreement
             and self.kl_divergence <= t.max_kl_divergence
             and self.mse <= t.max_mse
             and self.mean_cosine_similarity >= t.min_cosine_similarity
             and self.param_ratio <= t.max_param_ratio
-        )
+        ):
+            return False
+        if t.max_mae is not None and self.mae > t.max_mae:
+            return False
+        if t.max_latency_ratio is not None and self.latency_ratio > t.max_latency_ratio:
+            return False
+        if t.min_robustness_action_agreement is not None and self.robustness_slice_agreements:
+            if any(
+                v < t.min_robustness_action_agreement
+                for v in self.robustness_slice_agreements.values()
+            ):
+                return False
+        return True
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a JSON-serialisable dictionary of all report fields."""
@@ -792,6 +817,9 @@ class ValidationReport:
                 "max_mse": self.thresholds.max_mse,
                 "min_cosine_similarity": self.thresholds.min_cosine_similarity,
                 "max_param_ratio": self.thresholds.max_param_ratio,
+                "max_mae": self.thresholds.max_mae,
+                "max_latency_ratio": self.thresholds.max_latency_ratio,
+                "min_robustness_action_agreement": self.thresholds.min_robustness_action_agreement,
             },
         }
 

@@ -25,6 +25,12 @@ from .quantize_qat import (
     load_qat_checkpoint,
 )
 from .trainer import AlgorithmTrainer
+from .distillation_rollout import (
+    RolloutComparisonResult,
+    SeededLinearMDP,
+    compare_parent_student_rollouts,
+    relative_return_drop,
+)
 from .trainer_distill import (
     DistillationConfig,
     DistillationMetrics,
@@ -50,9 +56,13 @@ __all__ = [
     "QuantizedValidationReport",
     "QuantizedValidationThresholds",
     "QuantizedValidator",
+    "RolloutComparisonResult",
+    "SeededLinearMDP",
     "StudentValidator",
     "ValidationReport",
     "ValidationThresholds",
+    "compare_parent_student_rollouts",
+    "relative_return_drop",
     "WeightOnlyFakeQuantLinear",
     "compare_outputs",
     "crossover_checkpoints",
