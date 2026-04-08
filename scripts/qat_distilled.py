@@ -98,6 +98,9 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 from farm.core.decision.base_dqn import BaseQNetwork, StudentQNetwork  # noqa: E402
+from farm.core.decision.training.distillation_script_helpers import (  # noqa: E402
+    load_distillation_states,
+)
 from farm.core.decision.training.quantize_ptq import compare_outputs  # noqa: E402
 from farm.core.decision.training.quantize_qat import (  # noqa: E402
     QATConfig,
@@ -141,32 +144,6 @@ def _load_float_model(
     model.load_state_dict(state)
     model.eval()
     return model
-
-
-def _load_states(
-    states_file: str,
-    n_states: int,
-    input_dim: int,
-    seed: int,
-) -> np.ndarray:
-    if states_file:
-        if not os.path.isfile(states_file):
-            raise FileNotFoundError(f"States file not found: {states_file!r}")
-        states = np.load(states_file).astype("float32")
-        if states.ndim != 2:
-            raise ValueError(
-                f"Loaded states must be a 2-D array with shape (N, input_dim); got {states.shape!r}"
-            )
-        if states.shape[1] != input_dim:
-            raise ValueError(
-                f"States input_dim mismatch: expected {input_dim}, got {states.shape[1]}"
-            )
-        print(f"  Loaded states from {states_file}: shape={states.shape}")
-        return states
-    rng = np.random.default_rng(seed)
-    states = rng.standard_normal((n_states, input_dim)).astype("float32")
-    print(f"  Using {n_states} synthetic random states (shape={states.shape})")
-    return states
 
 
 def _resolve_ckpt(pair: str, explicit: str, checkpoint_dir: str, pattern: str) -> str:
@@ -242,7 +219,7 @@ def _run_pair(
             "dtype": config.dtype,
             "scope": "weight_only",
         },
-        "qat_metrics": metrics.to_dict(),
+        "qat_metrics": metrics.to_json_dict(),
         "float_qat_checkpoint": float_ckpt,
     }
 
@@ -396,7 +373,9 @@ def main() -> None:
         dtype=args.dtype,
     )
 
-    states = _load_states(args.states_file, args.n_states, args.input_dim, args.seed)
+    states = load_distillation_states(
+        args.states_file, args.n_states, args.input_dim, args.seed
+    )
 
     pairs = ["A", "B"] if args.pair == "both" else [args.pair]
 

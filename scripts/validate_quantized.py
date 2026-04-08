@@ -78,8 +78,6 @@ import argparse
 import json
 import os
 import sys
-from typing import Optional
-
 import numpy as np
 import torch
 
@@ -88,7 +86,10 @@ _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from farm.core.decision.base_dqn import StudentQNetwork  # noqa: E402
+from farm.core.decision.training.distillation_script_helpers import (  # noqa: E402
+    load_distillation_states,
+    load_float_student_checkpoint,
+)
 from farm.core.decision.training.quantize_ptq import (  # noqa: E402
     QuantizedValidationThresholds,
     QuantizedValidator,
@@ -99,46 +100,6 @@ from farm.core.decision.training.quantize_ptq import (  # noqa: E402
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _load_float_student(
-    path: str,
-    input_dim: int,
-    output_dim: int,
-    parent_hidden: int,
-) -> StudentQNetwork:
-    model = StudentQNetwork(
-        input_dim=input_dim,
-        output_dim=output_dim,
-        parent_hidden_size=parent_hidden,
-    )
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"Float student checkpoint not found: {path}")
-    state = torch.load(path, map_location="cpu", weights_only=True)
-    if not isinstance(state, dict):
-        raise ValueError(f"Expected a state dict at {path!r}, got {type(state).__name__}.")
-    model.load_state_dict(state)
-    model.eval()
-    return model
-
-
-def _load_states(
-    states_file: str,
-    n_states: int,
-    input_dim: int,
-    seed: Optional[int],
-) -> np.ndarray:
-    if states_file:
-        if not os.path.isfile(states_file):
-            raise FileNotFoundError(f"States file not found: {states_file}")
-        states = np.load(states_file).astype("float32")
-        if states.ndim != 2 or states.shape[1] != input_dim:
-            raise ValueError(
-                f"States shape mismatch: expected (N, {input_dim}), got {states.shape}"
-            )
-        return states
-    rng = np.random.default_rng(seed)
-    return rng.standard_normal((n_states, input_dim)).astype("float32")
 
 
 def _resolve(pair: str, explicit: str, directory: str, template: str) -> str:
@@ -247,7 +208,9 @@ def main() -> None:
 
     device = torch.device("cpu")
 
-    states = _load_states(args.states_file, args.n_states, args.input_dim, args.seed)
+    states = load_distillation_states(
+        args.states_file, args.n_states, args.input_dim, args.seed
+    )
     pairs = ["A", "B"] if args.pair == "both" else [args.pair]
 
     os.makedirs(args.report_dir, exist_ok=True)
@@ -280,8 +243,13 @@ def main() -> None:
         if not quant_ckpt:
             raise ValueError(f"Missing quantized checkpoint path for pair {pair}.")
 
-        float_model = _load_float_student(
-            float_ckpt, args.input_dim, args.output_dim, args.parent_hidden
+        float_model = load_float_student_checkpoint(
+            float_ckpt,
+            args.input_dim,
+            args.output_dim,
+            args.parent_hidden,
+            not_found_template="Float student checkpoint not found: {path}",
+            bad_state_template="Expected a state dict at {path!r}, got {type_name}.",
         )
         q_model, meta = load_quantized_checkpoint(quant_ckpt, device=device)
 

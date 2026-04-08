@@ -412,17 +412,17 @@ class PostTrainingQuantizer:
             wrapped.qconfig = tq.get_default_qconfig(self.config.backend)  # type: ignore[attr-defined]
             tq.prepare(wrapped, inplace=True)
 
-            # Calibration
+            # Calibration: fixed-size batches via circular indexing over states
             n_states = len(calibration_states)
             bs = self.config.calibration_batch_size
             total_samples = 0
             with torch.no_grad():
                 for batch_idx in range(self.config.calibration_batches):
-                    start = (batch_idx * bs) % n_states
-                    end = min(start + bs, n_states)
-                    batch = torch.from_numpy(calibration_states[start:end])
+                    base = batch_idx * bs
+                    idx = (np.arange(bs, dtype=np.int64) + base) % n_states
+                    batch = torch.from_numpy(calibration_states[idx])
                     wrapped(batch)
-                    total_samples += end - start
+                    total_samples += bs
 
             tq.convert(wrapped, inplace=True)
             return wrapped, total_samples

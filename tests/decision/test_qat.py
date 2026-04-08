@@ -650,6 +650,23 @@ class TestQATMetrics:
         m = QATMetrics(train_losses=[0.1], elapsed_seconds=0.5)
         json.dumps(m.to_dict())  # must not raise
 
+    def test_to_json_dict_allows_nan_false_with_default_best(self):
+        m = QATMetrics()
+        json.dumps(m.to_json_dict(), allow_nan=False)
+
+    def test_to_json_dict_maps_non_finite_losses_to_null(self):
+        m = QATMetrics(
+            train_losses=[float("nan"), 1.0],
+            val_losses=[float("inf")],
+            best_val_loss=float("inf"),
+        )
+        d = m.to_json_dict()
+        json.dumps(d, allow_nan=False)
+        assert d["train_losses"][0] is None
+        assert d["train_losses"][1] == 1.0
+        assert d["val_losses"][0] is None
+        assert d["best_val_loss"] is None
+
 
 # ---------------------------------------------------------------------------
 # Float checkpoint (state-dict) round-trip

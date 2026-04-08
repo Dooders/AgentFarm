@@ -104,6 +104,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import os
 import random
 import time
@@ -121,6 +122,17 @@ from farm.utils.logging import get_logger
 from .quantize_ptq import QuantizationResult, _estimate_tensor_bytes, _load_full_model_checkpoint
 
 logger = get_logger(__name__)
+
+
+def _json_safe_float(x: float) -> Optional[float]:
+    """Finite floats only; map inf/NaN to None for strict JSON (allow_nan=False)."""
+    xf = float(x)
+    return xf if math.isfinite(xf) else None
+
+
+def _json_safe_float_list(xs: List[float]) -> List[Optional[float]]:
+    return [_json_safe_float(v) for v in xs]
+
 
 # ---------------------------------------------------------------------------
 # Compatibility shim: torch.ao.quantization
@@ -324,6 +336,23 @@ class QATMetrics:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+    def to_json_dict(self) -> Dict[str, Any]:
+        """Like :meth:`to_dict` but safe for ``json.dump(..., allow_nan=False)``."""
+        d = self.to_dict()
+        for key in (
+            "train_losses",
+            "train_soft_losses",
+            "train_hard_losses",
+            "val_losses",
+            "action_agreements",
+            "mean_prob_similarities",
+        ):
+            if d[key]:
+                d[key] = _json_safe_float_list(d[key])
+        d["best_val_loss"] = _json_safe_float(d["best_val_loss"])
+        d["elapsed_seconds"] = _json_safe_float(d["elapsed_seconds"]) or 0.0
+        return d
 
 
 # ---------------------------------------------------------------------------
@@ -812,7 +841,7 @@ class QATTrainer:
                 "dtype": self.config.dtype,
                 "scope": "weight_only",
             },
-            "metrics": metrics.to_dict(),
+            "metrics": metrics.to_json_dict(),
             "notes": _build_notes(),
         }
         with open(meta_path, "w", encoding="utf-8") as fh:

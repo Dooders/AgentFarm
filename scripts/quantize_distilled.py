@@ -72,14 +72,16 @@ import os
 import sys
 
 import numpy as np
-import torch
 
 # Allow running directly from repo root
 _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from farm.core.decision.base_dqn import StudentQNetwork  # noqa: E402
+from farm.core.decision.training.distillation_script_helpers import (  # noqa: E402
+    load_distillation_states,
+    load_float_student_checkpoint,
+)
 from farm.core.decision.training.quantize_ptq import (  # noqa: E402
     PostTrainingQuantizer,
     QuantizationConfig,
@@ -91,57 +93,6 @@ from farm.core.decision.training.quantize_ptq import (  # noqa: E402
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _load_float_student(
-    path: str,
-    input_dim: int,
-    output_dim: int,
-    parent_hidden: int,
-) -> StudentQNetwork:
-    """Load a float StudentQNetwork from a state-dict checkpoint."""
-    model = StudentQNetwork(
-        input_dim=input_dim,
-        output_dim=output_dim,
-        parent_hidden_size=parent_hidden,
-    )
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"Student checkpoint not found: {path}")
-    state = torch.load(path, map_location="cpu", weights_only=True)
-    if not isinstance(state, dict):
-        raise ValueError(
-            f"Checkpoint at '{path}' must be a state dict (got {type(state).__name__}). "
-            "Use the checkpoint produced by run_distillation.py."
-        )
-    model.load_state_dict(state)
-    model.eval()
-    return model
-
-
-def _load_states(
-    states_file: str,
-    n_states: int,
-    input_dim: int,
-    seed: int,
-) -> np.ndarray:
-    if states_file:
-        if not os.path.isfile(states_file):
-            raise FileNotFoundError(f"States file not found: {states_file!r}")
-        states = np.load(states_file).astype("float32")
-        if states.ndim != 2:
-            raise ValueError(
-                f"Loaded states must be a 2-D array with shape (N, input_dim); got {states.shape!r}"
-            )
-        if states.shape[1] != input_dim:
-            raise ValueError(
-                f"States input_dim mismatch: expected {input_dim}, got {states.shape[1]}"
-            )
-        print(f"  Loaded states from {states_file}: shape={states.shape}")
-        return states
-    rng = np.random.default_rng(seed)
-    states = rng.standard_normal((n_states, input_dim)).astype("float32")
-    print(f"  Using {n_states} synthetic random states (shape={states.shape})")
-    return states
 
 
 def _run_pair(
@@ -162,7 +113,17 @@ def _run_pair(
 
     # Load float model
     print(f"  Loading float checkpoint: {student_ckpt}")
-    float_model = _load_float_student(student_ckpt, input_dim, output_dim, parent_hidden)
+    float_model = load_float_student_checkpoint(
+        student_ckpt,
+        input_dim,
+        output_dim,
+        parent_hidden,
+        not_found_template="Student checkpoint not found: {path}",
+        bad_state_template=(
+            "Checkpoint at '{path}' must be a state dict (got {type_name}). "
+            "Use the checkpoint produced by run_distillation.py."
+        ),
+    )
     float_params = sum(p.numel() for p in float_model.parameters())
     print(f"  Float model params: {float_params:,}")
 
@@ -302,7 +263,9 @@ def main() -> None:
     )
 
     # Load / generate states (used for calibration and comparison)
-    states = _load_states(args.states_file, args.n_states, args.input_dim, args.seed)
+    states = load_distillation_states(
+        args.states_file, args.n_states, args.input_dim, args.seed
+    )
 
     pairs = ["A", "B"] if args.pair == "both" else [args.pair]
     ckpt_map = {

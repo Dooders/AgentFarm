@@ -210,6 +210,7 @@ class TestStaticQuantization:
         assert isinstance(q_model, nn.Module)
         assert result.mode == "static"
         assert result.calibration_samples > 0
+        assert result.calibration_samples == cfg.calibration_batches * cfg.calibration_batch_size
 
     def test_static_forward_parity(self):
         """Static quantized model should have reasonable action agreement."""
