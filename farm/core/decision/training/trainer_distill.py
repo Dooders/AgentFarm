@@ -481,7 +481,7 @@ class DistillationTrainer:
         # KL divergence on temperature-softened distributions (Hinton et al. 2015)
         # p_t = softmax(z_t / T)  — teacher soft targets (NOT log-space)
         # p_s = log_softmax(z_s / T) — student log-probabilities
-        # KLDiv(p_s || p_t) with log_target=False: input is log-probs, target is probs
+        # KLDiv computes KL(p_t || p_s) with log_target=False: input is log-probs, target is probs
         teacher_soft = F.softmax(teacher_logits / T, dim=-1)
         student_log_soft = F.log_softmax(student_logits / T, dim=-1)
         kl = F.kl_div(student_log_soft, teacher_soft, reduction="batchmean", log_target=False)
@@ -640,6 +640,7 @@ class DistillationTrainer:
         metadata = {
             "config": {
                 "temperature": self.config.temperature,
+                "final_temperature": self._current_temperature,
                 "temp_decay": self.config.temp_decay,
                 "alpha": self.config.alpha,
                 "learning_rate": self.config.learning_rate,
@@ -958,11 +959,19 @@ class StudentValidator:
         # Top-1 is always computed independently so action_agreement is unambiguous
         action_agreement = float((parent_actions == student_actions).float().mean().item())
         top_k_agreements: Dict[int, float] = {}
+        n_actions = parent_logits.size(-1)
         for k in k_values:
-            k_clamped = min(k, parent_logits.size(-1))
+            k_clamped = min(k, n_actions)
+            if k_clamped != k:
+                logger.warning(
+                    "top_k_agreement_clamped",
+                    requested_k=k,
+                    n_actions=n_actions,
+                    effective_k=k_clamped,
+                )
             topk_student = student_logits.topk(k_clamped, dim=-1).indices
             matches = (topk_student == parent_actions.unsqueeze(-1)).any(dim=-1)
-            top_k_agreements[k] = float(matches.float().mean().item())
+            top_k_agreements[k_clamped] = float(matches.float().mean().item())
 
         # -- Robustness slices --
         slice_agreements: Dict[str, float] = {}
@@ -977,7 +986,7 @@ class StudentValidator:
 
         if n_latency_repeats > 0:
             parent_lat, student_lat = self._measure_latency(
-                states, n_latency_warmup, n_latency_repeats
+                states_arr, n_latency_warmup, n_latency_repeats
             )
         else:
             parent_lat, student_lat = 0.0, 0.0

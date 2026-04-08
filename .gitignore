@@ -176,3 +176,7 @@ checkpoints/quantized/
 checkpoints/qat/
 reports/distillation*/
 reports/quantization_validation/
+# Generated RL / distillation artifacts (regenerate via scripts/run_distillation.py)
+checkpoints/**/*.pt
+checkpoints/**/*.npy
+checkpoints/**/*.json

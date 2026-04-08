@@ -415,6 +415,7 @@ class TestDistillationCheckpointing:
             with open(ckpt + ".json") as fh:
                 meta = json.load(fh)
             assert meta["config"]["temperature"] == 5.0
+            assert meta["config"]["final_temperature"] == pytest.approx(5.0 * (0.9**2))
             assert meta["config"]["temp_decay"] == 0.9
             assert meta["config"]["alpha"] == 0.1
             assert meta["config"]["loss_fn"] == "mse"

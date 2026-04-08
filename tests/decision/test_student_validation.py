@@ -227,63 +227,71 @@ class TestStudentValidatorMetrics:
         self.student = _make_student()
         self.validator = StudentValidator(self.parent, self.student)
 
+    def _validate(self, states, **kwargs):
+        return self.validator.validate(
+            states,
+            n_latency_warmup=0,
+            n_latency_repeats=0,
+            **kwargs,
+        )
+
     def test_returns_validation_report(self):
-        report = self.validator.validate(self.states)
+        report = self._validate(self.states)
         assert isinstance(report, ValidationReport)
 
     def test_action_agreement_in_unit_interval(self):
-        report = self.validator.validate(self.states)
+        report = self._validate(self.states)
         assert 0.0 <= report.action_agreement <= 1.0
 
     def test_top_k_agreements_populated_for_all_k(self):
-        report = self.validator.validate(self.states, k_values=[1, 2, 3])
+        report = self._validate(self.states, k_values=[1, 2, 3])
         assert set(report.top_k_agreements.keys()) == {1, 2, 3}
         for v in report.top_k_agreements.values():
             assert 0.0 <= v <= 1.0
 
     def test_top_k_agreements_monotone_non_decreasing(self):
         """Top-k agreement must be non-decreasing: k=1 <= k=2 <= k=3."""
-        report = self.validator.validate(self.states, k_values=[1, 2, 3])
+        report = self._validate(self.states, k_values=[1, 2, 3])
         assert report.top_k_agreements[1] <= report.top_k_agreements[2]
         assert report.top_k_agreements[2] <= report.top_k_agreements[3]
 
     def test_action_agreement_matches_top_1(self):
         """The scalar action_agreement must equal top_k_agreements[1]."""
-        report = self.validator.validate(self.states, k_values=[1, 2, 3])
+        report = self._validate(self.states, k_values=[1, 2, 3])
         assert report.action_agreement == pytest.approx(report.top_k_agreements[1])
 
     def test_kl_divergence_non_negative(self):
-        report = self.validator.validate(self.states)
+        report = self._validate(self.states)
         assert report.kl_divergence >= 0.0
 
     def test_mse_non_negative(self):
-        report = self.validator.validate(self.states)
+        report = self._validate(self.states)
         assert report.mse >= 0.0
 
     def test_mae_non_negative(self):
-        report = self.validator.validate(self.states)
+        report = self._validate(self.states)
         assert report.mae >= 0.0
 
     def test_mae_and_mse_finite_and_non_negative(self):
         """MAE and MSE are both finite and non-negative."""
-        report = self.validator.validate(self.states)
+        report = self._validate(self.states)
         # Both finite and non-negative is the key property
         assert np.isfinite(report.mae)
         assert np.isfinite(report.mse)
 
     def test_cosine_similarity_in_valid_range(self):
-        report = self.validator.validate(self.states)
+        report = self._validate(self.states)
         assert -1.0 <= report.mean_cosine_similarity <= 1.0
 
     def test_param_counts_match_model_counts(self):
-        report = self.validator.validate(self.states)
+        report = self._validate(self.states)
         expected_parent = sum(p.numel() for p in self.parent.parameters())
         expected_student = sum(p.numel() for p in self.student.parameters())
         assert report.parent_param_count == expected_parent
         assert report.student_param_count == expected_student
 
     def test_param_ratio_consistent(self):
-        report = self.validator.validate(self.states)
+        report = self._validate(self.states)
         expected = report.student_param_count / report.parent_param_count
         assert report.param_ratio == pytest.approx(expected)
 
@@ -297,7 +305,7 @@ class TestStudentValidatorMetrics:
         assert report.latency_ratio > 0.0
 
     def test_no_robustness_slices_by_default(self):
-        report = self.validator.validate(self.states)
+        report = self._validate(self.states)
         assert report.robustness_slice_agreements == {}
 
     def test_robustness_slices_populated(self):
@@ -305,7 +313,7 @@ class TestStudentValidatorMetrics:
             "low_resource": _make_states(50, seed=1),
             "high_threat": _make_states(50, seed=2),
         }
-        report = self.validator.validate(self.states, robustness_slices=slices)
+        report = self._validate(self.states, robustness_slices=slices)
         assert set(report.robustness_slice_agreements.keys()) == {"low_resource", "high_threat"}
         for v in report.robustness_slice_agreements.values():
             assert 0.0 <= v <= 1.0
