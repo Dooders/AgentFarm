@@ -65,7 +65,12 @@ from farm.core.decision.training.trainer_distill import (  # noqa: E402
 
 
 def _load_network(path: str, input_dim: int, output_dim: int, hidden_size: int) -> BaseQNetwork:
-    """Load a ``BaseQNetwork`` from a state-dict checkpoint or return random weights."""
+    """Load a ``BaseQNetwork`` from a state-dict checkpoint.
+
+    If *path* is empty, a network with random weights is returned.
+    If *path* is non-empty but the file does not exist, :exc:`FileNotFoundError`
+    is raised.
+    """
     net = BaseQNetwork(input_dim=input_dim, output_dim=output_dim, hidden_size=hidden_size)
     if path:
         if not os.path.isfile(path):

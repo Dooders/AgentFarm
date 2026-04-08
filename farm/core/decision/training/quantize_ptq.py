@@ -388,11 +388,19 @@ class PostTrainingQuantizer:
 
     def _dynamic(self, model: nn.Module) -> Tuple[nn.Module, int]:
         """Apply dynamic (weight-only) quantization."""
-        q_model = tq.quantize_dynamic(
-            model,
-            {nn.Linear},
-            dtype=self.config.torch_dtype(),
-        )
+        previous_engine = torch.backends.quantized.engine
+        backend_changed = previous_engine != self.config.backend
+        if backend_changed:
+            torch.backends.quantized.engine = self.config.backend
+        try:
+            q_model = tq.quantize_dynamic(
+                model,
+                {nn.Linear},
+                dtype=self.config.torch_dtype(),
+            )
+        finally:
+            if backend_changed:
+                torch.backends.quantized.engine = previous_engine
         return q_model, 0
 
     def _static(
@@ -407,7 +415,7 @@ class PostTrainingQuantizer:
             torch.backends.quantized.engine = self.config.backend
 
         try:
-            wrapped = _QuantWrapper(copy.deepcopy(model))
+            wrapped = _QuantWrapper(copy.deepcopy(model).cpu())
             wrapped.eval()
             wrapped.qconfig = tq.get_default_qconfig(self.config.backend)  # type: ignore[attr-defined]
             tq.prepare(wrapped, inplace=True)

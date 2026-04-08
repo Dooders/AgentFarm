@@ -200,6 +200,8 @@ class WeightOnlyFakeQuantLinear(nn.Linear):
             linear.in_features,
             linear.out_features,
             bias=linear.bias is not None,
+            device=linear.weight.device,
+            dtype=linear.weight.dtype,
         )
         new.weight.data.copy_(linear.weight.data)
         if linear.bias is not None:
@@ -642,7 +644,8 @@ class QATTrainer:
         """
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         torch.save(quantized_model, path)
-        n_linear = sum(1 for m in quantized_model.modules() if isinstance(m, nn.Linear))
+        source_model = self._qat_student if self._qat_student is not None else self._float_student
+        n_linear = sum(1 for m in source_model.modules() if isinstance(m, nn.Linear))
         float_bytes = _estimate_tensor_bytes(self._float_student.state_dict())
         q_bytes = _estimate_tensor_bytes(quantized_model.state_dict())
         quant_result = QuantizationResult(

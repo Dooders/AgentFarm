@@ -263,6 +263,10 @@ def main() -> None:
     )
 
     # Load / generate states (used for calibration and comparison)
+    if not args.states_file and args.n_states < 1:
+        raise ValueError(
+            f"--n-states must be >= 1 when no --states-file is provided, got {args.n_states}"
+        )
     states = load_distillation_states(
         args.states_file, args.n_states, args.input_dim, args.seed
     )
