@@ -65,9 +65,16 @@ from farm.core.decision.training.trainer_distill import (  # noqa: E402
 
 
 def _load_network(path: str, input_dim: int, output_dim: int, hidden_size: int) -> BaseQNetwork:
-    """Load a ``BaseQNetwork`` from a state-dict checkpoint or return random weights."""
+    """Load a ``BaseQNetwork`` from a state-dict checkpoint.
+
+    If *path* is empty, a network with random weights is returned.
+    If *path* is non-empty but the file does not exist, :exc:`FileNotFoundError`
+    is raised.
+    """
     net = BaseQNetwork(input_dim=input_dim, output_dim=output_dim, hidden_size=hidden_size)
-    if path and os.path.isfile(path):
+    if path:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Parent checkpoint not found: {path}")
         state = torch.load(path, map_location="cpu", weights_only=True)
         if not isinstance(state, dict):
             raise ValueError(
@@ -76,7 +83,7 @@ def _load_network(path: str, input_dim: int, output_dim: int, hidden_size: int) 
         net.load_state_dict(state)
         print(f"  Loaded parent weights from: {path}")
     else:
-        print(f"  No checkpoint found at '{path}' – using random weights.")
+        print("  No parent checkpoint provided – using random weights.")
     return net
 
 
@@ -116,8 +123,18 @@ def _run_pair(
     print(f"  Student params: {student_params:,}  ({100*student_params/parent_params:.1f}% of parent)")
 
     # Prepare state buffer
-    if states_file and os.path.isfile(states_file):
+    if states_file:
+        if not os.path.isfile(states_file):
+            raise FileNotFoundError(f"States file not found: {states_file}")
         states = np.load(states_file).astype("float32")
+        if states.ndim != 2:
+            raise ValueError(
+                f"States must be a 2D array with shape (N, input_dim); got {states.shape!r}"
+            )
+        if states.shape[1] != input_dim:
+            raise ValueError(
+                f"States input_dim mismatch: expected {input_dim}, got {states.shape[1]}"
+            )
         print(f"  States loaded from {states_file}: shape={states.shape}")
     else:
         states = _generate_states(n_states, input_dim, rng)
