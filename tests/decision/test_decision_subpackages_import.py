@@ -28,6 +28,7 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
                 "QATConfig",
                 "QATMetrics",
                 "QATTrainer",
+                "QUANTIZATION_APPLIED_MODES",
                 "QuantizationConfig",
                 "QuantizationResult",
                 "QuantizedValidationReport",

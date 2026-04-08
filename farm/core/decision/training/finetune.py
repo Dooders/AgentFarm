@@ -27,9 +27,37 @@ Key features
   :class:`~farm.core.decision.training.trainer_distill.DistillationTrainer`
   pattern.
 - **Reproducibility** – optional seed resets all RNGs before training.
+- **QAT-aware fine-tuning** – when ``FineTuningConfig.quantization_applied``
+  is not ``"none"`` (i.e. the child came from a quantized / QAT parent),
+  :class:`FineTuner` automatically prepares the child with
+  :class:`~farm.core.decision.training.quantize_qat.WeightOnlyFakeQuantLinear`
+  layers so that the fine-tuning loss is minimised under the same int8
+  weight approximation as deployment.  After :meth:`FineTuner.finetune` call
+  :meth:`FineTuner.convert` and :meth:`FineTuner.save_quantized` to produce
+  a PTQ-compatible int8 model.
 
-Typical usage
--------------
+Float fine-tune vs QAT fine-tune
+---------------------------------
+Use ``quantization_applied="none"`` (default) when the child will be deployed
+in full float32 precision.  Use any other value when the child will be
+converted to int8 for inference (or when its crossover parents were
+quantized), so that the optimiser adapts to quantization noise rather than
+float noise.
+
+Quantization modes
+------------------
+``QUANTIZATION_APPLIED_MODES = ("none", "ptq_dynamic", "ptq_static", "qat_float")``
+
+- ``"none"`` – full-precision fine-tuning (default; no regression vs old behaviour).
+- ``"ptq_dynamic"`` – child will be deployed via ``quantize_dynamic``; use QAT
+  fake-quant during fine-tuning to align with that target.
+- ``"ptq_static"`` – child was produced from statically-quantized parents; QAT
+  fine-tuning aligns weight noise with int8 static deployment.
+- ``"qat_float"`` – parents were trained via QAT and saved as float checkpoints
+  before ``convert``; re-introduce fake-quant during child fine-tuning.
+
+Typical usage (float mode)
+--------------------------
 ::
 
     from farm.core.decision.base_dqn import BaseQNetwork
@@ -50,14 +78,41 @@ Typical usage
     print(f"Before: val_loss={metrics.initial_val_loss:.4f}, "
           f"agreement={metrics.initial_action_agreement:.2%}")
     print(f"After : val_loss={metrics.best_val_loss:.4f}")
+
+Typical usage (QAT-aware mode)
+-------------------------------
+::
+
+    cfg = FineTuningConfig(
+        learning_rate=1e-4, epochs=10, seed=42,
+        quantization_applied="ptq_dynamic",  # enable QAT fake-quant
+    )
+    tuner = FineTuner(reference=parent_a, child=child, config=cfg)
+    metrics = tuner.finetune(states, checkpoint_path="child_qat.pt")
+
+    # Convert to int8 and save (PTQ-compatible format)
+    q_model = tuner.convert()
+    tuner.save_quantized(q_model, "child_qat_int8.pt")
+
+See also
+--------
+- :mod:`farm.core.decision.training.quantize_qat` – ``QATTrainer``,
+  ``WeightOnlyFakeQuantLinear``.
+- :mod:`farm.core.decision.training.quantize_ptq` – PTQ modes and
+  ``compare_outputs``.
+- ``docs/design/crossover_strategies.md`` – crossover post-quantization context.
+- Issue `Dooders/AgentFarm#8` – parent epic for distillation / quantization /
+  crossover pipeline.
 """
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
 import random
+import warnings
 from dataclasses import dataclass, field
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
@@ -69,6 +124,52 @@ import torch.nn.functional as F
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Compatibility shim: torch.ao.quantization
+# ---------------------------------------------------------------------------
+try:
+    import torch.ao.quantization as _tq
+except ImportError:  # pragma: no cover
+    import torch.quantization as _tq  # type: ignore[no-redef]
+
+# ---------------------------------------------------------------------------
+# QAT helpers (imported lazily to avoid heavy deps at module load)
+# ---------------------------------------------------------------------------
+# These are imported at the module level to keep the public API clean and
+# to enable isinstance checks.  Both symbols come from the sibling module
+# quantize_qat.py, which already lives in this package.
+from .quantize_qat import (  # noqa: E402
+    WeightOnlyFakeQuantLinear,
+    _replace_linear_with_fakeq,
+)
+from .quantize_ptq import (  # noqa: E402
+    QuantizationResult,
+    _estimate_tensor_bytes,
+)
+
+# ---------------------------------------------------------------------------
+# Allowed quantization_applied values
+# ---------------------------------------------------------------------------
+
+#: Valid values for :attr:`FineTuningConfig.quantization_applied`.
+#:
+#: ``"none"``
+#:     Full-precision float32 fine-tuning (default; backward-compatible).
+#: ``"ptq_dynamic"``
+#:     Parents were quantized via dynamic PTQ; fine-tune with QAT fake-quant
+#:     to align weight noise with ``quantize_dynamic`` deployment.
+#: ``"ptq_static"``
+#:     Parents were statically quantized; fine-tune with QAT fake-quant.
+#: ``"qat_float"``
+#:     Parents were QAT-trained float checkpoints (before ``convert``);
+#:     re-introduce fake-quant during child fine-tuning.
+QUANTIZATION_APPLIED_MODES: Tuple[str, ...] = (
+    "none",
+    "ptq_dynamic",
+    "ptq_static",
+    "qat_float",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +225,17 @@ class FineTuningConfig:
         Multiplicative factor by which the learning rate is reduced when the
         schedule fires.  Must be in ``(0, 1)``.  Ignored when
         ``lr_schedule_patience == 0``.
+    quantization_applied:
+        Indicates whether quantization was applied to the child's parents (or
+        to the child itself before fine-tuning).  Must be one of
+        :data:`QUANTIZATION_APPLIED_MODES`.  When not ``"none"``,
+        :class:`FineTuner` automatically prepares the child with
+        :class:`~farm.core.decision.training.quantize_qat.WeightOnlyFakeQuantLinear`
+        layers so training is performed under fake-quantized weight noise
+        (QAT-aware fine-tuning).  After training, call
+        :meth:`FineTuner.convert` and :meth:`FineTuner.save_quantized` to
+        produce a PTQ-compatible int8 model.
+        Set to ``"none"`` (default) for full-precision float32 fine-tuning.
     """
 
     learning_rate: float = 1e-3
@@ -138,6 +250,7 @@ class FineTuningConfig:
     alpha: float = 1.0
     lr_schedule_patience: int = 0
     lr_schedule_factor: float = 0.5
+    quantization_applied: str = "none"
 
     def __post_init__(self) -> None:
         if self.learning_rate <= 0:
@@ -162,6 +275,11 @@ class FineTuningConfig:
             raise ValueError("lr_schedule_patience must be >= 0")
         if not 0.0 < self.lr_schedule_factor < 1.0:
             raise ValueError("lr_schedule_factor must be in (0, 1)")
+        if self.quantization_applied not in QUANTIZATION_APPLIED_MODES:
+            raise ValueError(
+                f"quantization_applied must be one of {QUANTIZATION_APPLIED_MODES}; "
+                f"got {self.quantization_applied!r}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +375,19 @@ class FineTuner:
     update and stored in :attr:`FineTuningMetrics.initial_val_loss` /
     :attr:`FineTuningMetrics.initial_action_agreement`.
 
+    **QAT-aware mode**: when
+    ``config.quantization_applied != "none"``, the fine-tuner deep-copies the
+    child and replaces every ``nn.Linear`` with
+    :class:`~farm.core.decision.training.quantize_qat.WeightOnlyFakeQuantLinear`
+    before training.  This means the optimiser minimises the distillation
+    objective under the same weight-quantization noise as int8 deployment
+    (straight-through estimator, weight-only, identical scope to
+    :class:`~farm.core.decision.training.quantize_qat.QATTrainer`).
+
+    After :meth:`finetune` completes in QAT mode call :meth:`convert` to
+    obtain a ``torch.ao.quantization.quantize_dynamic`` int8 model and
+    :meth:`save_quantized` to persist it in PTQ-compatible format.
+
     Parameters
     ----------
     reference:
@@ -290,9 +421,15 @@ class FineTuner:
         for param in self.reference.parameters():
             param.requires_grad = False
 
-        # Optimizer for child only
+        # QAT preparation: deep-copy child and replace Linear with fake-quant
+        # variant when quantization was applied to the parents.
+        self._qat_child: Optional[nn.Module] = None
+        if self.config.quantization_applied != "none":
+            self._prepare_qat()
+
+        # Optimizer for the active child (QAT copy or original float child)
         self.optimizer = torch.optim.Adam(
-            self.child.parameters(), lr=self.config.learning_rate
+            self._active_child.parameters(), lr=self.config.learning_rate
         )
 
         # Optional LR scheduler (ReduceLROnPlateau)
@@ -365,6 +502,7 @@ class FineTuner:
                 "finetune_before_training",
                 initial_val_loss=round(init_loss, 6),
                 initial_action_agreement=round(init_agreement, 4),
+                qat_mode=self.config.quantization_applied,
             )
 
         best_state_dict: Optional[Dict[str, torch.Tensor]] = None
@@ -388,7 +526,7 @@ class FineTuner:
                     metrics.best_epoch = epoch
                     best_state_dict = {
                         k: v.cpu().clone()
-                        for k, v in self.child.state_dict().items()
+                        for k, v in self._active_child.state_dict().items()
                     }
 
                 if self.scheduler is not None:
@@ -413,7 +551,7 @@ class FineTuner:
                     metrics.best_epoch = epoch
                     best_state_dict = {
                         k: v.cpu().clone()
-                        for k, v in self.child.state_dict().items()
+                        for k, v in self._active_child.state_dict().items()
                     }
 
                 logger.info(
@@ -431,18 +569,136 @@ class FineTuner:
         # Safety net for zero-epoch configs (epochs >= 1 is enforced by config)
         if best_state_dict is None:
             best_state_dict = {
-                k: v.cpu().clone() for k, v in self.child.state_dict().items()
+                k: v.cpu().clone() for k, v in self._active_child.state_dict().items()
             }
 
         if checkpoint_path is not None:
             self._save_checkpoint(checkpoint_path, best_state_dict, metrics)
 
-        # Load best weights back into child
-        self.child.load_state_dict(
+        # Load best weights back into the active child
+        self._active_child.load_state_dict(
             {k: v.to(self.device) for k, v in best_state_dict.items()}
         )
 
         return metrics
+
+    def convert(self) -> nn.Module:
+        """Convert the QAT-fine-tuned child to a true int8 quantized model.
+
+        Applies ``torch.ao.quantization.quantize_dynamic`` to the QAT child
+        (set to ``eval`` mode), targeting ``nn.Linear`` and
+        :class:`~farm.core.decision.training.quantize_qat.WeightOnlyFakeQuantLinear`
+        layers.  The result is a model whose ``Linear`` weights are stored in
+        ``int8`` format, identical in format to the PTQ-dynamic output from
+        :class:`~farm.core.decision.training.quantize_ptq.PostTrainingQuantizer`.
+
+        Must only be called when ``config.quantization_applied != "none"``
+        (i.e. after QAT-mode fine-tuning).
+
+        Returns
+        -------
+        nn.Module
+            The quantized model (ready for ``eval()`` inference).
+
+        Raises
+        ------
+        RuntimeError
+            If ``quantization_applied == "none"`` (no QAT preparation was
+            performed).
+        """
+        if self._qat_child is None:
+            raise RuntimeError(
+                "FineTuner.convert() is only available when "
+                "config.quantization_applied != 'none'.  "
+                "Set quantization_applied to 'ptq_dynamic', 'ptq_static', or "
+                "'qat_float' to enable QAT-aware fine-tuning."
+            )
+        self._qat_child.eval()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            q_model = _tq.quantize_dynamic(
+                copy.deepcopy(self._qat_child),
+                {nn.Linear, WeightOnlyFakeQuantLinear},
+                dtype=torch.qint8,
+            )
+        q_model.eval()
+        logger.info(
+            "finetune_qat_converted",
+            quantization_applied=self.config.quantization_applied,
+            n_linear=sum(1 for m in self._qat_child.modules() if isinstance(m, nn.Linear)),
+        )
+        return q_model
+
+    def save_quantized(
+        self,
+        quantized_model: nn.Module,
+        path: str,
+        arch_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Persist a converted int8 model to *path* (PTQ-compatible format).
+
+        Saves as a full model pickle (``torch.save(model, path)``) together
+        with a companion JSON metadata file at ``<path>.json``.  The format
+        is identical to the output of
+        :meth:`~farm.core.decision.training.quantize_ptq.PostTrainingQuantizer.save_checkpoint`
+        and :meth:`~farm.core.decision.training.quantize_qat.QATTrainer.save_quantized`.
+
+        Must only be called when ``config.quantization_applied != "none"``.
+
+        Parameters
+        ----------
+        quantized_model:
+            The int8 ``nn.Module`` returned by :meth:`convert`.
+        path:
+            Destination file path (e.g. ``"child_finetuned_qat_int8.pt"``).
+        arch_kwargs:
+            Optional architecture constructor arguments to record in JSON.
+
+        Raises
+        ------
+        RuntimeError
+            If ``quantization_applied == "none"`` (no QAT preparation was
+            performed).
+        """
+        if self._qat_child is None:
+            raise RuntimeError(
+                "FineTuner.save_quantized() is only available when "
+                "config.quantization_applied != 'none'."
+            )
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        torch.save(quantized_model, path)
+
+        float_bytes = _estimate_tensor_bytes(self._qat_child.state_dict())
+        q_bytes = _estimate_tensor_bytes(quantized_model.state_dict())
+        n_linear = sum(1 for m in self._qat_child.modules() if isinstance(m, nn.Linear))
+        quant_result = QuantizationResult(
+            mode="qat",
+            dtype="qint8",
+            backend=str(torch.backends.quantized.engine),
+            calibration_samples=0,
+            elapsed_seconds=0.0,
+            linear_layers_quantized=n_linear,
+            float_param_bytes=float_bytes,
+            quantized_param_bytes=q_bytes,
+            notes=[],
+        )
+        meta = {
+            "quantization": quant_result.to_dict(),
+            "finetune_qat": {
+                "quantization_applied": self.config.quantization_applied,
+                "epochs": self.config.epochs,
+                "learning_rate": self.config.learning_rate,
+                "batch_size": self.config.batch_size,
+                "loss_fn": self.config.loss_fn,
+                "dtype": "qint8",
+                "scope": "weight_only",
+            },
+            "arch_kwargs": arch_kwargs or {},
+        }
+        json_path = path + ".json"
+        with open(json_path, "w", encoding="utf-8") as fh:
+            json.dump(meta, fh, indent=2)
+        logger.info("finetune_qat_quantized_saved", path=path, json_path=json_path)
 
     def evaluate_agreement(self, states: np.ndarray) -> float:
         """Compute top-1 action agreement between reference and child.
@@ -556,7 +812,7 @@ class FineTuner:
 
     def _run_epoch(self, train_tensor: torch.Tensor) -> Tuple[float, float, Optional[float]]:
         """Run one training epoch; return (mean_total, mean_soft, mean_hard) loss."""
-        self.child.train()
+        self._active_child.train()
         total_loss_sum = 0.0
         soft_loss_sum = 0.0
         hard_loss_sum = 0.0
@@ -567,14 +823,14 @@ class FineTuner:
             with torch.no_grad():
                 ref_logits = self.reference(batch)
 
-            child_logits = self.child(batch)
+            child_logits = self._active_child(batch)
             total_loss, soft_loss, hard_loss = self._compute_loss(ref_logits, child_logits)
 
             self.optimizer.zero_grad()
             total_loss.backward()
             if self.config.max_grad_norm is not None:
                 nn.utils.clip_grad_norm_(
-                    self.child.parameters(), self.config.max_grad_norm
+                    self._active_child.parameters(), self.config.max_grad_norm
                 )
             self.optimizer.step()
 
@@ -601,7 +857,7 @@ class FineTuner:
         action_agreement : float
         mean_prob_similarity : float
         """
-        self.child.eval()
+        self._active_child.eval()
         self.reference.eval()
 
         total_loss = 0.0
@@ -612,7 +868,7 @@ class FineTuner:
 
         for batch in self._iter_batches(val_tensor):
             ref_logits = self.reference(batch)
-            child_logits = self.child(batch)
+            child_logits = self._active_child(batch)
 
             total, _, _ = self._compute_loss(ref_logits, child_logits)
             total_loss += total.item()
@@ -642,7 +898,7 @@ class FineTuner:
         """Save child weights and metadata to disk."""
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         torch.save(state_dict, path)
-        logger.info("finetune_checkpoint_saved", path=path)
+        logger.info("finetune_checkpoint_saved", path=path, qat_mode=self.config.quantization_applied)
 
         meta_path = path + ".json"
         metadata = {
@@ -660,12 +916,43 @@ class FineTuner:
                 "alpha": self.config.alpha,
                 "lr_schedule_patience": self.config.lr_schedule_patience,
                 "lr_schedule_factor": self.config.lr_schedule_factor,
+                "quantization_applied": self.config.quantization_applied,
             },
             "metrics": _sanitize_for_json(metrics.to_dict()),
         }
         with open(meta_path, "w") as fh:
             json.dump(metadata, fh, indent=2, allow_nan=False)
         logger.info("finetune_metadata_saved", path=meta_path)
+
+    def _prepare_qat(self) -> None:
+        """Deep-copy child and replace ``nn.Linear`` with fake-quant variant.
+
+        Called during :meth:`__init__` when
+        ``config.quantization_applied != "none"``.  Sets :attr:`_qat_child`
+        to the prepared model in ``train()`` mode.
+        """
+        qat_model = copy.deepcopy(self.child).to(self.device)
+        _replace_linear_with_fakeq(qat_model)
+        qat_model.train()
+        self._qat_child = qat_model
+        logger.info(
+            "finetune_qat_prepared",
+            quantization_applied=self.config.quantization_applied,
+            n_fakeq_layers=sum(
+                1
+                for m in self._qat_child.modules()
+                if isinstance(m, WeightOnlyFakeQuantLinear)
+            ),
+        )
+
+    @property
+    def _active_child(self) -> nn.Module:
+        """The child network currently being trained.
+
+        In QAT mode (``quantization_applied != "none"``) this returns the
+        deep-copied fake-quant child.  In float mode it returns :attr:`child`.
+        """
+        return self._qat_child if self._qat_child is not None else self.child
 
 
 def _sanitize_for_json(obj: Any) -> Any:

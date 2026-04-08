@@ -8,6 +8,7 @@ from .crossover import (
     initialize_child_from_crossover,
 )
 from .finetune import (
+    QUANTIZATION_APPLIED_MODES,
     FineTuner,
     FineTuningConfig,
     FineTuningMetrics,
@@ -53,6 +54,7 @@ __all__ = [
     "QATConfig",
     "QATMetrics",
     "QATTrainer",
+    "QUANTIZATION_APPLIED_MODES",
     "QuantizationConfig",
     "QuantizationResult",
     "QuantizedValidationReport",
