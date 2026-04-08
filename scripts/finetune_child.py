@@ -54,7 +54,11 @@ from farm.core.decision.training.crossover import (  # noqa: E402
     CROSSOVER_MODES,
     crossover_quantized_state_dict,
 )
-from farm.core.decision.training.finetune import FineTuner, FineTuningConfig  # noqa: E402
+from farm.core.decision.training.finetune import (  # noqa: E402
+    QUANTIZATION_APPLIED_MODES,
+    FineTuner,
+    FineTuningConfig,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +180,19 @@ def _parse_args() -> argparse.Namespace:
         help="ReduceLROnPlateau reduction factor.",
     )
     p.add_argument("--seed", type=int, default=None, help="Random seed for fine-tuning.")
+    # Quantization mode
+    p.add_argument(
+        "--quantization-applied",
+        choices=list(QUANTIZATION_APPLIED_MODES),
+        default="none",
+        help=(
+            "Indicate whether quantization was applied to the crossover parents. "
+            "When not 'none', fine-tuning uses QAT fake-quant Linear layers so the "
+            "objective is minimised under the same int8 weight noise as deployment. "
+            "After fine-tuning call convert() + save_quantized() to get an int8 model. "
+            f"Choices: {list(QUANTIZATION_APPLIED_MODES)}"
+        ),
+    )
     # Output
     p.add_argument(
         "--output-dir",
@@ -231,6 +248,7 @@ def main() -> None:
         lr_schedule_patience=args.lr_patience,
         lr_schedule_factor=args.lr_factor,
         seed=args.seed,
+        quantization_applied=args.quantization_applied,
     )
     tuner = FineTuner(reference=parent_a, child=child, config=cfg)
     os.makedirs(args.output_dir, exist_ok=True)
@@ -250,6 +268,16 @@ def main() -> None:
         print(f"  Val loss Δ         : {improvement:+.6f}")
     print(f"  Checkpoint saved   : {ckpt_path}")
     print(f"  Metadata saved     : {ckpt_path}.json")
+
+    # QAT mode: optionally convert and save int8 model
+    if args.quantization_applied != "none":
+        print(f"\n  QAT mode ({args.quantization_applied}): converting to int8 …")
+        q_model = tuner.convert()
+        int8_path = os.path.join(args.output_dir, "child_finetuned_qat_int8.pt")
+        tuner.save_quantized(q_model, int8_path)
+        print(f"  int8 model saved   : {int8_path}")
+        print(f"  int8 metadata      : {int8_path}.json")
+
     print("\nFine-tuning complete.")
 
 

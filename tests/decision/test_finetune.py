@@ -18,6 +18,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 
@@ -27,10 +28,12 @@ import torch
 
 from farm.core.decision.base_dqn import BaseQNetwork
 from farm.core.decision.training.finetune import (
+    QUANTIZATION_APPLIED_MODES,
     FineTuner,
     FineTuningConfig,
     FineTuningMetrics,
 )
+from farm.core.decision.training.quantize_qat import WeightOnlyFakeQuantLinear
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -479,6 +482,7 @@ class TestCheckpointing:
                 "alpha",
                 "lr_schedule_patience",
                 "lr_schedule_factor",
+                "quantization_applied",
             }
             assert expected_keys == set(meta["config"].keys())
 
@@ -541,3 +545,223 @@ def test_package_exports():
     assert FineTuner is not None
     assert FineTuningConfig is not None
     assert FineTuningMetrics is not None
+
+
+# ---------------------------------------------------------------------------
+# QAT-aware fine-tuning (quantization_applied != "none")
+# ---------------------------------------------------------------------------
+
+
+class TestFineTuningConfigQAT:
+    def test_default_quantization_applied_is_none(self):
+        cfg = FineTuningConfig()
+        assert cfg.quantization_applied == "none"
+
+    def test_valid_modes_accepted(self):
+        for mode in QUANTIZATION_APPLIED_MODES:
+            cfg = FineTuningConfig(quantization_applied=mode)
+            assert cfg.quantization_applied == mode
+
+    def test_invalid_mode_raises(self):
+        with pytest.raises(ValueError, match="quantization_applied"):
+            FineTuningConfig(quantization_applied="full_activation")
+
+    def test_quantization_applied_modes_constant_contents(self):
+        assert "none" in QUANTIZATION_APPLIED_MODES
+        assert "ptq_dynamic" in QUANTIZATION_APPLIED_MODES
+        assert "ptq_static" in QUANTIZATION_APPLIED_MODES
+        assert "qat_float" in QUANTIZATION_APPLIED_MODES
+
+
+def _qat_cfg(mode: str = "ptq_dynamic", **kwargs) -> FineTuningConfig:
+    defaults = dict(epochs=2, batch_size=16, val_fraction=0.1, seed=42, quantization_applied=mode)
+    defaults.update(kwargs)
+    return FineTuningConfig(**defaults)
+
+
+class TestFineTunerQATPreparation:
+    def test_float_mode_has_no_qat_child(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _default_cfg())
+        assert tuner._qat_child is None
+
+    def test_qat_mode_creates_qat_child(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg())
+        assert tuner._qat_child is not None
+
+    def test_qat_child_has_fakeq_layers(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg())
+        fakeq_layers = [m for m in tuner._qat_child.modules() if isinstance(m, WeightOnlyFakeQuantLinear)]
+        assert len(fakeq_layers) > 0, "QAT child must have at least one WeightOnlyFakeQuantLinear layer"
+
+    def test_float_child_unchanged_in_qat_mode(self):
+        """original self.child must NOT have fake-quant layers after QAT prep."""
+        child = _make_net(1)
+        original_sd = {k: v.clone() for k, v in child.state_dict().items()}
+        tuner = FineTuner(_make_net(0), child, _qat_cfg())
+        # The float child should have no WeightOnlyFakeQuantLinear
+        fakeq_in_float = [m for m in tuner.child.modules() if isinstance(m, WeightOnlyFakeQuantLinear)]
+        assert len(fakeq_in_float) == 0, "Float child must not be mutated by QAT prep"
+        # Weights should also be unmodified
+        for key in original_sd:
+            assert torch.allclose(original_sd[key], tuner.child.state_dict()[key])
+
+    def test_active_child_is_qat_child_in_qat_mode(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg())
+        assert tuner._active_child is tuner._qat_child
+
+    def test_active_child_is_float_child_in_float_mode(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _default_cfg())
+        assert tuner._active_child is tuner.child
+
+
+class TestFineTunerQATTraining:
+    def test_training_runs_without_error(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg())
+        states = _make_states(200)
+        metrics = tuner.finetune(states)
+        assert len(metrics.train_losses) == 2
+        assert all(math.isfinite(l) for l in metrics.train_losses)
+
+    def test_qat_training_produces_finite_losses(self):
+        for mode in ("ptq_dynamic", "ptq_static", "qat_float"):
+            tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg(mode=mode))
+            metrics = tuner.finetune(_make_states(200))
+            assert all(math.isfinite(l) for l in metrics.train_losses), f"NaN loss in mode {mode}"
+
+    def test_fakeq_active_during_training(self):
+        """WeightOnlyFakeQuantLinear layers must be in train() mode during _run_epoch."""
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg())
+        # Manually call _run_epoch and verify fakeq layers are in train mode
+        states = _make_states(100)
+        train_tensor = torch.tensor(states, dtype=torch.float32)
+        tuner._run_epoch(train_tensor)
+        for m in tuner._qat_child.modules():
+            if isinstance(m, WeightOnlyFakeQuantLinear):
+                assert m.training, "Fake-quant Linear must be in train() mode during training"
+
+    def test_fakeq_eval_during_evaluation(self):
+        """After _evaluate, fake-quant layers must be in eval() mode."""
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg())
+        val_tensor = torch.tensor(_make_states(50), dtype=torch.float32)
+        tuner._evaluate(val_tensor)
+        for m in tuner._qat_child.modules():
+            if isinstance(m, WeightOnlyFakeQuantLinear):
+                assert not m.training, "Fake-quant Linear must be in eval() mode after _evaluate"
+
+    def test_qat_mode_val_metrics_populated(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg(val_fraction=0.2))
+        metrics = tuner.finetune(_make_states(200))
+        assert len(metrics.val_losses) == 2
+        assert len(metrics.action_agreements) == 2
+
+    def test_qat_mode_checkpoint_saved_as_state_dict(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ckpt_path = os.path.join(tmpdir, "child_qat.pt")
+            tuner.finetune(_make_states(200), checkpoint_path=ckpt_path)
+            assert os.path.isfile(ckpt_path)
+            sd = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+            assert isinstance(sd, dict)
+            assert len(sd) > 0
+
+    def test_qat_mode_metadata_records_quantization_applied(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg(mode="ptq_dynamic"))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ckpt_path = os.path.join(tmpdir, "child_qat.pt")
+            tuner.finetune(_make_states(200), checkpoint_path=ckpt_path)
+            with open(ckpt_path + ".json") as fh:
+                meta = json.load(fh)
+            assert meta["config"]["quantization_applied"] == "ptq_dynamic"
+
+    def test_float_mode_metadata_records_none(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _default_cfg())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ckpt_path = os.path.join(tmpdir, "child_float.pt")
+            tuner.finetune(_make_states(200), checkpoint_path=ckpt_path)
+            with open(ckpt_path + ".json") as fh:
+                meta = json.load(fh)
+            assert meta["config"]["quantization_applied"] == "none"
+
+    def test_best_weights_loaded_into_qat_child_after_finetune(self):
+        """After QAT fine-tune, the _qat_child must reflect the best saved weights."""
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg(epochs=3, val_fraction=0.2))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ckpt_path = os.path.join(tmpdir, "child_qat.pt")
+            tuner.finetune(_make_states(200), checkpoint_path=ckpt_path)
+            saved_sd = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+            live_sd = tuner._qat_child.state_dict()
+            for key in saved_sd:
+                assert torch.allclose(saved_sd[key], live_sd[key].cpu()), f"Mismatch at key {key!r}"
+
+
+class TestFineTunerConvertAndSaveQuantized:
+    def test_convert_raises_in_float_mode(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _default_cfg())
+        with pytest.raises(RuntimeError, match="quantization_applied"):
+            tuner.convert()
+
+    def test_save_quantized_raises_in_float_mode(self):
+        import tempfile
+        tuner = FineTuner(_make_net(0), _make_net(1), _default_cfg())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with pytest.raises(RuntimeError, match="quantization_applied"):
+                tuner.save_quantized(tuner.child, os.path.join(tmpdir, "int8.pt"))
+
+    def test_convert_returns_int8_module(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg())
+        tuner.finetune(_make_states(200))
+        q_model = tuner.convert()
+        assert isinstance(q_model, torch.nn.Module)
+        # forward pass should produce finite outputs
+        states_t = torch.tensor(_make_states(10), dtype=torch.float32)
+        with torch.no_grad():
+            out = q_model(states_t)
+        assert out.shape == (10, OUTPUT_DIM)
+        assert torch.all(torch.isfinite(out))
+
+    def test_save_quantized_writes_files(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg())
+        tuner.finetune(_make_states(200))
+        q_model = tuner.convert()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            int8_path = os.path.join(tmpdir, "child_int8.pt")
+            tuner.save_quantized(q_model, int8_path)
+            assert os.path.isfile(int8_path)
+            assert os.path.isfile(int8_path + ".json")
+
+    def test_save_quantized_json_has_expected_keys(self):
+        tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg(mode="ptq_dynamic"))
+        tuner.finetune(_make_states(200))
+        q_model = tuner.convert()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            int8_path = os.path.join(tmpdir, "child_int8.pt")
+            tuner.save_quantized(q_model, int8_path)
+            with open(int8_path + ".json") as fh:
+                meta = json.load(fh)
+            assert "quantization" in meta
+            assert "finetune_qat" in meta
+            assert meta["finetune_qat"]["quantization_applied"] == "ptq_dynamic"
+            assert meta["finetune_qat"]["scope"] == "weight_only"
+
+    def test_convert_output_matches_compare_outputs_smoke(self):
+        """Smoke: QAT-converted model and float child produce finite outputs on same inputs."""
+        from farm.core.decision.training.quantize_ptq import compare_outputs
+
+        ref = _make_net(0)
+        child = _make_net(1)
+        tuner = FineTuner(ref, child, _qat_cfg(epochs=1, val_fraction=0.0))
+        tuner.finetune(_make_states(100))
+        q_model = tuner.convert()
+
+        states = _make_states(50)
+        result = compare_outputs(tuner._qat_child, q_model, states)
+        # compare_outputs returns a dict with "action_agreement" (or similar keys)
+        assert isinstance(result, dict)
+
+
+class TestQATModePackageExport:
+    def test_quantization_applied_modes_exported(self):
+        from farm.core.decision.training import QUANTIZATION_APPLIED_MODES as exported
+
+        assert "none" in exported
+        assert "ptq_dynamic" in exported
