@@ -115,6 +115,9 @@ class TestValidationThresholds:
         assert t.max_mse == 2.0
         assert t.min_cosine_similarity == 0.8
         assert t.max_param_ratio == 0.9
+        assert t.max_mae is None
+        assert t.max_latency_ratio is None
+        assert t.min_robustness_action_agreement is None
 
     def test_custom_values_accepted(self):
         t = ValidationThresholds(min_action_agreement=0.95, max_mse=1.0, max_param_ratio=0.75)
@@ -147,6 +150,36 @@ class TestValidationReport:
     def test_failed_when_param_ratio_exceeds_threshold(self):
         assert _make_report(param_ratio=0.95).passed is False
 
+    def test_failed_when_mae_exceeds_optional_threshold(self):
+        t = ValidationThresholds(max_mae=0.01)
+        assert _make_report(mae=1.0, thresholds=t).passed is False
+        assert _make_report(mae=0.0, thresholds=t).passed is True
+
+    def test_failed_when_latency_ratio_exceeds_optional_threshold(self):
+        t = ValidationThresholds(max_latency_ratio=0.5)
+        assert _make_report(latency_ratio=0.9, thresholds=t).passed is False
+        assert _make_report(latency_ratio=0.4, thresholds=t).passed is True
+
+    def test_robustness_threshold_skipped_when_slices_empty(self):
+        t = ValidationThresholds(min_robustness_action_agreement=0.99)
+        assert _make_report(robustness_slice_agreements={}, thresholds=t).passed is True
+
+    def test_failed_when_robustness_slice_below_threshold(self):
+        t = ValidationThresholds(min_robustness_action_agreement=0.95)
+        slices = {"a": 0.5, "b": 0.99}
+        assert (
+            _make_report(
+                robustness_slice_agreements=slices,
+                thresholds=t,
+            ).passed
+            is False
+        )
+
+    def test_passed_when_all_robustness_slices_meet_threshold(self):
+        t = ValidationThresholds(min_robustness_action_agreement=0.9)
+        slices = {"a": 0.95, "b": 0.91}
+        assert _make_report(robustness_slice_agreements=slices, thresholds=t).passed is True
+
     def test_to_dict_is_json_serialisable(self):
         d = _make_report().to_dict()
         serialised = json.dumps(d)
@@ -169,6 +202,9 @@ class TestValidationReport:
             "thresholds",
         ):
             assert key in parsed
+        assert "max_mae" in parsed["thresholds"]
+        assert "max_latency_ratio" in parsed["thresholds"]
+        assert "min_robustness_action_agreement" in parsed["thresholds"]
 
     def test_to_dict_top_k_keys_are_strings(self):
         """JSON object keys must be strings; int keys should be converted."""
