@@ -15,4 +15,6 @@ Optional validation:
 python scripts/validate_distillation.py --checkpoint-dir checkpoints/distillation_demo
 ```
 
+For a documented hard-only vs soft-only vs blended comparison (synthetic controlled setup), see [docs/distillation_soft_label_comparison.md](../docs/distillation_soft_label_comparison.md).
+
 Sample paths in `reports/**` JSON files describe layouts from example runs; regenerate assets before relying on them.
