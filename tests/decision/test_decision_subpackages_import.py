@@ -16,6 +16,7 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
             set(training_pkg.__all__),
             {
                 "AlgorithmTrainer",
+                "CROSSOVER_MODES",
                 "DistillationConfig",
                 "DistillationMetrics",
                 "DistillationTrainer",
@@ -34,6 +35,9 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
                 "ValidationThresholds",
                 "WeightOnlyFakeQuantLinear",
                 "compare_outputs",
+                "crossover_checkpoints",
+                "crossover_quantized_state_dict",
+                "initialize_child_from_crossover",
                 "load_qat_checkpoint",
                 "load_quantized_checkpoint",
             },
