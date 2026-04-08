@@ -422,6 +422,38 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _validate_cli_args(args: argparse.Namespace) -> None:
+    """Reject obviously invalid threshold and rollout flags early."""
+    if not 0.0 <= args.min_action_agreement <= 1.0:
+        raise ValueError("min_action_agreement must be in [0, 1]")
+    if args.max_kl_divergence < 0.0:
+        raise ValueError("max_kl_divergence must be >= 0")
+    if args.max_mse < 0.0:
+        raise ValueError("max_mse must be >= 0")
+    if not -1.0 <= args.min_cosine_similarity <= 1.0:
+        raise ValueError("min_cosine_similarity must be in [-1, 1]")
+    if args.max_param_ratio <= 0.0:
+        raise ValueError("max_param_ratio must be > 0")
+    if args.max_mae is not None and args.max_mae < 0.0:
+        raise ValueError("max_mae must be >= 0 when set")
+    if args.max_latency_ratio is not None and args.max_latency_ratio <= 0.0:
+        raise ValueError("max_latency_ratio must be > 0 when set")
+    if args.min_robustness_action_agreement is not None:
+        if not 0.0 <= args.min_robustness_action_agreement <= 1.0:
+            raise ValueError("min_robustness_action_agreement must be in [0, 1] when set")
+    if args.rollout_episodes < 0:
+        raise ValueError("rollout_episodes must be >= 0")
+    if args.rollout_max_steps <= 0:
+        raise ValueError("rollout_max_steps must be positive")
+    if args.max_relative_return_drop is not None:
+        if not 0.0 <= args.max_relative_return_drop <= 1.0:
+            raise ValueError("max_relative_return_drop must be in [0, 1] when set")
+    if args.n_states < 1:
+        raise ValueError("n_states must be >= 1")
+    if args.latency_warmup < 0 or args.latency_repeats < 0:
+        raise ValueError("latency_warmup and latency_repeats must be >= 0")
+
+
 def _merge_rollout(
     parent: BaseQNetwork,
     student: StudentQNetwork,
@@ -451,6 +483,7 @@ def _merge_rollout(
 
 def main() -> None:
     args = _parse_args()
+    _validate_cli_args(args)
     if args.device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA requested but not available.")
     device = torch.device(args.device)

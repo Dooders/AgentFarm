@@ -40,6 +40,15 @@ def test_seeded_linear_mdp_step_truncates():
     assert trunc
 
 
+def test_seeded_linear_mdp_step_rejects_out_of_range_action():
+    env = SeededLinearMDP(3, 2, base_seed=1, max_steps=2)
+    env.reset(0)
+    with pytest.raises(ValueError, match="action must be in"):
+        env.step(2)
+    with pytest.raises(ValueError, match="action must be in"):
+        env.step(-1)
+
+
 def test_relative_return_drop_positive_parent():
     assert relative_return_drop(100.0, 90.0) == pytest.approx(0.1)
 
@@ -111,5 +120,39 @@ def test_compare_requires_positive_n_episodes():
             base_seed=1,
             n_episodes=0,
             max_steps=5,
+            device=torch.device("cpu"),
+        )
+
+
+def test_compare_preserves_training_mode():
+    parent = BaseQNetwork(input_dim=4, output_dim=2, hidden_size=8)
+    student = BaseQNetwork(input_dim=4, output_dim=2, hidden_size=8)
+    parent.train()
+    student.train()
+    assert parent.training and student.training
+    compare_parent_student_rollouts(
+        parent,
+        student,
+        obs_dim=4,
+        n_actions=2,
+        base_seed=1,
+        n_episodes=2,
+        max_steps=3,
+        device=torch.device("cpu"),
+    )
+    assert parent.training and student.training
+
+
+def test_compare_raises_when_n_actions_mismatches_q_head():
+    net = BaseQNetwork(input_dim=4, output_dim=2, hidden_size=8)
+    with pytest.raises(ValueError, match="n_actions"):
+        compare_parent_student_rollouts(
+            net,
+            net,
+            obs_dim=4,
+            n_actions=3,
+            base_seed=1,
+            n_episodes=1,
+            max_steps=2,
             device=torch.device("cpu"),
         )

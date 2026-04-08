@@ -56,7 +56,11 @@ class SeededLinearMDP:
         return self._state.copy()
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool]:
-        a = int(action) % self.n_actions
+        a = int(action)
+        if not (0 <= a < self.n_actions):
+            raise ValueError(
+                f"action must be in [0, {self.n_actions}), got {action!r}"
+            )
         next_s = self._w[a] @ self._state + self._b[a]
         reward = float(np.dot(self._rw, self._state) + float(self._ra[a]))
         self._state = next_s.astype(np.float32)
@@ -72,19 +76,60 @@ def _episode_return(
     episode_seed: int,
     device: torch.device,
 ) -> float:
-    model.eval()
-    obs = env.reset(episode_seed)
-    total = 0.0
-    done = False
-    while not done:
-        x = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+    was_training = model.training
+    try:
+        model.eval()
+        obs = env.reset(episode_seed)
+        total = 0.0
+        done = False
+        while not done:
+            x = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+            with torch.no_grad():
+                q = model(x)
+                act = int(q.argmax(dim=-1).item())
+            obs, reward, terminated, truncated = env.step(act)
+            total += reward
+            done = terminated or truncated
+        return float(total)
+    finally:
+        model.train(was_training)
+
+
+def _assert_models_match_action_space(
+    parent: nn.Module,
+    student: nn.Module,
+    *,
+    obs_dim: int,
+    n_actions: int,
+    device: torch.device,
+) -> None:
+    """Fail fast if Q heads do not emit ``n_actions`` logits."""
+    was_p = parent.training
+    was_s = student.training
+    try:
+        parent.eval()
+        student.eval()
+        x = torch.zeros(1, obs_dim, dtype=torch.float32, device=device)
         with torch.no_grad():
-            q = model(x)
-            act = int(q.argmax(dim=-1).item())
-        obs, reward, terminated, truncated = env.step(act)
-        total += reward
-        done = terminated or truncated
-    return float(total)
+            pq = parent(x)
+            sq = student(x)
+    finally:
+        parent.train(was_p)
+        student.train(was_s)
+
+    def _out_dim(name: str, q: torch.Tensor) -> None:
+        if q.dim() != 2 or q.size(0) != 1:
+            raise ValueError(
+                f"{name} Q output must be 2D with batch size 1 for probe, "
+                f"got shape {tuple(q.shape)}"
+            )
+        if int(q.size(-1)) != n_actions:
+            raise ValueError(
+                f"{name} Q output dim {int(q.size(-1))} does not match n_actions={n_actions}"
+            )
+
+    _out_dim("parent", pq)
+    _out_dim("student", sq)
 
 
 def _rollout_passed(
@@ -149,6 +194,13 @@ def compare_parent_student_rollouts(
     """
     if n_episodes <= 0:
         raise ValueError("n_episodes must be positive")
+    _assert_models_match_action_space(
+        parent,
+        student,
+        obs_dim=obs_dim,
+        n_actions=n_actions,
+        device=device,
+    )
     env = SeededLinearMDP(
         obs_dim,
         n_actions,
