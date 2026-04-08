@@ -1,6 +1,11 @@
 """Training module for ML algorithms."""
 
 from .collector import ExperienceCollector
+from .crossover import (
+    CROSSOVER_MODES,
+    crossover_checkpoints,
+    crossover_quantized_state_dict,
+)
 from .quantize_ptq import (
     PostTrainingQuantizer,
     QuantizationConfig,
@@ -30,6 +35,7 @@ from .trainer_distill import (
 
 __all__ = [
     "AlgorithmTrainer",
+    "CROSSOVER_MODES",
     "DistillationConfig",
     "DistillationMetrics",
     "DistillationTrainer",
@@ -48,6 +54,8 @@ __all__ = [
     "ValidationThresholds",
     "WeightOnlyFakeQuantLinear",
     "compare_outputs",
+    "crossover_checkpoints",
+    "crossover_quantized_state_dict",
     "load_qat_checkpoint",
     "load_quantized_checkpoint",
 ]
