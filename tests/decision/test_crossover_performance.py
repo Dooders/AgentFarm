@@ -1,6 +1,6 @@
 """Performance-characterization tests for crossover strategies.
 
-These tests measure wall-clock time, peak RSS, and inference quality
+These tests measure wall-clock time and inference quality
 (Q-value error, action agreement) for the three crossover strategies.
 They are marked ``@pytest.mark.slow`` and are excluded from the default
 ``pytest`` run (see ``pytest.ini``).  To regenerate the documented

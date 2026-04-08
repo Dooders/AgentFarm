@@ -35,7 +35,7 @@ child_sd = crossover_quantized_state_dict(
 
 ### 2.2 `layer` — layer-group alternation
 
-Parameters are grouped by their top-level module index (`network.0.*`, `network.4.*`, `network.8.*`, …). Even-indexed groups come from parent A, odd-indexed groups come from parent B.  This keeps weight + bias + LayerNorm parameters of each `Linear` block together from the same parent, avoiding inconsistent feature scaling.
+Parameters are first grouped by the first two name segments (for example, `network.0`, `network.1`, `network.4`, `network.5`, …) and then merged into logical blocks before alternating parents. In the current network layout, this means `network.0` + `network.1` form block 0, `network.4` + `network.5` form block 1, `network.8` forms block 2, and so on. Even-numbered blocks come from parent A, odd-numbered blocks come from parent B. This keeps each `Linear` layer's weight and bias aligned with the following LayerNorm parameters from the same parent, avoiding inconsistent feature scaling.
 
 ```python
 child_sd = crossover_quantized_state_dict(
@@ -139,7 +139,7 @@ pytest tests/decision/test_crossover_performance.py -m slow -v -s
 > Numbers produced by `python scripts/benchmark_crossover.py` (20 repeats, CPU).
 > Re-run to get hardware-specific values; results may vary.
 
-**Note on `layer` metrics**: The zero Q-error and perfect action agreement for the `layer` strategy is expected, not a bug.  `BaseQNetwork._initialize_weights` only re-initialises `nn.Linear` parameters via Xavier init; `nn.LayerNorm` layers keep their PyTorch defaults (weight=1, bias=0) regardless of the random seed.  Since both parents therefore have identical LayerNorm parameters, and the even-indexed groups (containing all three `Linear` layers) come from parent A, the child is functionally identical to parent A on the Q-value output.  On models where LayerNorm parameters *are* distinct (e.g. after training / fine-tuning), this metric will be non-zero.
+**Note on `layer` metrics**: The zero Q-error and perfect action agreement for the `layer` strategy in this benchmark is an artifact of the untrained model setup used in the experiment.  `BaseQNetwork._initialize_weights` only re-initialises `nn.Linear` parameters via Xavier init; `nn.LayerNorm` layers keep their PyTorch defaults (weight=1, bias=0) regardless of the random seed.  In the benchmark, logical block 0 (`network.0` + `network.1`, the first Linear + its LayerNorm) and block 2 (`network.8`, the output Linear) are both even-indexed and therefore come from parent A, while block 1 (`network.4` + `network.5`, the second Linear + its LayerNorm) is odd-indexed and comes from parent B.  Because LayerNorm parameters are identical across parents in an untrained model, and parent A's Linear layers dominate the Q-value output in this synthetic setup, the child happens to be functionally equivalent to parent A here.  On trained models where all parameters—including LayerNorm weight and bias—are distinct across parents, the Q-error and action-agreement metrics will reflect genuine blending from both parents.
 
 ---
 

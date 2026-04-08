@@ -361,13 +361,14 @@ def crossover_quantized_state_dict(
     rng: Optional[np.random.Generator] = None,
     alpha: float = 0.5,
     seed: Optional[int] = None,
-) -> Dict[str, torch.Tensor]:
+) -> Dict[str, Any]:
     """Combine two Q-network state dicts into a single offspring state dict.
 
     Both parents must have **identical keys and tensor shapes**.  Quantized
     tensors (``torch.qint8`` or other integer dtypes) are dequantized to
-    ``float32`` before crossover.  The offspring is always returned as a
-    ``float32`` state dict compatible with :meth:`nn.Module.load_state_dict`.
+    ``float32`` before crossover.  Tensor entries in the offspring are returned
+    as ``float32`` values; any non-tensor entries (e.g. integer scalars) are
+    preserved and copied through unchanged.
 
     Parameters
     ----------
@@ -409,8 +410,9 @@ def crossover_quantized_state_dict(
 
     Returns
     -------
-    Dict[str, torch.Tensor]
-        Offspring state dict with float32 tensors.
+    Dict[str, Any]
+        Offspring state dict with float32 tensor entries; any non-tensor
+        entries from the parents are deep-copied and passed through unchanged.
 
     Raises
     ------
@@ -472,7 +474,7 @@ def crossover_checkpoints(
     mode: str = "random",
     alpha: float = 0.5,
     seed: Optional[int] = None,
-) -> Dict[str, torch.Tensor]:
+) -> Dict[str, Any]:
     """Load two float state-dict checkpoints, crossover, and save offspring.
 
     .. note::
@@ -503,8 +505,10 @@ def crossover_checkpoints(
 
     Returns
     -------
-    Dict[str, torch.Tensor]
-        The offspring float32 state dict (also saved to *output_path*).
+    Dict[str, Any]
+        The offspring state dict (also saved to *output_path*).  Tensor
+        entries are float32; any non-tensor entries are deep-copied from the
+        winning parent unchanged.
     """
     sd_a = torch.load(path_a, map_location="cpu", weights_only=True)
     sd_b = torch.load(path_b, map_location="cpu", weights_only=True)
@@ -599,14 +603,29 @@ def _resolve_parent(
         if not os.path.isfile(path):
             raise FileNotFoundError(f"Parent checkpoint not found: {path}")
         # Try weights_only=True first (plain state-dict files).  Fall back to
-        # weights_only=False only for the specific errors that indicate a
-        # full-model pickle (e.g. a quantized checkpoint).
-        # WARNING: weights_only=False can execute arbitrary code; only trust
-        # verified checkpoint files.
+        # weights_only=False only when the error message indicates a
+        # weights-only incompatibility (e.g. the checkpoint is a full-model
+        # pickle with non-standard globals).
+        # WARNING: weights_only=False can execute arbitrary code; only use
+        # with verified checkpoint files.
         try:
             obj = torch.load(path, map_location="cpu", weights_only=True)
-        except (pickle.UnpicklingError, RuntimeError):
+        except pickle.UnpicklingError:
             obj = torch.load(path, map_location="cpu", weights_only=False)
+        except RuntimeError as exc:
+            # Only retry for errors that specifically indicate a weights-only
+            # limitation (e.g. "Weights only load failed", "GLOBAL" opcode,
+            # or "unsupported global").  Re-raise any other RuntimeError so
+            # unrelated failures (I/O errors, corrupt files, …) surface
+            # immediately.
+            _msg = str(exc).lower()
+            if any(
+                token in _msg
+                for token in ("weights only", "unsupported global", "global", "_codecs")
+            ):
+                obj = torch.load(path, map_location="cpu", weights_only=False)
+            else:
+                raise
         # If it's a full nn.Module, extract its state dict.
         if isinstance(obj, nn.Module):
             return obj.state_dict()
@@ -709,16 +728,15 @@ def initialize_child_from_crossover(
 
     1. **Resolve** *parent_a* / *parent_b* to float-or-quantized state dicts
        (accepts live models, checkpoint paths, or pre-loaded state dicts).
-    2. **Validate** that both parents share identical keys and tensor shapes.
-    3. **Infer** the child architecture (``input_dim``, ``hidden_size``,
+    2. **Infer** the child architecture (``input_dim``, ``hidden_size``,
        ``output_dim``) from parent A's state dict.
-    4. **Instantiate** a fresh :class:`~farm.core.decision.base_dqn.BaseQNetwork`
+    3. **Instantiate** a fresh :class:`~farm.core.decision.base_dqn.BaseQNetwork`
        on CPU with the inferred dimensions.
-    5. **Run** the requested crossover strategy (delegating to
-       :func:`crossover_quantized_state_dict`) to produce a float32 child
-       state dict.
-    6. **Load** the child state dict with ``strict=True``.
-    7. **Move** the child to *device* (defaults to CPU) and set it to
+    4. **Run** the requested crossover strategy (delegating to
+       :func:`crossover_quantized_state_dict`, which validates key/shape
+       alignment between both parents) to produce a float32 child state dict.
+    5. **Load** the child state dict with ``strict=True``.
+    6. **Move** the child to *device* (defaults to CPU) and set it to
        ``eval()`` mode.
 
     Parameters
@@ -752,7 +770,8 @@ def initialize_child_from_crossover(
 
         ``"weighted"``
             Child tensor = ``alpha * parent_a + (1 - alpha) * parent_b``
-            in float32.  Requires *alpha* in *strategy_kwargs*.
+            in float32.  *alpha* defaults to ``0.5`` (midpoint blend) if not
+            provided in *strategy_kwargs*.
 
     rng:
         RNG for stochastic strategies.  Accepts a
