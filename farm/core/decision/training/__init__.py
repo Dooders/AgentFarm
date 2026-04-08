@@ -8,6 +8,13 @@ from .quantize_ptq import (
     compare_outputs,
     load_quantized_checkpoint,
 )
+from .quantize_qat import (
+    QATConfig,
+    QATMetrics,
+    QATTrainer,
+    WeightOnlyFakeQuantLinear,
+    load_qat_checkpoint,
+)
 from .trainer import AlgorithmTrainer
 from .trainer_distill import (
     DistillationConfig,
@@ -25,11 +32,16 @@ __all__ = [
     "DistillationTrainer",
     "ExperienceCollector",
     "PostTrainingQuantizer",
+    "QATConfig",
+    "QATMetrics",
+    "QATTrainer",
     "QuantizationConfig",
     "QuantizationResult",
     "StudentValidator",
     "ValidationReport",
     "ValidationThresholds",
+    "WeightOnlyFakeQuantLinear",
     "compare_outputs",
+    "load_qat_checkpoint",
     "load_quantized_checkpoint",
 ]
