@@ -146,6 +146,7 @@ class TestQuantizedValidationReport:
         t = QuantizedValidationThresholds(max_mean_q_error=0.1)
         report = _make_report(mean_q_error=0.5, thresholds=t)
         assert report.passed is False
+
     def test_passed_false_low_cosine_similarity(self):
         t = QuantizedValidationThresholds(min_cosine_similarity=0.99)
         report = _make_report(mean_cosine_similarity=0.70, thresholds=t)
