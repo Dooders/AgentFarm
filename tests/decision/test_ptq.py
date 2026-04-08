@@ -61,7 +61,7 @@ class TestQuantizationConfig:
         cfg = QuantizationConfig()
         assert cfg.mode == "dynamic"
         assert cfg.dtype == "qint8"
-        assert cfg.backend == "qnnpack"
+        assert cfg.backend == "auto"
         assert cfg.calibration_batches == 10
         assert cfg.calibration_batch_size == 64
 

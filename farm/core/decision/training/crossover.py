@@ -553,6 +553,8 @@ ParentSpec = Union[nn.Module, Path, str, Dict[str, Any]]
 
 def _resolve_parent(
     parent: ParentSpec,
+    *,
+    allow_unsafe_unpickle: bool = False,
 ) -> Dict[str, Any]:
     """Resolve *parent* to a state dict for use with :func:`crossover_quantized_state_dict`.
 
@@ -571,16 +573,18 @@ def _resolve_parent(
     * A ``dict`` (state dict) – returned as-is without copying.
 
     .. warning::
-        When *parent* is a path and ``weights_only=True`` loading fails, this
-        function retries with ``weights_only=False``, which can execute
-        arbitrary code during unpickling.  Only use trusted checkpoint files.
-        To avoid this, convert the checkpoint to a plain state-dict file first:
-        ``torch.save(model.state_dict(), path)`` and pass that path instead.
+        Full-model pickle loading (``weights_only=False``) can execute arbitrary
+        code during unpickling and is therefore **disabled by default**.
+        To permit this fallback for trusted checkpoints only, pass
+        ``allow_unsafe_unpickle=True``.
 
     Parameters
     ----------
     parent:
         Parent specification.
+    allow_unsafe_unpickle:
+        When ``True``, allows fallback from ``weights_only=True`` to
+        ``weights_only=False`` for full-model pickle checkpoints.
 
     Returns
     -------
@@ -602,15 +606,17 @@ def _resolve_parent(
         path = str(parent)
         if not os.path.isfile(path):
             raise FileNotFoundError(f"Parent checkpoint not found: {path}")
-        # Try weights_only=True first (plain state-dict files).  Fall back to
-        # weights_only=False only when the error message indicates a
-        # weights-only incompatibility (e.g. the checkpoint is a full-model
-        # pickle with non-standard globals).
-        # WARNING: weights_only=False can execute arbitrary code; only use
-        # with verified checkpoint files.
+        # Try weights_only=True first (plain state-dict files).  Full-model
+        # pickle fallback is opt-in via allow_unsafe_unpickle=True.
         try:
             obj = torch.load(path, map_location="cpu", weights_only=True)
-        except pickle.UnpicklingError:
+        except pickle.UnpicklingError as exc:
+            if not allow_unsafe_unpickle:
+                raise ValueError(
+                    f"Checkpoint at {path!r} requires full-model unpickling "
+                    "(weights_only=False), which is disabled by default for safety. "
+                    "Pass allow_unsafe_unpickle=True only for trusted checkpoints."
+                ) from exc
             obj = torch.load(path, map_location="cpu", weights_only=False)
         except RuntimeError as exc:
             # Only retry for errors that specifically indicate a weights-only
@@ -623,6 +629,12 @@ def _resolve_parent(
                 token in _msg
                 for token in ("weights only", "unsupported global", "global", "_codecs")
             ):
+                if not allow_unsafe_unpickle:
+                    raise ValueError(
+                        f"Checkpoint at {path!r} requires full-model unpickling "
+                        "(weights_only=False), which is disabled by default for safety. "
+                        "Pass allow_unsafe_unpickle=True only for trusted checkpoints."
+                    ) from exc
                 obj = torch.load(path, map_location="cpu", weights_only=False)
             else:
                 raise
@@ -719,6 +731,7 @@ def initialize_child_from_crossover(
     *,
     rng: Optional[Union[np.random.Generator, int]] = None,
     device: Optional[Union[torch.device, str]] = None,
+    allow_unsafe_unpickle: bool = False,
     **strategy_kwargs: Any,
 ) -> nn.Module:
     """Build and initialise a child ``nn.Module`` from two parents via crossover.
@@ -784,6 +797,10 @@ def initialize_child_from_crossover(
         :class:`torch.device` or a device string (e.g. ``"cpu"``,
         ``"cuda:0"``).  The child is **always constructed on CPU** first,
         then moved to *device*.  Defaults to ``torch.device("cpu")``.
+    allow_unsafe_unpickle:
+        Whether full-model pickle checkpoint fallback is allowed when loading
+        parent paths. Keep ``False`` unless checkpoints are trusted and cannot
+        be converted to plain state-dict files.
     **strategy_kwargs:
         Additional keyword arguments forwarded to
         :func:`crossover_quantized_state_dict`, e.g.:
@@ -855,8 +872,8 @@ def initialize_child_from_crossover(
     # ------------------------------------------------------------------
     # 1. Resolve parents to state dicts
     # ------------------------------------------------------------------
-    sd_a = _resolve_parent(parent_a)
-    sd_b = _resolve_parent(parent_b)
+    sd_a = _resolve_parent(parent_a, allow_unsafe_unpickle=allow_unsafe_unpickle)
+    sd_b = _resolve_parent(parent_b, allow_unsafe_unpickle=allow_unsafe_unpickle)
 
     # ------------------------------------------------------------------
     # 2. Infer architecture from parent A (keys/shapes validated in crossover)

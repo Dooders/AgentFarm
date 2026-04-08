@@ -896,9 +896,18 @@ class TestResolveParent:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "model_full.pt")
             torch.save(model, path)
-            sd = _resolve_parent(path)
+            sd = _resolve_parent(path, allow_unsafe_unpickle=True)
         assert isinstance(sd, dict)
         assert "network.0.weight" in sd
+
+    def test_full_model_pickle_requires_opt_in(self):
+        """Unsafe unpickling fallback is disabled unless explicitly enabled."""
+        model = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=32)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model_full.pt")
+            torch.save(model, path)
+            with pytest.raises(ValueError, match="allow_unsafe_unpickle=True"):
+                _resolve_parent(path)
 
     def test_file_not_found_raises(self):
         with pytest.raises(FileNotFoundError):
