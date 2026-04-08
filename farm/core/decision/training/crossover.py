@@ -467,7 +467,9 @@ def crossover_checkpoints(
         seed=seed,
     )
 
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    out_dir = os.path.dirname(os.path.abspath(output_path))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     torch.save(child, output_path)
     logger.info("crossover_checkpoint_saved", path=output_path, mode=mode)
     return child

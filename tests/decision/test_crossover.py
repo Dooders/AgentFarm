@@ -36,7 +36,7 @@ from farm.core.decision.training.crossover import (
 
 INPUT_DIM = 8
 OUTPUT_DIM = 4
-PARENT_HIDDEN = 32  # student hidden = max(16, 16) = 16
+PARENT_HIDDEN = 32  # small parent → student hidden = max(32 // 2, 16) = 16
 
 
 def _make_student(seed: int = 0) -> StudentQNetwork:
