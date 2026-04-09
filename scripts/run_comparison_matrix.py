@@ -316,24 +316,6 @@ _QUANT_COLUMNS = [
 ]
 
 
-def _build_markdown_table(rows: List[Dict[str, str]]) -> str:
-    """Build a Markdown table from a list of flat row dicts."""
-    all_keys: List[str] = []
-    seen = set()
-    for r in rows:
-        for k in r:
-            if k not in seen:
-                all_keys.append(k)
-                seen.add(k)
-    header = " | ".join(all_keys)
-    sep = " | ".join(["---"] * len(all_keys))
-    lines = [f"| {header} |", f"| {sep} |"]
-    for r in rows:
-        cells = " | ".join(r.get(k, "") for k in all_keys)
-        lines.append(f"| {cells} |")
-    return "\n".join(lines)
-
-
 def _write_summary(report_dir: str, rows: List[Dict[str, str]], n_states: int, input_dim: int, states_source: str) -> None:
     """Write comparison_matrix_summary.md and comparison_matrix_summary.csv."""
     # Markdown
