@@ -21,7 +21,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from farm.core.decision.base_dqn import StudentQNetwork
+from farm.core.decision.base_dqn import BaseQNetwork, StudentQNetwork
 from farm.core.decision.training.quantize_ptq import (
     PostTrainingQuantizer,
     QuantizationConfig,
@@ -47,6 +47,15 @@ def _make_student(seed: int = 0) -> StudentQNetwork:
         input_dim=INPUT_DIM,
         output_dim=OUTPUT_DIM,
         parent_hidden_size=PARENT_HIDDEN,
+    )
+
+
+def _make_teacher(seed: int = 99) -> BaseQNetwork:
+    torch.manual_seed(seed)
+    return BaseQNetwork(
+        input_dim=INPUT_DIM,
+        output_dim=OUTPUT_DIM,
+        hidden_size=PARENT_HIDDEN,
     )
 
 
@@ -184,13 +193,28 @@ class TestQuantizedValidationReport:
         assert "max_q_error" in fid
         assert "mean_cosine_similarity" in fid
         assert "n_states" in fid
+        assert "mse_logits" in fid
+        assert "kl_divergence_float_vs_quant" in fid
+        assert "top_k_agreements" in fid
 
     def test_to_dict_latency_keys(self):
         report = _make_report()
         lat = report.to_dict()["latency"]
         assert "float_inference_ms" in lat
+        assert "float_inference_ms_mean" in lat
+        assert "float_inference_ms_p95" in lat
         assert "quantized_inference_ms" in lat
+        assert "quantized_inference_ms_mean" in lat
+        assert "quantized_inference_ms_p95" in lat
         assert "latency_ratio" in lat
+
+    def test_to_dict_throughput_and_memory_keys(self):
+        report = _make_report()
+        d = report.to_dict()
+        assert "throughput" in d
+        assert "batch_size" in d["throughput"]
+        assert "memory" in d
+        assert "rss_bytes_before" in d["memory"]
 
     def test_to_dict_size_keys(self):
         report = _make_report()
@@ -316,6 +340,71 @@ class TestQuantizedValidatorValidate:
         assert report.float_inference_ms > 0
         assert report.quantized_inference_ms > 0
         assert report.latency_ratio > 0
+        assert report.float_latency_mean_ms > 0
+        assert report.float_latency_p95_ms > 0
+        assert report.quantized_latency_mean_ms > 0
+        assert report.quantized_latency_p95_ms > 0
+
+    def test_extended_fidelity_fields_populated(self):
+        student = _make_student(seed=2)
+        q_model = _dynamic_quantize(student)
+        states = _make_states(n=80, seed=2)
+        validator = QuantizedValidator(student, q_model)
+        report = validator.validate(states, n_latency_warmup=1, n_latency_repeats=4, top_k_values=[2, 3])
+        assert report.mse_logits >= 0.0
+        assert report.kl_divergence_float_vs_quant >= 0.0
+        assert 2 in report.top_k_agreements
+        assert 3 in report.top_k_agreements
+
+    def test_top_k_disabled_when_empty_list(self):
+        student = _make_student()
+        q_model = _dynamic_quantize(student)
+        states = _make_states(n=40)
+        validator = QuantizedValidator(student, q_model)
+        report = validator.validate(states, top_k_values=[])
+        assert report.top_k_agreements == {}
+
+    def test_throughput_reported_when_enabled(self):
+        student = _make_student()
+        q_model = _dynamic_quantize(student)
+        states = _make_states(n=64)
+        validator = QuantizedValidator(student, q_model)
+        report = validator.validate(
+            states,
+            n_latency_warmup=1,
+            n_latency_repeats=2,
+            throughput_batch_size=16,
+            throughput_warmup_batches=1,
+            throughput_timed_batches=3,
+        )
+        assert report.throughput_batch_size == 16
+        assert report.float_batches_per_sec > 0
+        assert report.quantized_batches_per_sec > 0
+
+    def test_teacher_fidelity_vs_float_quant(self):
+        teacher = _make_teacher(seed=5)
+        student = _make_student(seed=6)
+        q_model = _dynamic_quantize(student)
+        states = _make_states(n=50, seed=7)
+        validator = QuantizedValidator(student, q_model)
+        report = validator.validate(
+            states,
+            n_latency_warmup=1,
+            n_latency_repeats=2,
+            teacher_model=teacher,
+        )
+        assert report.fidelity_vs_teacher is not None
+        assert "action_agreement_teacher_float" in report.fidelity_vs_teacher
+        assert "kl_teacher_quant" in report.fidelity_vs_teacher
+
+    def test_memory_fields_best_effort(self):
+        student = _make_student()
+        q_model = _dynamic_quantize(student)
+        states = _make_states(n=20)
+        validator = QuantizedValidator(student, q_model)
+        report = validator.validate(states, n_latency_warmup=1, n_latency_repeats=2, track_memory=True)
+        # May be None only if psutil missing (unlikely in dev env)
+        assert report.process_peak_rss_kb is None or report.process_peak_rss_kb >= 0
 
     def test_raises_on_empty_states(self):
         student = _make_student()
@@ -485,6 +574,8 @@ class TestQuantizedValidatorJsonRoundTrip:
 
         assert "fidelity" in parsed
         assert "latency" in parsed
+        assert "throughput" in parsed
+        assert "memory" in parsed
         assert "size" in parsed
         assert "compatibility" in parsed
         assert "passed" in parsed

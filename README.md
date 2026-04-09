@@ -169,6 +169,44 @@ python -m benchmarks.run_benchmarks --spec benchmarks/specs/memory_db_baseline.y
 ```
 See `benchmarks/README.md` for details and recommended configurations.
 
+### Distillation, PTQ, and optional QAT
+
+After distilling student Q-networks you can apply **8-bit post-training quantization (PTQ)** and, if accuracy is not good enough, **quantization-aware training (QAT)**. Full behavior, PyTorch version notes, and CPU/CUDA limits are in [`farm/core/decision/training/quantize_ptq.py`](farm/core/decision/training/quantize_ptq.py) and [`farm/core/decision/training/quantize_qat.py`](farm/core/decision/training/quantize_qat.py).
+
+**Typical flow**
+
+1. **Distill** float students (`student_A.pt` / `student_B.pt`):
+
+   ```bash
+   python scripts/run_distillation.py --help
+   ```
+
+2. **PTQ** (default: dynamic weight-only `qint8`; static mode needs calibration states):
+
+   ```bash
+   python scripts/quantize_distilled.py \
+       --checkpoint-dir checkpoints/distillation \
+       --output-dir checkpoints/quantized
+   ```
+
+   For static PTQ, use `--states-file` or synthetic `--n-states` / `--seed`; calibration volume uses `--calibration-batches` and `--calibration-batch-size` (defaults 10 / 64). Match distillation architecture with `--input-dim`, `--output-dim`, `--parent-hidden` (defaults **8**, **4**, **64**).
+
+3. **Validate** float students (optional): `python scripts/validate_distillation.py --help`
+
+4. **Validate quantized vs float** (CPU): `python scripts/validate_quantized.py --help`. The JSON report includes median/mean/p95 single-sample latency, optional **throughput** (`--throughput-batch-size`), **memory** RSS snapshots, float–quant **MSE/KL/top-k** agreement, and optional **teacher** metrics if `parent_*.pt` is found under `--float-dir` / `--teacher-dir` or via `--teacher-*-ckpt`.
+
+**Optional QAT** (after PTQ if action agreement or Q-error is unacceptable): weight-only fake quant on linear layers, same int8 export format as PTQ after convert.
+
+```bash
+python scripts/qat_distilled.py \
+    --checkpoint-dir checkpoints/distillation \
+    --output-dir checkpoints/qat
+```
+
+Use `--teacher-a-ckpt` / `--student-a-ckpt` (and `*-b-*` for pair B) when paths are not under a single `--checkpoint-dir`; see `python scripts/qat_distilled.py --help` for epochs, learning rate, and `--no-convert` (float QAT checkpoint only). Quantized QAT checkpoints work with `scripts/validate_quantized.py` like PTQ outputs.
+
+**Tests:** `pytest tests/decision/test_ptq.py tests/decision/test_validate_quantized.py tests/decision/test_qat.py`
+
 ### Testing
 
 ```bash

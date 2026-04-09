@@ -81,9 +81,15 @@ from __future__ import annotations
 
 import json
 import os
+import resource
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    import psutil
+except ImportError:  # pragma: no cover
+    psutil = None  # type: ignore[assignment]
 
 import numpy as np
 import torch
@@ -589,12 +595,21 @@ def load_quantized_checkpoint(
 # ---------------------------------------------------------------------------
 
 
+def _kl_divergence_logits(ref_logits: torch.Tensor, other_logits: torch.Tensor) -> float:
+    """Mean KL(p_ref ‖ p_other) with temperature-1 softmax (matches distillation validator)."""
+    p_ref = F.softmax(ref_logits, dim=-1)
+    log_other = F.log_softmax(other_logits, dim=-1)
+    kl = F.kl_div(log_other, p_ref, reduction="batchmean", log_target=False)
+    return float(kl.item())
+
+
 def compare_outputs(
     float_model: nn.Module,
     quantized_model: nn.Module,
     states: np.ndarray,
     batch_size: int = 256,
-) -> Dict[str, float]:
+    top_k_values: Optional[List[int]] = None,
+) -> Dict[str, Any]:
     """Compare Q-value outputs of a float model vs a quantized model.
 
     Parameters
@@ -607,6 +622,10 @@ def compare_outputs(
         Numpy array of shape ``(N, input_dim)`` with dtype ``float32``.
     batch_size:
         Number of states to process in each forward pass.
+    top_k_values:
+        If set, include ``top_k_agreements[k]`` = fraction of states where the
+        float model's argmax action appears in the quantized model's top-k
+        Q-values (same convention as :class:`StudentValidator`).
 
     Returns
     -------
@@ -620,6 +639,12 @@ def compare_outputs(
     * ``"mean_cosine_similarity"`` – mean cosine similarity between float and
       quantized Q-value vectors.
     * ``"n_states"`` – total number of states evaluated.
+    * ``"mse_logits"`` – mean squared error between float and quantized logits.
+    * ``"kl_divergence_float_vs_quant"`` – mean
+      :math:`\\mathrm{KL}(p_{\\mathrm{float}} \\| p_{\\mathrm{quant}})` on
+      softmax Q distributions.
+    * ``"top_k_agreements"`` – mapping *k* → agreement (only if
+      *top_k_values* is non-empty).
     """
     float_model.eval()
     quantized_model.eval()
@@ -655,14 +680,155 @@ def compare_outputs(
     max_q_error = abs_diff.max().item()
 
     cos_sim = nn.functional.cosine_similarity(f, q, dim=1).mean().item()
+    mse_logits = float((f - q).pow(2).mean().item())
+    kl_divergence_float_vs_quant = _kl_divergence_logits(f, q)
 
-    return {
+    top_k_agreements: Dict[int, float] = {}
+    n_actions = f.size(-1)
+    if top_k_values:
+        float_actions = f.argmax(dim=-1)
+        for k in top_k_values:
+            k_clamped = min(int(k), n_actions)
+            if k_clamped < 1:
+                continue
+            topk_q = q.topk(k_clamped, dim=-1).indices
+            matches = (topk_q == float_actions.unsqueeze(-1)).any(dim=-1)
+            top_k_agreements[k_clamped] = float(matches.float().mean().item())
+
+    out: Dict[str, Any] = {
         "action_agreement": action_agreement,
         "mean_q_error": mean_q_error,
         "max_q_error": max_q_error,
         "mean_cosine_similarity": cos_sim,
         "n_states": n,
+        "mse_logits": mse_logits,
+        "kl_divergence_float_vs_quant": kl_divergence_float_vs_quant,
+        "top_k_agreements": top_k_agreements,
     }
+    return out
+
+
+def compute_teacher_fidelity_vs_float_quant(
+    teacher: nn.Module,
+    float_model: nn.Module,
+    quantized_model: nn.Module,
+    states: np.ndarray,
+    batch_size: int,
+    device: torch.device,
+) -> Dict[str, float]:
+    """Behavioural metrics vs a frozen teacher (same shapes as distillation validation).
+
+    Aligns with :class:`StudentValidator` conventions: top-1 agreement and
+    mean :math:`\\mathrm{KL}(p_{\\mathrm{teacher}} \\| p_{\\cdot})` on
+    temperature-1 softmax Q distributions.
+    """
+    teacher.eval()
+    float_model.eval()
+    quantized_model.eval()
+    try:
+        float_device = next(float_model.parameters()).device
+    except StopIteration:
+        float_device = torch.device("cpu")
+
+    all_t: List[torch.Tensor] = []
+    all_f: List[torch.Tensor] = []
+    all_q: List[torch.Tensor] = []
+    n = len(states)
+    with torch.no_grad():
+        for start in range(0, n, batch_size):
+            cpu_batch = torch.from_numpy(states[start : start + batch_size])
+            t_out = teacher(cpu_batch.to(device)).float()
+            f_out = float_model(cpu_batch.to(float_device)).float()
+            q_out = quantized_model(cpu_batch)
+            if q_out.is_quantized:
+                q_out = q_out.dequantize()
+            all_t.append(t_out.cpu())
+            all_f.append(f_out.cpu())
+            all_q.append(q_out.float())
+
+    t_logits = torch.cat(all_t, dim=0)
+    f_logits = torch.cat(all_f, dim=0)
+    q_logits = torch.cat(all_q, dim=0)
+
+    t_act = t_logits.argmax(dim=-1)
+    agree_tf = float((t_act == f_logits.argmax(dim=-1)).float().mean().item())
+    agree_tq = float((t_act == q_logits.argmax(dim=-1)).float().mean().item())
+    kl_tf = _kl_divergence_logits(t_logits, f_logits)
+    kl_tq = _kl_divergence_logits(t_logits, q_logits)
+    mse_tf = float((t_logits - f_logits).pow(2).mean().item())
+    mse_tq = float((t_logits - q_logits).pow(2).mean().item())
+
+    return {
+        "action_agreement_teacher_float": agree_tf,
+        "action_agreement_teacher_quant": agree_tq,
+        "kl_teacher_float_student": kl_tf,
+        "kl_teacher_quant": kl_tq,
+        "mse_teacher_float": mse_tf,
+        "mse_teacher_quant": mse_tq,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Latency statistics (single-sample timing)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class LatencyTimingStats:
+    """Per-model single-sample latency summary (milliseconds)."""
+
+    median_ms: float
+    mean_ms: float
+    p95_ms: float
+
+
+def _current_rss_bytes() -> Optional[int]:
+    if psutil is None:
+        return None
+    return int(psutil.Process(os.getpid()).memory_info().rss)
+
+
+def _sample_process_peak_rss_kb() -> Optional[int]:
+    """Best-effort peak RSS from ``resource.getrusage`` (units vary by OS)."""
+    try:
+        return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    except (AttributeError, ValueError, OSError):
+        return None
+
+
+def _latency_stats_from_times(times_ms: List[float]) -> LatencyTimingStats:
+    if not times_ms:
+        return LatencyTimingStats(0.0, 0.0, 0.0)
+    arr = np.asarray(times_ms, dtype=np.float64)
+    return LatencyTimingStats(
+        median_ms=float(np.median(arr)),
+        mean_ms=float(np.mean(arr)),
+        p95_ms=float(np.percentile(arr, 95)),
+    )
+
+
+def _throughput_batches_per_sec(
+    model: nn.Module,
+    inp: torch.Tensor,
+    n_warmup: int,
+    n_timed: int,
+    sync_fn,
+) -> float:
+    """Average batches/sec over *n_timed* full forward passes after warmup."""
+    if n_timed <= 0 or inp.size(0) == 0:
+        return 0.0
+    model.eval()
+    with torch.no_grad():
+        for _ in range(max(n_warmup, 0)):
+            model(inp)
+    sync_fn()
+    t0 = time.perf_counter()
+    with torch.no_grad():
+        for _ in range(n_timed):
+            model(inp)
+            sync_fn()
+    elapsed = time.perf_counter() - t0
+    return float(n_timed / max(elapsed, 1e-9))
 
 
 # ---------------------------------------------------------------------------
@@ -761,6 +927,20 @@ class QuantizedValidationReport:
         pass on the validation states without raising an exception.
     thresholds:
         The :class:`QuantizedValidationThresholds` used for pass/fail.
+    float_latency_mean_ms, float_latency_p95_ms:
+        Mean and 95th percentile single-sample float latency (warmup excluded).
+    quantized_latency_mean_ms, quantized_latency_p95_ms:
+        Same for the quantized model.
+    mse_logits, kl_divergence_float_vs_quant, top_k_agreements:
+        Extra float–quant fidelity metrics from :func:`compare_outputs`.
+    throughput_* :
+        Optional fixed-batch throughput (batches/sec); zero when disabled.
+    rss_bytes_before, rss_bytes_after, process_peak_rss_kb:
+        Best-effort RSS snapshots (``psutil``) and ``resource.getrusage``
+        peak (platform-dependent; see JSON ``memory`` section).
+    fidelity_vs_teacher:
+        When a teacher is supplied to :meth:`QuantizedValidator.validate`,
+        teacher–float and teacher–quant agreement / KL / MSE.
     """
 
     action_agreement: float
@@ -780,6 +960,22 @@ class QuantizedValidationReport:
     quantization_dtype: str
     compatible: bool
     thresholds: QuantizedValidationThresholds
+    float_latency_mean_ms: float = 0.0
+    float_latency_p95_ms: float = 0.0
+    quantized_latency_mean_ms: float = 0.0
+    quantized_latency_p95_ms: float = 0.0
+    mse_logits: float = 0.0
+    kl_divergence_float_vs_quant: float = 0.0
+    top_k_agreements: Dict[int, float] = field(default_factory=dict)
+    throughput_batch_size: int = 0
+    float_batches_per_sec: float = 0.0
+    quantized_batches_per_sec: float = 0.0
+    throughput_warmup_batches: int = 0
+    throughput_timed_batches: int = 0
+    rss_bytes_before: Optional[int] = None
+    rss_bytes_after: Optional[int] = None
+    process_peak_rss_kb: Optional[int] = None
+    fidelity_vs_teacher: Optional[Dict[str, float]] = None
 
     @property
     def passed(self) -> bool:
@@ -799,18 +995,38 @@ class QuantizedValidationReport:
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a JSON-serialisable dict of all report fields."""
-        return {
+        top_k_json = {str(k): v for k, v in sorted(self.top_k_agreements.items())}
+        out: Dict[str, Any] = {
             "fidelity": {
                 "action_agreement": self.action_agreement,
                 "mean_q_error": self.mean_q_error,
                 "max_q_error": self.max_q_error,
                 "mean_cosine_similarity": self.mean_cosine_similarity,
                 "n_states": self.n_states,
+                "mse_logits": self.mse_logits,
+                "kl_divergence_float_vs_quant": self.kl_divergence_float_vs_quant,
+                "top_k_agreements": top_k_json,
             },
             "latency": {
                 "float_inference_ms": self.float_inference_ms,
+                "float_inference_ms_mean": self.float_latency_mean_ms,
+                "float_inference_ms_p95": self.float_latency_p95_ms,
                 "quantized_inference_ms": self.quantized_inference_ms,
+                "quantized_inference_ms_mean": self.quantized_latency_mean_ms,
+                "quantized_inference_ms_p95": self.quantized_latency_p95_ms,
                 "latency_ratio": self.latency_ratio,
+            },
+            "throughput": {
+                "batch_size": self.throughput_batch_size,
+                "float_batches_per_sec": self.float_batches_per_sec,
+                "quantized_batches_per_sec": self.quantized_batches_per_sec,
+                "warmup_batches": self.throughput_warmup_batches,
+                "timed_batches": self.throughput_timed_batches,
+            },
+            "memory": {
+                "rss_bytes_before": self.rss_bytes_before,
+                "rss_bytes_after": self.rss_bytes_after,
+                "process_peak_rss_kb": self.process_peak_rss_kb,
             },
             "size": {
                 "float_checkpoint_bytes": self.float_checkpoint_bytes,
@@ -833,6 +1049,9 @@ class QuantizedValidationReport:
             },
             "passed": self.passed,
         }
+        if self.fidelity_vs_teacher is not None:
+            out["fidelity_vs_teacher"] = dict(self.fidelity_vs_teacher)
+        return out
 
 
 # ---------------------------------------------------------------------------
@@ -921,6 +1140,12 @@ class QuantizedValidator:
         n_latency_warmup: int = 5,
         n_latency_repeats: int = 50,
         batch_size: int = 256,
+        top_k_values: Optional[List[int]] = None,
+        throughput_batch_size: int = 0,
+        throughput_warmup_batches: int = 2,
+        throughput_timed_batches: int = 10,
+        track_memory: bool = True,
+        teacher_model: Optional[nn.Module] = None,
     ) -> QuantizedValidationReport:
         """Run all validation checks and return a :class:`QuantizedValidationReport`.
 
@@ -939,9 +1164,24 @@ class QuantizedValidator:
         n_latency_warmup:
             Forward passes to run before timing (excluded from measurements).
         n_latency_repeats:
-            Number of timed single-sample forward passes; median is reported.
+            Number of timed single-sample forward passes; median/mean/p95
+            are derived from these samples.
         batch_size:
             Batch size for the :func:`compare_outputs` forward passes.
+        top_k_values:
+            Top-*k* agreement keys (float argmax in quant top-*k*).  ``None``
+            defaults to ``[3]``; use ``[]`` to disable.
+        throughput_batch_size:
+            If > 0, measure batches/sec on a fixed batch of this size (clamped
+            to ``len(states)``).
+        throughput_warmup_batches, throughput_timed_batches:
+            Warmup and timed batch forwards for throughput (after latency).
+        track_memory:
+            When ``True`` (default), record RSS snapshots and
+            ``resource.getrusage`` peak (best-effort).
+        teacher_model:
+            Optional frozen teacher; when set, adds ``fidelity_vs_teacher``
+            metrics aligned with distillation validation.
 
         Returns
         -------
@@ -955,17 +1195,29 @@ class QuantizedValidator:
                 f"states must be a 2D array with shape (N, input_dim); got {states_arr.shape!r}"
             )
 
+        rss_before = _current_rss_bytes() if track_memory else None
+
         self.float_model.eval()
         self.quantized_model.eval()
 
         # -- Compatibility check --
         compatible, compat_error = self._check_compatibility(states_arr)
 
+        if top_k_values is None:
+            k_for_compare: Optional[List[int]] = [3]
+        elif len(top_k_values) == 0:
+            k_for_compare = None
+        else:
+            k_for_compare = list(top_k_values)
+
         # -- Fidelity metrics --
-        # Skip compare_outputs when incompatible to avoid a second error.
         if compatible:
             cmp = compare_outputs(
-                self.float_model, self.quantized_model, states_arr, batch_size=batch_size
+                self.float_model,
+                self.quantized_model,
+                states_arr,
+                batch_size=batch_size,
+                top_k_values=k_for_compare,
             )
         else:
             n = len(states_arr)
@@ -975,13 +1227,57 @@ class QuantizedValidator:
                 "max_q_error": None,
                 "mean_cosine_similarity": 0.0,
                 "n_states": n,
+                "mse_logits": 0.0,
+                "kl_divergence_float_vs_quant": 0.0,
+                "top_k_agreements": {},
             }
 
-        # -- Latency --
-        float_ms, quant_ms = self._measure_latency(
+        fidelity_vs_teacher: Optional[Dict[str, float]] = None
+        if teacher_model is not None and compatible:
+            teacher_model.eval()
+            fidelity_vs_teacher = compute_teacher_fidelity_vs_float_quant(
+                teacher_model,
+                self.float_model,
+                self.quantized_model,
+                states_arr,
+                batch_size=batch_size,
+                device=self.device,
+            )
+
+        # -- Latency (single-sample distribution) --
+        float_lat, quant_lat = self._measure_latency(
             states_arr, n_latency_warmup, n_latency_repeats, skip_quantized=not compatible
         )
+        float_ms = float_lat.median_ms
+        quant_ms = quant_lat.median_ms
         latency_ratio = quant_ms / max(float_ms, 1e-9)
+
+        # -- Throughput (fixed batch) --
+        tb_size = 0
+        float_bps = 0.0
+        quant_bps = 0.0
+        tw = throughput_warmup_batches
+        tt = throughput_timed_batches
+        if throughput_batch_size > 0 and tt > 0 and len(states_arr) > 0:
+            tb_size = int(min(throughput_batch_size, len(states_arr)))
+            batch_np = states_arr[:tb_size]
+            batch_cpu = torch.from_numpy(batch_np)
+            float_batch = batch_cpu.to(self.device)
+
+            def _sync() -> None:
+                if self.device.type == "cuda":
+                    torch.cuda.synchronize(self.device)
+
+            float_bps = _throughput_batches_per_sec(
+                self.float_model, float_batch, tw, tt, _sync
+            )
+            quant_bps = (
+                0.0
+                if not compatible
+                else _throughput_batches_per_sec(
+                    self.quantized_model, batch_cpu, tw, tt, lambda: None
+                )
+            )
 
         # -- File sizes --
         float_bytes: Optional[int] = None
@@ -999,6 +1295,11 @@ class QuantizedValidator:
         quant_mode = quant_meta.get("mode", "unknown")
         quant_backend = quant_meta.get("backend", "unknown")
         quant_dtype = quant_meta.get("dtype", "unknown")
+
+        rss_after = _current_rss_bytes() if track_memory else None
+        peak_kb = _sample_process_peak_rss_kb() if track_memory else None
+
+        top_k_agreements = dict(cmp.get("top_k_agreements") or {})
 
         report = QuantizedValidationReport(
             action_agreement=cmp["action_agreement"],
@@ -1018,6 +1319,22 @@ class QuantizedValidator:
             quantization_dtype=quant_dtype,
             compatible=compatible,
             thresholds=self.thresholds,
+            float_latency_mean_ms=float_lat.mean_ms,
+            float_latency_p95_ms=float_lat.p95_ms,
+            quantized_latency_mean_ms=quant_lat.mean_ms,
+            quantized_latency_p95_ms=quant_lat.p95_ms,
+            mse_logits=float(cmp.get("mse_logits", 0.0)),
+            kl_divergence_float_vs_quant=float(cmp.get("kl_divergence_float_vs_quant", 0.0)),
+            top_k_agreements=top_k_agreements,
+            throughput_batch_size=tb_size,
+            float_batches_per_sec=float_bps,
+            quantized_batches_per_sec=quant_bps,
+            throughput_warmup_batches=tw if tb_size > 0 else 0,
+            throughput_timed_batches=tt if tb_size > 0 else 0,
+            rss_bytes_before=rss_before,
+            rss_bytes_after=rss_after,
+            process_peak_rss_kb=peak_kb,
+            fidelity_vs_teacher=fidelity_vs_teacher,
         )
 
         if not compatible:
@@ -1073,24 +1390,21 @@ class QuantizedValidator:
         n_warmup: int,
         n_repeats: int,
         skip_quantized: bool = False,
-    ) -> Tuple[float, float]:
-        """Return median single-sample latency (ms) for float and quantized models.
+    ) -> Tuple[LatencyTimingStats, LatencyTimingStats]:
+        """Return single-sample latency stats (ms) for float and quantized models.
 
-        Uses the first row of *states* as the probe input so that batch-size
-        variation does not confound the comparison.  Warmup passes are excluded
-        from timing.  When *skip_quantized* is ``True`` (e.g. the compatibility
-        check failed), the quantized latency is returned as ``0.0`` to avoid a
-        second error.
+        Uses the first row of *states* as the probe input.  Warmup passes are
+        excluded from timing.  When *skip_quantized* is ``True``, quantized
+        stats are all zero.
         """
-        # Float model runs on self.device; quantized model must stay on CPU.
         float_single = torch.from_numpy(states[:1]).to(self.device)
-        quant_single = torch.from_numpy(states[:1])  # always CPU for int8 kernels
+        quant_single = torch.from_numpy(states[:1])
 
         def _sync() -> None:
             if self.device.type == "cuda":
                 torch.cuda.synchronize(self.device)
 
-        def _time_model(model: nn.Module, inp: torch.Tensor) -> float:
+        def _time_model(model: nn.Module, inp: torch.Tensor) -> LatencyTimingStats:
             model.eval()
             with torch.no_grad():
                 for _ in range(n_warmup):
@@ -1104,8 +1418,12 @@ class QuantizedValidator:
                     model(inp)
                     _sync()
                     times.append((time.perf_counter() - t0) * 1_000.0)
-            return float(np.median(times)) if times else 0.0
+            return _latency_stats_from_times(times)
 
-        float_ms = _time_model(self.float_model, float_single)
-        quant_ms = 0.0 if skip_quantized else _time_model(self.quantized_model, quant_single)
-        return float_ms, quant_ms
+        float_stats = _time_model(self.float_model, float_single)
+        quant_stats = (
+            LatencyTimingStats(0.0, 0.0, 0.0)
+            if skip_quantized
+            else _time_model(self.quantized_model, quant_single)
+        )
+        return float_stats, quant_stats
