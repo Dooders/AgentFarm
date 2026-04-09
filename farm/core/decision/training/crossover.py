@@ -685,7 +685,7 @@ def _read_arch_spec_from_ptq_json(pt_path: str) -> Optional[ChildArchitectureSpe
 
 
 def _looks_like_ptq_sidecar(json_path: str) -> bool:
-    """Return True if *json_path* looks like PTQ metadata from ``save_checkpoint``."""
+    """Return True if *json_path* looks like **dynamic** PTQ metadata."""
     if not os.path.isfile(json_path):
         return False
     try:
@@ -700,7 +700,8 @@ def _looks_like_ptq_sidecar(json_path: str) -> bool:
         return False
     mode = q.get("mode")
     dtype = q.get("dtype")
-    return mode in ("dynamic", "static") and dtype == "qint8"
+    # Crossover currently supports dynamic PTQ checkpoint auto-loading only.
+    return mode == "dynamic" and dtype == "qint8"
 
 
 def _resolve_parent(
@@ -739,10 +740,13 @@ def _resolve_parent(
         Parent specification.
     allow_unsafe_unpickle:
         When ``True``, allows fallback from ``weights_only=True`` to
-        ``weights_only=False`` for full-model pickle checkpoints.
+        ``weights_only=False`` for full-model pickle checkpoints, including
+        PTQ ``*.pt`` files loaded via :func:`load_quantized_checkpoint`.
     auto_load_ptq_checkpoints:
         When ``True`` (default), detect PTQ sidecar JSON next to ``*.pt`` paths
-        and load via :func:`load_quantized_checkpoint`.
+        and load via :func:`load_quantized_checkpoint`. This still requires
+        ``allow_unsafe_unpickle=True`` because quantized full-model loading uses
+        ``weights_only=False``.
 
     Returns
     -------
@@ -766,6 +770,12 @@ def _resolve_parent(
             raise FileNotFoundError(f"Parent checkpoint not found: {path}")
         json_path = path + ".json"
         if auto_load_ptq_checkpoints and _looks_like_ptq_sidecar(json_path):
+            if not allow_unsafe_unpickle:
+                raise ValueError(
+                    f"PTQ checkpoint at {path!r} requires full-model unpickling "
+                    "(weights_only=False), which is disabled by default for safety. "
+                    "Pass allow_unsafe_unpickle=True only for trusted checkpoints."
+                )
             q_model, _meta = load_quantized_checkpoint(path)
             return _float_state_dict_from_dynamic_quantized_module(q_model)
         # Try weights_only=True first (plain state-dict files).  Full-model
@@ -992,8 +1002,9 @@ def initialize_child_from_crossover(
     device:
         Target device; child is built on CPU then moved.
     allow_unsafe_unpickle:
-        Allow ``weights_only=False`` fallback for non-PTQ paths when
-        ``weights_only=True`` fails.
+        Allow ``weights_only=False`` fallback for pickle checkpoints
+        (including PTQ ``*.pt`` + ``*.json`` auto-loads). Keep ``False``
+        unless checkpoints are trusted.
     auto_load_ptq_checkpoints:
         When ``True`` (default), use :func:`load_quantized_checkpoint` for
         ``*.pt`` files that have a sibling ``*.json`` with PTQ metadata

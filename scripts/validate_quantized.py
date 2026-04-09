@@ -351,6 +351,7 @@ def main() -> None:
                 args.output_dim,
                 args.parent_hidden,
             )
+            teacher_model = teacher_model.to(device)
             teacher_model.eval()
 
         validator = QuantizedValidator(float_model, q_model, thresholds=thresholds, device=device)

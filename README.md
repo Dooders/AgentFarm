@@ -199,6 +199,8 @@ After distilling student Q-networks you can apply **8-bit post-training quantiza
 
 6. **Search many crossover + fine-tune combinations** (leaderboard + manifest): `python scripts/run_crossover_search.py --help`. Presets include `minimal` / `default`, plus **`minimal-qat`** / **`default-qat`** (adds a `short_qat` / `ptq_dynamic` regime). Use **`--workers N`** for process-parallel children (float `BaseQNetwork` parents only). Quick check: `make crossover-search-smoke`. Design notes: `docs/design/crossover_search_space.md`, strategy semantics: `docs/design/crossover_strategies.md`.
 
+**Crossover from PTQ parent paths (Python):** [`initialize_child_from_crossover`](farm/core/decision/training/crossover.py) can auto-detect a **dynamic** PTQ sidecar next to a `.pt` file (same JSON shape as `PostTrainingQuantizer.save_checkpoint`) and load via `load_quantized_checkpoint`. That path uses full-model unpickling (`weights_only=False`); pass **`allow_unsafe_unpickle=True` only for trusted checkpoints**. Static PTQ sidecars are not auto-loaded here—use float state dicts or in-memory modules. Details: [`docs/design/crossover_strategies.md`](docs/design/crossover_strategies.md).
+
 **Optional QAT** (after PTQ if action agreement or Q-error is unacceptable): weight-only fake quant on linear layers, same int8 export format as PTQ after convert.
 
 ```bash

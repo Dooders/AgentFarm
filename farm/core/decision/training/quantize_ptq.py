@@ -726,6 +726,10 @@ def compute_teacher_fidelity_vs_float_quant(
     float_model.eval()
     quantized_model.eval()
     try:
+        teacher_device = next(teacher.parameters()).device
+    except StopIteration:
+        teacher_device = device
+    try:
         float_device = next(float_model.parameters()).device
     except StopIteration:
         float_device = torch.device("cpu")
@@ -737,7 +741,7 @@ def compute_teacher_fidelity_vs_float_quant(
     with torch.no_grad():
         for start in range(0, n, batch_size):
             cpu_batch = torch.from_numpy(states[start : start + batch_size])
-            t_out = teacher(cpu_batch.to(device)).float()
+            t_out = teacher(cpu_batch.to(teacher_device)).float()
             f_out = float_model(cpu_batch.to(float_device)).float()
             q_out = quantized_model(cpu_batch)
             if q_out.is_quantized:

@@ -70,9 +70,9 @@ child_sd = crossover_quantized_state_dict(
 
 `initialize_child_from_crossover` resolves parents (live `nn.Module`, `.pt` paths, or state dicts), infers architecture (or uses `ChildArchitectureSpec`), instantiates a fresh `BaseQNetwork` or `StudentQNetwork`, runs `crossover_quantized_state_dict`, loads float weights with `strict=True`, and returns the child in `eval()` mode.
 
-**PTQ checkpoints**: If `<path>.json` looks like metadata from `PostTrainingQuantizer.save_checkpoint`, the path is loaded with `load_quantized_checkpoint`, then **dequantized** into a plain float state dict (packed dynamic-quant layers are not fed directly into crossover).
+**PTQ checkpoints (dynamic only)**: If `<path>.json` looks like **dynamic** PTQ metadata from `PostTrainingQuantizer.save_checkpoint` (`quantization.mode == "dynamic"`, `dtype == "qint8"`), the `.pt` is loaded with `load_quantized_checkpoint` and **dequantized** into a plain float state dict (packed dynamic-quant layers are not fed directly into crossover). That load uses full-model unpickling (`weights_only=False`); you must pass **`allow_unsafe_unpickle=True` for trusted checkpoints only**—otherwise resolution raises with guidance to opt in. Static PTQ sidecars are not treated as auto-loadable on this path.
 
-**Optional kwargs**: `auto_load_ptq_checkpoints` (default `True`), `architecture=ChildArchitectureSpec(...)`, `network_class=StudentQNetwork` when parents are dicts/paths, and `allow_unsafe_unpickle` for non-PTQ pickles that require `weights_only=False`.
+**Optional kwargs**: `auto_load_ptq_checkpoints` (default `True`), `architecture=ChildArchitectureSpec(...)`, `network_class=StudentQNetwork` when parents are dicts/paths. **`allow_unsafe_unpickle`**: required for the dynamic PTQ sidecar path above; also use `True` for trusted non-PTQ full-model pickles when `weights_only=True` fails.
 
 ```python
 from farm.core.decision.training.crossover import (

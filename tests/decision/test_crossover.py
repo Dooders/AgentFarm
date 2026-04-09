@@ -897,10 +897,33 @@ class TestInitializeChildFromCrossover:
             qz.save_checkpoint(qa, p1, ra, arch_kwargs=arch_kw)
             qz.save_checkpoint(qb, p2, rb, arch_kwargs=arch_kw)
             child = initialize_child_from_crossover(
-                p1, p2, strategy="weighted", alpha=0.5
+                p1,
+                p2,
+                strategy="weighted",
+                alpha=0.5,
+                allow_unsafe_unpickle=True,
             )
             out = child(self._batch())
             assert out.shape == (4, OUTPUT_DIM)
+
+    def test_ptq_checkpoint_paths_require_explicit_unsafe_opt_in(self):
+        from farm.core.decision.training.quantize_ptq import (
+            PostTrainingQuantizer,
+            QuantizationConfig,
+        )
+
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        qz = PostTrainingQuantizer(QuantizationConfig(mode="dynamic"))
+        qa, ra = qz.quantize(pa)
+        qb, rb = qz.quantize(pb)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p1 = os.path.join(tmpdir, "a_int8.pt")
+            p2 = os.path.join(tmpdir, "b_int8.pt")
+            qz.save_checkpoint(qa, p1, ra, arch_kwargs={})
+            qz.save_checkpoint(qb, p2, rb, arch_kwargs={})
+            with pytest.raises(ValueError, match="allow_unsafe_unpickle=True"):
+                initialize_child_from_crossover(p1, p2, strategy="layer")
 
     def test_ptq_path_without_auto_loader_requires_unsafe_or_raises(self):
         from farm.core.decision.training.quantize_ptq import (
