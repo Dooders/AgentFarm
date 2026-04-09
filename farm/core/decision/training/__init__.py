@@ -1,6 +1,16 @@
 """Training module for ML algorithms."""
 
 from .collector import ExperienceCollector
+from .crossover_search import (
+    CrossoverRecipe,
+    FineTuneRegime,
+    LEADERBOARD_COLUMNS,
+    ManifestEntry,
+    SearchConfig,
+    build_leaderboard,
+    generate_recommendation,
+    run_crossover_search,
+)
 from .crossover import (
     CROSSOVER_MODES,
     crossover_checkpoints,
@@ -50,13 +60,17 @@ from .trainer_distill import (
 __all__ = [
     "AlgorithmTrainer",
     "CROSSOVER_MODES",
+    "CrossoverRecipe",
     "DistillationConfig",
     "DistillationMetrics",
     "DistillationTrainer",
     "ExperienceCollector",
+    "FineTuneRegime",
     "FineTuner",
     "FineTuningConfig",
     "FineTuningMetrics",
+    "LEADERBOARD_COLUMNS",
+    "ManifestEntry",
     "PairwiseComparison",
     "PostTrainingQuantizer",
     "QATConfig",
@@ -72,14 +86,18 @@ __all__ = [
     "RecombinationEvaluator",
     "RecombinationReport",
     "RecombinationThresholds",
+    "SearchConfig",
     "StudentValidator",
     "ValidationReport",
     "ValidationThresholds",
     "WeightOnlyFakeQuantLinear",
+    "build_leaderboard",
     "compare_outputs",
     "crossover_checkpoints",
     "crossover_quantized_state_dict",
+    "generate_recommendation",
     "initialize_child_from_crossover",
     "load_qat_checkpoint",
     "load_quantized_checkpoint",
+    "run_crossover_search",
 ]
