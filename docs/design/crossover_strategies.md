@@ -261,9 +261,187 @@ To **sweep** many crossover recipes and fine-tune regimes on the same state buff
 
 Strategy semantics for each mode remain as in §2–§4 above; the search layer only **combines** those modes with named fine-tune regimes.
 
-## 10. References
+## 10. Full comparison matrix: child vs parents, students, and quantized counterparts
+
+This section documents the **evaluation methodology** required by
+[Dooders/AgentFarm#8](https://github.com/Dooders/AgentFarm/issues/8) — how to
+compare a crossover child against all reference checkpoints using a
+**single state buffer** and **aligned metrics**.
+
+### Comparison matrix
+
+| Row | Child role | Reference A / B | Purpose |
+|-----|-----------|-----------------|---------|
+| A | float child | float parent A / float parent B | Baseline recombination quality vs originals |
+| B | float child | float student A / float student B | Child vs distilled intermediates |
+| C | float child | int8 student A / int8 student B | Effect of quantization on comparison |
+| D *(opt.)* | **int8** child | float parent A / float parent B | Deployment-aligned parity check |
+
+Additionally, **Row C** includes per-pair quantized-fidelity reports
+(float student vs int8 student) produced by `QuantizedValidator`, exposing the
+latency/size trade-off alongside the agreement drop.
+
+### Driver script (recommended)
+
+`scripts/run_comparison_matrix.py` orchestrates all rows with a **single shared
+state buffer** and writes individual JSON reports plus a Markdown/CSV summary:
+
+```bash
+# Full matrix — rows A, B, C, D (--row-d opt-in)
+python scripts/run_comparison_matrix.py \
+    --parent-a-ckpt    checkpoints/crossover/parent_A.pt \
+    --parent-b-ckpt    checkpoints/crossover/parent_B.pt \
+    --student-a-ckpt   checkpoints/distillation/student_A.pt \
+    --student-b-ckpt   checkpoints/distillation/student_B.pt \
+    --student-a-int8   checkpoints/quantized/student_A_int8.pt \
+    --student-b-int8   checkpoints/quantized/student_B_int8.pt \
+    --child-ckpt       checkpoints/crossover/child.pt \
+    --child-int8       checkpoints/crossover/child_int8.pt \
+    --row-d \
+    --seed 42 --n-states 1000 \
+    --include-parent-baseline \
+    --report-dir       reports/comparison_matrix
+```
+
+Architecture flags default to `--input-dim 8 --output-dim 4 --hidden-size 64`.
+Use `--states-file <path.npy>` instead of `--seed` / `--n-states` to supply
+real replay-buffer states.
+
+**Minimum viable run** (rows A only — only parents + child required):
+
+```bash
+python scripts/run_comparison_matrix.py \
+    --parent-a-ckpt checkpoints/crossover/parent_A.pt \
+    --parent-b-ckpt checkpoints/crossover/parent_B.pt \
+    --child-ckpt    checkpoints/crossover/child.pt \
+    --report-dir    reports/comparison_matrix
+```
+
+### Manual per-row commands
+
+If you prefer to run each row individually with the existing specialist scripts,
+use the same `--seed` / `--n-states` across calls so metrics are comparable:
+
+**Row A — child vs float parents**
+
+```bash
+python scripts/validate_recombination.py \
+    --parent-a-ckpt checkpoints/crossover/parent_A.pt \
+    --parent-b-ckpt checkpoints/crossover/parent_B.pt \
+    --child-ckpt    checkpoints/crossover/child.pt \
+    --include-parent-baseline \
+    --seed 42 --n-states 1000 \
+    --report-dir    reports/comparison_matrix/row_A
+```
+
+**Row B — child vs float students** *(pass students in reference slots)*
+
+```bash
+python scripts/validate_recombination.py \
+    --parent-a-ckpt checkpoints/distillation/student_A.pt \
+    --parent-b-ckpt checkpoints/distillation/student_B.pt \
+    --child-ckpt    checkpoints/crossover/child.pt \
+    --seed 42 --n-states 1000 \
+    --report-dir    reports/comparison_matrix/row_B
+```
+
+> Note: The JSON schema uses the word "parent" internally; the prose in reports
+> should clarify that reference A = student A, reference B = student B.
+
+**Row C — child vs int8 students**
+
+```bash
+python scripts/validate_recombination.py \
+    --parent-a-ckpt       checkpoints/quantized/student_A_int8.pt \
+    --parent-b-ckpt       checkpoints/quantized/student_B_int8.pt \
+    --parent-a-quantized \
+    --parent-b-quantized \
+    --child-ckpt          checkpoints/crossover/child.pt \
+    --seed 42 --n-states 1000 \
+    --report-dir          reports/comparison_matrix/row_C
+```
+
+**Row C / quantized fidelity** — float student vs int8 student (pair A):
+
+```bash
+python scripts/validate_quantized.py \
+    --float-a-ckpt  checkpoints/distillation/student_A.pt \
+    --quant-a-ckpt  checkpoints/quantized/student_A_int8.pt \
+    --pair A \
+    --seed 42 --n-states 1000 \
+    --report-dir    reports/comparison_matrix/row_C_fidelity
+```
+
+**Row D — quantized child vs float parents** *(optional)*
+
+```bash
+python scripts/validate_recombination.py \
+    --parent-a-ckpt  checkpoints/crossover/parent_A.pt \
+    --parent-b-ckpt  checkpoints/crossover/parent_B.pt \
+    --child-ckpt     checkpoints/crossover/child_int8.pt \
+    --child-quantized \
+    --seed 42 --n-states 1000 \
+    --report-dir     reports/comparison_matrix/row_D
+```
+
+### Aggregating results
+
+After generating the per-row JSON files, produce a combined Markdown/CSV summary:
+
+```bash
+python scripts/summarise_comparison_matrix.py \
+    --report-dir reports/comparison_matrix
+```
+
+Or point at specific files:
+
+```bash
+python scripts/summarise_comparison_matrix.py \
+    --files \
+        reports/comparison_matrix/row_A_child_vs_parents.json \
+        reports/comparison_matrix/row_B_child_vs_students.json \
+        reports/comparison_matrix/row_C_child_vs_int8_students.json
+```
+
+### Metrics aligned across rows
+
+| Metric | Source | Interpretation |
+|--------|--------|----------------|
+| `action_agreement` (top-1) | `RecombinationEvaluator` / `QuantizedValidator` | Fraction of states where child / int8 matches reference |
+| `top_k_agreements` | `RecombinationEvaluator` | Relaxed agreement (child's top-k includes reference argmax) |
+| `kl_divergence` | Both | KL(ref ‖ child) on Q-logits; lower = more similar |
+| `mse` / `mae` | `RecombinationEvaluator` | Q-value error; lower = more similar |
+| `mean_cosine_similarity` | Both | Cosine on Q-logit vectors; higher = more similar |
+| `oracle_agreement` | `RecombinationEvaluator` | Fraction where child matches ≥ 1 reference |
+| `latency_ratio` | `QuantizedValidator` | Quant / float inference time; > 1 means slower |
+| `size_ratio` | `QuantizedValidator` | Quant / float on-disk size |
+
+### Interpreting results
+
+- **Row A ≈ Row B**: child tracked parents and students equally well — crossover
+  preserved the distilled policy.
+- **Row A > Row B** (child closer to parents): fine-tuning against a parent as
+  reference pulled the child away from the distilled policy.
+- **Row C ≈ Row B**: quantization of the student reference barely changes the
+  comparison, so quantization noise is small relative to crossover diversity.
+- **Row C ≪ Row B**: quantization dominates the error budget; consider
+  QAT-aware fine-tuning (`FineTuner` with `quantization_applied="ptq_dynamic"`).
+- **Row D ≈ Row A**: the child survives int8 conversion without significant
+  policy shift vs the float parents.
+
+### Gaps
+
+- **No online rollout returns** — the comparison uses offline (state-batch)
+  metrics only.  For return parity on real tasks, wire checkpoints into the
+  same env + feature pipeline used in training.
+- **Architecture must match** across all rows — verify `--input-dim`,
+  `--output-dim`, `--hidden-size` are identical for all checkpoints.
+
+## 11. References
 
 - Implementation: `farm/core/decision/training/crossover.py`
 - Training package exports: `farm/core/decision/training/__init__.py`
 - Benchmark script: `scripts/benchmark_crossover.py`
+- Comparison matrix driver: `scripts/run_comparison_matrix.py`
+- Summary aggregator: `scripts/summarise_comparison_matrix.py`
 - Related validation patterns: `scripts/validate_quantized.py`, `farm/core/decision/training/quantize_ptq.py`
