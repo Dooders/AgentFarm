@@ -474,7 +474,12 @@ class FineTuner:
             (``initial_val_loss``, ``initial_action_agreement``) and per-epoch
             train / val losses, action agreement, and probability similarity.
         """
-        if len(states) == 0:
+        states = np.asarray(states, dtype="float32")
+        if states.ndim != 2:
+            raise ValueError(
+                f"states must be a 2-D array with shape (N, input_dim); got shape {states.shape!r}"
+            )
+        if states.shape[0] == 0:
             raise ValueError("states must be non-empty; got an array with 0 samples.")
 
         if self.config.seed is not None:
@@ -921,7 +926,7 @@ class FineTuner:
             },
             "metrics": _sanitize_for_json(metrics.to_dict()),
         }
-        with open(meta_path, "w") as fh:
+        with open(meta_path, "w", encoding="utf-8") as fh:
             json.dump(metadata, fh, indent=2, allow_nan=False)
         logger.info("finetune_metadata_saved", path=meta_path)
 

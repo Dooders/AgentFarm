@@ -235,10 +235,10 @@ def main() -> None:
     # Summary
     print("\n--- Fine-tuning results ---")
     if metrics.train_losses:
-        print(f"  Initial val loss   : {metrics.initial_val_loss:.6f}")
-        print(f"  Initial agreement  : {metrics.initial_action_agreement * 100:.1f}%")
         print(f"  Final train loss   : {metrics.train_losses[-1]:.6f}")
     if metrics.val_losses:
+        print(f"  Initial val loss   : {metrics.initial_val_loss:.6f}")
+        print(f"  Initial agreement  : {metrics.initial_action_agreement * 100:.1f}%")
         print(f"  Best val loss      : {metrics.best_val_loss:.6f}  (epoch {metrics.best_epoch})")
         print(f"  Final agreement    : {metrics.action_agreements[-1] * 100:.1f}%")
         improvement = metrics.initial_val_loss - metrics.best_val_loss
