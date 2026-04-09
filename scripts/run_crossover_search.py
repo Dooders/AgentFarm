@@ -312,7 +312,6 @@ def _parse_args() -> argparse.Namespace:
     p.set_defaults(include_parent_baseline=True)
     p.add_argument(
         "--include-parent-baseline",
-        dest="include_parent_baseline",
         action="store_true",
         help="Include a parent A vs parent B comparison in each eval report (default: enabled).",
     )
