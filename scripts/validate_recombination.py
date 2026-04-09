@@ -205,8 +205,10 @@ def _print_report(report_dict: dict) -> None:
     print(sep)
     print(f"Schema version          : {report_dict.get('schema_version', 'unknown')}")
     print(f"PyTorch version         : {report_dict.get('torch_version', 'unknown')}")
-    print(f"States evaluated        : {states.get('n_states', 0)} "
-          f"(dim={states.get('input_dim', '?')}, source={states.get('source', '?')})")
+    print(
+        f"States evaluated        : {states.get('n_states', 0)} "
+        f"(dim={states.get('input_dim', '?')}, source={states.get('source', '?')})"
+    )
     print("\nSummary:")
     print(f"  Child ↔ Parent A agreement : {summary.get('child_agrees_with_parent_a', 0):.4f}")
     print(f"  Child ↔ Parent B agreement : {summary.get('child_agrees_with_parent_b', 0):.4f}")

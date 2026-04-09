@@ -652,3 +652,10 @@ class TestModuleExports:
             RecombinationThresholds,
             REPORT_SCHEMA_VERSION,
         )
+
+        assert issubclass(PairwiseComparison, object)
+        assert issubclass(RecombinationEvaluator, object)
+        assert issubclass(RecombinationReport, object)
+        assert issubclass(RecombinationThresholds, object)
+        assert isinstance(REPORT_SCHEMA_VERSION, str)
+        assert REPORT_SCHEMA_VERSION == "1.0"
