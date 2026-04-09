@@ -250,7 +250,18 @@ Use `scripts/validate_recombination.py` (library: `RecombinationEvaluator`, `Rec
 
 ---
 
-## 9. References
+## 9. Systematic search (crossover × fine-tune)
+
+To **sweep** many crossover recipes and fine-tune regimes on the same state buffer (leaderboard + manifest + recommendation), use:
+
+- **Design / search space:** [`docs/design/crossover_search_space.md`](crossover_search_space.md) — grid definitions, metrics, `default` / `minimal` / **`default-qat`** / **`minimal-qat`** presets.
+- **CLI:** `scripts/run_crossover_search.py` — e.g. `--search-space minimal`, `default-qat` (adds a `short_qat` / `ptq_dynamic` column), `--max-runs`, `--workers N` for process-parallel children (float `BaseQNetwork` parents only).
+- **Library:** `farm.core.decision.training.crossover_search.run_crossover_search` — `num_workers`, `SearchConfig.default_with_qat()`, `minimal_with_qat()`.
+- **Make:** `make crossover-search-smoke` (two children, synthetic states).
+
+Strategy semantics for each mode remain as in §2–§4 above; the search layer only **combines** those modes with named fine-tune regimes.
+
+## 10. References
 
 - Implementation: `farm/core/decision/training/crossover.py`
 - Training package exports: `farm/core/decision/training/__init__.py`

@@ -169,6 +169,22 @@ class TestSearchConfig:
         pairs = cfg.pairs()
         assert len(pairs) == 9  # 3 recipes × 3 regimes
 
+    def test_default_with_qat_pair_count(self):
+        cfg = SearchConfig.default_with_qat()
+        assert len(cfg.pairs()) == 21  # 7 recipes × 3 regimes (short, long, short_qat)
+
+    def test_minimal_with_qat_pair_count(self):
+        cfg = SearchConfig.minimal_with_qat()
+        assert len(cfg.pairs()) == 9
+
+    def test_minimal_with_qat_includes_short_qat_regime(self):
+        cfg = SearchConfig.minimal_with_qat()
+        regime_names = {reg.name for _, reg in cfg.pairs()}
+        assert "short_qat" in regime_names
+        assert cfg.pairs()[0][1].quantization_applied == "none"
+        qat_pairs = [(a, b) for a, b in cfg.pairs() if b.name == "short_qat"]
+        assert all(r.quantization_applied == "ptq_dynamic" for _, r in qat_pairs)
+
     def test_minimal_has_all_modes(self):
         cfg = SearchConfig.minimal()
         modes = {r.mode for r, _ in cfg.pairs()}
@@ -615,6 +631,21 @@ class TestRunCrossoverSearch:
         )]
         # Same crossover recipe + same seed → same child; ranking should match.
         assert rank1 == rank2
+
+    def test_parallel_workers_matches_sequential_child_ids(self):
+        """Process pool path should produce the same child_id ordering as sequential."""
+        parent_a = _make_net(seed=0)
+        parent_b = _make_net(seed=1)
+        states = _make_states(n=60, seed=3)
+        cfg = self._tiny_config(max_runs=2)
+        with tempfile.TemporaryDirectory() as d_seq, tempfile.TemporaryDirectory() as d_par:
+            m_seq, _ = run_crossover_search(
+                parent_a, parent_b, states, cfg, d_seq, num_workers=1
+            )
+            m_par, _ = run_crossover_search(
+                parent_a, parent_b, states, cfg, d_par, num_workers=2
+            )
+        assert [e.child_id for e in m_seq] == [e.child_id for e in m_par]
 
     def test_three_config_smoke(self):
         """Acceptance criterion: run at least 3 configs without manual checkpoint editing."""

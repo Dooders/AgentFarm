@@ -5,7 +5,10 @@ Generates *N* child Q-networks (configurable, ≥ 9 for a minimal 3×3 grid) by
 sweeping over crossover strategies × fine-tune hyperparameter recipes.  Every
 child is scored with the **same** state buffer / evaluation harness so results
 are directly comparable.  A leaderboard (CSV + JSON) and a short text
-recommendation are written to *--run-dir*.
+recommendation are written to *--run-dir*.  Use ``--search-space default-qat``
+or ``minimal-qat`` to include a **QAT** fine-tune regime (``ptq_dynamic``);
+``--workers N`` runs children in parallel processes (float ``BaseQNetwork``
+parents only).
 
 Quick start (synthetic data, 9 children, fast regimes)
 ------------------------------------------------------
@@ -107,6 +110,10 @@ def _build_search_config(args: argparse.Namespace) -> SearchConfig:
         cfg = SearchConfig.default()
     elif args.search_space == "minimal":
         cfg = SearchConfig.minimal()
+    elif args.search_space == "default-qat":
+        cfg = SearchConfig.default_with_qat()
+    elif args.search_space == "minimal-qat":
+        cfg = SearchConfig.minimal_with_qat()
     else:
         # Custom search space from individual CLI flags
         recipes: list[CrossoverRecipe] = []
@@ -134,6 +141,15 @@ def _build_search_config(args: argparse.Namespace) -> SearchConfig:
             "medium": FineTuneRegime("medium", epochs=10, lr=5e-4, seed=42),
             "long": FineTuneRegime("long", epochs=20, lr=1e-4, seed=42),
             "lr_high": FineTuneRegime("lr_high", epochs=5, lr=5e-3, seed=42),
+            "short_qat": FineTuneRegime(
+                "short_qat",
+                epochs=5,
+                lr=1e-4,
+                seed=42,
+                quantization_applied="ptq_dynamic",
+                batch_size=16,
+                val_fraction=0.1,
+            ),
         }
         regime_names = args.finetune_regimes or ["short", "long"]
         regimes: list[FineTuneRegime] = []
@@ -175,11 +191,12 @@ def _parse_args() -> argparse.Namespace:
     # Search space
     p.add_argument(
         "--search-space",
-        choices=["default", "minimal", "custom"],
+        choices=["default", "minimal", "default-qat", "minimal-qat", "custom"],
         default="default",
         help=(
-            "Pre-defined search space: 'default' (14 children, 7 recipes × 2 regimes), "
-            "'minimal' (9 children, 3×3 grid), or 'custom' (use --crossover-modes etc.)."
+            "Pre-defined search: 'default' (14 = 7×2 float), 'minimal' (9 = 3×3 float), "
+            "'default-qat' (21 = 7×3 adds short_qat), 'minimal-qat' (9 = 3×3 with short_qat), "
+            "or 'custom'."
         ),
     )
     p.add_argument(
@@ -223,7 +240,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--finetune-regimes",
         nargs="+",
-        choices=["short", "medium", "long", "lr_high"],
+        choices=["short", "medium", "long", "lr_high", "short_qat"],
         default=None,
         help="Fine-tune regime names to sweep (custom mode only).",
     )
@@ -297,6 +314,16 @@ def _parse_args() -> argparse.Namespace:
             "Use 0 to run all states in a single batch."
         ),
     )
+    p.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help=(
+            "Parallel child runs via ProcessPoolExecutor when >1. "
+            "Requires float BaseQNetwork parents (state dicts cached under run-dir). "
+            "Quantized parents are not supported; use 1."
+        ),
+    )
 
     return p.parse_args()
 
@@ -316,6 +343,8 @@ def main() -> None:
     print(f"  Fine-tune regimes : {len(search_cfg.finetune_regimes)}")
     if search_cfg.max_runs is not None:
         print(f"  (capped at {search_cfg.max_runs})")
+    if args.workers > 1:
+        print(f"  Parallel workers   : {args.workers} (process pool; BaseQNetwork parents only)")
 
     # 2. Load parents
     print("\n[1/4] Loading parent networks …")
@@ -367,6 +396,7 @@ def main() -> None:
         thresholds=thresholds,
         include_parent_baseline=args.include_parent_baseline,
         eval_batch_size=eval_bs,
+        num_workers=max(1, args.workers),
     )
 
     # 6. Print summary

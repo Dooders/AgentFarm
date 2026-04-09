@@ -197,6 +197,8 @@ After distilling student Q-networks you can apply **8-bit post-training quantiza
 
 5. **Evaluate a crossover child vs both parents** (offline Q metrics, versioned JSON): `python scripts/validate_recombination.py --help`. Baselines: **child vs parent A**, **child vs parent B**, optional **parent A vs parent B** (`--include-parent-baseline`), plus **oracle** agreement in the report summary. Use the same `--states-file` / `--seed` / `--n-states` pattern as other validation scripts. For **quantized** full-model checkpoints (PTQ or post-QAT `torch.save` exports), add `--parent-a-quantized`, `--parent-b-quantized`, and/or `--child-quantized`; those roles are loaded with `load_quantized_checkpoint` and run on **CPU**.
 
+6. **Search many crossover + fine-tune combinations** (leaderboard + manifest): `python scripts/run_crossover_search.py --help`. Presets include `minimal` / `default`, plus **`minimal-qat`** / **`default-qat`** (adds a `short_qat` / `ptq_dynamic` regime). Use **`--workers N`** for process-parallel children (float `BaseQNetwork` parents only). Quick check: `make crossover-search-smoke`. Design notes: `docs/design/crossover_search_space.md`, strategy semantics: `docs/design/crossover_strategies.md`.
+
 **Optional QAT** (after PTQ if action agreement or Q-error is unacceptable): weight-only fake quant on linear layers, same int8 export format as PTQ after convert.
 
 ```bash
@@ -207,7 +209,7 @@ python scripts/qat_distilled.py \
 
 Use `--teacher-a-ckpt` / `--student-a-ckpt` (and `*-b-*` for pair B) when paths are not under a single `--checkpoint-dir`; see `python scripts/qat_distilled.py --help` for epochs, learning rate, and `--no-convert` (float QAT checkpoint only). Quantized QAT checkpoints work with `scripts/validate_quantized.py` like PTQ outputs.
 
-**Tests:** `pytest tests/decision/test_ptq.py tests/decision/test_validate_quantized.py tests/decision/test_qat.py`
+**Tests:** `pytest tests/decision/test_ptq.py tests/decision/test_validate_quantized.py tests/decision/test_qat.py tests/decision/test_crossover_search.py`
 
 ### Testing
 

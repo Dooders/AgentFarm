@@ -32,7 +32,9 @@ Public API
 - :class:`SearchConfig`        – full search space (recipes × regimes)
 - :class:`ManifestEntry`       – one leaderboard row (paths + metrics)
 - :func:`run_crossover_search` – main entry point (restores parent ``train`` /
-  ``requires_grad`` state after the search; optional batched evaluation)
+  ``requires_grad`` state after the search; optional batched evaluation;
+  optional ``num_workers`` > 1 for process-parallel children when parents are
+  :class:`~farm.core.decision.base_dqn.BaseQNetwork`)
 - :func:`build_leaderboard`    – sort and annotate entries
 - :func:`generate_recommendation` – text summary from manifest
 
@@ -71,14 +73,17 @@ from __future__ import annotations
 import copy
 import csv
 import json
+import multiprocessing as mp
 import os
-from dataclasses import dataclass, field
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
 
+from farm.core.decision.base_dqn import BaseQNetwork
 from farm.utils.logging import get_logger
 
 from .crossover import CROSSOVER_MODES, crossover_quantized_state_dict
@@ -90,6 +95,23 @@ from .recombination_eval import (
 )
 
 logger = get_logger(__name__)
+
+
+def _infer_base_qnetwork_arch(module: nn.Module) -> Tuple[int, int, int]:
+    """Return ``(input_dim, output_dim, hidden_size)`` from a :class:`BaseQNetwork`."""
+    if not isinstance(module, BaseQNetwork):
+        raise TypeError(
+            "Parallel crossover search (num_workers > 1) requires parent_a and parent_b "
+            f"to be BaseQNetwork instances; got {type(module).__name__}. "
+            "Use num_workers=1 for other module types."
+        )
+    linear_layers = [m for m in module.network.modules() if isinstance(m, nn.Linear)]
+    if len(linear_layers) < 3:
+        raise ValueError("Could not infer BaseQNetwork architecture from Linear layers.")
+    input_dim = int(linear_layers[0].in_features)
+    hidden_size = int(linear_layers[0].out_features)
+    output_dim = int(linear_layers[-1].out_features)
+    return input_dim, output_dim, hidden_size
 
 
 def _snapshot_train_state(module: nn.Module) -> Tuple[bool, List[Tuple[nn.Parameter, bool]]]:
@@ -280,6 +302,64 @@ class SearchConfig:
         regimes = [
             FineTuneRegime("short", epochs=5, lr=1e-3, seed=42),
             FineTuneRegime("medium", epochs=10, lr=5e-4, seed=42),
+            FineTuneRegime("long", epochs=20, lr=1e-4, seed=42),
+        ]
+        return cls(crossover_recipes=recipes, finetune_regimes=regimes)
+
+    @classmethod
+    def default_with_qat(cls) -> "SearchConfig":
+        """Same crossover recipes as :meth:`default` with **three** fine-tune regimes.
+
+        Adds **short_qat** (``quantization_applied="ptq_dynamic"``) beside ``short``
+        and ``long`` float regimes so each recipe is trained both in full float
+        and under fake-quant weight noise (7 × 3 = **21** children).
+        """
+        recipes = [
+            CrossoverRecipe("random", alpha=0.5, seed=0),
+            CrossoverRecipe("random", alpha=0.5, seed=1),
+            CrossoverRecipe("random", alpha=0.5, seed=2),
+            CrossoverRecipe("layer"),
+            CrossoverRecipe("weighted", alpha=0.3),
+            CrossoverRecipe("weighted", alpha=0.5),
+            CrossoverRecipe("weighted", alpha=0.7),
+        ]
+        regimes = [
+            FineTuneRegime("short", epochs=5, lr=1e-3, seed=42),
+            FineTuneRegime("long", epochs=20, lr=1e-4, seed=42),
+            FineTuneRegime(
+                "short_qat",
+                epochs=5,
+                lr=1e-4,
+                seed=42,
+                quantization_applied="ptq_dynamic",
+                batch_size=16,
+                val_fraction=0.1,
+            ),
+        ]
+        return cls(crossover_recipes=recipes, finetune_regimes=regimes)
+
+    @classmethod
+    def minimal_with_qat(cls) -> "SearchConfig":
+        """Minimal grid with one **QAT** column: 3 recipes × 3 regimes = **9** children.
+
+        Regimes: ``short`` (float), ``short_qat`` (``ptq_dynamic``), ``long`` (float).
+        """
+        recipes = [
+            CrossoverRecipe("random", alpha=0.5, seed=0),
+            CrossoverRecipe("layer"),
+            CrossoverRecipe("weighted", alpha=0.5),
+        ]
+        regimes = [
+            FineTuneRegime("short", epochs=5, lr=1e-3, seed=42),
+            FineTuneRegime(
+                "short_qat",
+                epochs=5,
+                lr=1e-4,
+                seed=42,
+                quantization_applied="ptq_dynamic",
+                batch_size=16,
+                val_fraction=0.1,
+            ),
             FineTuneRegime("long", epochs=20, lr=1e-4, seed=42),
         ]
         return cls(crossover_recipes=recipes, finetune_regimes=regimes)
@@ -615,6 +695,53 @@ def _run_one(
     return entry, report_dict
 
 
+def _manifest_entry_from_dict(d: Dict[str, Any]) -> ManifestEntry:
+    """Rebuild :class:`ManifestEntry` from :meth:`ManifestEntry.to_dict` output."""
+    return ManifestEntry(**d)
+
+
+def _crossover_parallel_worker(job: Dict[str, Any]) -> Dict[str, Any]:
+    """Run one search pair in a child process (parents loaded from disk)."""
+    recipe = CrossoverRecipe(**job["recipe"])
+    regime = FineTuneRegime(**job["regime"])
+    thresholds = RecombinationThresholds(**job["thresholds"])
+    parent_a = BaseQNetwork(
+        input_dim=job["input_dim"],
+        output_dim=job["output_dim"],
+        hidden_size=job["hidden_size"],
+    )
+    parent_a.load_state_dict(
+        torch.load(job["parent_a_path"], map_location="cpu", weights_only=True)
+    )
+    parent_b = BaseQNetwork(
+        input_dim=job["input_dim"],
+        output_dim=job["output_dim"],
+        hidden_size=job["hidden_size"],
+    )
+    parent_b.load_state_dict(
+        torch.load(job["parent_b_path"], map_location="cpu", weights_only=True)
+    )
+    states = np.load(job["states_path"])
+    for m in (parent_a, parent_b):
+        m.eval()
+        for p in m.parameters():
+            p.requires_grad_(False)
+    entry, _ = _run_one(
+        parent_a,
+        parent_b,
+        states,
+        recipe,
+        regime,
+        job["run_dir"],
+        job["run_idx"],
+        thresholds,
+        job["include_parent_baseline"],
+        job["degenerate_threshold"],
+        eval_batch_size=job.get("eval_batch_size"),
+    )
+    return {"run_idx": job["run_idx"], "entry_dict": entry.to_dict()}
+
+
 # ---------------------------------------------------------------------------
 # Public API: run_crossover_search
 # ---------------------------------------------------------------------------
@@ -630,6 +757,7 @@ def run_crossover_search(
     thresholds: Optional[RecombinationThresholds] = None,
     include_parent_baseline: bool = True,
     eval_batch_size: Optional[int] = 2048,
+    num_workers: int = 1,
 ) -> Tuple[List[ManifestEntry], List[Dict[str, Any]]]:
     """Generate and evaluate many children over the configured search space.
 
@@ -669,6 +797,13 @@ def run_crossover_search(
         Optional max batch size for :class:`RecombinationEvaluator` forward
         passes.  ``None`` evaluates all states in one batch (highest memory).
         Default ``2048`` caps peak activations on large state buffers.
+    num_workers:
+        When ``> 1``, run each child in a separate process via
+        :class:`~concurrent.futures.ProcessPoolExecutor`.  Parents must be
+        :class:`BaseQNetwork` instances (state dicts are written under
+        ``<run_dir>/.crossover_parallel_cache/``).  Quantized int8 parents are
+        not supported on this path—use ``num_workers=1``.  ``1`` (default) is
+        sequential and works for any parent type.
 
     Returns
     -------
@@ -703,21 +838,75 @@ def run_crossover_search(
 
         manifest: List[ManifestEntry] = []
 
-        for run_idx, (recipe, regime) in enumerate(pairs):
-            entry, _ = _run_one(
-                parent_a=parent_a,
-                parent_b=parent_b,
-                states=states,
-                recipe=recipe,
-                regime=regime,
-                run_dir=run_dir,
-                run_idx=run_idx,
-                thresholds=thresholds,
-                include_parent_baseline=include_parent_baseline,
-                degenerate_threshold=search_config.degenerate_threshold,
-                eval_batch_size=eval_batch_size,
+        if num_workers > 1 and len(pairs) > 0:
+            in_d, out_d, hid = _infer_base_qnetwork_arch(parent_a)
+            in_b, out_b, hid_b = _infer_base_qnetwork_arch(parent_b)
+            if (in_d, out_d, hid) != (in_b, out_b, hid_b):
+                raise ValueError(
+                    "parent_a and parent_b must share the same architecture for parallel search."
+                )
+            cache_dir = os.path.join(run_dir, ".crossover_parallel_cache")
+            os.makedirs(cache_dir, exist_ok=True)
+            pa_path = os.path.join(cache_dir, "parent_a.pt")
+            pb_path = os.path.join(cache_dir, "parent_b.pt")
+            st_path = os.path.join(cache_dir, "states.npy")
+            torch.save(parent_a.state_dict(), pa_path)
+            torch.save(parent_b.state_dict(), pb_path)
+            np.save(st_path, states)
+            thr_dict = asdict(thresholds)
+            jobs: List[Dict[str, Any]] = []
+            for run_idx, (recipe, regime) in enumerate(pairs):
+                job: Dict[str, Any] = {
+                    "run_idx": run_idx,
+                    "recipe": asdict(recipe),
+                    "regime": asdict(regime),
+                    "thresholds": thr_dict,
+                    "parent_a_path": pa_path,
+                    "parent_b_path": pb_path,
+                    "states_path": st_path,
+                    "run_dir": run_dir,
+                    "input_dim": in_d,
+                    "output_dim": out_d,
+                    "hidden_size": hid,
+                    "include_parent_baseline": include_parent_baseline,
+                    "degenerate_threshold": search_config.degenerate_threshold,
+                }
+                if eval_batch_size is not None:
+                    job["eval_batch_size"] = eval_batch_size
+                jobs.append(job)
+            logger.info(
+                "crossover_search_parallel",
+                num_workers=num_workers,
+                n_jobs=len(jobs),
+                cache_dir=cache_dir,
             )
-            manifest.append(entry)
+            raw_results: List[Dict[str, Any]] = []
+            # Use spawn: fork-after-Torch (and pytest threads) commonly deadlocks workers.
+            ctx = mp.get_context("spawn")
+            with ProcessPoolExecutor(max_workers=num_workers, mp_context=ctx) as pool:
+                futures = [pool.submit(_crossover_parallel_worker, j) for j in jobs]
+                for fut in as_completed(futures):
+                    raw_results.append(fut.result())
+            raw_results.sort(key=lambda r: r["run_idx"])
+            manifest = [_manifest_entry_from_dict(r["entry_dict"]) for r in raw_results]
+        else:
+            if num_workers > 1 and len(pairs) == 0:
+                logger.info("crossover_search_parallel_skipped", reason="empty_pairs")
+            for run_idx, (recipe, regime) in enumerate(pairs):
+                entry, _ = _run_one(
+                    parent_a=parent_a,
+                    parent_b=parent_b,
+                    states=states,
+                    recipe=recipe,
+                    regime=regime,
+                    run_dir=run_dir,
+                    run_idx=run_idx,
+                    thresholds=thresholds,
+                    include_parent_baseline=include_parent_baseline,
+                    degenerate_threshold=search_config.degenerate_threshold,
+                    eval_batch_size=eval_batch_size,
+                )
+                manifest.append(entry)
 
         # ------------------------------------------------------------------
         # Compute parent-vs-parent baseline for the leaderboard
