@@ -11,7 +11,7 @@ from typing import Optional
 import numpy as np
 import torch
 
-from farm.core.decision.base_dqn import StudentQNetwork
+from farm.core.decision.base_dqn import BaseQNetwork, StudentQNetwork
 
 
 def load_float_student_checkpoint(
@@ -39,6 +39,40 @@ def load_float_student_checkpoint(
     model.load_state_dict(state)
     model.eval()
     return model
+
+
+def load_base_qnetwork_checkpoint(
+    path: str,
+    input_dim: int,
+    output_dim: int,
+    hidden_size: int,
+    *,
+    not_found_template: str = "Parent checkpoint not found: {path!r}",
+    bad_state_template: str = (
+        "Checkpoint at {path!r} does not contain a state dict (got {type_name})."
+    ),
+    loaded_template: str = "  Loaded network from: {path}",
+    random_weights_message: str = "  No checkpoint provided; using random weights.",
+) -> BaseQNetwork:
+    """Load a :class:`BaseQNetwork` from a state-dict ``.pt`` file, or random weights if *path* is empty."""
+    net = BaseQNetwork(
+        input_dim=input_dim, output_dim=output_dim, hidden_size=hidden_size
+    )
+    if path:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(not_found_template.format(path=path))
+        state = torch.load(path, map_location="cpu", weights_only=True)
+        if not isinstance(state, dict):
+            raise ValueError(
+                bad_state_template.format(
+                    path=path, type_name=type(state).__name__
+                )
+            )
+        net.load_state_dict(state)
+        print(loaded_template.format(path=path))
+    else:
+        print(random_weights_message)
+    return net
 
 
 def load_distillation_states(
