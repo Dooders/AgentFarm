@@ -21,6 +21,13 @@ and optional synthetic MDP rollouts (GitHub issue #597).
   simulation.  For return parity on real tasks, wire checkpoints into the same
   env + feature pipeline used in training (e.g. replay states from
   :class:`~farm.core.decision.training.collector.ExperienceCollector`).
+- ``--sim-rollout``: greedy-Q episodes through a real :class:`EpisodeEnvProtocol`
+  environment (see :class:`PolicyRolloutAdapter`).  Requires ``--sim-env-factory``
+  to point to a Python importable ``env_factory`` callable (e.g.
+  ``mypackage.envs:make_env``) or uses the built-in
+  :class:`~farm.core.decision.training.sim_rollout_adapter.SeededLinearMDPEnvAdapter`
+  shim when ``--sim-env-factory`` is omitted (same dynamics as the synthetic
+  rollout, but running through the :class:`PolicyRolloutAdapter` code path).
 
 **Outputs** (under ``--report-dir``)
 
@@ -41,7 +48,7 @@ import csv
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -55,6 +62,11 @@ from farm.core.decision.base_dqn import BaseQNetwork, StudentQNetwork  # noqa: E
 from farm.core.decision.training.distillation_rollout import (  # noqa: E402
     RolloutComparisonResult,
     compare_parent_student_rollouts,
+)
+from farm.core.decision.training.sim_rollout_adapter import (  # noqa: E402
+    PolicyRolloutAdapter,
+    SimRolloutConfig,
+    SimRolloutResult,
 )
 from farm.core.decision.training.trainer_distill import (  # noqa: E402
     StudentValidator,
@@ -212,6 +224,17 @@ def _csv_row(report_dict: Dict[str, Any]) -> Dict[str, Any]:
         row["rollout_student_mean_return"] = ""
         row["rollout_relative_drop"] = ""
         row["rollout_passed"] = ""
+    sim_rollout = report_dict.get("sim_rollout")
+    if sim_rollout:
+        row["sim_rollout_parent_mean_return"] = sim_rollout.get("parent_mean_return")
+        row["sim_rollout_student_mean_return"] = sim_rollout.get("student_mean_return")
+        row["sim_rollout_relative_drop"] = sim_rollout.get("relative_drop")
+        row["sim_rollout_passed"] = sim_rollout.get("passed")
+    else:
+        row["sim_rollout_parent_mean_return"] = ""
+        row["sim_rollout_student_mean_return"] = ""
+        row["sim_rollout_relative_drop"] = ""
+        row["sim_rollout_passed"] = ""
     return row
 
 
@@ -263,6 +286,19 @@ def _write_pair_markdown(path: str, report_dict: Dict[str, Any]) -> None:
                 f"- Student mean return: {rollout.get('student_mean_return')}",
                 f"- Relative drop: {rollout.get('relative_drop')}",
                 f"- Rollout passed (if threshold set): {rollout.get('passed')}",
+                "",
+            ]
+        )
+    sim_rollout = report_dict.get("sim_rollout")
+    if sim_rollout:
+        lines.extend(
+            [
+                "## Sim rollout (PolicyRolloutAdapter)",
+                "",
+                f"- Parent mean return: {sim_rollout.get('parent_mean_return')}",
+                f"- Student mean return: {sim_rollout.get('student_mean_return')}",
+                f"- Relative drop: {sim_rollout.get('relative_drop')}",
+                f"- Sim rollout passed (if threshold set): {sim_rollout.get('passed')}",
                 "",
             ]
         )
@@ -321,6 +357,15 @@ def _print_report(pair: str, report: Dict[str, object]) -> None:
             f"student_mean={rollout['student_mean_return']:.6f}, "
             f"relative_drop={rollout['relative_drop']}, "
             f"rollout_passed={rollout['passed']}"
+        )
+    sim_rollout = report.get("sim_rollout")
+    if sim_rollout:
+        print(
+            "Rollout (sim adapter)  : "
+            f"parent_mean={sim_rollout['parent_mean_return']:.6f}, "
+            f"student_mean={sim_rollout['student_mean_return']:.6f}, "
+            f"relative_drop={sim_rollout['relative_drop']}, "
+            f"sim_rollout_passed={sim_rollout['passed']}"
         )
 
 
@@ -413,6 +458,58 @@ def _parse_args() -> argparse.Namespace:
         help="If set with rollouts, fail when student return is worse than this margin vs parent.",
     )
 
+    parser.add_argument(
+        "--sim-rollout",
+        action="store_true",
+        default=False,
+        help=(
+            "If set, run parent and student policies through a sim-like environment "
+            "using PolicyRolloutAdapter.  Episode count and horizon come from "
+            "--sim-rollout-episodes and --sim-rollout-max-steps.  Requires "
+            "--sim-rollout-episodes > 0 to activate."
+        ),
+    )
+    parser.add_argument(
+        "--sim-rollout-episodes",
+        type=int,
+        default=0,
+        help=(
+            "Number of episodes per policy for the sim rollout adapter "
+            "(0 disables sim rollout even when --sim-rollout is set)."
+        ),
+    )
+    parser.add_argument(
+        "--sim-rollout-max-steps",
+        type=int,
+        default=200,
+        help="Maximum steps per episode for the sim rollout adapter.",
+    )
+    parser.add_argument(
+        "--sim-rollout-base-seed",
+        type=int,
+        default=None,
+        help="Base seed for sim rollout episodes (defaults to --seed).",
+    )
+    parser.add_argument(
+        "--sim-max-relative-return-drop",
+        type=float,
+        default=None,
+        help=(
+            "If set with --sim-rollout, fail when student sim return is worse than "
+            "this relative margin vs parent."
+        ),
+    )
+    parser.add_argument(
+        "--sim-env-factory",
+        default="",
+        help=(
+            "Python import path to a zero-argument env factory callable in the format "
+            "'module.path:attr' (e.g. 'mypackage.envs:make_env').  "
+            "When omitted, a SeededLinearMDP shim matching --input-dim / --output-dim "
+            "is used so the sim rollout path can be exercised without a real sim."
+        ),
+    )
+
     parser.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
     parser.add_argument(
         "--report-dir",
@@ -458,6 +555,15 @@ def _validate_cli_args(args: argparse.Namespace) -> None:
         raise ValueError("latency_warmup and latency_repeats must be >= 0")
     if args.max_latency_ratio is not None and args.latency_repeats <= 0:
         raise ValueError("max_latency_ratio requires latency_repeats > 0")
+    if args.sim_rollout_episodes < 0:
+        raise ValueError("sim_rollout_episodes must be >= 0")
+    if args.sim_rollout_max_steps <= 0:
+        raise ValueError("sim_rollout_max_steps must be positive")
+    if args.sim_max_relative_return_drop is not None:
+        if not 0.0 <= args.sim_max_relative_return_drop <= 1.0:
+            raise ValueError("sim_max_relative_return_drop must be in [0, 1] when set")
+        if args.sim_rollout_episodes <= 0:
+            raise ValueError("sim_max_relative_return_drop requires sim_rollout_episodes > 0")
 
 
 def _merge_rollout(
@@ -485,6 +591,96 @@ def _merge_rollout(
         device=device,
         max_relative_return_drop=max_relative_return_drop,
     )
+
+
+def _load_env_factory(
+    sim_env_factory: str,
+    input_dim: int,
+    output_dim: int,
+) -> "EnvFactory":
+    """Return an env factory callable from a dotted import path or a shim.
+
+    Parameters
+    ----------
+    sim_env_factory:
+        Import path in ``'module.path:attr'`` format, e.g.
+        ``'mypackage.envs:make_env'``.  When empty, a
+        :class:`~farm.core.decision.training.distillation_rollout.SeededLinearMDP`
+        shim is returned that exercises the :class:`PolicyRolloutAdapter` code
+        path without requiring a real simulation.
+    input_dim:
+        Observation dimensionality (used only when building the shim).
+    output_dim:
+        Action space size (used only when building the shim).
+    """
+    from farm.core.decision.training.sim_rollout_adapter import EnvFactory  # noqa: F401
+
+    if not sim_env_factory:
+        # Default: SeededLinearMDP shim wrapped to satisfy EpisodeEnvProtocol.
+        # SeededLinearMDP.reset(episode_seed) returns a bare numpy array and
+        # SeededLinearMDP.step(action) returns a 4-tuple without an info dict,
+        # so we adapt it to the (obs, info) / (obs, reward, term, trunc, info)
+        # signatures expected by PolicyRolloutAdapter.
+        from farm.core.decision.training.distillation_rollout import SeededLinearMDP
+
+        class _ShimEnv:
+            """Thin wrapper making SeededLinearMDP satisfy EpisodeEnvProtocol."""
+
+            def __init__(self) -> None:
+                self._mdp = SeededLinearMDP(input_dim, output_dim, base_seed=0, max_steps=200)
+
+            def reset(self, *, seed: Optional[int] = None) -> Tuple[Any, Dict[str, Any]]:
+                obs = self._mdp.reset(seed if seed is not None else 0)
+                return obs, {}
+
+            def step(self, action: int) -> Tuple[Any, float, bool, bool, Dict[str, Any]]:
+                obs, reward, terminated, truncated = self._mdp.step(action)
+                return obs, reward, terminated, truncated, {}
+
+        def _shim_factory() -> _ShimEnv:
+            return _ShimEnv()
+
+        return _shim_factory
+
+    # Parse 'module.path:attr'
+    if ":" not in sim_env_factory:
+        raise ValueError(
+            f"--sim-env-factory must be in 'module.path:attr' format, got: {sim_env_factory!r}"
+        )
+    module_path, attr = sim_env_factory.rsplit(":", 1)
+    import importlib
+
+    module = importlib.import_module(module_path)
+    factory = getattr(module, attr)
+    if not callable(factory):
+        raise ValueError(
+            f"--sim-env-factory attribute {attr!r} in {module_path!r} is not callable"
+        )
+    return factory
+
+
+def _merge_sim_rollout(
+    parent: BaseQNetwork,
+    student: StudentQNetwork,
+    *,
+    env_factory: "EnvFactory",
+    sim_rollout_episodes: int,
+    sim_rollout_max_steps: int,
+    sim_rollout_base_seed: int,
+    sim_max_relative_return_drop: Optional[float],
+    device: torch.device,
+) -> Optional[SimRolloutResult]:
+    """Run :class:`PolicyRolloutAdapter` and return result or ``None``."""
+    if sim_rollout_episodes <= 0:
+        return None
+    cfg = SimRolloutConfig(
+        n_episodes=sim_rollout_episodes,
+        max_steps=sim_rollout_max_steps,
+        base_seed=sim_rollout_base_seed,
+        max_relative_return_drop=sim_max_relative_return_drop,
+    )
+    adapter = PolicyRolloutAdapter(parent, student, config=cfg, device=device)
+    return adapter.run(env_factory=env_factory)
 
 
 def main() -> None:
@@ -552,6 +748,16 @@ def main() -> None:
     os.makedirs(args.report_dir, exist_ok=True)
 
     rollout_base_seed = args.rollout_base_seed if args.rollout_base_seed is not None else args.seed
+    sim_rollout_base_seed = (
+        args.sim_rollout_base_seed if args.sim_rollout_base_seed is not None else args.seed
+    )
+    sim_env_factory = None
+    if args.sim_rollout and args.sim_rollout_episodes > 0:
+        sim_env_factory = _load_env_factory(
+            args.sim_env_factory,
+            input_dim=args.input_dim,
+            output_dim=args.output_dim,
+        )
 
     csv_rows: List[Dict[str, Any]] = []
     all_report_dicts: List[Dict[str, Any]] = []
@@ -595,8 +801,25 @@ def main() -> None:
         if rollout_result is not None:
             report_dict["rollout"] = rollout_result.to_dict()
 
+        sim_rollout_result = None
+        if sim_env_factory is not None:
+            sim_rollout_result = _merge_sim_rollout(
+                parent,
+                student,
+                env_factory=sim_env_factory,
+                sim_rollout_episodes=args.sim_rollout_episodes,
+                sim_rollout_max_steps=args.sim_rollout_max_steps,
+                sim_rollout_base_seed=sim_rollout_base_seed,
+                sim_max_relative_return_drop=args.sim_max_relative_return_drop,
+                device=device,
+            )
+        if sim_rollout_result is not None:
+            report_dict["sim_rollout"] = sim_rollout_result.to_dict()
+
         overall = batch_ok
         if rollout_result is not None and rollout_result.passed is False:
+            overall = False
+        if sim_rollout_result is not None and sim_rollout_result.passed is False:
             overall = False
         report_dict["passed"] = overall
 
