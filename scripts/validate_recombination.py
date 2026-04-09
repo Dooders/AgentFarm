@@ -82,6 +82,17 @@ keys:
 ``passed``
     ``True`` when all threshold-checked comparisons pass (or
     ``--report-only`` is set).
+``model_formats`` (schema ≥ 1.1)
+    Maps each role (``parent_a``, ``parent_b``, ``child``) to ``float_state_dict``
+    or ``quantized_full_model`` depending on how the checkpoint was loaded.
+
+Device
+------
+All evaluation uses **CPU**. Quantized full-model checkpoints (int8) must stay
+on CPU, matching ``scripts/validate_quantized.py``. When any role is loaded with
+``--parent-a-quantized``, ``--parent-b-quantized``, or ``--child-quantized``,
+paths must point to pickles loadable by ``load_quantized_checkpoint`` (not
+plain state dicts).
 
 Interpreting the report
 -----------------------
@@ -118,10 +129,14 @@ from farm.core.decision.base_dqn import BaseQNetwork  # noqa: E402
 from farm.core.decision.training.distillation_script_helpers import (  # noqa: E402
     load_distillation_states,
 )
+from farm.core.decision.training.quantize_ptq import load_quantized_checkpoint  # noqa: E402
 from farm.core.decision.training.recombination_eval import (  # noqa: E402
     RecombinationEvaluator,
     RecombinationThresholds,
 )
+
+_FLOAT_FMT = "float_state_dict"
+_QUANT_FMT = "quantized_full_model"
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +186,22 @@ def _load_model(
     return model
 
 
+def _load_model_for_role(
+    path: str,
+    input_dim: int,
+    output_dim: int,
+    hidden_size: int,
+    label: str,
+    *,
+    quantized: bool,
+) -> torch.nn.Module:
+    """Load one role as either a float state-dict ``BaseQNetwork`` or a quantized full model."""
+    if quantized:
+        model, _meta = load_quantized_checkpoint(path, device=torch.device("cpu"))
+        return model
+    return _load_model(path, input_dim, output_dim, hidden_size, label)
+
+
 def _parse_k_values(raw: str) -> List[int]:
     parts = [v.strip() for v in raw.split(",") if v.strip()]
     if not parts:
@@ -205,6 +236,9 @@ def _print_report(report_dict: dict) -> None:
     print(sep)
     print(f"Schema version          : {report_dict.get('schema_version', 'unknown')}")
     print(f"PyTorch version         : {report_dict.get('torch_version', 'unknown')}")
+    mf = report_dict.get("model_formats") or {}
+    if mf:
+        print(f"Model formats           : {mf}")
     print(
         f"States evaluated        : {states.get('n_states', 0)} "
         f"(dim={states.get('input_dim', '?')}, source={states.get('source', '?')})"
@@ -269,6 +303,23 @@ def _parse_args() -> argparse.Namespace:
         help="Also compute parent A vs parent B comparison (informational).",
     )
 
+    # Quantized full-model checkpoints (PTQ / QAT convert — not state dicts)
+    p.add_argument(
+        "--parent-a-quantized",
+        action="store_true",
+        help="Load parent A via load_quantized_checkpoint (CPU int8 pickle).",
+    )
+    p.add_argument(
+        "--parent-b-quantized",
+        action="store_true",
+        help="Load parent B via load_quantized_checkpoint (CPU int8 pickle).",
+    )
+    p.add_argument(
+        "--child-quantized",
+        action="store_true",
+        help="Load child via load_quantized_checkpoint (CPU int8 pickle).",
+    )
+
     # Thresholds
     p.add_argument("--min-action-agreement", type=float, default=0.70)
     p.add_argument("--max-kl-divergence", type=float, default=1.0)
@@ -314,10 +365,37 @@ def main() -> None:
     )
     states_source = args.states_file if args.states_file else "synthetic_standard_normal"
 
-    # Load models.
-    parent_a = _load_model(parent_a_ckpt, args.input_dim, args.output_dim, args.hidden_size, "parent_a")
-    parent_b = _load_model(parent_b_ckpt, args.input_dim, args.output_dim, args.hidden_size, "parent_b")
-    child = _load_model(child_ckpt, args.input_dim, args.output_dim, args.hidden_size, "child")
+    # Load models (quantized roles use full-model CPU pickles).
+    parent_a = _load_model_for_role(
+        parent_a_ckpt,
+        args.input_dim,
+        args.output_dim,
+        args.hidden_size,
+        "parent_a",
+        quantized=args.parent_a_quantized,
+    )
+    parent_b = _load_model_for_role(
+        parent_b_ckpt,
+        args.input_dim,
+        args.output_dim,
+        args.hidden_size,
+        "parent_b",
+        quantized=args.parent_b_quantized,
+    )
+    child = _load_model_for_role(
+        child_ckpt,
+        args.input_dim,
+        args.output_dim,
+        args.hidden_size,
+        "child",
+        quantized=args.child_quantized,
+    )
+
+    model_formats = {
+        "parent_a": _QUANT_FMT if args.parent_a_quantized else _FLOAT_FMT,
+        "parent_b": _QUANT_FMT if args.parent_b_quantized else _FLOAT_FMT,
+        "child": _QUANT_FMT if args.child_quantized else _FLOAT_FMT,
+    }
 
     thresholds = RecombinationThresholds(
         min_action_agreement=args.min_action_agreement,
@@ -328,7 +406,11 @@ def main() -> None:
     )
 
     evaluator = RecombinationEvaluator(
-        parent_a, parent_b, child, thresholds=thresholds
+        parent_a,
+        parent_b,
+        child,
+        thresholds=thresholds,
+        device=torch.device("cpu"),
     )
     eval_bs = args.eval_batch_size if args.eval_batch_size > 0 else None
     report = evaluator.evaluate(
@@ -344,6 +426,7 @@ def main() -> None:
             "parent_b": parent_b_ckpt,
             "child": child_ckpt,
         },
+        model_formats=model_formats,
     )
 
     report_dict = report.to_dict()

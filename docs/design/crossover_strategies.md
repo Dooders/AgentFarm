@@ -68,10 +68,17 @@ child_sd = crossover_quantized_state_dict(
 
 ## 3. High-level API
 
-`initialize_child_from_crossover` is the single entry point that resolves parents (live models, checkpoint paths, or state dicts), infers architecture, instantiates a fresh child, runs crossover, loads the state dict, and returns the child in `eval()` mode:
+`initialize_child_from_crossover` resolves parents (live `nn.Module`, `.pt` paths, or state dicts), infers architecture (or uses `ChildArchitectureSpec`), instantiates a fresh `BaseQNetwork` or `StudentQNetwork`, runs `crossover_quantized_state_dict`, loads float weights with `strict=True`, and returns the child in `eval()` mode.
+
+**PTQ checkpoints (dynamic only)**: If `<path>.json` looks like **dynamic** PTQ metadata from `PostTrainingQuantizer.save_checkpoint` (`quantization.mode == "dynamic"`, `dtype == "qint8"`), the `.pt` is loaded with `load_quantized_checkpoint` and **dequantized** into a plain float state dict (packed dynamic-quant layers are not fed directly into crossover). That load uses full-model unpickling (`weights_only=False`); you must pass **`allow_unsafe_unpickle=True` for trusted checkpoints only**—otherwise resolution raises with guidance to opt in. Static PTQ sidecars are not treated as auto-loadable on this path.
+
+**Optional kwargs**: `auto_load_ptq_checkpoints` (default `True`), `architecture=ChildArchitectureSpec(...)`, `network_class=StudentQNetwork` when parents are dicts/paths. **`allow_unsafe_unpickle`**: required for the dynamic PTQ sidecar path above; also use `True` for trusted non-PTQ full-model pickles when `weights_only=True` fails.
 
 ```python
-from farm.core.decision.training.crossover import initialize_child_from_crossover
+from farm.core.decision.training.crossover import (
+    ChildArchitectureSpec,
+    initialize_child_from_crossover,
+)
 
 child = initialize_child_from_crossover(
     parent_a,          # nn.Module, path, or state dict
@@ -119,27 +126,29 @@ The numbers in Section 5 were produced by:
 source venv/bin/activate
 python scripts/benchmark_crossover.py --n-repeats 20 --output-csv reports/crossover_bench.csv
 
-# Or via pytest (slow marker required)
-pytest tests/decision/test_crossover_performance.py -m slow -v -s
+# Or via pytest (slow + ml markers; benchmarks are both)
+pytest tests/decision/test_crossover_performance.py -m "ml and slow" -v -s
 ```
 
 ---
 
 ## 5. Results
 
-> **Note**: The values below are reference numbers produced on a standard development CPU.
-> Re-run `scripts/benchmark_crossover.py` to get numbers for your hardware.
+> **Note**: Reference numbers below; re-run `scripts/benchmark_crossover.py` on your machine.
+
+**Latest recorded run**: 2026-04-08, `python scripts/benchmark_crossover.py --n-repeats 20` from the repository root (Linux, development CPU).
 
 | Strategy   | Alpha | Time (ms) | Mean Q Err | Max Q Err | Act. Agree |
 |------------|-------|----------:|----------:|----------:|----------:|
-| `random`   | N/A   | 0.385     | 0.8350     | 3.2098    | 0.383      |
-| `layer`    | N/A   | 0.326     | 0.0000     | 0.0000    | 1.000      |
-| `weighted` | 0.5   | 0.501     | 0.6045     | 2.7700    | 0.461      |
+| `random`   | N/A   | 0.204     | 0.8350     | 3.2098    | 0.383      |
+| `layer`    | N/A   | 0.152     | 0.8350     | 3.2098    | 0.383      |
+| `weighted` | 0.5   | 0.324     | 0.6045     | 2.7700    | 0.461      |
 
-> Numbers produced by `python scripts/benchmark_crossover.py` (20 repeats, CPU).
-> Re-run to get hardware-specific values; results may vary.
+Wall-clock is mean milliseconds for `crossover_quantized_state_dict` + `load_state_dict` over 20 repeats. Quality columns are vs parent A on 256 synthetic states (`state_seed=42`).
 
-**Note on `layer` metrics**: The zero Q-error and perfect action agreement for the `layer` strategy in this benchmark is an artifact of the untrained model setup used in the experiment.  `BaseQNetwork._initialize_weights` only re-initialises `nn.Linear` parameters via Xavier init; `nn.LayerNorm` layers keep their PyTorch defaults (weight=1, bias=0) regardless of the random seed.  In the benchmark, logical block 0 (`network.0` + `network.1`, the first Linear + its LayerNorm) and block 2 (`network.8`, the output Linear) are both even-indexed and therefore come from parent A, while block 1 (`network.4` + `network.5`, the second Linear + its LayerNorm) is odd-indexed and comes from parent B.  Because LayerNorm parameters are identical across parents in an untrained model, and parent A's Linear layers dominate the Q-value output in this synthetic setup, the child happens to be functionally equivalent to parent A here.  On trained models where all parameters—including LayerNorm weight and bias—are distinct across parents, the Q-error and action-agreement metrics will reflect genuine blending from both parents.
+**Interpreting `random` vs `layer` here**: For the default benchmark seeds, **`random` and `layer` matched exactly** on mean/max Q error and action agreement (same reported child vs A) while **times differed**. That can happen for this small untrained net and fixed RNG (per-tensor draws may align with the layer block assignment). It is **not** a general guarantee—change seeds or use **trained** parents (distinct parameters in every block, including LayerNorm) and the two strategies usually diverge. **`weighted`** at `α=0.5` stayed a clear **interpolation** in this run: lower Q error and higher agreement with A than `random`/`layer`.
+
+**Older artifact (historical)**: An earlier doc revision showed `layer` with zero Q-error vs A; that was tied to **untrained** `LayerNorm` defaults (weight=1, bias=0) being identical across parents so some block swaps barely changed outputs. Trained checkpoints avoid that pitfall; always re-run the benchmark after changing parents or seeds.
 
 ---
 
@@ -158,7 +167,7 @@ pytest tests/decision/test_crossover_performance.py -m slow -v -s
 | Test file | Markers | Content |
 |-----------|---------|---------|
 | `tests/decision/test_crossover.py` | (default) | Correctness / regression: all three modes on synthetic fixtures, edge cases (`alpha=0/1`), quantized inputs, round-trip forward pass, `crossover_checkpoints`, `initialize_child_from_crossover` |
-| `tests/decision/test_crossover_performance.py` | (default + `slow`) | Smoke checks (default run), wall-clock + quality benchmarks (`--m slow`), diversity check, strategy comparison summary |
+| `tests/decision/test_crossover_performance.py` | `ml` (+ `slow` for benchmarks) | Fast smokes tagged `ml` (default run); wall-clock + quality benchmarks tagged `ml` and `slow` (``pytest -m "ml and slow"``); diversity + strategy summary |
 
 ---
 
@@ -228,15 +237,31 @@ result = compare_outputs(tuner._active_child, q_model, states)
 See also `farm/core/decision/training/quantize_ptq.py` (`QuantizedValidator`) for
 full JSON reports with fidelity / latency / size sections.
 
+### Evaluating the child vs both parents (offline)
+
+Use `scripts/validate_recombination.py` (library: `RecombinationEvaluator`, `RecombinationReport`) to score **child vs parent A** and **child vs parent B** on a shared state buffer—top-1 / top-k action agreement, KL, MSE, MAE, cosine on Q-logits—plus optional **parent A vs parent B** (`--include-parent-baseline`) and **oracle** agreement in the report summary. Float roles use `BaseQNetwork` state-dict checkpoints; for **quantized** full-model `.pt` files (same format as `validate_quantized.py`), pass `--parent-a-quantized`, `--parent-b-quantized`, and/or `--child-quantized`. Quantized roles are **CPU-only**; the JSON report includes `model_formats` (schema ≥ 1.1).
+
 ### Related issues
 
 - Parent epic: [Dooders/AgentFarm#8](https://github.com/Dooders/AgentFarm/issues/8) – Distillation, Quantization, and Crossover pipeline.
 - Implementation: `farm/core/decision/training/finetune.py` (`FineTuner`, `FineTuningConfig`, `QUANTIZATION_APPLIED_MODES`).
 - QAT building blocks: `farm/core/decision/training/quantize_qat.py` (`WeightOnlyFakeQuantLinear`, `QATTrainer`).
+- Child vs parents evaluation: `scripts/validate_recombination.py`, `farm/core/decision/training/recombination_eval.py`.
 
 ---
 
-## 9. References
+## 9. Systematic search (crossover × fine-tune)
+
+To **sweep** many crossover recipes and fine-tune regimes on the same state buffer (leaderboard + manifest + recommendation), use:
+
+- **Design / search space:** [`docs/design/crossover_search_space.md`](crossover_search_space.md) — grid definitions, metrics, `default` / `minimal` / **`default-qat`** / **`minimal-qat`** presets.
+- **CLI:** `scripts/run_crossover_search.py` — e.g. `--search-space minimal`, `default-qat` (adds a `short_qat` / `ptq_dynamic` column), `--max-runs`, `--workers N` for process-parallel children (float `BaseQNetwork` parents only).
+- **Library:** `farm.core.decision.training.crossover_search.run_crossover_search` — `num_workers`, `SearchConfig.default_with_qat()`, `minimal_with_qat()`.
+- **Make:** `make crossover-search-smoke` (two children, synthetic states).
+
+Strategy semantics for each mode remain as in §2–§4 above; the search layer only **combines** those modes with named fine-tune regimes.
+
+## 10. References
 
 - Implementation: `farm/core/decision/training/crossover.py`
 - Training package exports: `farm/core/decision/training/__init__.py`

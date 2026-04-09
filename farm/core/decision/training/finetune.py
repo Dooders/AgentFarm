@@ -21,6 +21,15 @@ Key features
 - **LR schedule** – optional :class:`~torch.optim.lr_scheduler.ReduceLROnPlateau`
   triggered by validation loss; enabled when
   ``FineTuningConfig.lr_schedule_patience > 0``.
+- **Early stopping** – optional stop when validation loss fails to improve for
+  ``FineTuningConfig.early_stopping_patience`` consecutive epochs (requires a
+  validation split).
+- **Optimiser choice** – built-in names in :data:`FINETUNE_OPTIMIZERS`, extra
+  kwargs via :attr:`FineTuningConfig.optimizer_kwargs`, or inject any
+  ``torch.optim.Optimizer`` via :class:`FineTuner`'s ``optimizer_factory``.
+- **YAML defaults** – :func:`load_finetuning_config_from_yaml` reads the
+  ``crossover_child_finetune`` section from ``farm/config/default.yaml`` (or a
+  custom path) for parity with central simulation config.
 - **Checkpointing** – best child weights (by validation loss, or by training
   loss when ``val_fraction == 0``) are saved to a ``.pt`` file with a
   companion ``.json`` metadata file, consistent with the
@@ -113,8 +122,17 @@ import math
 import os
 import random
 import warnings
-from dataclasses import dataclass, field
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from dataclasses import dataclass, field, fields, replace
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+)
 
 import numpy as np
 import torch
@@ -171,6 +189,83 @@ QUANTIZATION_APPLIED_MODES: Tuple[str, ...] = (
     "qat_float",
 )
 
+#: Built-in optimiser names for :attr:`FineTuningConfig.optimizer`.
+#: Pass a custom ``torch.optim.Optimizer`` via :class:`FineTuner`'s
+#: ``optimizer_factory`` for anything else.
+FINETUNE_OPTIMIZERS: Tuple[str, ...] = ("adam", "adamw", "sgd", "rmsprop")
+
+_DEFAULT_FINETUNE_YAML_SECTION = "crossover_child_finetune"
+
+
+def build_finetune_optimizer(
+    params: Iterable[nn.Parameter],
+    config: "FineTuningConfig",
+) -> torch.optim.Optimizer:
+    """Construct a PyTorch optimiser for fine-tuning *params* from *config*.
+
+    Uses :attr:`~FineTuningConfig.learning_rate` and merges
+    :attr:`~FineTuningConfig.optimizer_kwargs` (e.g. ``weight_decay``,
+    ``momentum`` for SGD).
+    """
+    lr = config.learning_rate
+    extra = dict(config.optimizer_kwargs)
+    name = config.optimizer.lower()
+    if name == "adam":
+        return torch.optim.Adam(params, lr=lr, **extra)
+    if name == "adamw":
+        return torch.optim.AdamW(params, lr=lr, **extra)
+    if name == "sgd":
+        return torch.optim.SGD(params, lr=lr, **extra)
+    if name == "rmsprop":
+        return torch.optim.RMSprop(params, lr=lr, **extra)
+    raise ValueError(
+        f"Unknown optimizer {config.optimizer!r}; use one of {FINETUNE_OPTIMIZERS} "
+        "or pass FineTuner(optimizer_factory=...)."
+    )
+
+
+def load_finetuning_config_from_yaml(
+    yaml_path: Optional[str] = None,
+    *,
+    section: str = _DEFAULT_FINETUNE_YAML_SECTION,
+) -> "FineTuningConfig":
+    """Load :class:`FineTuningConfig` fields from a YAML mapping.
+
+    Parameters
+    ----------
+    yaml_path:
+        Path to a YAML file containing *section* (default: keys under
+        ``crossover_child_finetune`` in ``farm/config/default.yaml``).
+        When ``None``, resolves to ``farm/config/default.yaml`` next to the
+        installed ``farm`` package.
+    section:
+        Top-level key whose value must be a dict of
+        :class:`FineTuningConfig` field names.
+
+    Returns
+    -------
+    FineTuningConfig
+        Dataclass defaults merged with any keys present under *section*.
+        If *section* is missing, returns ``FineTuningConfig()`` unchanged.
+    """
+    import yaml
+
+    if yaml_path is None:
+        yaml_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "..", "config", "default.yaml")
+        )
+    with open(yaml_path, "r", encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh) or {}
+    raw = doc.get(section)
+    if raw is None:
+        return FineTuningConfig()
+    if not isinstance(raw, dict):
+        raise ValueError(f"YAML section {section!r} in {yaml_path!r} must be a mapping")
+    names = {f.name for f in fields(FineTuningConfig)}
+    kwargs = {k: v for k, v in raw.items() if k in names}
+    base = FineTuningConfig()
+    return replace(base, **kwargs)
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -184,7 +279,7 @@ class FineTuningConfig:
     Attributes
     ----------
     learning_rate:
-        Initial learning rate for the Adam optimizer.
+        Initial learning rate for the optimiser (see ``optimizer``).
     epochs:
         Number of full passes over the state buffer.
     batch_size:
@@ -236,6 +331,16 @@ class FineTuningConfig:
         :meth:`FineTuner.convert` and :meth:`FineTuner.save_quantized` to
         produce a PTQ-compatible int8 model.
         Set to ``"none"`` (default) for full-precision float32 fine-tuning.
+    optimizer:
+        One of :data:`FINETUNE_OPTIMIZERS`.  Ignored when
+        :class:`FineTuner` is constructed with ``optimizer_factory``.
+    optimizer_kwargs:
+        Extra keyword arguments forwarded to the built-in optimiser
+        (e.g. ``weight_decay``, ``momentum`` for SGD).
+    early_stopping_patience:
+        Stop after this many consecutive epochs without validation-loss
+        improvement (strictly lower than the running best).  ``0`` disables.
+        Requires ``val_fraction > 0``.
     """
 
     learning_rate: float = 1e-3
@@ -251,8 +356,12 @@ class FineTuningConfig:
     lr_schedule_patience: int = 0
     lr_schedule_factor: float = 0.5
     quantization_applied: str = "none"
+    optimizer: str = "adam"
+    optimizer_kwargs: Dict[str, Any] = field(default_factory=dict)
+    early_stopping_patience: int = 0
 
     def __post_init__(self) -> None:
+        self.optimizer = self.optimizer.lower()
         if self.learning_rate <= 0:
             raise ValueError("learning_rate must be > 0")
         if self.epochs < 1:
@@ -280,6 +389,12 @@ class FineTuningConfig:
                 f"quantization_applied must be one of {QUANTIZATION_APPLIED_MODES}; "
                 f"got {self.quantization_applied!r}"
             )
+        if self.optimizer not in FINETUNE_OPTIMIZERS:
+            raise ValueError(
+                f"optimizer must be one of {FINETUNE_OPTIMIZERS}; got {self.optimizer!r}"
+            )
+        if self.early_stopping_patience < 0:
+            raise ValueError("early_stopping_patience must be >= 0")
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +448,7 @@ class FineTuningMetrics:
     mean_prob_similarities: List[float] = field(default_factory=list)
     best_val_loss: float = float("inf")
     best_epoch: int = -1
+    early_stopped: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -346,6 +462,7 @@ class FineTuningMetrics:
             "mean_prob_similarities": self.mean_prob_similarities,
             "best_val_loss": self.best_val_loss,
             "best_epoch": self.best_epoch,
+            "early_stopped": self.early_stopped,
         }
 
 
@@ -401,6 +518,10 @@ class FineTuner:
         :class:`FineTuningConfig` controlling all hyperparameters.
     device:
         Target PyTorch device.  Defaults to ``torch.device("cpu")``.
+    optimizer_factory:
+        If set, called as ``factory(active_child.parameters(), config)`` to
+        build the optimiser, overriding :attr:`~FineTuningConfig.optimizer` /
+        ``optimizer_kwargs``.
     """
 
     def __init__(
@@ -409,6 +530,9 @@ class FineTuner:
         child: nn.Module,
         config: Optional[FineTuningConfig] = None,
         device: Optional[torch.device] = None,
+        optimizer_factory: Optional[
+            Callable[[Iterable[nn.Parameter], FineTuningConfig], torch.optim.Optimizer]
+        ] = None,
     ) -> None:
         self.config: FineTuningConfig = config or FineTuningConfig()
         self.device: torch.device = device or torch.device("cpu")
@@ -427,10 +551,14 @@ class FineTuner:
         if self.config.quantization_applied != "none":
             self._prepare_qat()
 
+        self._optimizer_factory = optimizer_factory
         # Optimizer for the active child (QAT copy or original float child)
-        self.optimizer = torch.optim.Adam(
-            self._active_child.parameters(), lr=self.config.learning_rate
-        )
+        if optimizer_factory is not None:
+            self.optimizer = optimizer_factory(self._active_child.parameters(), self.config)
+        else:
+            self.optimizer = build_finetune_optimizer(
+                self._active_child.parameters(), self.config
+            )
 
         # Optional LR scheduler (ReduceLROnPlateau)
         self.scheduler: Optional[torch.optim.lr_scheduler.ReduceLROnPlateau] = None
@@ -512,8 +640,10 @@ class FineTuner:
 
         best_state_dict: Optional[Dict[str, torch.Tensor]] = None
         _best_train_loss: float = float("inf")
+        epochs_without_improvement = 0
 
         for epoch in range(self.config.epochs):
+            prev_best_val = metrics.best_val_loss
             train_loss, soft_loss, hard_loss = self._run_epoch(train_tensor)
             metrics.train_losses.append(train_loss)
             metrics.train_soft_losses.append(soft_loss)
@@ -548,6 +678,21 @@ class FineTuner:
                     action_agreement=round(agreement, 4),
                     mean_prob_similarity=round(prob_sim, 4),
                 )
+
+                improved = val_loss < prev_best_val
+                if self.config.early_stopping_patience > 0:
+                    if improved:
+                        epochs_without_improvement = 0
+                    else:
+                        epochs_without_improvement += 1
+                    if epochs_without_improvement >= self.config.early_stopping_patience:
+                        metrics.early_stopped = True
+                        logger.info(
+                            "finetune_early_stop",
+                            epoch=epoch,
+                            patience=self.config.early_stopping_patience,
+                        )
+                        break
             else:
                 # No val set – track the best training loss and its weights
                 if train_loss < _best_train_loss:
@@ -923,6 +1068,10 @@ class FineTuner:
                 "lr_schedule_patience": self.config.lr_schedule_patience,
                 "lr_schedule_factor": self.config.lr_schedule_factor,
                 "quantization_applied": self.config.quantization_applied,
+                "optimizer": self.config.optimizer,
+                "optimizer_kwargs": _sanitize_for_json(self.config.optimizer_kwargs),
+                "early_stopping_patience": self.config.early_stopping_patience,
+                "custom_optimizer": self._optimizer_factory is not None,
             },
             "metrics": _sanitize_for_json(metrics.to_dict()),
         }

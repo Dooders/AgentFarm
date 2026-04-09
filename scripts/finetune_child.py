@@ -8,7 +8,8 @@ printed and saved alongside the checkpoint.
 
 Usage
 -----
-Fine-tune with defaults (synthetic states, parent A as reference)::
+Fine-tune with defaults from ``crossover_child_finetune`` in
+``farm/config/default.yaml`` (synthetic states, parent A as reference)::
 
     python scripts/finetune_child.py \\
         --parent-a-ckpt checkpoints/parent_a.pt \\
@@ -27,6 +28,10 @@ Provide a real state buffer and override hyperparameters::
         --seed 42 \\
         --output-dir checkpoints/finetuned
 
+Use a custom YAML file for fine-tune defaults (must define the same section)::
+
+    python scripts/finetune_child.py --config-yaml my_experiment.yaml ...
+
 Notes
 -----
 When no parent checkpoints are provided, random weights are used (useful for
@@ -38,6 +43,7 @@ pass ``--crossover-seed`` to control the crossover RNG separately from
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import os
 import sys
 
@@ -58,9 +64,10 @@ from farm.core.decision.training.distillation_script_helpers import (  # noqa: E
     load_distillation_states,
 )
 from farm.core.decision.training.finetune import (  # noqa: E402
+    FINETUNE_OPTIMIZERS,
     QUANTIZATION_APPLIED_MODES,
     FineTuner,
-    FineTuningConfig,
+    load_finetuning_config_from_yaml,
 )
 
 _LOAD_PARENT_KW = {
@@ -73,6 +80,31 @@ _LOAD_PARENT_KW = {
 }
 
 
+def _merged_finetune_config(args: argparse.Namespace) -> FineTuningConfig:
+    yaml_path = (args.config_yaml or "").strip() or None
+    base = load_finetuning_config_from_yaml(yaml_path)
+    mapping = (
+        ("lr", "learning_rate"),
+        ("epochs", "epochs"),
+        ("batch_size", "batch_size"),
+        ("max_grad_norm", "max_grad_norm"),
+        ("val_fraction", "val_fraction"),
+        ("loss_fn", "loss_fn"),
+        ("temperature", "temperature"),
+        ("alpha", "alpha"),
+        ("lr_patience", "lr_schedule_patience"),
+        ("lr_factor", "lr_schedule_factor"),
+        ("seed", "seed"),
+        ("quantization_applied", "quantization_applied"),
+        ("optimizer", "optimizer"),
+        ("early_stopping_patience", "early_stopping_patience"),
+    )
+    overrides = {
+        field: getattr(args, attr) for attr, field in mapping if hasattr(args, attr)
+    }
+    return dataclasses.replace(base, **overrides)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -81,7 +113,12 @@ _LOAD_PARENT_KW = {
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Fine-tune a crossover child Q-network on a target dataset.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Fine-tuning hyperparameters default to the ``crossover_child_finetune`` section "
+            "of farm/config/default.yaml (or the file given by --config-yaml). "
+            "Pass flags such as --lr or --epochs only to override those fields."
+        ),
     )
     # Architecture
     p.add_argument("--input-dim", type=int, default=8, help="State feature dimension.")
@@ -116,45 +153,90 @@ def _parse_args() -> argparse.Namespace:
         default="",
         help="Path to .npy file of states (shape N × input_dim).",
     )
-    # Fine-tuning hyperparameters
-    p.add_argument("--lr", type=float, default=1e-3, help="Adam learning rate.")
-    p.add_argument("--epochs", type=int, default=5, help="Fine-tuning epochs.")
-    p.add_argument("--batch-size", type=int, default=32, help="Mini-batch size.")
-    p.add_argument("--max-grad-norm", type=float, default=1.0, help="Gradient clip norm.")
-    p.add_argument("--val-fraction", type=float, default=0.1, help="Validation split fraction.")
-    p.add_argument("--loss-fn", choices=["kl", "mse"], default="kl", help="Soft fine-tuning loss.")
-    p.add_argument("--temperature", type=float, default=3.0, help="Softmax temperature.")
+    # Fine-tuning: optional overrides (defaults from YAML section)
+    p.add_argument(
+        "--config-yaml",
+        default="",
+        help="YAML file containing crossover_child_finetune (default: farm/config/default.yaml).",
+    )
+    p.add_argument(
+        "--lr",
+        type=float,
+        default=argparse.SUPPRESS,
+        help="Override learning_rate.",
+    )
+    p.add_argument("--epochs", type=int, default=argparse.SUPPRESS, help="Override epochs.")
+    p.add_argument(
+        "--batch-size",
+        type=int,
+        default=argparse.SUPPRESS,
+        help="Override batch_size.",
+    )
+    p.add_argument(
+        "--max-grad-norm",
+        type=float,
+        default=argparse.SUPPRESS,
+        help="Override max_grad_norm.",
+    )
+    p.add_argument(
+        "--val-fraction",
+        type=float,
+        default=argparse.SUPPRESS,
+        help="Override val_fraction.",
+    )
+    p.add_argument(
+        "--loss-fn",
+        choices=["kl", "mse"],
+        default=argparse.SUPPRESS,
+        help="Override loss_fn.",
+    )
+    p.add_argument(
+        "--temperature",
+        type=float,
+        default=argparse.SUPPRESS,
+        help="Override temperature.",
+    )
     p.add_argument(
         "--alpha",
         type=float,
-        default=1.0,
-        help="Blending weight for soft loss (loss = alpha*soft + (1-alpha)*hard).",
+        default=argparse.SUPPRESS,
+        help="Override alpha (soft vs hard loss blend).",
     )
     p.add_argument(
         "--lr-patience",
         type=int,
-        default=0,
-        help="ReduceLROnPlateau patience epochs (0 = disabled).",
+        default=argparse.SUPPRESS,
+        help="Override lr_schedule_patience (ReduceLROnPlateau; 0 = off).",
     )
     p.add_argument(
         "--lr-factor",
         type=float,
-        default=0.5,
-        help="ReduceLROnPlateau reduction factor.",
+        default=argparse.SUPPRESS,
+        help="Override lr_schedule_factor.",
     )
-    p.add_argument("--seed", type=int, default=None, help="Random seed for fine-tuning.")
-    # Quantization mode
+    p.add_argument(
+        "--seed",
+        type=int,
+        default=argparse.SUPPRESS,
+        help="Override fine-tuning seed.",
+    )
     p.add_argument(
         "--quantization-applied",
         choices=list(QUANTIZATION_APPLIED_MODES),
-        default="none",
-        help=(
-            "Indicate whether quantization was applied to the crossover parents. "
-            "When not 'none', fine-tuning uses QAT fake-quant Linear layers so the "
-            "objective is minimised under the same int8 weight noise as deployment. "
-            "After fine-tuning call convert() + save_quantized() to get an int8 model. "
-            f"Choices: {list(QUANTIZATION_APPLIED_MODES)}"
-        ),
+        default=argparse.SUPPRESS,
+        help="Override quantization_applied.",
+    )
+    p.add_argument(
+        "--optimizer",
+        choices=list(FINETUNE_OPTIMIZERS),
+        default=argparse.SUPPRESS,
+        help="Override optimizer.",
+    )
+    p.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=argparse.SUPPRESS,
+        help="Override early_stopping_patience (0 = disabled).",
     )
     # Output
     p.add_argument(
@@ -167,10 +249,13 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
+    cfg = _merged_finetune_config(args)
+    yaml_note = (args.config_yaml or "").strip() or "farm/config/default.yaml"
 
     print("\n" + "=" * 60)
     print("Fine-tuning crossover child Q-network")
     print("=" * 60)
+    print(f"\nFine-tune defaults: crossover_child_finetune ← {yaml_note!r}")
 
     # 1. Load parents
     print("\n[1/4] Loading parents …")
@@ -208,24 +293,13 @@ def main() -> None:
     # 3. Load target dataset
     print("\n[3/4] Preparing target dataset …")
     states = load_distillation_states(
-        args.states_file, args.n_states, args.input_dim, args.seed
+        args.states_file, args.n_states, args.input_dim, cfg.seed
     )
 
     # 4. Fine-tune child against parent A as reference
-    print(f"\n[4/4] Fine-tuning child (reference = parent A) for {args.epochs} epochs …")
-    cfg = FineTuningConfig(
-        learning_rate=args.lr,
-        epochs=args.epochs,
-        batch_size=args.batch_size,
-        max_grad_norm=args.max_grad_norm,
-        val_fraction=args.val_fraction,
-        loss_fn=args.loss_fn,
-        temperature=args.temperature,
-        alpha=args.alpha,
-        lr_schedule_patience=args.lr_patience,
-        lr_schedule_factor=args.lr_factor,
-        seed=args.seed,
-        quantization_applied=args.quantization_applied,
+    print(
+        f"\n[4/4] Fine-tuning child (reference = parent A), "
+        f"up to {cfg.epochs} epoch(s), optimizer={cfg.optimizer!r} …"
     )
     tuner = FineTuner(reference=parent_a, child=child, config=cfg)
     os.makedirs(args.output_dir, exist_ok=True)
@@ -243,12 +317,14 @@ def main() -> None:
         print(f"  Final agreement    : {metrics.action_agreements[-1] * 100:.1f}%")
         improvement = metrics.initial_val_loss - metrics.best_val_loss
         print(f"  Val loss Δ         : {improvement:+.6f}")
+    if metrics.early_stopped:
+        print(f"  Early stop         : yes (completed {len(metrics.train_losses)} epoch(s))")
     print(f"  Checkpoint saved   : {ckpt_path}")
     print(f"  Metadata saved     : {ckpt_path}.json")
 
     # QAT mode: optionally convert and save int8 model
-    if args.quantization_applied != "none":
-        print(f"\n  QAT mode ({args.quantization_applied}): converting to int8 …")
+    if cfg.quantization_applied != "none":
+        print(f"\n  QAT mode ({cfg.quantization_applied}): converting to int8 …")
         q_model = tuner.convert()
         int8_path = os.path.join(args.output_dir, "child_finetuned_qat_int8.pt")
         tuner.save_quantized(q_model, int8_path)

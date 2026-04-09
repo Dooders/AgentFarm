@@ -17,6 +17,7 @@ Covers:
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
@@ -28,10 +29,13 @@ import torch
 
 from farm.core.decision.base_dqn import BaseQNetwork
 from farm.core.decision.training.finetune import (
+    FINETUNE_OPTIMIZERS,
     QUANTIZATION_APPLIED_MODES,
     FineTuner,
     FineTuningConfig,
     FineTuningMetrics,
+    build_finetune_optimizer,
+    load_finetuning_config_from_yaml,
 )
 from farm.core.decision.training.quantize_qat import WeightOnlyFakeQuantLinear
 
@@ -80,6 +84,17 @@ class TestFineTuningConfig:
         assert cfg.alpha == 1.0
         assert cfg.lr_schedule_patience == 0
         assert cfg.lr_schedule_factor == 0.5
+        assert cfg.optimizer == "adam"
+        assert cfg.optimizer_kwargs == {}
+        assert cfg.early_stopping_patience == 0
+
+    def test_invalid_optimizer_name(self):
+        with pytest.raises(ValueError, match="optimizer"):
+            FineTuningConfig(optimizer="lamb")
+
+    def test_invalid_early_stopping_patience(self):
+        with pytest.raises(ValueError, match="early_stopping_patience"):
+            FineTuningConfig(early_stopping_patience=-1)
 
     def test_invalid_learning_rate(self):
         with pytest.raises(ValueError, match="learning_rate"):
@@ -395,6 +410,41 @@ class TestBeforeAfterMetrics:
         # When starting from perfect agreement, val loss should remain small
         assert metrics.best_val_loss < 0.1
 
+    def test_early_stopping_triggers_when_validation_plateaus(self):
+        ref = _make_net(0)
+        child = copy.deepcopy(ref)
+        cfg = FineTuningConfig(
+            epochs=20,
+            early_stopping_patience=1,
+            val_fraction=0.1,
+            seed=0,
+            batch_size=16,
+        )
+        tuner = FineTuner(ref, child, cfg)
+        metrics = tuner.finetune(_make_states(100))
+        assert metrics.early_stopped
+        assert len(metrics.train_losses) < 20
+
+
+# ---------------------------------------------------------------------------
+# Optimizer / YAML helpers
+# ---------------------------------------------------------------------------
+
+
+class TestFinetuneOptimizerAndYaml:
+    def test_build_finetune_optimizer_rmsprop(self):
+        net = _make_net(0)
+        cfg = FineTuningConfig(optimizer="rmsprop", optimizer_kwargs={"alpha": 0.9})
+        opt = build_finetune_optimizer(net.parameters(), cfg)
+        assert isinstance(opt, torch.optim.RMSprop)
+
+    def test_load_finetuning_config_from_default_yaml(self):
+        cfg = load_finetuning_config_from_yaml()
+        assert cfg.learning_rate == 0.001
+        assert cfg.epochs == 5
+        assert cfg.optimizer == "adam"
+        assert cfg.early_stopping_patience == 0
+
 
 # ---------------------------------------------------------------------------
 # FineTuningMetrics.to_dict
@@ -416,6 +466,7 @@ class TestFineTuningMetricsToDict:
             "mean_prob_similarities",
             "best_val_loss",
             "best_epoch",
+            "early_stopped",
         }
         assert expected_keys == set(d.keys())
 
@@ -483,8 +534,27 @@ class TestCheckpointing:
                 "lr_schedule_patience",
                 "lr_schedule_factor",
                 "quantization_applied",
+                "optimizer",
+                "optimizer_kwargs",
+                "early_stopping_patience",
+                "custom_optimizer",
             }
             assert expected_keys == set(meta["config"].keys())
+            assert meta["config"]["custom_optimizer"] is False
+            assert meta["config"]["optimizer"] == "adam"
+
+    def test_metadata_custom_optimizer_flag(self):
+        def factory(params, config):
+            return torch.optim.SGD(params, lr=config.learning_rate)
+
+        cfg = _default_cfg(val_fraction=0.1)
+        tuner = FineTuner(_make_net(0), _make_net(1), cfg, optimizer_factory=factory)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ckpt_path = os.path.join(tmpdir, "child.pt")
+            tuner.finetune(_make_states(), checkpoint_path=ckpt_path)
+            with open(ckpt_path + ".json") as fh:
+                meta = json.load(fh)
+            assert meta["config"]["custom_optimizer"] is True
 
     def test_checkpoint_loads_into_model(self):
         cfg = _default_cfg(val_fraction=0.0)
@@ -765,3 +835,9 @@ class TestQATModePackageExport:
 
         assert "none" in exported
         assert "ptq_dynamic" in exported
+
+    def test_finetune_optimizers_exported(self):
+        from farm.core.decision.training import FINETUNE_OPTIMIZERS as exported
+
+        assert "adam" in exported
+        assert exported == FINETUNE_OPTIMIZERS

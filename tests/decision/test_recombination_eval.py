@@ -13,7 +13,10 @@ Covers:
 
 from __future__ import annotations
 
+import copy
 import json
+import os
+import tempfile
 
 import numpy as np
 import pytest
@@ -21,6 +24,7 @@ import torch
 import torch.nn as nn
 
 from farm.core.decision.base_dqn import BaseQNetwork
+from farm.core.decision.training.quantize_ptq import load_quantized_checkpoint
 from farm.core.decision.training.recombination_eval import (
     REPORT_SCHEMA_VERSION,
     PairwiseComparison,
@@ -217,6 +221,7 @@ def _make_report(**kwargs) -> RecombinationReport:
         child_agrees_with_parent_b=0.75,
         oracle_agreement=0.90,
         model_paths={},
+        model_formats={},
     )
     defaults.update(kwargs)
     return RecombinationReport(**defaults)
@@ -255,6 +260,7 @@ class TestRecombinationReport:
             "torch_version",
             "states",
             "model_paths",
+            "model_formats",
             "comparisons",
             "summary",
             "thresholds",
@@ -654,6 +660,48 @@ class TestRecombinationEvaluatorJsonRoundTrip:
 
 
 # ---------------------------------------------------------------------------
+# Quantized child (full-model pickle, CPU)
+# ---------------------------------------------------------------------------
+
+
+class TestRecombinationEvaluatorQuantizedChild:
+    def test_quantized_child_evaluation_smoke(self):
+        try:
+            import torch.ao.quantization as aoq
+        except ImportError:  # pragma: no cover
+            import torch.quantization as aoq  # type: ignore[no-redef]
+
+        parent_a = _make_model(0)
+        parent_b = _make_model(1)
+        child = _make_model(2)
+        child.eval()
+        qchild = aoq.quantize_dynamic(copy.deepcopy(child), {nn.Linear}, dtype=torch.qint8)
+        qchild.eval()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "qchild.pt")
+            torch.save(qchild, path)
+            loaded, _meta = load_quantized_checkpoint(path)
+        states = _make_states(24)
+        evaluator = RecombinationEvaluator(
+            parent_a, parent_b, loaded, device=torch.device("cpu")
+        )
+        report = evaluator.evaluate(
+            states,
+            n_latency_warmup=0,
+            n_latency_repeats=2,
+            model_formats={
+                "parent_a": "float_state_dict",
+                "parent_b": "float_state_dict",
+                "child": "quantized_full_model",
+            },
+        )
+        assert "child_vs_parent_a" in report.comparisons
+        d = report.to_dict()
+        assert d["model_formats"]["child"] == "quantized_full_model"
+        assert 0.0 <= d["summary"]["oracle_agreement"] <= 1.0
+
+
+# ---------------------------------------------------------------------------
 # _validate_states helper
 # ---------------------------------------------------------------------------
 
@@ -698,4 +746,4 @@ class TestModuleExports:
         assert issubclass(RecombinationReport, object)
         assert issubclass(RecombinationThresholds, object)
         assert isinstance(REPORT_SCHEMA_VERSION, str)
-        assert REPORT_SCHEMA_VERSION == "1.0"
+        assert REPORT_SCHEMA_VERSION == "1.1"

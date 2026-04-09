@@ -13,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import os
+import pickle
 import tempfile
 
 import numpy as np
@@ -23,12 +24,14 @@ import torch.nn as nn
 from farm.core.decision.base_dqn import BaseQNetwork, StudentQNetwork
 from farm.core.decision.training.crossover import (
     CROSSOVER_MODES,
+    ChildArchitectureSpec,
     _layer_group_block_id,
     _layer_groups,
     _to_float,
     _validate_state_dicts,
     crossover_checkpoints,
     crossover_quantized_state_dict,
+    initialize_child_from_crossover,
 )
 
 # ---------------------------------------------------------------------------
@@ -619,7 +622,6 @@ class TestPublicImports:
 
 
 from farm.core.decision.training.crossover import (
-    initialize_child_from_crossover,
     _infer_arch_from_state_dict,
     _resolve_parent,
 )
@@ -826,6 +828,127 @@ class TestInitializeChildFromCrossover:
         child = initialize_child_from_crossover(sd_a, sd_b, strategy="layer")
         out = child(self._batch())
         assert out.shape == (4, OUTPUT_DIM)
+
+    def test_student_module_parents_yield_student_child(self):
+        sa = _make_student(0)
+        sb = _make_student(1)
+        child = initialize_child_from_crossover(sa, sb, strategy="layer")
+        assert isinstance(child, StudentQNetwork)
+        out = child(self._batch())
+        assert out.shape == (4, OUTPUT_DIM)
+
+    def test_network_class_student_with_state_dict_parents(self):
+        sa = _make_student(2)
+        sb = _make_student(3)
+        child = initialize_child_from_crossover(
+            sa.state_dict(),
+            sb.state_dict(),
+            strategy="weighted",
+            alpha=0.5,
+            network_class=StudentQNetwork,
+        )
+        assert isinstance(child, StudentQNetwork)
+
+    def test_child_architecture_spec_override(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        spec = ChildArchitectureSpec(
+            input_dim=INPUT_DIM,
+            output_dim=OUTPUT_DIM,
+            hidden_size=PARENT_HIDDEN,
+        )
+        child = initialize_child_from_crossover(
+            pa, pb, strategy="layer", architecture=spec
+        )
+        assert isinstance(child, BaseQNetwork)
+        out = child(self._batch())
+        assert out.shape == (4, OUTPUT_DIM)
+
+    def test_invalid_network_class_raises(self):
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        with pytest.raises(TypeError, match="network_class"):
+            initialize_child_from_crossover(
+                pa,
+                pb,
+                strategy="layer",
+                network_class=nn.Linear,  # type: ignore[arg-type]
+            )
+
+    def test_ptq_checkpoint_paths_with_json_sidecar(self):
+        from farm.core.decision.training.quantize_ptq import (
+            PostTrainingQuantizer,
+            QuantizationConfig,
+        )
+
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        qz = PostTrainingQuantizer(QuantizationConfig(mode="dynamic"))
+        qa, ra = qz.quantize(pa)
+        qb, rb = qz.quantize(pb)
+        arch_kw = {
+            "input_dim": INPUT_DIM,
+            "output_dim": OUTPUT_DIM,
+            "hidden_size": PARENT_HIDDEN,
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p1 = os.path.join(tmpdir, "a_int8.pt")
+            p2 = os.path.join(tmpdir, "b_int8.pt")
+            qz.save_checkpoint(qa, p1, ra, arch_kwargs=arch_kw)
+            qz.save_checkpoint(qb, p2, rb, arch_kwargs=arch_kw)
+            child = initialize_child_from_crossover(
+                p1,
+                p2,
+                strategy="weighted",
+                alpha=0.5,
+                allow_unsafe_unpickle=True,
+            )
+            out = child(self._batch())
+            assert out.shape == (4, OUTPUT_DIM)
+
+    def test_ptq_checkpoint_paths_require_explicit_unsafe_opt_in(self):
+        from farm.core.decision.training.quantize_ptq import (
+            PostTrainingQuantizer,
+            QuantizationConfig,
+        )
+
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        qz = PostTrainingQuantizer(QuantizationConfig(mode="dynamic"))
+        qa, ra = qz.quantize(pa)
+        qb, rb = qz.quantize(pb)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p1 = os.path.join(tmpdir, "a_int8.pt")
+            p2 = os.path.join(tmpdir, "b_int8.pt")
+            qz.save_checkpoint(qa, p1, ra, arch_kwargs={})
+            qz.save_checkpoint(qb, p2, rb, arch_kwargs={})
+            with pytest.raises(ValueError, match="allow_unsafe_unpickle=True"):
+                initialize_child_from_crossover(p1, p2, strategy="layer")
+
+    def test_ptq_path_without_auto_loader_requires_unsafe_or_raises(self):
+        from farm.core.decision.training.quantize_ptq import (
+            PostTrainingQuantizer,
+            QuantizationConfig,
+        )
+
+        pa = self._make_base(0)
+        pb = self._make_base(1)
+        qz = PostTrainingQuantizer(QuantizationConfig(mode="dynamic"))
+        qa, ra = qz.quantize(pa)
+        qb, rb = qz.quantize(pb)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p1 = os.path.join(tmpdir, "x_int8.pt")
+            p2 = os.path.join(tmpdir, "y_int8.pt")
+            qz.save_checkpoint(qa, p1, ra, arch_kwargs={})
+            qz.save_checkpoint(qb, p2, rb, arch_kwargs={})
+            with pytest.raises((ValueError, pickle.UnpicklingError)):
+                initialize_child_from_crossover(
+                    p1,
+                    p2,
+                    strategy="layer",
+                    auto_load_ptq_checkpoints=False,
+                    allow_unsafe_unpickle=False,
+                )
 
 
 # ---------------------------------------------------------------------------

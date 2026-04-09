@@ -349,3 +349,23 @@ analysis_global:
   enable_caching: true
   enable_parallel: false
   max_workers: null
+
+# Crossover child Q-network fine-tuning (after recombination; see farm.core.decision.training.finetune)
+# Used by load_finetuning_config_from_yaml() and scripts/finetune_child.py as defaults unless overridden.
+crossover_child_finetune:
+  learning_rate: 0.001
+  epochs: 5
+  batch_size: 32
+  max_grad_norm: 1.0
+  val_fraction: 0.1
+  seed: null
+  loss_fn: kl
+  temperature: 3.0
+  temp_decay: 1.0
+  alpha: 1.0
+  lr_schedule_patience: 0
+  lr_schedule_factor: 0.5
+  quantization_applied: none
+  optimizer: adam
+  optimizer_kwargs: {}
+  early_stopping_patience: 0

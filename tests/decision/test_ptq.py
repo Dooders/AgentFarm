@@ -339,6 +339,25 @@ class TestCompareOutputs:
         # With random weights, agreement should be roughly 1/output_dim = 25%
         assert cmp["action_agreement"] < 0.90, "Expected disagreement between random models"
 
+    def test_extended_metrics_present(self):
+        student = _make_student(seed=1)
+        q_model = PostTrainingQuantizer(QuantizationConfig(mode="dynamic")).quantize(student)[0]
+        states = _make_states(n=100, seed=1)
+        cmp = compare_outputs(student, q_model, states, top_k_values=[2, OUTPUT_DIM])
+        assert "mse_logits" in cmp
+        assert "kl_divergence_float_vs_quant" in cmp
+        assert cmp["mse_logits"] >= 0.0
+        assert cmp["kl_divergence_float_vs_quant"] >= 0.0
+        assert 2 in cmp["top_k_agreements"]
+        assert OUTPUT_DIM in cmp["top_k_agreements"]
+
+    def test_top_k_disabled_returns_empty_map(self):
+        m1 = _make_student(seed=1)
+        m2 = _make_student(seed=2)
+        states = _make_states(n=20)
+        cmp = compare_outputs(m1, m2, states, top_k_values=[])
+        assert cmp["top_k_agreements"] == {}
+
 
 # ---------------------------------------------------------------------------
 # QuantizationResult serialisation

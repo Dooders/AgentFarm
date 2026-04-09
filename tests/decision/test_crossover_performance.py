@@ -2,13 +2,17 @@
 
 These tests measure wall-clock time and inference quality
 (Q-value error, action agreement) for the three crossover strategies.
-They are marked ``@pytest.mark.slow`` and are excluded from the default
-``pytest`` run (see ``pytest.ini``).  To regenerate the documented
-numbers in ``docs/design/crossover_strategies.md`` run::
+Heavy benchmarks use ``@pytest.mark.slow`` (excluded from the default
+``pytest`` run; see ``pytest.ini``).  All tests in this module are also
+``@pytest.mark.ml`` so you can run ``pytest -m ml`` for the full ML
+crossover suite (smokes + slow) or ``pytest -m "ml and slow"`` for
+benchmarks only.  To regenerate the documented numbers in
+``docs/design/crossover_strategies.md`` run::
 
-    pytest tests/decision/test_crossover_performance.py -m slow -v -s
+    pytest tests/decision/test_crossover_performance.py -m "ml and slow" -v -s
 
-or use the convenience script::
+or equivalently ``-m slow`` (benchmark class is both ``ml`` and ``slow``).
+Alternatively use the convenience script::
 
     python scripts/benchmark_crossover.py
 
@@ -128,11 +132,13 @@ def _time_crossover(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.ml
 class TestCrossoverSmoke:
     """Quick sanity assertions for all three strategies.
 
-    These run under the default ``pytest`` invocation (no slow marker) and
-    serve as regression guards that any new strategy change must not break.
+    These run under the default ``pytest`` invocation (no ``slow`` marker) and
+    are tagged ``ml`` for issue #613-style filtering.  They guard against
+    regressions in crossover + initializer paths.
     """
 
     def test_random_output_shape(self):
@@ -207,12 +213,13 @@ class TestCrossoverSmoke:
 
 
 @pytest.mark.slow
+@pytest.mark.ml
 class TestCrossoverPerformance:
     """Wall-clock and quality benchmarks for each crossover strategy.
 
     Run with::
 
-        pytest tests/decision/test_crossover_performance.py -m slow -v -s
+        pytest tests/decision/test_crossover_performance.py -m "ml and slow" -v -s
 
     Results are printed to stdout and can be compared with the table in
     ``docs/design/crossover_strategies.md``.

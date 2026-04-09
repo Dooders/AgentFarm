@@ -60,6 +60,7 @@ Each regime specifies a named hyperparameter set passed to `FineTuner` (using pa
 | `medium` | 10 | 5e-4 | 32 | Balanced; default for `minimal` grid |
 | `long` | 20 | 1e-4 | 32 | Deeper adaptation; captures slower convergence |
 | `lr_high` | 5 | 5e-3 | 32 | High-LR exploration; may overshoot on easy tasks |
+| `short_qat` | 5 | 1e-4 | 16 | Same epoch budget as `short` but `quantization_applied="ptq_dynamic"` (fake-quant fine-tune) |
 
 **Reference teacher**: parent A (frozen, eval mode).
 
@@ -101,7 +102,24 @@ One recipe per crossover mode; three fine-tune regimes.  Good for a fast first l
 | 4–6 | layer | short, medium, long |
 | 7–9 | weighted, α=0.5 | short, medium, long |
 
-### 5.3 Custom
+### 5.3 `default-qat` (21 children) and `minimal-qat` (9 children)
+
+Python:
+
+- `SearchConfig.default_with_qat()` — same seven crossover recipes as **default**, but three fine-tune columns: **`short`** (float), **`long`** (float), **`short_qat`** (`quantization_applied="ptq_dynamic"`, weight-only fake quant during fine-tune per `crossover_strategies.md` §8).
+- `SearchConfig.minimal_with_qat()` — three recipes × (`short`, `short_qat`, `long`).
+
+CLI: `--search-space default-qat` or `minimal-qat`.
+
+Custom mode can add the **`short_qat`** preset via `--finetune-regimes short_qat`.
+
+### 5.4 Parallel execution (`--workers N`)
+
+When `N > 1`, `run_crossover_search` uses `ProcessPoolExecutor`: each child runs in a **separate process**. Parent **state dicts** and the **states array** are written under `<run-dir>/.crossover_parallel_cache/` and reloaded per worker. **Requirements:** both parents must be **`BaseQNetwork`** with identical architecture. **Quantized** parent modules are not supported on this path (use `--workers 1`). **CPU** is used inside workers for broad compatibility.
+
+Convenience: `make crossover-search-smoke` runs a two-child minimal search with synthetic states.
+
+### 5.5 Custom
 
 ```bash
 python scripts/run_crossover_search.py \
@@ -159,7 +177,9 @@ Re-running with the same `run_config.json` parameters, the same state buffer, an
 |-----------|----------|-------------------------------|
 | Smoke (3 pairs) | 3 | < 2 min |
 | Minimal (3×3) | 9 | 5–15 min |
+| Minimal-qat (3×3) | 9 | longer (includes QAT fine-tune) |
 | Default (7×2) | 14 | 10–25 min |
+| Default-qat (7×3) | 21 | longer (includes QAT column) |
 | Extended (7×4) | 28 | 20–50 min |
 
 *Times are indicative for synthetic states on CPU.  Real state buffers (larger N) and longer fine-tune regimes scale proportionally.*

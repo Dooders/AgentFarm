@@ -58,7 +58,8 @@ from farm.utils.logging import get_logger
 logger = get_logger(__name__)
 
 #: Versioned JSON schema identifier embedded in every report.
-REPORT_SCHEMA_VERSION = "1.0"
+#: ``1.1`` adds optional ``model_formats`` (how each role was loaded).
+REPORT_SCHEMA_VERSION = "1.1"
 
 
 @dataclass
@@ -283,7 +284,7 @@ class RecombinationReport:
     ----------
     schema_version:
         Versioned schema identifier for forward-compatible JSON parsing.
-        Currently ``"1.0"``.
+        Currently :data:`REPORT_SCHEMA_VERSION` (``1.1`` adds ``model_formats``).
     torch_version:
         PyTorch version string (``torch.__version__``) at evaluation time.
     n_states:
@@ -312,6 +313,11 @@ class RecombinationReport:
     model_paths:
         Optional mapping of model role → checkpoint path string.  Populated
         from CLI flags when applicable.
+    model_formats:
+        How each checkpoint was loaded, e.g. ``"float_state_dict"`` (default
+        ``BaseQNetwork`` state dict) or ``"quantized_full_model"`` (pickle from
+        ``load_quantized_checkpoint``).  Keys: ``parent_a``, ``parent_b``,
+        ``child``.  Omitted roles imply float state dict for backward compatibility.
     """
 
     schema_version: str
@@ -325,6 +331,7 @@ class RecombinationReport:
     child_agrees_with_parent_b: float
     oracle_agreement: Optional[float]
     model_paths: Dict[str, Optional[str]] = field(default_factory=dict)
+    model_formats: Dict[str, str] = field(default_factory=dict)
 
     @property
     def passed(self) -> bool:
@@ -347,6 +354,7 @@ class RecombinationReport:
                 "source": self.states_source,
             },
             "model_paths": self.model_paths,
+            "model_formats": self.model_formats,
             "comparisons": comparisons_dict,
             "summary": {
                 "child_agrees_with_parent_a": self.child_agrees_with_parent_a,
@@ -426,6 +434,7 @@ class RecombinationEvaluator:
         states_source: str = "synthetic_standard_normal",
         eval_batch_size: Optional[int] = None,
         model_paths: Optional[Dict[str, Optional[str]]] = None,
+        model_formats: Optional[Dict[str, str]] = None,
     ) -> RecombinationReport:
         """Run all comparisons and return a :class:`RecombinationReport`.
 
@@ -454,6 +463,9 @@ class RecombinationEvaluator:
         model_paths:
             Optional mapping of role → checkpoint path to embed in the report
             (e.g. ``{"parent_a": "checkpoints/parent_A.pt", ...}``).
+        model_formats:
+            Optional mapping of role → load kind for JSON consumers:
+            ``"float_state_dict"`` or ``"quantized_full_model"``.
 
         Returns
         -------
@@ -564,6 +576,7 @@ class RecombinationEvaluator:
             child_agrees_with_parent_b=cmp_cb.action_agreement,
             oracle_agreement=oracle_agreement,
             model_paths=model_paths or {},
+            model_formats=dict(model_formats or {}),
         )
 
     # ------------------------------------------------------------------
