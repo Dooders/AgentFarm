@@ -92,7 +92,7 @@ All evaluation uses **CPU**. Quantized full-model checkpoints (int8) must stay
 on CPU, matching ``scripts/validate_quantized.py``. When any role is loaded with
 ``--parent-a-quantized``, ``--parent-b-quantized``, or ``--child-quantized``,
 paths must point to pickles loadable by ``load_quantized_checkpoint`` (not
-plain state dicts).
+plain state dicts), and ``--allow-unsafe-unpickle`` must be set explicitly.
 
 Interpreting the report
 -----------------------
@@ -194,9 +194,16 @@ def _load_model_for_role(
     label: str,
     *,
     quantized: bool,
+    allow_unsafe_unpickle: bool,
 ) -> torch.nn.Module:
     """Load one role as either a float state-dict ``BaseQNetwork`` or a quantized full model."""
     if quantized:
+        if not allow_unsafe_unpickle:
+            raise ValueError(
+                f"{label} is marked quantized, which requires full-model unpickling "
+                "(weights_only=False). Re-run with --allow-unsafe-unpickle only "
+                "for trusted checkpoints."
+            )
         model, _meta = load_quantized_checkpoint(path, device=torch.device("cpu"))
         return model
     return _load_model(path, input_dim, output_dim, hidden_size, label)
@@ -319,6 +326,14 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Load child via load_quantized_checkpoint (CPU int8 pickle).",
     )
+    p.add_argument(
+        "--allow-unsafe-unpickle",
+        action="store_true",
+        help=(
+            "Allow loading quantized full-model pickles via torch.load(weights_only=False). "
+            "Use only with trusted checkpoints."
+        ),
+    )
 
     # Thresholds
     p.add_argument("--min-action-agreement", type=float, default=0.70)
@@ -373,6 +388,7 @@ def main() -> None:
         args.hidden_size,
         "parent_a",
         quantized=args.parent_a_quantized,
+        allow_unsafe_unpickle=args.allow_unsafe_unpickle,
     )
     parent_b = _load_model_for_role(
         parent_b_ckpt,
@@ -381,6 +397,7 @@ def main() -> None:
         args.hidden_size,
         "parent_b",
         quantized=args.parent_b_quantized,
+        allow_unsafe_unpickle=args.allow_unsafe_unpickle,
     )
     child = _load_model_for_role(
         child_ckpt,
@@ -389,6 +406,7 @@ def main() -> None:
         args.hidden_size,
         "child",
         quantized=args.child_quantized,
+        allow_unsafe_unpickle=args.allow_unsafe_unpickle,
     )
 
     model_formats = {

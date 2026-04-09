@@ -35,14 +35,14 @@ testing.
 
 The script synthesises random states if no replay-buffer file is provided.
 Pass ``--states-file <npy>`` to supply a real state distribution (shape
-``(N, input_dim)`` NumPy array saved with ``np.save``).
+``(N, input_dim)`` NumPy array saved with ``np.save``). The same state buffer
+is reused for all requested pairs in a single run to keep comparisons aligned.
 """
-
-from __future__ import annotations
 
 import argparse
 import os
 import sys
+from typing import Optional
 
 import numpy as np
 import torch
@@ -102,6 +102,7 @@ def _run_pair(
     cfg: DistillationConfig,
     output_dir: str,
     rng: np.random.Generator,
+    shared_states: Optional[np.ndarray] = None,
 ) -> None:
     """Run distillation for one parent/student pair."""
     print(f"\n{'=' * 60}")
@@ -123,7 +124,10 @@ def _run_pair(
     print(f"  Student params: {student_params:,}  ({100*student_params/parent_params:.1f}% of parent)")
 
     # Prepare state buffer
-    if states_file:
+    if shared_states is not None:
+        states = shared_states
+        print(f"  Using shared states buffer (shape={states.shape})")
+    elif states_file:
         if not os.path.isfile(states_file):
             raise FileNotFoundError(f"States file not found: {states_file}")
         states = np.load(states_file).astype("float32")
@@ -223,6 +227,24 @@ def main() -> None:
     pairs_to_run = ["A", "B"] if args.pair == "both" else [args.pair]
 
     ckpt_map = {"A": args.parent_a_ckpt, "B": args.parent_b_ckpt}
+    if args.states_file:
+        if not os.path.isfile(args.states_file):
+            raise FileNotFoundError(f"States file not found: {args.states_file}")
+        shared_states = np.load(args.states_file).astype("float32")
+        if shared_states.ndim != 2:
+            raise ValueError(
+                f"States must be a 2D array with shape (N, input_dim); got {shared_states.shape!r}"
+            )
+        if shared_states.shape[1] != args.input_dim:
+            raise ValueError(
+                f"States input_dim mismatch: expected {args.input_dim}, got {shared_states.shape[1]}"
+            )
+        print(f"Loaded shared states from {args.states_file}: shape={shared_states.shape}")
+    else:
+        shared_states = _generate_states(args.n_states, args.input_dim, rng)
+        print(
+            f"Generated shared synthetic states once (shape={shared_states.shape}, seed={args.seed})"
+        )
 
     for pair in pairs_to_run:
         _run_pair(
@@ -236,6 +258,7 @@ def main() -> None:
             cfg=cfg,
             output_dir=args.output_dir,
             rng=rng,
+            shared_states=shared_states,
         )
 
     print("\nDistillation complete.")

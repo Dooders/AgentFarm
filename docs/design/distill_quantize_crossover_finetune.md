@@ -324,6 +324,7 @@ python scripts/validate_distillation.py \
 # Validate quantized students
 python scripts/validate_quantized.py \
     --checkpoint-dir checkpoints/quantized \
+    --allow-unsafe-unpickle \
     --report-dir reports/quantized
 
 # Validate child vs both parents

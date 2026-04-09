@@ -38,6 +38,9 @@ When no parent checkpoints are provided, random weights are used (useful for
 integration testing).  The crossover seed and fine-tuning seed are independent;
 pass ``--crossover-seed`` to control the crossover RNG separately from
 ``--seed`` (which controls fine-tuning).
+
+Parent checkpoint hidden width is inferred automatically from ``network.0.weight``.
+If it differs from ``--hidden-size``, the inferred value is used.
 """
 
 from __future__ import annotations
@@ -46,6 +49,7 @@ import argparse
 import dataclasses
 import os
 import sys
+from typing import Any, Dict
 
 import torch
 
@@ -60,7 +64,6 @@ from farm.core.decision.training.crossover import (  # noqa: E402
     crossover_quantized_state_dict,
 )
 from farm.core.decision.training.distillation_script_helpers import (  # noqa: E402
-    load_base_qnetwork_checkpoint,
     load_distillation_states,
 )
 from farm.core.decision.training.finetune import (  # noqa: E402
@@ -70,14 +73,63 @@ from farm.core.decision.training.finetune import (  # noqa: E402
     load_finetuning_config_from_yaml,
 )
 
-_LOAD_PARENT_KW = {
-    "not_found_template": "Parent checkpoint not found: {path}",
-    "bad_state_template": (
-        "Checkpoint at '{path}' does not contain a state dict (got {type_name})."
-    ),
-    "loaded_template": "  Loaded network weights from: {path}",
-    "random_weights_message": "  No checkpoint provided – using random weights.",
-}
+def _infer_hidden_size(state: Dict[str, Any], label: str) -> int:
+    """Infer hidden width from ``network.0.weight`` for Base/Student checkpoints."""
+    key = "network.0.weight"
+    if key not in state:
+        raise ValueError(
+            f"{label} checkpoint missing required key {key!r}; cannot infer hidden size."
+        )
+    tensor = state[key]
+    if not isinstance(tensor, torch.Tensor) or tensor.ndim != 2:
+        raise ValueError(
+            f"{label} checkpoint key {key!r} must be rank-2 tensor; got {type(tensor).__name__}."
+        )
+    hidden_size = int(tensor.shape[0])
+    if hidden_size < 1:
+        raise ValueError(f"{label} inferred hidden size must be >= 1 (got {hidden_size}).")
+    return hidden_size
+
+
+def _load_parent_checkpoint_auto(
+    path: str,
+    input_dim: int,
+    output_dim: int,
+    fallback_hidden_size: int,
+    label: str,
+) -> BaseQNetwork:
+    """Load parent checkpoint and auto-detect hidden size when possible."""
+    if not path:
+        print("  No checkpoint provided – using random weights.")
+        return BaseQNetwork(
+            input_dim=input_dim,
+            output_dim=output_dim,
+            hidden_size=fallback_hidden_size,
+        )
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Parent checkpoint not found: {path}")
+    state = torch.load(path, map_location="cpu", weights_only=True)
+    if not isinstance(state, dict):
+        raise ValueError(
+            f"Checkpoint at '{path}' does not contain a state dict (got {type(state).__name__})."
+        )
+
+    inferred_hidden = _infer_hidden_size(state, label)
+    if inferred_hidden != fallback_hidden_size:
+        print(
+            f"  {label}: inferred hidden size {inferred_hidden} from checkpoint; "
+            f"overriding --hidden-size {fallback_hidden_size}."
+        )
+
+    model = BaseQNetwork(
+        input_dim=input_dim,
+        output_dim=output_dim,
+        hidden_size=inferred_hidden,
+    )
+    model.load_state_dict(state)
+    model.eval()
+    print(f"  Loaded network weights from: {path}")
+    return model
 
 
 def _merged_finetune_config(args: argparse.Namespace) -> FineTuningConfig:
@@ -259,20 +311,28 @@ def main() -> None:
 
     # 1. Load parents
     print("\n[1/4] Loading parents …")
-    parent_a = load_base_qnetwork_checkpoint(
+    parent_a = _load_parent_checkpoint_auto(
         args.parent_a_ckpt,
         args.input_dim,
         args.output_dim,
         args.hidden_size,
-        **_LOAD_PARENT_KW,
+        label="parent_a",
     )
-    parent_b = load_base_qnetwork_checkpoint(
+    parent_b = _load_parent_checkpoint_auto(
         args.parent_b_ckpt,
         args.input_dim,
         args.output_dim,
         args.hidden_size,
-        **_LOAD_PARENT_KW,
+        label="parent_b",
     )
+
+    child_hidden_size = int(parent_a.network[0].out_features)
+    parent_b_hidden_size = int(parent_b.network[0].out_features)
+    if child_hidden_size != parent_b_hidden_size:
+        raise ValueError(
+            "Parent hidden sizes must match for crossover initialization: "
+            f"parent_a={child_hidden_size}, parent_b={parent_b_hidden_size}."
+        )
 
     # 2. Construct child via crossover
     print(f"\n[2/4] Crossover: mode={args.crossover_mode!r}, alpha={args.crossover_alpha} …")
@@ -286,7 +346,7 @@ def main() -> None:
     child = BaseQNetwork(
         input_dim=args.input_dim,
         output_dim=args.output_dim,
-        hidden_size=args.hidden_size,
+        hidden_size=child_hidden_size,
     )
     child.load_state_dict(child_sd)
 
