@@ -24,10 +24,9 @@ and optional synthetic MDP rollouts (GitHub issue #597).
 - ``--sim-rollout``: greedy-Q episodes through a real :class:`EpisodeEnvProtocol`
   environment (see :class:`PolicyRolloutAdapter`).  Requires ``--sim-env-factory``
   to point to a Python importable ``env_factory`` callable (e.g.
-  ``mypackage.envs:make_env``) or uses the built-in
-  :class:`~farm.core.decision.training.sim_rollout_adapter.SeededLinearMDPEnvAdapter`
-  shim when ``--sim-env-factory`` is omitted (same dynamics as the synthetic
-  rollout, but running through the :class:`PolicyRolloutAdapter` code path).
+  ``mypackage.envs:make_env``) or uses an internal SeededLinearMDP shim when
+  ``--sim-env-factory`` is omitted (same dynamics as the synthetic rollout, but
+  running through the :class:`PolicyRolloutAdapter` code path).
 
 **Outputs** (under ``--report-dir``)
 
@@ -557,6 +556,10 @@ def _validate_cli_args(args: argparse.Namespace) -> None:
         raise ValueError("max_latency_ratio requires latency_repeats > 0")
     if args.sim_rollout_episodes < 0:
         raise ValueError("sim_rollout_episodes must be >= 0")
+    if args.sim_rollout and args.sim_rollout_episodes <= 0:
+        raise ValueError("sim_rollout requires sim_rollout_episodes > 0")
+    if args.sim_rollout_episodes > 0 and not args.sim_rollout:
+        raise ValueError("sim_rollout_episodes > 0 requires --sim-rollout")
     if args.sim_rollout_max_steps <= 0:
         raise ValueError("sim_rollout_max_steps must be positive")
     if args.sim_max_relative_return_drop is not None:
@@ -597,6 +600,7 @@ def _load_env_factory(
     sim_env_factory: str,
     input_dim: int,
     output_dim: int,
+    sim_rollout_max_steps: int,
 ) -> "EnvFactory":
     """Return an env factory callable from a dotted import path or a shim.
 
@@ -612,6 +616,8 @@ def _load_env_factory(
         Observation dimensionality (used only when building the shim).
     output_dim:
         Action space size (used only when building the shim).
+    sim_rollout_max_steps:
+        Maximum horizon for the shim environment.
     """
     from farm.core.decision.training.sim_rollout_adapter import EnvFactory  # noqa: F401
 
@@ -627,7 +633,12 @@ def _load_env_factory(
             """Thin wrapper making SeededLinearMDP satisfy EpisodeEnvProtocol."""
 
             def __init__(self) -> None:
-                self._mdp = SeededLinearMDP(input_dim, output_dim, base_seed=0, max_steps=200)
+                self._mdp = SeededLinearMDP(
+                    input_dim,
+                    output_dim,
+                    base_seed=0,
+                    max_steps=sim_rollout_max_steps,
+                )
 
             def reset(self, *, seed: Optional[int] = None) -> Tuple[Any, Dict[str, Any]]:
                 obs = self._mdp.reset(seed if seed is not None else 0)
@@ -757,6 +768,7 @@ def main() -> None:
             args.sim_env_factory,
             input_dim=args.input_dim,
             output_dim=args.output_dim,
+            sim_rollout_max_steps=args.sim_rollout_max_steps,
         )
 
     csv_rows: List[Dict[str, Any]] = []

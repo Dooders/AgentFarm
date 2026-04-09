@@ -88,6 +88,7 @@ def test_validate_cli_args_rejects_invalid(field: str, value: object, match: str
     # sim_max_relative_return_drop requires sim_rollout_episodes > 0 for validation to trigger
     if field == "sim_max_relative_return_drop" and isinstance(value, float) and value > 1.0:
         kwargs["sim_rollout_episodes"] = 5
+        kwargs["sim_rollout"] = True
     with pytest.raises(ValueError, match=match):
         mod._validate_cli_args(_default_cli_ns(**kwargs))
 
@@ -100,7 +101,9 @@ def test_validate_cli_args_rejects_invalid(field: str, value: object, match: str
 def test_load_env_factory_empty_returns_shim():
     """Empty sim_env_factory string should return a factory satisfying EpisodeEnvProtocol."""
     mod = _get_mod()
-    factory = mod._load_env_factory("", input_dim=4, output_dim=2)
+    factory = mod._load_env_factory(
+        "", input_dim=4, output_dim=2, sim_rollout_max_steps=200
+    )
     assert callable(factory)
     env = factory()
     # Verify protocol compliance by actually calling both required methods
@@ -115,7 +118,9 @@ def test_load_env_factory_shim_reset_returns_array():
     import numpy as np
 
     mod = _get_mod()
-    factory = mod._load_env_factory("", input_dim=4, output_dim=2)
+    factory = mod._load_env_factory(
+        "", input_dim=4, output_dim=2, sim_rollout_max_steps=200
+    )
     env = factory()
     result = env.reset(seed=1)
     # Must return a (obs, info) tuple per EpisodeEnvProtocol
@@ -130,7 +135,9 @@ def test_load_env_factory_shim_reset_returns_array():
 def test_load_env_factory_shim_step_returns_five_tuple():
     """Shim env step must return (obs, reward, terminated, truncated, info)."""
     mod = _get_mod()
-    factory = mod._load_env_factory("", input_dim=4, output_dim=2)
+    factory = mod._load_env_factory(
+        "", input_dim=4, output_dim=2, sim_rollout_max_steps=200
+    )
     env = factory()
     env.reset(seed=0)
     result = env.step(0)
@@ -146,7 +153,12 @@ def test_load_env_factory_invalid_format_raises():
     """Factory path without ':' separator must raise ValueError."""
     mod = _get_mod()
     with pytest.raises(ValueError, match="module.path:attr"):
-        mod._load_env_factory("invalid_no_colon", input_dim=4, output_dim=2)
+        mod._load_env_factory(
+            "invalid_no_colon",
+            input_dim=4,
+            output_dim=2,
+            sim_rollout_max_steps=200,
+        )
 
 
 def test_load_env_factory_valid_import():
@@ -155,7 +167,9 @@ def test_load_env_factory_valid_import():
 
     mod = _get_mod()
     # Use os.getcwd as a trivially importable callable
-    factory = mod._load_env_factory("os:getcwd", input_dim=4, output_dim=2)
+    factory = mod._load_env_factory(
+        "os:getcwd", input_dim=4, output_dim=2, sim_rollout_max_steps=200
+    )
     assert callable(factory)
     assert factory is os.getcwd
 
@@ -164,5 +178,36 @@ def test_load_env_factory_noncallable_raises():
     """Non-callable attribute should raise ValueError."""
     mod = _get_mod()
     with pytest.raises(ValueError, match="not callable"):
-        mod._load_env_factory("os:sep", input_dim=4, output_dim=2)
+        mod._load_env_factory(
+            "os:sep",
+            input_dim=4,
+            output_dim=2,
+            sim_rollout_max_steps=200,
+        )
+
+
+def test_load_env_factory_shim_respects_max_steps():
+    """Shim env must truncate according to sim_rollout_max_steps."""
+    mod = _get_mod()
+    factory = mod._load_env_factory(
+        "", input_dim=4, output_dim=2, sim_rollout_max_steps=3
+    )
+    env = factory()
+    env.reset(seed=0)
+    # First two steps should not truncate; third should.
+    assert env.step(0)[3] is False
+    assert env.step(0)[3] is False
+    assert env.step(0)[3] is True
+
+
+def test_validate_cli_args_rejects_sim_rollout_flag_without_episodes():
+    mod = _get_mod()
+    with pytest.raises(ValueError, match="sim_rollout requires sim_rollout_episodes > 0"):
+        mod._validate_cli_args(_default_cli_ns(sim_rollout=True, sim_rollout_episodes=0))
+
+
+def test_validate_cli_args_rejects_sim_rollout_episodes_without_flag():
+    mod = _get_mod()
+    with pytest.raises(ValueError, match="sim_rollout_episodes > 0 requires --sim-rollout"):
+        mod._validate_cli_args(_default_cli_ns(sim_rollout=False, sim_rollout_episodes=5))
 
