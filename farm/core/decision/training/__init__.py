@@ -48,6 +48,12 @@ from .recombination_eval import (
     RecombinationThresholds,
 )
 from .trainer import AlgorithmTrainer
+from .distillation_rollout import (
+    RolloutComparisonResult,
+    SeededLinearMDP,
+    compare_parent_student_rollouts,
+    relative_return_drop,
+)
 from .trainer_distill import (
     DistillationConfig,
     DistillationMetrics,
@@ -87,12 +93,15 @@ __all__ = [
     "RecombinationReport",
     "RecombinationThresholds",
     "SearchConfig",
+    "RolloutComparisonResult",
+    "SeededLinearMDP",
     "StudentValidator",
     "ValidationReport",
     "ValidationThresholds",
     "WeightOnlyFakeQuantLinear",
     "build_leaderboard",
     "compare_outputs",
+    "compare_parent_student_rollouts",
     "crossover_checkpoints",
     "crossover_quantized_state_dict",
     "generate_recommendation",
@@ -100,4 +109,5 @@ __all__ = [
     "load_qat_checkpoint",
     "load_quantized_checkpoint",
     "run_crossover_search",
+    "relative_return_drop",
 ]

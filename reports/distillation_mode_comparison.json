@@ -1,0 +1,47 @@
+{
+  "seed_base": 42,
+  "hyperparams": {
+    "input_dim": 8,
+    "output_dim": 4,
+    "parent_hidden": 64,
+    "n_states": 5000,
+    "temperature": 3.0,
+    "epochs": 25,
+    "batch_size": 64,
+    "lr": 0.001,
+    "val_fraction": 0.1,
+    "loss_fn": "kl"
+  },
+  "runs": [
+    {
+      "mode": "hard_only",
+      "alpha": 0.0,
+      "best_val_loss": 0.1447265800088644,
+      "best_epoch": 24,
+      "final_action_agreement": 0.934,
+      "final_mean_prob_similarity": 0.8144048526883125,
+      "final_train_loss": 0.17699944810338422,
+      "final_train_soft_loss": 3.8728470332185987
+    },
+    {
+      "mode": "blended",
+      "alpha": 0.7,
+      "best_val_loss": 0.16240510903298855,
+      "best_epoch": 24,
+      "final_action_agreement": 0.932,
+      "final_mean_prob_similarity": 0.9806101694703102,
+      "final_train_loss": 0.17750327352067113,
+      "final_train_soft_loss": 0.05145607106912304
+    },
+    {
+      "mode": "soft_only",
+      "alpha": 1.0,
+      "best_val_loss": 0.014645062386989594,
+      "best_epoch": 24,
+      "final_action_agreement": 0.932,
+      "final_mean_prob_similarity": 0.9887389913201332,
+      "final_train_loss": 0.024014381954157855,
+      "final_train_soft_loss": 0.024014381954157855
+    }
+  ]
+}
