@@ -70,7 +70,6 @@ import argparse
 import os
 import sys
 
-import numpy as np
 import torch
 
 # Allow running directly from repo root without pip install -e .
@@ -88,6 +87,10 @@ from farm.core.decision.training.crossover_search import (  # noqa: E402
     generate_recommendation,
     run_crossover_search,
 )
+from farm.core.decision.training.distillation_script_helpers import (  # noqa: E402
+    load_base_qnetwork_checkpoint,
+    load_distillation_states,
+)
 from farm.core.decision.training.recombination_eval import (  # noqa: E402
     RecombinationThresholds,
 )
@@ -96,47 +99,6 @@ from farm.core.decision.training.recombination_eval import (  # noqa: E402
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _load_network(
-    path: str, input_dim: int, output_dim: int, hidden_size: int
-) -> BaseQNetwork:
-    """Load a BaseQNetwork from a state-dict checkpoint (or random if path is empty)."""
-    net = BaseQNetwork(input_dim=input_dim, output_dim=output_dim, hidden_size=hidden_size)
-    if path:
-        if not os.path.isfile(path):
-            raise FileNotFoundError(f"Parent checkpoint not found: {path!r}")
-        state = torch.load(path, map_location="cpu", weights_only=True)
-        if not isinstance(state, dict):
-            raise ValueError(
-                f"Checkpoint at {path!r} does not contain a state dict "
-                f"(got {type(state).__name__})."
-            )
-        net.load_state_dict(state)
-        print(f"  Loaded network from: {path}")
-    else:
-        print("  No checkpoint path provided — using random weights.")
-    return net
-
-
-def _load_states(
-    states_file: str, n_states: int, input_dim: int, seed: int
-) -> np.ndarray:
-    """Load .npy states or synthesise standard-normal calibration data."""
-    if states_file:
-        if not os.path.isfile(states_file):
-            raise FileNotFoundError(f"States file not found: {states_file!r}")
-        states = np.load(states_file).astype("float32")
-        if states.ndim != 2 or states.shape[1] != input_dim:
-            raise ValueError(
-                f"States must have shape (N, {input_dim}); got {states.shape!r}"
-            )
-        print(f"  Loaded states from {states_file!r}: shape={states.shape}")
-        return states
-    rng = np.random.default_rng(seed)
-    states = rng.standard_normal((n_states, input_dim)).astype("float32")
-    print(f"  Using {n_states} synthetic random states (shape={states.shape})")
-    return states
 
 
 def _build_search_config(args: argparse.Namespace) -> SearchConfig:
@@ -348,16 +310,26 @@ def main() -> None:
 
     # 2. Load parents
     print("\n[1/4] Loading parent networks …")
-    parent_a = _load_network(
-        args.parent_a_ckpt, args.input_dim, args.output_dim, args.hidden_size
+    parent_a = load_base_qnetwork_checkpoint(
+        args.parent_a_ckpt,
+        args.input_dim,
+        args.output_dim,
+        args.hidden_size,
+        random_weights_message="  No checkpoint path provided — using random weights.",
     )
-    parent_b = _load_network(
-        args.parent_b_ckpt, args.input_dim, args.output_dim, args.hidden_size
+    parent_b = load_base_qnetwork_checkpoint(
+        args.parent_b_ckpt,
+        args.input_dim,
+        args.output_dim,
+        args.hidden_size,
+        random_weights_message="  No checkpoint path provided — using random weights.",
     )
 
     # 3. Load / generate states
     print("\n[2/4] Preparing evaluation states …")
-    states = _load_states(args.states_file, args.n_states, args.input_dim, args.seed)
+    states = load_distillation_states(
+        args.states_file, args.n_states, args.input_dim, args.seed
+    )
 
     # 4. Build thresholds
     # The search runner always uses report-only mode: thresholds are recorded

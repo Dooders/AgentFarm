@@ -92,8 +92,8 @@ __all__ = [
     "RecombinationEvaluator",
     "RecombinationReport",
     "RecombinationThresholds",
-    "SearchConfig",
     "RolloutComparisonResult",
+    "SearchConfig",
     "SeededLinearMDP",
     "StudentValidator",
     "ValidationReport",
@@ -108,6 +108,6 @@ __all__ = [
     "initialize_child_from_crossover",
     "load_qat_checkpoint",
     "load_quantized_checkpoint",
-    "run_crossover_search",
     "relative_return_drop",
+    "run_crossover_search",
 ]
