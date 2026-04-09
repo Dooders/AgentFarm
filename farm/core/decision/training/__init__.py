@@ -30,6 +30,13 @@ from .quantize_qat import (
     WeightOnlyFakeQuantLinear,
     load_qat_checkpoint,
 )
+from .recombination_eval import (
+    REPORT_SCHEMA_VERSION,
+    PairwiseComparison,
+    RecombinationEvaluator,
+    RecombinationReport,
+    RecombinationThresholds,
+)
 from .trainer import AlgorithmTrainer
 from .trainer_distill import (
     DistillationConfig,
@@ -50,6 +57,7 @@ __all__ = [
     "FineTuner",
     "FineTuningConfig",
     "FineTuningMetrics",
+    "PairwiseComparison",
     "PostTrainingQuantizer",
     "QATConfig",
     "QATMetrics",
@@ -60,6 +68,10 @@ __all__ = [
     "QuantizedValidationReport",
     "QuantizedValidationThresholds",
     "QuantizedValidator",
+    "REPORT_SCHEMA_VERSION",
+    "RecombinationEvaluator",
+    "RecombinationReport",
+    "RecombinationThresholds",
     "StudentValidator",
     "ValidationReport",
     "ValidationThresholds",
