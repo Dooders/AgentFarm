@@ -517,7 +517,10 @@ def _print_quant_summary(label: str, report: Dict[str, Any]) -> None:
     latency = report.get("latency", {})
     size = report.get("size", {})
     print(f"  Action agreement (float vs int8) : {fidelity.get('action_agreement', 'n/a')}")
-    print(f"  KL divergence                    : {fidelity.get('kl_divergence', 'n/a')}")
+    kl = fidelity.get("kl_divergence_float_vs_quant")
+    if kl is None:
+        kl = fidelity.get("kl_divergence")
+    print(f"  KL divergence                    : {kl if kl is not None else 'n/a'}")
     print(f"  Mean cosine similarity           : {fidelity.get('mean_cosine_similarity', 'n/a')}")
     print(f"  Float inference (ms)             : {latency.get('float_inference_ms', 'n/a')}")
     print(f"  Quant inference (ms)             : {latency.get('quantized_inference_ms', 'n/a')}")

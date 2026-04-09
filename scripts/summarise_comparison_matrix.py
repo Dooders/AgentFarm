@@ -50,7 +50,7 @@ import glob
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Tuple
 
 # ---------------------------------------------------------------------------
 # Detection helpers
@@ -127,8 +127,8 @@ def _extract_quant_fidelity(label: str, report: Dict[str, Any]) -> Dict[str, str
     }
 
 
-def _load_reports(report_dir: str, extra_files: List[str]) -> List[Dict[str, Any]]:
-    """Return list of (path, report_dict) from directory glob and extra_files."""
+def _load_reports(report_dir: str, extra_files: List[str]) -> List[Tuple[str, Dict[str, Any]]]:
+    """Return ``(path, report_dict)`` pairs from directory glob and ``extra_files``."""
     paths: List[str] = list(extra_files)
     if report_dir:
         paths += sorted(glob.glob(os.path.join(report_dir, "*.json")))

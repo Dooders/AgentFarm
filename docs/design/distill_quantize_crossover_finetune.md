@@ -115,7 +115,7 @@ student.pt ──► QATTrainer.prepare()   ──► replaces nn.Linear with We
            ──► QATTrainer.convert()   ──► quantize_dynamic ──► student_qat_int8.pt
 ```
 
-Both outputs are plain `torch.save` pickles that `crossover_quantized_state_dict` can **dequantize** automatically via `torch.int_repr()`.
+Both outputs are plain `torch.save` pickles that `crossover_quantized_state_dict` can **dequantize** automatically using PyTorch quantized tensor and layer APIs (for example, `Tensor.dequantize()` on weights and biases), without relying on `torch.int_repr()`.
 
 ---
 
