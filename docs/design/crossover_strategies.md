@@ -237,11 +237,16 @@ result = compare_outputs(tuner._active_child, q_model, states)
 See also `farm/core/decision/training/quantize_ptq.py` (`QuantizedValidator`) for
 full JSON reports with fidelity / latency / size sections.
 
+### Evaluating the child vs both parents (offline)
+
+Use `scripts/validate_recombination.py` (library: `RecombinationEvaluator`, `RecombinationReport`) to score **child vs parent A** and **child vs parent B** on a shared state buffer—top-1 / top-k action agreement, KL, MSE, MAE, cosine on Q-logits—plus optional **parent A vs parent B** (`--include-parent-baseline`) and **oracle** agreement in the report summary. Float roles use `BaseQNetwork` state-dict checkpoints; for **quantized** full-model `.pt` files (same format as `validate_quantized.py`), pass `--parent-a-quantized`, `--parent-b-quantized`, and/or `--child-quantized`. Quantized roles are **CPU-only**; the JSON report includes `model_formats` (schema ≥ 1.1).
+
 ### Related issues
 
 - Parent epic: [Dooders/AgentFarm#8](https://github.com/Dooders/AgentFarm/issues/8) – Distillation, Quantization, and Crossover pipeline.
 - Implementation: `farm/core/decision/training/finetune.py` (`FineTuner`, `FineTuningConfig`, `QUANTIZATION_APPLIED_MODES`).
 - QAT building blocks: `farm/core/decision/training/quantize_qat.py` (`WeightOnlyFakeQuantLinear`, `QATTrainer`).
+- Child vs parents evaluation: `scripts/validate_recombination.py`, `farm/core/decision/training/recombination_eval.py`.
 
 ---
 

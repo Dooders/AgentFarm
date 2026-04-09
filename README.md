@@ -195,6 +195,8 @@ After distilling student Q-networks you can apply **8-bit post-training quantiza
 
 4. **Validate quantized vs float** (CPU): `python scripts/validate_quantized.py --help`. The JSON report includes median/mean/p95 single-sample latency, optional **throughput** (`--throughput-batch-size`), **memory** RSS snapshots, float–quant **MSE/KL/top-k** agreement, and optional **teacher** metrics if `parent_*.pt` is found under `--float-dir` / `--teacher-dir` or via `--teacher-*-ckpt`.
 
+5. **Evaluate a crossover child vs both parents** (offline Q metrics, versioned JSON): `python scripts/validate_recombination.py --help`. Baselines: **child vs parent A**, **child vs parent B**, optional **parent A vs parent B** (`--include-parent-baseline`), plus **oracle** agreement in the report summary. Use the same `--states-file` / `--seed` / `--n-states` pattern as other validation scripts. For **quantized** full-model checkpoints (PTQ or post-QAT `torch.save` exports), add `--parent-a-quantized`, `--parent-b-quantized`, and/or `--child-quantized`; those roles are loaded with `load_quantized_checkpoint` and run on **CPU**.
+
 **Optional QAT** (after PTQ if action agreement or Q-error is unacceptable): weight-only fake quant on linear layers, same int8 export format as PTQ after convert.
 
 ```bash
