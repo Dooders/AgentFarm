@@ -81,7 +81,7 @@ import torch.nn as nn
 from farm.utils.logging import get_logger
 
 from .crossover import CROSSOVER_MODES, crossover_quantized_state_dict
-from .finetune import FineTuner, FineTuningConfig
+from .finetune import FineTuner, FineTuningConfig, _sanitize_for_json
 from .recombination_eval import (
     RecombinationEvaluator,
     RecombinationReport,
@@ -526,7 +526,7 @@ def _run_one(
             "seed": regime.seed,
             "quantization_applied": regime.quantization_applied,
         },
-        "finetune_metrics": ft_metrics.to_dict(),
+        "finetune_metrics": _sanitize_for_json(ft_metrics.to_dict()),
         "torch_version": torch.__version__,
     }
     run_config_path = os.path.join(child_dir, "run_config.json")
@@ -958,7 +958,7 @@ def _write_leaderboard(leaderboard: List[Dict[str, Any]], run_dir: str) -> None:
     json_path = os.path.join(run_dir, "leaderboard.json")
 
     # CSV — include all LEADERBOARD_COLUMNS + is_parent_baseline
-    all_cols = LEADERBOARD_COLUMNS + ["is_parent_baseline", "rank"]
+    all_cols = LEADERBOARD_COLUMNS + ["is_parent_baseline"]
     with open(csv_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=all_cols, extrasaction="ignore")
         writer.writeheader()
