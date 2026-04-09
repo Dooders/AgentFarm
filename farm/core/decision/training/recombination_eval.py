@@ -497,7 +497,7 @@ class RecombinationEvaluator:
             k_clamped = min(k, n_actions)
             topk_qry = qry_logits.topk(k_clamped, dim=-1).indices
             matches = (topk_qry == ref_actions.unsqueeze(-1)).any(dim=-1)
-            top_k_agreements[k_clamped] = float(matches.float().mean().item())
+            top_k_agreements[k] = float(matches.float().mean().item())
 
         # Output similarity.
         p_ref = F.softmax(ref_logits, dim=-1)

@@ -816,10 +816,11 @@ class FineTuner:
         total_loss_sum = 0.0
         soft_loss_sum = 0.0
         hard_loss_sum = 0.0
-        n_batches = 0
+        n_samples = 0
         has_hard = False
 
         for batch in self._iter_batches(train_tensor):
+            batch_size = batch.size(0)
             with torch.no_grad():
                 ref_logits = self.reference(batch)
 
@@ -834,14 +835,14 @@ class FineTuner:
                 )
             self.optimizer.step()
 
-            total_loss_sum += total_loss.item()
-            soft_loss_sum += soft_loss.item()
+            total_loss_sum += total_loss.item() * batch_size
+            soft_loss_sum += soft_loss.item() * batch_size
             if hard_loss is not None:
-                hard_loss_sum += hard_loss.item()
+                hard_loss_sum += hard_loss.item() * batch_size
                 has_hard = True
-            n_batches += 1
+            n_samples += batch_size
 
-        denom = max(n_batches, 1)
+        denom = max(n_samples, 1)
         mean_hard: Optional[float] = (hard_loss_sum / denom) if has_hard else None
         return total_loss_sum / denom, soft_loss_sum / denom, mean_hard
 
@@ -861,32 +862,32 @@ class FineTuner:
         self.reference.eval()
 
         total_loss = 0.0
-        n_batches = 0
         n_agree = 0
         n_total = 0
         prob_sim_sum = 0.0
 
         for batch in self._iter_batches(val_tensor):
+            batch_size = batch.size(0)
             ref_logits = self.reference(batch)
             child_logits = self._active_child(batch)
 
             total, _, _ = self._compute_loss(ref_logits, child_logits)
-            total_loss += total.item()
-            n_batches += 1
+            total_loss += total.item() * batch_size
 
             ref_actions = ref_logits.argmax(dim=-1)
             child_actions = child_logits.argmax(dim=-1)
             n_agree += (ref_actions == child_actions).sum().item()
-            n_total += batch.size(0)
+            n_total += batch_size
 
             T = self._current_temperature
             p_ref = F.softmax(ref_logits / T, dim=-1)
             p_child = F.softmax(child_logits / T, dim=-1)
-            prob_sim_sum += (1.0 - (p_ref - p_child).abs().mean()).item()
+            batch_prob_similarity = (1.0 - (p_ref - p_child).abs().mean()).item()
+            prob_sim_sum += batch_prob_similarity * batch_size
 
-        val_loss = total_loss / max(n_batches, 1)
+        val_loss = total_loss / max(n_total, 1)
         agreement = n_agree / max(n_total, 1)
-        mean_prob_similarity = prob_sim_sum / max(n_batches, 1)
+        mean_prob_similarity = prob_sim_sum / max(n_total, 1)
         return val_loss, agreement, mean_prob_similarity
 
     def _save_checkpoint(

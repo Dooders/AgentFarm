@@ -309,11 +309,12 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--min-cosine-similarity", type=float, default=0.70)
 
     # Misc
+    p.set_defaults(include_parent_baseline=True)
     p.add_argument(
         "--include-parent-baseline",
+        dest="include_parent_baseline",
         action="store_true",
-        default=True,
-        help="Include a parent A vs parent B comparison in each eval report.",
+        help="Include a parent A vs parent B comparison in each eval report (default: enabled).",
     )
     p.add_argument(
         "--no-parent-baseline",
