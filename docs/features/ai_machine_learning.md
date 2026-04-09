@@ -946,6 +946,7 @@ fine_tune_agent(transfer_agent, complex_env, episodes=100)
 ### Crossover child fine-tuning (Q-networks)
 
 > **Full pipeline reference:** [`docs/design/distill_quantize_crossover_finetune.md`](../design/distill_quantize_crossover_finetune.md) — end-to-end architecture, module map, Mermaid diagram, and recorded metrics for the complete distill → quantize → crossover → fine-tune stack ([AgentFarm#8](https://github.com/Dooders/AgentFarm/issues/8)).
+> **Step-by-step runbook:** [`docs/howto/neural_recombination_runbook.md`](../howto/neural_recombination_runbook.md) — copy-paste commands, parameter tables, and tuning tips for reproducing the full pipeline.
 
 After **neural recombination** (distillation → quantization → crossover), the child `BaseQNetwork` is a heuristic blend of parents. A dedicated **supervised fine-tuning** stage aligns it to the task using a frozen reference (typically parent A) and a state buffer—the same `(N, input_dim)` format as distillation scripts (`.npy` replay or synthetic states).
 
@@ -1202,6 +1203,7 @@ if __name__ == "__main__":
 - [Analysis modules](../analysis/modules/README.md) - ML-related analysis docs
 - [Genome System](api_reference.md#genome) - Evolutionary algorithms
 - **[Distill → Quantize → Crossover → Fine-tune Pipeline](../design/distill_quantize_crossover_finetune.md)** — canonical end-to-end architecture, module map, Mermaid diagram, and recorded metrics ([AgentFarm#8](https://github.com/Dooders/AgentFarm/issues/8))
+- **[Neural Recombination Runbook](../howto/neural_recombination_runbook.md)** — step-by-step how-to with copy-paste commands, full parameter tables, and tuning tips ([AgentFarm#8](https://github.com/Dooders/AgentFarm/issues/8))
 - [Distillation soft-label comparison](../distillation_soft_label_comparison.md) — hard vs blended vs soft objective comparison with reproducible results
 - [Crossover strategies design note](../design/crossover_strategies.md) — strategy semantics, benchmark results, QAT recipe
 - [Crossover + fine-tune search space](../design/crossover_search_space.md) — grid definitions and pre-defined search presets
