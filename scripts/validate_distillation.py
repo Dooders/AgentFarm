@@ -25,8 +25,11 @@ and optional synthetic MDP rollouts (GitHub issue #597).
   environment (see :class:`PolicyRolloutAdapter`).  Requires ``--sim-env-factory``
   to point to a Python importable ``env_factory`` callable (e.g.
   ``mypackage.envs:make_env``) or uses an internal SeededLinearMDP shim when
-  ``--sim-env-factory`` is omitted (same dynamics as the synthetic rollout, but
-  running through the :class:`PolicyRolloutAdapter` code path).
+  ``--sim-env-factory`` is omitted.  The shim uses the same :class:`SeededLinearMDP`
+  construction as the synthetic rollout path, with ``base_seed`` taken from
+  ``--sim-rollout-base-seed`` (default: ``--seed``).  Dynamics match
+  ``--rollout-episodes`` when ``--sim-rollout-base-seed`` and ``--rollout-base-seed``
+  agree (both default to ``--seed``).
 
 **Outputs** (under ``--report-dir``)
 
@@ -505,7 +508,8 @@ def _parse_args() -> argparse.Namespace:
             "Python import path to a zero-argument env factory callable in the format "
             "'module.path:attr' (e.g. 'mypackage.envs:make_env').  "
             "When omitted, a SeededLinearMDP shim matching --input-dim / --output-dim "
-            "is used so the sim rollout path can be exercised without a real sim."
+            "and --sim-rollout-base-seed (default: --seed) is used so the sim rollout "
+            "path can be exercised without a real sim."
         ),
     )
 
@@ -601,6 +605,7 @@ def _load_env_factory(
     input_dim: int,
     output_dim: int,
     sim_rollout_max_steps: int,
+    sim_rollout_base_seed: int,
 ) -> "EnvFactory":
     """Return an env factory callable from a dotted import path or a shim.
 
@@ -618,6 +623,9 @@ def _load_env_factory(
         Action space size (used only when building the shim).
     sim_rollout_max_steps:
         Maximum horizon for the shim environment.
+    sim_rollout_base_seed:
+        Seed for initializing the shim :class:`SeededLinearMDP` dynamics (must match
+        :class:`SimRolloutConfig.base_seed` used by :class:`PolicyRolloutAdapter`).
     """
     from farm.core.decision.training.sim_rollout_adapter import EnvFactory  # noqa: F401
 
@@ -636,7 +644,7 @@ def _load_env_factory(
                 self._mdp = SeededLinearMDP(
                     input_dim,
                     output_dim,
-                    base_seed=0,
+                    base_seed=sim_rollout_base_seed,
                     max_steps=sim_rollout_max_steps,
                 )
 
@@ -769,6 +777,7 @@ def main() -> None:
             input_dim=args.input_dim,
             output_dim=args.output_dim,
             sim_rollout_max_steps=args.sim_rollout_max_steps,
+            sim_rollout_base_seed=sim_rollout_base_seed,
         )
 
     csv_rows: List[Dict[str, Any]] = []

@@ -12,7 +12,7 @@ Validates that the adapter correctly:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -53,37 +53,6 @@ class _ConstQ(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self._logits.expand(x.shape[0], -1).clone()
-
-
-def _make_mock_env(
-    obs_dim: int = OBS_DIM,
-    reward: float = 1.0,
-    n_steps_before_done: int = 5,
-) -> MagicMock:
-    """Build a mock env that terminates after *n_steps_before_done* steps."""
-    env = MagicMock()
-    env.reset.return_value = (np.zeros(obs_dim, dtype=np.float32), {})
-    call_count = [0]
-
-    def _step(action: int):
-        call_count[0] += 1
-        truncated = call_count[0] >= n_steps_before_done
-        return np.zeros(obs_dim, dtype=np.float32), reward, False, truncated, {}
-
-    env.step.side_effect = _step
-    return env
-
-
-def _factory(env: MagicMock):
-    """Return a factory closure that resets the mock env call counter each episode."""
-
-    def _make():
-        env.step.side_effect = None
-        env.step.return_value = (np.zeros(OBS_DIM, dtype=np.float32), 1.0, False, True, {})
-        env.reset.return_value = (np.zeros(OBS_DIM, dtype=np.float32), {})
-        return env
-
-    return _make
 
 
 def _single_step_env_factory(obs_dim: int = OBS_DIM, reward: float = 1.0):

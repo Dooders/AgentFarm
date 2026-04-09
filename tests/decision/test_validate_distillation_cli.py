@@ -102,7 +102,11 @@ def test_load_env_factory_empty_returns_shim():
     """Empty sim_env_factory string should return a factory satisfying EpisodeEnvProtocol."""
     mod = _get_mod()
     factory = mod._load_env_factory(
-        "", input_dim=4, output_dim=2, sim_rollout_max_steps=200
+        "",
+        input_dim=4,
+        output_dim=2,
+        sim_rollout_max_steps=200,
+        sim_rollout_base_seed=0,
     )
     assert callable(factory)
     env = factory()
@@ -119,7 +123,11 @@ def test_load_env_factory_shim_reset_returns_array():
 
     mod = _get_mod()
     factory = mod._load_env_factory(
-        "", input_dim=4, output_dim=2, sim_rollout_max_steps=200
+        "",
+        input_dim=4,
+        output_dim=2,
+        sim_rollout_max_steps=200,
+        sim_rollout_base_seed=0,
     )
     env = factory()
     result = env.reset(seed=1)
@@ -136,7 +144,11 @@ def test_load_env_factory_shim_step_returns_five_tuple():
     """Shim env step must return (obs, reward, terminated, truncated, info)."""
     mod = _get_mod()
     factory = mod._load_env_factory(
-        "", input_dim=4, output_dim=2, sim_rollout_max_steps=200
+        "",
+        input_dim=4,
+        output_dim=2,
+        sim_rollout_max_steps=200,
+        sim_rollout_base_seed=0,
     )
     env = factory()
     env.reset(seed=0)
@@ -158,6 +170,7 @@ def test_load_env_factory_invalid_format_raises():
             input_dim=4,
             output_dim=2,
             sim_rollout_max_steps=200,
+            sim_rollout_base_seed=0,
         )
 
 
@@ -168,7 +181,11 @@ def test_load_env_factory_valid_import():
     mod = _get_mod()
     # Use os.getcwd as a trivially importable callable
     factory = mod._load_env_factory(
-        "os:getcwd", input_dim=4, output_dim=2, sim_rollout_max_steps=200
+        "os:getcwd",
+        input_dim=4,
+        output_dim=2,
+        sim_rollout_max_steps=200,
+        sim_rollout_base_seed=0,
     )
     assert callable(factory)
     assert factory is os.getcwd
@@ -183,6 +200,7 @@ def test_load_env_factory_noncallable_raises():
             input_dim=4,
             output_dim=2,
             sim_rollout_max_steps=200,
+            sim_rollout_base_seed=0,
         )
 
 
@@ -190,7 +208,11 @@ def test_load_env_factory_shim_respects_max_steps():
     """Shim env must truncate according to sim_rollout_max_steps."""
     mod = _get_mod()
     factory = mod._load_env_factory(
-        "", input_dim=4, output_dim=2, sim_rollout_max_steps=3
+        "",
+        input_dim=4,
+        output_dim=2,
+        sim_rollout_max_steps=3,
+        sim_rollout_base_seed=0,
     )
     env = factory()
     env.reset(seed=0)
@@ -198,6 +220,25 @@ def test_load_env_factory_shim_respects_max_steps():
     assert env.step(0)[3] is False
     assert env.step(0)[3] is False
     assert env.step(0)[3] is True
+
+
+def test_load_env_factory_shim_mdp_seed_changes_dynamics():
+    """SeededLinearMDP weights depend on sim_rollout_base_seed (matches PolicyRolloutAdapter)."""
+    mod = _get_mod()
+
+    def _first_reward(seed: int) -> float:
+        f = mod._load_env_factory(
+            "",
+            input_dim=4,
+            output_dim=2,
+            sim_rollout_max_steps=50,
+            sim_rollout_base_seed=seed,
+        )
+        env = f()
+        env.reset(seed=12345)
+        return env.step(0)[1]
+
+    assert _first_reward(0) != _first_reward(1)
 
 
 def test_validate_cli_args_rejects_sim_rollout_flag_without_episodes():
