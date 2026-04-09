@@ -58,6 +58,13 @@ from .distillation_rollout import (
     compare_parent_student_rollouts,
     relative_return_drop,
 )
+from .sim_rollout_adapter import (
+    EpisodeEnvProtocol,
+    PolicyRolloutAdapter,
+    SimEpisodeStats,
+    SimRolloutConfig,
+    SimRolloutResult,
+)
 from .trainer_distill import (
     DistillationConfig,
     DistillationMetrics,
@@ -75,6 +82,7 @@ __all__ = [
     "DistillationConfig",
     "DistillationMetrics",
     "DistillationTrainer",
+    "EpisodeEnvProtocol",
     "ExperienceCollector",
     "FineTuneRegime",
     "FINETUNE_OPTIMIZERS",
@@ -84,6 +92,7 @@ __all__ = [
     "LEADERBOARD_COLUMNS",
     "ManifestEntry",
     "PairwiseComparison",
+    "PolicyRolloutAdapter",
     "PostTrainingQuantizer",
     "QATConfig",
     "QATMetrics",
@@ -102,6 +111,9 @@ __all__ = [
     "RolloutComparisonResult",
     "SearchConfig",
     "SeededLinearMDP",
+    "SimEpisodeStats",
+    "SimRolloutConfig",
+    "SimRolloutResult",
     "StudentValidator",
     "ValidationReport",
     "ValidationThresholds",
