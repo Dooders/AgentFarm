@@ -162,7 +162,81 @@ pytest tests/decision/test_crossover_performance.py -m slow -v -s
 
 ---
 
-## 8. References
+## 8. Post-Crossover Fine-tuning and QAT
+
+After crossover produces a float32 child, the child is often fine-tuned against a frozen reference model (one of the parents, or the distilled teacher) to recover performance.  See `farm/core/decision/training/finetune.py` and `scripts/finetune_child.py`.
+
+### When to use float fine-tuning vs QAT fine-tuning
+
+| Scenario | Recommended mode |
+|----------|-----------------|
+| Child will be deployed in **float32** | `quantization_applied="none"` (default) |
+| Child will be converted to **int8** via `quantize_dynamic` | `quantization_applied="ptq_dynamic"` |
+| Parents were statically quantized before crossover | `quantization_applied="ptq_static"` |
+| Parents were QAT-trained float checkpoints (pre-convert) | `quantization_applied="qat_float"` |
+
+**Why this matters**: Crossover produces float32 children even when the parents were int8.  If the child is fine-tuned in full float32 but then converted to int8 for deployment, the optimiser adapted to float noise instead of quantization noise.  QAT-aware fine-tuning inserts `WeightOnlyFakeQuantLinear` (STE, weight-only, same scope as `QATTrainer`) so the loss is minimised under the same approximation error as int8 inference.
+
+### Recipe for QAT-aware fine-tuning
+
+```python
+from farm.core.decision.training.finetune import FineTuningConfig, FineTuner
+from farm.core.decision.training.crossover import crossover_quantized_state_dict
+
+# 1. Crossover (parents may have been quantized)
+child_sd = crossover_quantized_state_dict(sd_a, sd_b, mode="weighted")
+child.load_state_dict(child_sd)
+
+# 2. QAT fine-tune (fake-quant weights during training)
+cfg = FineTuningConfig(
+    quantization_applied="ptq_dynamic",  # or "ptq_static" / "qat_float"
+    epochs=10,
+    learning_rate=1e-4,
+)
+tuner = FineTuner(reference=parent_a, child=child, config=cfg)
+metrics = tuner.finetune(states, checkpoint_path="child_qat.pt")
+
+# 3. Convert and save as int8 (PTQ-compatible format)
+q_model = tuner.convert()
+tuner.save_quantized(q_model, "child_qat_int8.pt")
+```
+
+From the CLI:
+
+```bash
+python scripts/finetune_child.py \
+    --parent-a-ckpt checkpoints/parent_a.pt \
+    --parent-b-ckpt checkpoints/parent_b.pt \
+    --quantization-applied ptq_dynamic \
+    --epochs 10 --lr 1e-4
+```
+
+The script automatically calls `convert()` + `save_quantized()` and writes
+`child_finetuned_qat_int8.pt` (and companion JSON) alongside the float QAT
+checkpoint.
+
+### Validating the int8 output
+
+Use the existing `compare_outputs` helper or `scripts/validate_quantized.py`
+to check fidelity between the float QAT child and the converted int8 model:
+
+```python
+from farm.core.decision.training.quantize_ptq import compare_outputs
+result = compare_outputs(tuner._active_child, q_model, states)
+```
+
+See also `farm/core/decision/training/quantize_ptq.py` (`QuantizedValidator`) for
+full JSON reports with fidelity / latency / size sections.
+
+### Related issues
+
+- Parent epic: [Dooders/AgentFarm#8](https://github.com/Dooders/AgentFarm/issues/8) – Distillation, Quantization, and Crossover pipeline.
+- Implementation: `farm/core/decision/training/finetune.py` (`FineTuner`, `FineTuningConfig`, `QUANTIZATION_APPLIED_MODES`).
+- QAT building blocks: `farm/core/decision/training/quantize_qat.py` (`WeightOnlyFakeQuantLinear`, `QATTrainer`).
+
+---
+
+## 9. References
 
 - Implementation: `farm/core/decision/training/crossover.py`
 - Training package exports: `farm/core/decision/training/__init__.py`
