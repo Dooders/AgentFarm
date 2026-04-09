@@ -98,7 +98,7 @@ logger = get_logger(__name__)
 
 
 def _infer_base_qnetwork_arch(module: nn.Module) -> Tuple[int, int, int]:
-    """Return ``(input_dim, output_dim, hidden_size)`` from a :class:`BaseQNetwork`."""
+    """Return ``(input_dim, hidden_size, output_dim)`` from a :class:`BaseQNetwork`."""
     if not isinstance(module, BaseQNetwork):
         raise TypeError(
             "Parallel crossover search (num_workers > 1) requires parent_a and parent_b "
@@ -111,7 +111,7 @@ def _infer_base_qnetwork_arch(module: nn.Module) -> Tuple[int, int, int]:
     input_dim = int(linear_layers[0].in_features)
     hidden_size = int(linear_layers[0].out_features)
     output_dim = int(linear_layers[-1].out_features)
-    return input_dim, output_dim, hidden_size
+    return input_dim, hidden_size, output_dim
 
 
 def _snapshot_train_state(module: nn.Module) -> Tuple[bool, List[Tuple[nn.Parameter, bool]]]:
@@ -839,9 +839,9 @@ def run_crossover_search(
         manifest: List[ManifestEntry] = []
 
         if num_workers > 1 and len(pairs) > 0:
-            in_d, out_d, hid = _infer_base_qnetwork_arch(parent_a)
-            in_b, out_b, hid_b = _infer_base_qnetwork_arch(parent_b)
-            if (in_d, out_d, hid) != (in_b, out_b, hid_b):
+            in_d, hid, out_d = _infer_base_qnetwork_arch(parent_a)
+            in_b, hid_b, out_b = _infer_base_qnetwork_arch(parent_b)
+            if (in_d, hid, out_d) != (in_b, hid_b, out_b):
                 raise ValueError(
                     "parent_a and parent_b must share the same architecture for parallel search."
                 )
