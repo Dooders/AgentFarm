@@ -17,6 +17,7 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
             {
                 "AlgorithmTrainer",
                 "CROSSOVER_MODES",
+                "ChildArchitectureSpec",
                 "CrossoverRecipe",
                 "DistillationConfig",
                 "DistillationMetrics",

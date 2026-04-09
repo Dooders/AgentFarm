@@ -13,6 +13,7 @@ from .crossover_search import (
 )
 from .crossover import (
     CROSSOVER_MODES,
+    ChildArchitectureSpec,
     crossover_checkpoints,
     crossover_quantized_state_dict,
     initialize_child_from_crossover,
@@ -66,6 +67,7 @@ from .trainer_distill import (
 __all__ = [
     "AlgorithmTrainer",
     "CROSSOVER_MODES",
+    "ChildArchitectureSpec",
     "CrossoverRecipe",
     "DistillationConfig",
     "DistillationMetrics",

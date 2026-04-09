@@ -58,21 +58,32 @@ API
     model.load_state_dict(child_sd)
 
 A thin file-level wrapper :func:`crossover_checkpoints` loads two ``.pt``
-state-dict files, runs crossover, and saves the offspring.
+files, runs crossover, and saves the offspring.
+
+:func:`initialize_child_from_crossover` is the high-level entry point: it
+resolves parents (including PTQ ``*.pt`` + ``*.json`` sidecars via
+:func:`~farm.core.decision.training.quantize_ptq.load_quantized_checkpoint`),
+optionally infers architecture, builds a :class:`~farm.core.decision.base_dqn.BaseQNetwork`
+or :class:`~farm.core.decision.base_dqn.StudentQNetwork`, and loads the
+crossed float weights.  Use :class:`ChildArchitectureSpec` to override
+inferred shapes.
 """
 
 from __future__ import annotations
 
 import copy
+import json
 import os
 import pickle
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
 
+from farm.core.decision.training.quantize_ptq import load_quantized_checkpoint
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -82,6 +93,32 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 CROSSOVER_MODES = ("random", "layer", "weighted")
+
+
+@dataclass
+class ChildArchitectureSpec:
+    """Explicit Q-network shape for :func:`initialize_child_from_crossover`.
+
+    When provided, skips shape inference from the parent state dict (keys must
+    still match the implied layout: ``network.0`` … ``network.8``).
+
+    Attributes
+    ----------
+    input_dim, output_dim:
+        State and action dimensions.
+    hidden_size:
+        Hidden width of the child: ``BaseQNetwork.hidden_size``, or the
+        **student** hidden (``max(16, parent_hidden_size // 2)``) when the
+        child class is :class:`~farm.core.decision.base_dqn.StudentQNetwork`.
+    parent_hidden_size:
+        Constructor argument for :class:`~farm.core.decision.base_dqn.StudentQNetwork`.
+        When ``None``, a default is inferred from *hidden_size* (see module notes).
+    """
+
+    input_dim: int
+    output_dim: int
+    hidden_size: int
+    parent_hidden_size: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +136,59 @@ def _to_float(tensor: torch.Tensor) -> torch.Tensor:
     if tensor.is_quantized:
         tensor = tensor.dequantize()
     return tensor.cpu().float()
+
+
+def _float_state_dict_from_dynamic_quantized_module(model: nn.Module) -> Dict[str, Any]:
+    """Extract a float ``state_dict`` matching ``BaseQNetwork`` parameter keys.
+
+    Dynamic PTQ stores ``Linear`` layers as ``DynamicQuantizedLinear``; their
+    :meth:`~torch.nn.Module.state_dict` uses packed weights that
+    :func:`crossover_quantized_state_dict` cannot blend.  This walks the
+    ``network`` :class:`~torch.nn.Sequential` and reads dequantized weights /
+    biases via the layers' public API.
+    """
+    out: Dict[str, Any] = {}
+    net = getattr(model, "network", None)
+    if not isinstance(net, nn.Sequential):
+        raise TypeError(
+            "Quantized parent must have a Sequential `network` attribute "
+            f"(got {type(net).__name__!r})"
+        )
+    qdynamic = getattr(torch.nn.quantized, "dynamic", None)
+    qlinear_type = getattr(qdynamic, "Linear", None) if qdynamic is not None else None
+
+    for i, layer in enumerate(net):
+        prefix = f"network.{i}"
+        lname = type(layer).__name__
+        if isinstance(layer, nn.Linear):
+            out[f"{prefix}.weight"] = layer.weight.detach().cpu().float()
+            out[f"{prefix}.bias"] = layer.bias.detach().cpu().float()
+        elif qlinear_type is not None and isinstance(layer, qlinear_type):
+            w_t = layer.weight()
+            b_t = layer.bias()
+            if w_t.is_quantized:
+                w_t = w_t.dequantize()
+            if b_t.is_quantized:
+                b_t = b_t.dequantize()
+            out[f"{prefix}.weight"] = w_t.detach().cpu().float()
+            out[f"{prefix}.bias"] = b_t.detach().cpu().float()
+        elif "DynamicQuantizedLinear" in lname:
+            w_fn = getattr(layer, "weight", None)
+            b_fn = getattr(layer, "bias", None)
+            if not callable(w_fn) or not callable(b_fn):
+                raise TypeError(f"Unsupported quantized layer at {prefix}: {lname!r}")
+            w_t = w_fn()
+            b_t = b_fn()
+            if w_t.is_quantized:
+                w_t = w_t.dequantize()
+            if b_t.is_quantized:
+                b_t = b_t.dequantize()
+            out[f"{prefix}.weight"] = w_t.detach().cpu().float()
+            out[f"{prefix}.bias"] = b_t.detach().cpu().float()
+        elif isinstance(layer, nn.LayerNorm):
+            out[f"{prefix}.weight"] = layer.weight.detach().cpu().float()
+            out[f"{prefix}.bias"] = layer.bias.detach().cpu().float()
+    return out
 
 
 def _validate_state_dicts(
@@ -551,10 +641,73 @@ def crossover_checkpoints(
 ParentSpec = Union[nn.Module, Path, str, Dict[str, Any]]
 
 
+def _read_arch_spec_from_ptq_json(pt_path: str) -> Optional[ChildArchitectureSpec]:
+    """Build a :class:`ChildArchitectureSpec` from ``<pt_path>.json`` arch_kwargs.
+
+    Used when a dynamically quantized checkpoint's :meth:`state_dict` no longer
+    exposes plain ``network.*.weight`` keys, so tensor-based inference fails.
+    """
+    json_path = pt_path + ".json"
+    if not os.path.isfile(json_path):
+        return None
+    try:
+        with open(json_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    arch = data.get("arch_kwargs")
+    if not isinstance(arch, dict):
+        return None
+    idim = arch.get("input_dim")
+    odim = arch.get("output_dim")
+    if idim is None or odim is None:
+        return None
+    idim_i, odim_i = int(idim), int(odim)
+    if "hidden_size" in arch:
+        return ChildArchitectureSpec(
+            input_dim=idim_i,
+            output_dim=odim_i,
+            hidden_size=int(arch["hidden_size"]),
+            parent_hidden_size=None,
+        )
+    if "parent_hidden_size" in arch:
+        ph = int(arch["parent_hidden_size"])
+        student_h = max(16, ph // 2)
+        return ChildArchitectureSpec(
+            input_dim=idim_i,
+            output_dim=odim_i,
+            hidden_size=student_h,
+            parent_hidden_size=ph,
+        )
+    return None
+
+
+def _looks_like_ptq_sidecar(json_path: str) -> bool:
+    """Return True if *json_path* looks like PTQ metadata from ``save_checkpoint``."""
+    if not os.path.isfile(json_path):
+        return False
+    try:
+        with open(json_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    q = data.get("quantization")
+    if not isinstance(q, dict):
+        return False
+    mode = q.get("mode")
+    dtype = q.get("dtype")
+    return mode in ("dynamic", "static") and dtype == "qint8"
+
+
 def _resolve_parent(
     parent: ParentSpec,
     *,
     allow_unsafe_unpickle: bool = False,
+    auto_load_ptq_checkpoints: bool = True,
 ) -> Dict[str, Any]:
     """Resolve *parent* to a state dict for use with :func:`crossover_quantized_state_dict`.
 
@@ -564,12 +717,14 @@ def _resolve_parent(
     Accepts:
     * An ``nn.Module`` – its :meth:`~nn.Module.state_dict` is returned as-is
       (potentially on any device / dtype).
-    * A ``str`` or ``pathlib.Path`` pointing to a ``.pt`` file.  Plain
-      state-dict files (``torch.save(model.state_dict(), …)``) are loaded with
-      ``weights_only=True``.  If that fails due to the file containing a
-      full-model pickle, loading is retried with ``weights_only=False`` — see
-      the warning below.  If the loaded object is an ``nn.Module``, its state
-      dict is extracted.
+    * A ``str`` or ``pathlib.Path`` pointing to a ``.pt`` file.  If a sibling
+      ``<path>.json`` looks like PTQ metadata from
+      :meth:`~farm.core.decision.training.quantize_ptq.PostTrainingQuantizer.save_checkpoint`,
+      the file is loaded via :func:`~farm.core.decision.training.quantize_ptq.load_quantized_checkpoint`
+      (full-model unpickle; trusted checkpoints only).  Otherwise plain
+      state-dict files use ``weights_only=True`` first, with optional unsafe
+      fallback — see the warning below.  If the loaded object is an
+      ``nn.Module``, its state dict is extracted.
     * A ``dict`` (state dict) – returned as-is without copying.
 
     .. warning::
@@ -585,6 +740,9 @@ def _resolve_parent(
     allow_unsafe_unpickle:
         When ``True``, allows fallback from ``weights_only=True`` to
         ``weights_only=False`` for full-model pickle checkpoints.
+    auto_load_ptq_checkpoints:
+        When ``True`` (default), detect PTQ sidecar JSON next to ``*.pt`` paths
+        and load via :func:`load_quantized_checkpoint`.
 
     Returns
     -------
@@ -606,6 +764,10 @@ def _resolve_parent(
         path = str(parent)
         if not os.path.isfile(path):
             raise FileNotFoundError(f"Parent checkpoint not found: {path}")
+        json_path = path + ".json"
+        if auto_load_ptq_checkpoints and _looks_like_ptq_sidecar(json_path):
+            q_model, _meta = load_quantized_checkpoint(path)
+            return _float_state_dict_from_dynamic_quantized_module(q_model)
         # Try weights_only=True first (plain state-dict files).  Full-model
         # pickle fallback is opt-in via allow_unsafe_unpickle=True.
         try:
@@ -719,6 +881,65 @@ def _infer_arch_from_state_dict(
     return input_dim, hidden_size, output_dim
 
 
+def _infer_parent_hidden_size_for_student(student_hidden: int) -> int:
+    """Best-effort inverse of ``StudentQNetwork``'s ``max(16, parent_hidden // 2)``."""
+    if student_hidden <= 16:
+        return 32
+    return student_hidden * 2
+
+
+def _select_child_network_class(
+    parent_a_module: Optional[nn.Module],
+    network_class: Optional[Type[nn.Module]],
+    *,
+    prefer_student_from_arch: bool = False,
+) -> Type[nn.Module]:
+    from farm.core.decision.base_dqn import BaseQNetwork, StudentQNetwork
+
+    if network_class is not None:
+        if network_class is not BaseQNetwork and network_class is not StudentQNetwork:
+            raise TypeError(
+                "network_class must be BaseQNetwork or StudentQNetwork "
+                f"(got {network_class!r})"
+            )
+        return network_class
+    if isinstance(parent_a_module, StudentQNetwork):
+        return StudentQNetwork
+    if prefer_student_from_arch:
+        return StudentQNetwork
+    if isinstance(parent_a_module, BaseQNetwork):
+        return BaseQNetwork
+    return BaseQNetwork
+
+
+def _build_child_network_instance(
+    cls: Type[nn.Module],
+    input_dim: int,
+    output_dim: int,
+    hidden_size: int,
+    parent_hidden_size: Optional[int],
+) -> nn.Module:
+    from farm.core.decision.base_dqn import BaseQNetwork, StudentQNetwork
+
+    if cls is StudentQNetwork:
+        ph = (
+            parent_hidden_size
+            if parent_hidden_size is not None
+            else _infer_parent_hidden_size_for_student(hidden_size)
+        )
+        inferred_student_hidden = max(16, ph // 2)
+        if inferred_student_hidden != hidden_size:
+            raise ValueError(
+                f"parent_hidden_size={ph} implies student hidden {inferred_student_hidden}, "
+                f"but weights imply hidden {hidden_size}. "
+                "Pass a matching ChildArchitectureSpec.parent_hidden_size or network_class=BaseQNetwork."
+            )
+        return StudentQNetwork(input_dim, output_dim, parent_hidden_size=ph)
+    if cls is BaseQNetwork:
+        return BaseQNetwork(input_dim, output_dim, hidden_size=hidden_size)
+    raise TypeError(f"Unsupported network class {cls!r}")
+
+
 # ---------------------------------------------------------------------------
 # Public initializer
 # ---------------------------------------------------------------------------
@@ -732,6 +953,9 @@ def initialize_child_from_crossover(
     rng: Optional[Union[np.random.Generator, int]] = None,
     device: Optional[Union[torch.device, str]] = None,
     allow_unsafe_unpickle: bool = False,
+    auto_load_ptq_checkpoints: bool = True,
+    architecture: Optional[ChildArchitectureSpec] = None,
+    network_class: Optional[Type[nn.Module]] = None,
     **strategy_kwargs: Any,
 ) -> nn.Module:
     """Build and initialise a child ``nn.Module`` from two parents via crossover.
@@ -740,106 +964,66 @@ def initialize_child_from_crossover(
     It orchestrates the full pipeline:
 
     1. **Resolve** *parent_a* / *parent_b* to float-or-quantized state dicts
-       (accepts live models, checkpoint paths, or pre-loaded state dicts).
-    2. **Infer** the child architecture (``input_dim``, ``hidden_size``,
-       ``output_dim``) from parent A's state dict.
+       (live models, checkpoint paths, or dicts).  PTQ full-model checkpoints
+       from :meth:`~farm.core.decision.training.quantize_ptq.PostTrainingQuantizer.save_checkpoint`
+       are detected when ``<path>.json`` carries PTQ metadata and loaded via
+       :func:`~farm.core.decision.training.quantize_ptq.load_quantized_checkpoint`.
+    2. **Infer** (or take from *architecture*) ``input_dim``, ``hidden_size``,
+       ``output_dim`` from parent A's tensors.
     3. **Instantiate** a fresh :class:`~farm.core.decision.base_dqn.BaseQNetwork`
-       on CPU with the inferred dimensions.
-    4. **Run** the requested crossover strategy (delegating to
-       :func:`crossover_quantized_state_dict`, which validates key/shape
-       alignment between both parents) to produce a float32 child state dict.
-    5. **Load** the child state dict with ``strict=True``.
-    6. **Move** the child to *device* (defaults to CPU) and set it to
-       ``eval()`` mode.
+       or :class:`~farm.core.decision.base_dqn.StudentQNetwork` (when *parent_a*
+       is a student, or *network_class* requests it) on CPU.
+    4. **Run** :func:`crossover_quantized_state_dict` to produce a float32
+       child state dict.
+    5. **Load** with ``strict=True``, optionally **.to(device)**, **eval()**.
 
     Parameters
     ----------
     parent_a:
-        First parent – an :class:`torch.nn.Module`, a filesystem path
-        (``str`` / :class:`pathlib.Path`) to a ``.pt`` checkpoint, or a
-        pre-loaded state dict (``dict``).  Inputs must be state-dict
-        compatible after loading/dequantization so the standard network
-        parameter keys used for architecture inference (for example,
-        ``network.0.weight`` and the final layer weight) are present.
-        Plain full-model quantized checkpoints saved by
-        :meth:`~farm.core.decision.training.quantize_ptq.PostTrainingQuantizer.save_checkpoint`
-        are not supported here unless they have first been converted back
-        into such a float/state-dict representation.
+        First parent – :class:`torch.nn.Module`, path to ``.pt``, or state dict.
+        Architecture inference reads ``network.0`` / ``network.8`` weights.
     parent_b:
-        Second parent – same accepted types and compatibility
-        requirements as *parent_a*.
+        Second parent – same types; must match *parent_a* keys/shapes.
     strategy:
-        Crossover strategy.  One of:
-
-        ``"random"``
-            Each parameter tensor is independently drawn from parent A with
-            probability *alpha* (default ``0.5``) or from parent B.
-            Controlled by *rng* / the ``seed`` kwarg for reproducibility.
-
-        ``"layer"``
-            Parameters are grouped into logical blocks (Linear + LayerNorm per
-            stage for standard Q-networks).  Even-indexed blocks come from
-            parent A, odd-indexed from parent B.
-
-        ``"weighted"``
-            Child tensor = ``alpha * parent_a + (1 - alpha) * parent_b``
-            in float32.  *alpha* defaults to ``0.5`` (midpoint blend) if not
-            provided in *strategy_kwargs*.
-
+        ``"random"``, ``"layer"``, or ``"weighted"`` (see
+        :func:`crossover_quantized_state_dict`).
     rng:
-        RNG for stochastic strategies.  Accepts a
-        :class:`numpy.random.Generator` or an ``int`` seed.  When ``None``
-        and no ``"seed"`` key is present in *strategy_kwargs*, the RNG is
-        non-reproducible.  Ignored by ``"layer"`` and ``"weighted"``
-        strategies.
+        :class:`numpy.random.Generator` or ``int`` seed for ``"random"``.
     device:
-        Target device for the returned child.  Accepts a
-        :class:`torch.device` or a device string (e.g. ``"cpu"``,
-        ``"cuda:0"``).  The child is **always constructed on CPU** first,
-        then moved to *device*.  Defaults to ``torch.device("cpu")``.
+        Target device; child is built on CPU then moved.
     allow_unsafe_unpickle:
-        Whether full-model pickle checkpoint fallback is allowed when loading
-        parent paths. Keep ``False`` unless checkpoints are trusted and cannot
-        be converted to plain state-dict files.
+        Allow ``weights_only=False`` fallback for non-PTQ paths when
+        ``weights_only=True`` fails.
+    auto_load_ptq_checkpoints:
+        When ``True`` (default), use :func:`load_quantized_checkpoint` for
+        ``*.pt`` files that have a sibling ``*.json`` with PTQ metadata
+        (trusted checkpoints only — unpickles the full model).
+    architecture:
+        Optional :class:`ChildArchitectureSpec` to skip tensor-based inference.
+    network_class:
+        Force :class:`~farm.core.decision.base_dqn.BaseQNetwork` vs
+        :class:`~farm.core.decision.base_dqn.StudentQNetwork`.  When ``None``,
+        uses the type of *parent_a* if it is a module, else ``BaseQNetwork``.
     **strategy_kwargs:
-        Additional keyword arguments forwarded to
-        :func:`crossover_quantized_state_dict`, e.g.:
-
-        * ``alpha`` – blend / selection coefficient (float, ``[0, 1]``).
-        * ``seed`` – integer seed (used when *rng* is ``None``).
+        Forwarded to :func:`crossover_quantized_state_dict` (``alpha``,
+        ``seed``, …).
 
     Returns
     -------
     nn.Module
-        A fresh :class:`~farm.core.decision.base_dqn.BaseQNetwork` in
-        ``eval()`` mode on *device* with weights initialised from the
-        crossover of *parent_a* and *parent_b*.
-
-    Raises
-    ------
-    TypeError
-        If any parent is not an ``nn.Module``, path, or dict.
-    FileNotFoundError
-        If a parent path does not point to an existing file.
-    ValueError
-        If the parents' state dicts have mismatched keys / shapes, or if
-        the architecture cannot be inferred from the state dict, or if
-        *strategy* is not a recognised mode.
+        Fresh Q-network in ``eval()`` mode.
 
     Notes
     -----
-    **Key alignment**: Both parents must have identical state-dict keys and
-    matching tensor shapes.  Any mismatch raises a ``ValueError`` immediately.
+    **Quantized parents**: Per-tensor ``qint8`` and PTQ checkpoints are
+    dequantized for crossover; the child is always float weights.
 
-    **Quantized parents**: Quantized tensors (``torch.qint8``) are
-    dequantized to float32 before crossover, so the returned child is
-    always a float-precision model suitable for inference or downstream
-    training / re-quantization.
-
-    **Determinism**: Pass *rng* as an integer seed or a seeded
-    :class:`numpy.random.Generator` for reproducible ``"random"`` crossover.
-    ``"layer"`` and ``"weighted"`` with a fixed *alpha* are fully
-    deterministic.
+    **Student parent_hidden**: When the child is a
+    :class:`~farm.core.decision.base_dqn.StudentQNetwork` and
+    ``parent_hidden_size`` is not supplied, it is inferred from the student
+    hidden width (``hidden_size * 2`` when hidden > 16, else ``32``), which may
+    not match the original teacher width if it was odd — pass
+    ``ChildArchitectureSpec(..., parent_hidden_size=...)`` to override.
 
     Examples
     --------
@@ -867,39 +1051,60 @@ def initialize_child_from_crossover(
             rng=42,
         )
     """
-    from farm.core.decision.base_dqn import BaseQNetwork
+    parent_a_module = parent_a if isinstance(parent_a, nn.Module) else None
 
-    # ------------------------------------------------------------------
-    # 1. Resolve parents to state dicts
-    # ------------------------------------------------------------------
-    sd_a = _resolve_parent(parent_a, allow_unsafe_unpickle=allow_unsafe_unpickle)
-    sd_b = _resolve_parent(parent_b, allow_unsafe_unpickle=allow_unsafe_unpickle)
-
-    # ------------------------------------------------------------------
-    # 2. Infer architecture from parent A (keys/shapes validated in crossover)
-    # ------------------------------------------------------------------
-    input_dim, hidden_size, output_dim = _infer_arch_from_state_dict(sd_a)
-
-    # ------------------------------------------------------------------
-    # 4. Instantiate a fresh child on CPU
-    # ------------------------------------------------------------------
-    child = BaseQNetwork(
-        input_dim=input_dim,
-        output_dim=output_dim,
-        hidden_size=hidden_size,
+    sd_a = _resolve_parent(
+        parent_a,
+        allow_unsafe_unpickle=allow_unsafe_unpickle,
+        auto_load_ptq_checkpoints=auto_load_ptq_checkpoints,
+    )
+    sd_b = _resolve_parent(
+        parent_b,
+        allow_unsafe_unpickle=allow_unsafe_unpickle,
+        auto_load_ptq_checkpoints=auto_load_ptq_checkpoints,
     )
 
-    # ------------------------------------------------------------------
-    # 5. Run crossover strategy
-    # ------------------------------------------------------------------
-    # Normalise rng: int → Generator, keep Generator, leave None alone
+    prefer_student_from_arch = False
+    if architecture is not None:
+        input_dim = architecture.input_dim
+        output_dim = architecture.output_dim
+        hidden_size = architecture.hidden_size
+        parent_hidden_override = architecture.parent_hidden_size
+        prefer_student_from_arch = parent_hidden_override is not None
+    else:
+        try:
+            input_dim, hidden_size, output_dim = _infer_arch_from_state_dict(sd_a)
+            parent_hidden_override = None
+        except ValueError:
+            alt_spec: Optional[ChildArchitectureSpec] = None
+            if isinstance(parent_a, (str, Path)):
+                alt_spec = _read_arch_spec_from_ptq_json(str(parent_a))
+            if alt_spec is None:
+                raise
+            input_dim = alt_spec.input_dim
+            output_dim = alt_spec.output_dim
+            hidden_size = alt_spec.hidden_size
+            parent_hidden_override = alt_spec.parent_hidden_size
+            prefer_student_from_arch = parent_hidden_override is not None
+
+    cls = _select_child_network_class(
+        parent_a_module,
+        network_class,
+        prefer_student_from_arch=prefer_student_from_arch,
+    )
+    child = _build_child_network_instance(
+        cls,
+        input_dim,
+        output_dim,
+        hidden_size,
+        parent_hidden_override,
+    )
+
     resolved_rng: Optional[np.random.Generator] = None
     if isinstance(rng, int):
         resolved_rng = np.random.default_rng(rng)
     elif isinstance(rng, np.random.Generator):
         resolved_rng = rng
-    # If rng is None, crossover_quantized_state_dict may still use seed
-    # kwarg from strategy_kwargs.
 
     child_sd = crossover_quantized_state_dict(
         sd_a,
@@ -909,14 +1114,8 @@ def initialize_child_from_crossover(
         **strategy_kwargs,
     )
 
-    # ------------------------------------------------------------------
-    # 6. Load state dict (strict)
-    # ------------------------------------------------------------------
     child.load_state_dict(child_sd, strict=True)
 
-    # ------------------------------------------------------------------
-    # 7. Move to device and set eval mode
-    # ------------------------------------------------------------------
     if device is not None:
         if isinstance(device, str):
             device = torch.device(device)
@@ -930,6 +1129,7 @@ def initialize_child_from_crossover(
         input_dim=input_dim,
         hidden_size=hidden_size,
         output_dim=output_dim,
+        child_class=cls.__name__,
         device=str(device) if device is not None else "cpu",
     )
     return child
