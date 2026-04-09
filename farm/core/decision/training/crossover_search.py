@@ -160,7 +160,13 @@ class FineTuneRegime:
     epochs:
         Number of full passes over the state buffer.
     lr:
-        Adam learning rate.
+        Learning rate (passed to :attr:`~farm.core.decision.training.finetune.FineTuningConfig.learning_rate`).
+    optimizer:
+        Built-in optimiser name; see :data:`~farm.core.decision.training.finetune.FINETUNE_OPTIMIZERS`.
+    optimizer_kwargs:
+        Extra optimiser keyword arguments.
+    early_stopping_patience:
+        Early stopping patience (0 = disabled); requires ``val_fraction > 0``.
     quantization_applied:
         Passed to :class:`~farm.core.decision.training.finetune.FineTuningConfig`.
         Use ``"none"`` (default) for full-precision float fine-tuning.
@@ -182,6 +188,9 @@ class FineTuneRegime:
     batch_size: int = 32
     val_fraction: float = 0.1
     seed: Optional[int] = None
+    optimizer: str = "adam"
+    optimizer_kwargs: Dict[str, Any] = field(default_factory=dict)
+    early_stopping_patience: int = 0
 
 
 @dataclass
@@ -485,6 +494,9 @@ def _run_one(
         loss_fn=regime.loss_fn,
         seed=regime.seed,
         quantization_applied=regime.quantization_applied,
+        optimizer=regime.optimizer,
+        optimizer_kwargs=dict(regime.optimizer_kwargs),
+        early_stopping_patience=regime.early_stopping_patience,
     )
     child_pt_path = os.path.join(child_dir, "child.pt")
     tuner = FineTuner(reference=parent_a, child=child, config=ft_cfg)
@@ -545,6 +557,9 @@ def _run_one(
             "loss_fn": regime.loss_fn,
             "seed": regime.seed,
             "quantization_applied": regime.quantization_applied,
+            "optimizer": regime.optimizer,
+            "optimizer_kwargs": regime.optimizer_kwargs,
+            "early_stopping_patience": regime.early_stopping_patience,
         },
         "finetune_metrics": _sanitize_for_json(ft_metrics.to_dict()),
         "torch_version": torch.__version__,

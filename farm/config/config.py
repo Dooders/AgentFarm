@@ -888,6 +888,9 @@ class SimulationConfig:
             else:
                 nested_data["observation"] = obs_data
 
+        # Decision / training slice: consumed by load_finetuning_config_from_yaml(), not SimulationConfig
+        nested_data.pop("crossover_child_finetune", None)
+
         return cls(**nested_data)
 
     @classmethod

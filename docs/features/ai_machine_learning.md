@@ -27,6 +27,7 @@
      - [Genome Embeddings](#genome-embeddings)
 3. [Advanced ML Techniques](#advanced-ml-techniques)
    - [Transfer Learning](#transfer-learning)
+   - [Crossover child fine-tuning (Q-networks)](#crossover-child-fine-tuning-q-networks)
    - [Multi-Agent Reinforcement Learning (MARL)](#multi-agent-reinforcement-learning-marl)
    - [Imitation Learning](#imitation-learning)
 4. [Performance Optimization](#performance-optimization)
@@ -941,6 +942,17 @@ fine_tune_agent(transfer_agent, complex_env, episodes=100)
 # - Better initial performance
 # - Reduced training time
 ```
+
+### Crossover child fine-tuning (Q-networks)
+
+After **neural recombination** (distillation → quantization → crossover), the child `BaseQNetwork` is a heuristic blend of parents. A dedicated **supervised fine-tuning** stage aligns it to the task using a frozen reference (typically parent A) and a state buffer—the same `(N, input_dim)` format as distillation scripts (`.npy` replay or synthetic states).
+
+- **Library API:** `farm.core.decision.training.finetune` — `FineTuningConfig`, `FineTuner`, optional `optimizer_factory`, `build_finetune_optimizer`, `load_finetuning_config_from_yaml`.
+- **CLI:** `scripts/finetune_child.py` — loads parents, runs crossover, fine-tunes; optional `--config-yaml` to point at a YAML file whose `crossover_child_finetune` section supplies defaults (mirrors `farm/config/default.yaml`).
+- **Defaults:** Hyperparameters for this slice also live under `crossover_child_finetune` in `farm/config/default.yaml` so they stay visible next to the rest of the framework config.
+- **Design notes:** `docs/design/crossover_strategies.md` (post-crossover fine-tune and QAT modes), `docs/design/crossover_search_space.md` (search over fine-tune regimes).
+
+Metrics include validation loss and action agreement **before** training and **best** after; checkpoints ship with a `.json` sidecar (config + metrics).
 
 ### Multi-Agent Reinforcement Learning (MARL)
 

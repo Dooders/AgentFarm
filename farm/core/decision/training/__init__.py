@@ -19,10 +19,13 @@ from .crossover import (
     initialize_child_from_crossover,
 )
 from .finetune import (
+    FINETUNE_OPTIMIZERS,
     QUANTIZATION_APPLIED_MODES,
     FineTuner,
     FineTuningConfig,
     FineTuningMetrics,
+    build_finetune_optimizer,
+    load_finetuning_config_from_yaml,
 )
 from .quantize_ptq import (
     PostTrainingQuantizer,
@@ -74,6 +77,7 @@ __all__ = [
     "DistillationTrainer",
     "ExperienceCollector",
     "FineTuneRegime",
+    "FINETUNE_OPTIMIZERS",
     "FineTuner",
     "FineTuningConfig",
     "FineTuningMetrics",
@@ -85,6 +89,7 @@ __all__ = [
     "QATMetrics",
     "QATTrainer",
     "QUANTIZATION_APPLIED_MODES",
+    "build_finetune_optimizer",
     "QuantizationConfig",
     "QuantizationResult",
     "QuantizedValidationReport",
@@ -108,6 +113,7 @@ __all__ = [
     "crossover_quantized_state_dict",
     "generate_recommendation",
     "initialize_child_from_crossover",
+    "load_finetuning_config_from_yaml",
     "load_qat_checkpoint",
     "load_quantized_checkpoint",
     "relative_return_drop",
