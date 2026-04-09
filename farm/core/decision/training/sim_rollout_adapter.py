@@ -63,6 +63,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from farm.core.decision.training.distillation_rollout import (
+    _rollout_passed,
+    relative_return_drop,
+)
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -70,9 +74,6 @@ logger = get_logger(__name__)
 # Episode seed stride — matches the stride used in distillation_rollout for consistency.
 # Using a large prime prevents accidental seed aliasing across episodes.
 _EPISODE_SEED_STRIDE: int = 1_000_003
-
-# Tolerance for treating a mean return as effectively zero when computing relative drop.
-_ZERO_THRESHOLD: float = 1e-8
 
 # ---------------------------------------------------------------------------
 # Protocols / interfaces
@@ -392,7 +393,7 @@ class PolicyRolloutAdapter:
 
         p_mean = parent_stats.mean_return
         s_mean = student_stats.mean_return
-        rel = _relative_return_drop(p_mean, s_mean)
+        rel = relative_return_drop(p_mean, s_mean)
 
         passed: Optional[bool] = None
         if cfg.max_relative_return_drop is not None:
@@ -484,30 +485,3 @@ class PolicyRolloutAdapter:
             done = terminated or truncated
 
         return total, steps
-
-
-# ---------------------------------------------------------------------------
-# Helpers (mirror distillation_rollout conventions)
-# ---------------------------------------------------------------------------
-
-
-def _relative_return_drop(parent_mean: float, student_mean: float) -> Optional[float]:
-    """Scalar summary of return drop (positive when student is worse)."""
-    if parent_mean > _ZERO_THRESHOLD:
-        return float(max(0.0, 1.0 - student_mean / parent_mean))
-    if parent_mean < -_ZERO_THRESHOLD:
-        return float(max(0.0, (parent_mean - student_mean) / abs(parent_mean)))
-    return None
-
-
-def _rollout_passed(
-    parent_mean: float,
-    student_mean: float,
-    max_relative_return_drop: float,
-) -> bool:
-    """Return ``True`` if student return is within the allowed drop vs parent."""
-    if parent_mean > _ZERO_THRESHOLD:
-        return student_mean >= parent_mean * (1.0 - max_relative_return_drop)
-    if parent_mean < -_ZERO_THRESHOLD:
-        return student_mean >= parent_mean * (1.0 + max_relative_return_drop)
-    return True

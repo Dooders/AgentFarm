@@ -20,13 +20,15 @@ import torch
 import torch.nn as nn
 
 from farm.core.decision.base_dqn import BaseQNetwork
+from farm.core.decision.training.distillation_rollout import (
+    _rollout_passed,
+    relative_return_drop,
+)
 from farm.core.decision.training.sim_rollout_adapter import (
     PolicyRolloutAdapter,
     SimEpisodeStats,
     SimRolloutConfig,
     SimRolloutResult,
-    _relative_return_drop,
-    _rollout_passed,
 )
 
 # ---------------------------------------------------------------------------
@@ -253,14 +255,14 @@ class TestPolicyRolloutAdapterReturnDrop:
         assert result.passed is False
 
     def test_relative_drop_none_when_parent_near_zero(self):
-        result_drop = _relative_return_drop(0.0, 0.0)
+        result_drop = relative_return_drop(0.0, 0.0)
         assert result_drop is None
 
     def test_relative_drop_positive_parent(self):
-        assert _relative_return_drop(10.0, 8.0) == pytest.approx(0.2)
+        assert relative_return_drop(10.0, 8.0) == pytest.approx(0.2)
 
     def test_relative_drop_negative_parent(self):
-        assert _relative_return_drop(-10.0, -12.0) == pytest.approx(0.2)
+        assert relative_return_drop(-10.0, -12.0) == pytest.approx(0.2)
 
     def test_rollout_passed_positive_parent(self):
         # student return >= parent * (1 - 0.2) → passes
