@@ -317,7 +317,9 @@ class TestPolicyRolloutAdapterSeeding:
         adapter.run(env_factory=_make_env)
 
         # Expect 2*n_ep resets (parent + student), each with distinct spaced seeds
-        expected_seeds = [int(0 + i * 1_000_003) for i in range(n_ep)]
+        from farm.core.decision.training.sim_rollout_adapter import _EPISODE_SEED_STRIDE
+
+        expected_seeds = [int(0 + i * _EPISODE_SEED_STRIDE) for i in range(n_ep)]
         parent_seeds = reset_seeds[:n_ep]
         student_seeds = reset_seeds[n_ep:]
         assert parent_seeds == expected_seeds
@@ -362,6 +364,7 @@ class TestPolicyRolloutAdapterFeaturePipeline:
 
     def test_custom_feature_pipeline_called(self):
         net = _make_net(obs_dim=OBS_DIM)
+        # 1 episode × 1 step per policy (single-step env) → 1 pipeline call per policy
         cfg = SimRolloutConfig(n_episodes=1, max_steps=3, base_seed=0)
 
         pipeline_calls = []
@@ -374,8 +377,8 @@ class TestPolicyRolloutAdapterFeaturePipeline:
 
         adapter.run(env_factory=_single_step_env_factory())
 
-        # pipeline called once per step for both parent and student
-        assert len(pipeline_calls) >= 2  # at least one call per policy
+        # 1 episode × 1 step × 2 policies (parent + student) = exactly 2 pipeline calls
+        assert len(pipeline_calls) == 2
 
     def test_pipeline_output_shape_determines_input_to_net(self):
         """If pipeline returns wrong shape, the network forward will raise or silently fail.

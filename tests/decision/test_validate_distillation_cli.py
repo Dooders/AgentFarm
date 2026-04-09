@@ -85,7 +85,7 @@ def test_validate_cli_args_accepts_defaults():
 def test_validate_cli_args_rejects_invalid(field: str, value: object, match: str):
     mod = _get_mod()
     kwargs = {field: value}
-    # sim_max_relative_return_drop requires sim_rollout_episodes > 0 to trigger
+    # sim_max_relative_return_drop requires sim_rollout_episodes > 0 for validation to trigger
     if field == "sim_max_relative_return_drop" and isinstance(value, float) and value > 1.0:
         kwargs["sim_rollout_episodes"] = 5
     with pytest.raises(ValueError, match=match):
@@ -98,14 +98,16 @@ def test_validate_cli_args_rejects_invalid(field: str, value: object, match: str
 
 
 def test_load_env_factory_empty_returns_shim():
-    """Empty sim_env_factory string should return the SeededLinearMDP shim."""
+    """Empty sim_env_factory string should return a factory satisfying EpisodeEnvProtocol."""
     mod = _get_mod()
     factory = mod._load_env_factory("", input_dim=4, output_dim=2)
     assert callable(factory)
     env = factory()
-    # The shim should expose reset() and step() as required by EpisodeEnvProtocol
-    assert hasattr(env, "reset")
-    assert hasattr(env, "step")
+    # Verify protocol compliance by actually calling both required methods
+    obs, info = env.reset(seed=0)
+    assert isinstance(info, dict)
+    step_result = env.step(0)
+    assert len(step_result) == 5  # (obs, reward, terminated, truncated, info)
 
 
 def test_load_env_factory_shim_reset_returns_array():
