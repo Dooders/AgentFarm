@@ -111,7 +111,9 @@ def _extract_quant_fidelity(label: str, report: Dict[str, Any]) -> Dict[str, str
     latency = report.get("latency", {})
     size = report.get("size", {})
     size_ratio = size.get("size_ratio")
-    kl = fidelity.get("kl_divergence_float_vs_quant") or fidelity.get("kl_divergence")
+    kl = fidelity.get("kl_divergence_float_vs_quant")
+    if kl is None:
+        kl = fidelity.get("kl_divergence")
     return {
         "label": label,
         "type": "quantized_fidelity",

@@ -290,7 +290,9 @@ def _extract_row_summary(label: str, row_type: str, report: Dict[str, Any]) -> D
         fidelity = report.get("fidelity", {})
         latency = report.get("latency", {})
         row["action_agreement"] = f"{fidelity.get('action_agreement', float('nan')):.4f}"
-        kl = fidelity.get("kl_divergence_float_vs_quant") or fidelity.get("kl_divergence")
+        kl = fidelity.get("kl_divergence_float_vs_quant")
+        if kl is None:
+            kl = fidelity.get("kl_divergence")
         row["kl_divergence"] = f"{kl:.6f}" if kl is not None else "n/a"
         row["mean_cosine_similarity"] = f"{fidelity.get('mean_cosine_similarity', float('nan')):.4f}"
         row["float_ms"] = f"{latency.get('float_inference_ms', float('nan')):.4f}"
@@ -509,10 +511,18 @@ def _print_recombination_summary(label: str, report: Dict[str, Any]) -> None:
     if oracle is not None:
         print(f"  Oracle agreement        : {oracle:.4f}")
     for comp_label, cmp in report.get("comparisons", {}).items():
-        print(f"  [{comp_label}] KL={cmp.get('kl_divergence', 'n/a'):.6f}"
-              f"  MSE={cmp.get('mse', 'n/a'):.6f}"
-              f"  cosine={cmp.get('mean_cosine_similarity', 'n/a'):.4f}"
-              f"  passed={cmp.get('passed', '?')}")
+        kl = cmp.get("kl_divergence")
+        mse = cmp.get("mse")
+        cosine = cmp.get("mean_cosine_similarity")
+        kl_text = f"{float(kl):.6f}" if kl is not None else "n/a"
+        mse_text = f"{float(mse):.6f}" if mse is not None else "n/a"
+        cosine_text = f"{float(cosine):.4f}" if cosine is not None else "n/a"
+        print(
+            f"  [{comp_label}] KL={kl_text}"
+            f"  MSE={mse_text}"
+            f"  cosine={cosine_text}"
+            f"  passed={cmp.get('passed', '?')}"
+        )
     print(f"  Overall passed          : {report.get('passed', 'n/a')}")
 
 
@@ -689,6 +699,11 @@ def main() -> None:
                     "quantized_fidelity", qfid,
                 ))
                 all_passed = all_passed and qfid.get("passed", True)
+        else:
+            print(
+                "\n[Row C / fidelity] Skipped — float student checkpoints are required for "
+                "int8-vs-float fidelity reports."
+            )
     else:
         print("\n[Row C] Skipped — student_a_int8 / student_b_int8 not provided or not found.")
 

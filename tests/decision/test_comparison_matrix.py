@@ -99,6 +99,7 @@ def ckpt_dir(tmp_path_factory):
     _save_state_dict(_make_student(5), str(d / "student_B.pt"))
     _save_quantized(_make_student(4), str(d / "student_A_int8.pt"))
     _save_quantized(_make_student(5), str(d / "student_B_int8.pt"))
+    _save_quantized(_make_base_qnetwork(3), str(d / "child_int8.pt"))
     return d
 
 
@@ -232,6 +233,13 @@ class TestExtractRowSummary:
         assert "float_ms" in row
         assert "size_ratio" in row
 
+    def test_quant_row_kl_zero_is_preserved(self):
+        mod = _get_driver()
+        report = self._quant_report()
+        report["fidelity"]["kl_divergence_float_vs_quant"] = 0.0
+        row = mod._extract_row_summary("TestQ", "quantized_fidelity", report)
+        assert row["kl_divergence"] == "0.000000"
+
     def test_oracle_agreement_present(self):
         mod = _get_driver()
         row = mod._extract_row_summary("R", "recombination", self._recombination_report())
@@ -302,6 +310,36 @@ class TestRunComparisonMatrixIntegration:
         assert "child_vs_parent_b" in row_a["comparisons"]
         assert row_a["matrix_row"] == "A: child vs float parents"
 
+    def test_row_c_warns_when_float_students_missing(self, ckpt_dir, tmp_path, capsys):
+        """Row C runs, and fidelity skip reason is clearly printed when students are absent."""
+        script = str(_DRIVER_SCRIPT)
+        argv = [
+            script,
+            "--parent-a-ckpt", str(ckpt_dir / "parent_A.pt"),
+            "--parent-b-ckpt", str(ckpt_dir / "parent_B.pt"),
+            "--student-a-int8", str(ckpt_dir / "student_A_int8.pt"),
+            "--student-b-int8", str(ckpt_dir / "student_B_int8.pt"),
+            "--child-ckpt", str(ckpt_dir / "child.pt"),
+            "--n-states", "30",
+            "--seed", "2",
+            "--latency-warmup", "0",
+            "--latency-repeats", "3",
+            "--report-only",
+            "--report-dir", str(tmp_path / "row_c_no_students"),
+        ]
+        old_argv = sys.argv
+        try:
+            sys.argv = argv
+            mod = _get_driver()
+            mod.main()
+        finally:
+            sys.argv = old_argv
+        out = capsys.readouterr().out
+        assert "float student checkpoints are required for int8-vs-float fidelity reports" in out
+        assert (tmp_path / "row_c_no_students" / "row_C_child_vs_int8_students.json").exists()
+        assert not (tmp_path / "row_c_no_students" / "row_C_quant_fidelity_A.json").exists()
+        assert not (tmp_path / "row_c_no_students" / "row_C_quant_fidelity_B.json").exists()
+
     def test_full_matrix_abc_via_main(self, ckpt_dir, tmp_path):
         """Smoke test the main() entry point for rows A, B, C."""
         script = str(_DRIVER_SCRIPT)
@@ -336,6 +374,57 @@ class TestRunComparisonMatrixIntegration:
         assert (tmp_path / "row_C_quant_fidelity_B.json").exists()
         assert (tmp_path / "comparison_matrix_summary.md").exists()
         assert (tmp_path / "comparison_matrix_summary.csv").exists()
+
+    def test_row_d_runs_when_requested(self, ckpt_dir, tmp_path):
+        script = str(_DRIVER_SCRIPT)
+        argv = [
+            script,
+            "--parent-a-ckpt", str(ckpt_dir / "parent_A.pt"),
+            "--parent-b-ckpt", str(ckpt_dir / "parent_B.pt"),
+            "--child-ckpt", str(ckpt_dir / "child.pt"),
+            "--child-int8", str(ckpt_dir / "child_int8.pt"),
+            "--row-d",
+            "--n-states", "30",
+            "--seed", "4",
+            "--latency-warmup", "0",
+            "--latency-repeats", "3",
+            "--report-only",
+            "--report-dir", str(tmp_path / "row_d_test"),
+        ]
+        old_argv = sys.argv
+        try:
+            sys.argv = argv
+            mod = _get_driver()
+            mod.main()
+        finally:
+            sys.argv = old_argv
+
+        assert (tmp_path / "row_d_test" / "row_D_child_int8_vs_parents.json").exists()
+
+    def test_threshold_failure_exits_nonzero_without_report_only(self, ckpt_dir, tmp_path):
+        script = str(_DRIVER_SCRIPT)
+        argv = [
+            script,
+            "--parent-a-ckpt", str(ckpt_dir / "parent_A.pt"),
+            "--parent-b-ckpt", str(ckpt_dir / "parent_B.pt"),
+            "--child-ckpt", str(ckpt_dir / "child.pt"),
+            "--n-states", "20",
+            "--seed", "5",
+            "--latency-warmup", "0",
+            "--latency-repeats", "3",
+            "--min-action-agreement", "1.1",
+            "--report-dir", str(tmp_path / "threshold_fail"),
+        ]
+        old_argv = sys.argv
+        try:
+            sys.argv = argv
+            mod = _get_driver()
+            with pytest.raises(SystemExit) as exc:
+                mod.main()
+        finally:
+            sys.argv = old_argv
+
+        assert exc.value.code == 1
 
     def test_row_a_report_schema(self, ckpt_dir, tmp_path):
         """Verify that row A JSON has the expected schema fields."""
@@ -437,6 +526,13 @@ class TestSummaryHelpers:
         row = mod._extract_quant_fidelity("Q", self._quant_report())
         # kl_divergence_float_vs_quant = 0.001
         assert row["kl_divergence"] != "n/a"
+
+    def test_extract_quant_kl_zero_is_preserved(self):
+        mod = _get_summary()
+        report = self._quant_report()
+        report["fidelity"]["kl_divergence_float_vs_quant"] = 0.0
+        row = mod._extract_quant_fidelity("Q", report)
+        assert row["kl_divergence"] == "0.000000"
 
     def test_build_markdown_contains_headers(self):
         mod = _get_summary()
