@@ -409,6 +409,46 @@ class TestRecombinationEvaluatorEvaluate:
         )
         assert report.model_paths == paths
 
+    def test_eval_batch_size_chunking_matches_single_batch(self):
+        evaluator, states = _make_evaluator()
+        r_full = evaluator.evaluate(
+            states, n_latency_warmup=0, n_latency_repeats=2, eval_batch_size=None
+        )
+        r_chunk = evaluator.evaluate(
+            states, n_latency_warmup=0, n_latency_repeats=2, eval_batch_size=11
+        )
+        for label in ("child_vs_parent_a", "child_vs_parent_b"):
+            c1 = r_full.comparisons[label]
+            c2 = r_chunk.comparisons[label]
+            assert c1.action_agreement == pytest.approx(c2.action_agreement)
+            assert c1.kl_divergence == pytest.approx(c2.kl_divergence, rel=1e-5, abs=1e-7)
+            assert c1.mse == pytest.approx(c2.mse, rel=1e-5, abs=1e-7)
+            assert c1.mean_cosine_similarity == pytest.approx(
+                c2.mean_cosine_similarity, rel=1e-5, abs=1e-7
+            )
+        assert r_full.oracle_agreement == pytest.approx(r_chunk.oracle_agreement)
+
+    def test_eval_batch_size_with_parent_baseline_matches(self):
+        evaluator, states = _make_evaluator()
+        r_full = evaluator.evaluate(
+            states,
+            include_parent_baseline=True,
+            n_latency_warmup=0,
+            n_latency_repeats=2,
+            eval_batch_size=None,
+        )
+        r_chunk = evaluator.evaluate(
+            states,
+            include_parent_baseline=True,
+            n_latency_warmup=0,
+            n_latency_repeats=2,
+            eval_batch_size=13,
+        )
+        b1 = r_full.comparisons["parent_a_vs_parent_b"]
+        b2 = r_chunk.comparisons["parent_a_vs_parent_b"]
+        assert b1.action_agreement == pytest.approx(b2.action_agreement)
+        assert b1.kl_divergence == pytest.approx(b2.kl_divergence, rel=1e-5, abs=1e-7)
+
     def test_raises_on_empty_states(self):
         evaluator, _ = _make_evaluator()
         with pytest.raises(ValueError, match="non-empty"):

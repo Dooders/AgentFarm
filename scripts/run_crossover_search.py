@@ -288,6 +288,15 @@ def _parse_args() -> argparse.Namespace:
         default="runs/crossover_search",
         help="Root directory for all outputs.",
     )
+    p.add_argument(
+        "--eval-batch-size",
+        type=int,
+        default=2048,
+        help=(
+            "Max states per evaluation forward pass (lower = less GPU/RAM). "
+            "Use 0 to run all states in a single batch."
+        ),
+    )
 
     return p.parse_args()
 
@@ -344,6 +353,11 @@ def main() -> None:
 
     # 5. Run search
     print(f"\n[3/4] Running {len(pairs)} children → {args.run_dir} …")
+    eval_bs = (
+        args.eval_batch_size
+        if args.eval_batch_size and args.eval_batch_size > 0
+        else None
+    )
     manifest, leaderboard = run_crossover_search(
         parent_a=parent_a,
         parent_b=parent_b,
@@ -352,6 +366,7 @@ def main() -> None:
         run_dir=args.run_dir,
         thresholds=thresholds,
         include_parent_baseline=args.include_parent_baseline,
+        eval_batch_size=eval_bs,
     )
 
     # 6. Print summary

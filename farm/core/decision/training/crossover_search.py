@@ -31,7 +31,8 @@ Public API
 - :class:`FineTuneRegime`      – one fine-tune hyperparameter set
 - :class:`SearchConfig`        – full search space (recipes × regimes)
 - :class:`ManifestEntry`       – one leaderboard row (paths + metrics)
-- :func:`run_crossover_search` – main entry point
+- :func:`run_crossover_search` – main entry point (restores parent ``train`` /
+  ``requires_grad`` state after the search; optional batched evaluation)
 - :func:`build_leaderboard`    – sort and annotate entries
 - :func:`generate_recommendation` – text summary from manifest
 
@@ -89,6 +90,22 @@ from .recombination_eval import (
 )
 
 logger = get_logger(__name__)
+
+
+def _snapshot_train_state(module: nn.Module) -> Tuple[bool, List[Tuple[nn.Parameter, bool]]]:
+    """Capture ``training`` flag and per-parameter ``requires_grad`` for restore."""
+    return module.training, [(p, p.requires_grad) for p in module.parameters()]
+
+
+def _restore_train_state(
+    module: nn.Module,
+    snapshot: Tuple[bool, List[Tuple[nn.Parameter, bool]]],
+) -> None:
+    """Restore module mode and ``requires_grad`` flags (undo search-runner side effects)."""
+    training, pairs = snapshot
+    module.train(mode=training)
+    for param, requires_grad in pairs:
+        param.requires_grad_(requires_grad)
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +407,8 @@ def _run_one(
     thresholds: RecombinationThresholds,
     include_parent_baseline: bool,
     degenerate_threshold: float,
+    *,
+    eval_batch_size: Optional[int] = None,
 ) -> Tuple[ManifestEntry, Dict[str, Any]]:
     """Run one (recipe × regime) pair: crossover → fine-tune → evaluate.
 
@@ -494,6 +513,7 @@ def _run_one(
         n_latency_warmup=3,
         n_latency_repeats=20,
         states_source="crossover_search",
+        eval_batch_size=eval_batch_size,
         model_paths={
             "parent_a": "(in-memory)",
             "parent_b": "(in-memory)",
@@ -594,6 +614,7 @@ def run_crossover_search(
     *,
     thresholds: Optional[RecombinationThresholds] = None,
     include_parent_baseline: bool = True,
+    eval_batch_size: Optional[int] = 2048,
 ) -> Tuple[List[ManifestEntry], List[Dict[str, Any]]]:
     """Generate and evaluate many children over the configured search space.
 
@@ -629,6 +650,10 @@ def run_crossover_search(
     include_parent_baseline:
         When ``True``, each eval report includes a parent A vs parent B
         comparison for baseline context.
+    eval_batch_size:
+        Optional max batch size for :class:`RecombinationEvaluator` forward
+        passes.  ``None`` evaluates all states in one batch (highest memory).
+        Default ``2048`` caps peak activations on large state buffers.
 
     Returns
     -------
@@ -643,78 +668,85 @@ def run_crossover_search(
     if thresholds is None:
         thresholds = RecombinationThresholds(report_only=True)
 
-    # Put parents in eval mode; do not modify their weights.
-    for m in (parent_a, parent_b):
-        m.eval()
-        for p in m.parameters():
-            p.requires_grad = False
+    snap_a = _snapshot_train_state(parent_a)
+    snap_b = _snapshot_train_state(parent_b)
+    try:
+        # Search uses parents as frozen references; restore train/RNG state after.
+        for m in (parent_a, parent_b):
+            m.eval()
+            for p in m.parameters():
+                p.requires_grad = False
 
-    pairs = search_config.pairs()
+        pairs = search_config.pairs()
 
-    logger.info(
-        "crossover_search_start",
-        n_pairs=len(pairs),
-        n_states=len(states),
-        run_dir=run_dir,
-    )
-
-    manifest: List[ManifestEntry] = []
-
-    for run_idx, (recipe, regime) in enumerate(pairs):
-        entry, _ = _run_one(
-            parent_a=parent_a,
-            parent_b=parent_b,
-            states=states,
-            recipe=recipe,
-            regime=regime,
+        logger.info(
+            "crossover_search_start",
+            n_pairs=len(pairs),
+            n_states=len(states),
             run_dir=run_dir,
-            run_idx=run_idx,
-            thresholds=thresholds,
-            include_parent_baseline=include_parent_baseline,
-            degenerate_threshold=search_config.degenerate_threshold,
         )
-        manifest.append(entry)
 
-    # ------------------------------------------------------------------
-    # Compute parent-vs-parent baseline for the leaderboard
-    # ------------------------------------------------------------------
-    parent_baseline_agreement: Optional[float] = None
-    if include_parent_baseline and manifest:
-        # Re-use the last eval report (all have the baseline if requested).
-        last_report_path = manifest[-1].eval_report_path
-        try:
-            with open(last_report_path, encoding="utf-8") as fh:
-                last_report = json.load(fh)
-            pvp = last_report.get("comparisons", {}).get("parent_a_vs_parent_b", {})
-            parent_baseline_agreement = pvp.get("action_agreement")
-        except (OSError, json.JSONDecodeError, KeyError):
-            pass
+        manifest: List[ManifestEntry] = []
 
-    # ------------------------------------------------------------------
-    # Persist manifest + leaderboard
-    # ------------------------------------------------------------------
-    manifest_path = os.path.join(run_dir, "manifest.json")
-    with open(manifest_path, "w", encoding="utf-8") as fh:
-        json.dump([e.to_dict() for e in manifest], fh, indent=2, allow_nan=False)
+        for run_idx, (recipe, regime) in enumerate(pairs):
+            entry, _ = _run_one(
+                parent_a=parent_a,
+                parent_b=parent_b,
+                states=states,
+                recipe=recipe,
+                regime=regime,
+                run_dir=run_dir,
+                run_idx=run_idx,
+                thresholds=thresholds,
+                include_parent_baseline=include_parent_baseline,
+                degenerate_threshold=search_config.degenerate_threshold,
+                eval_batch_size=eval_batch_size,
+            )
+            manifest.append(entry)
 
-    leaderboard = build_leaderboard(manifest, parent_baseline_agreement)
+        # ------------------------------------------------------------------
+        # Compute parent-vs-parent baseline for the leaderboard
+        # ------------------------------------------------------------------
+        parent_baseline_agreement: Optional[float] = None
+        if include_parent_baseline and manifest:
+            # Re-use the last eval report (all have the baseline if requested).
+            last_report_path = manifest[-1].eval_report_path
+            try:
+                with open(last_report_path, encoding="utf-8") as fh:
+                    last_report = json.load(fh)
+                pvp = last_report.get("comparisons", {}).get("parent_a_vs_parent_b", {})
+                parent_baseline_agreement = pvp.get("action_agreement")
+            except (OSError, json.JSONDecodeError, KeyError):
+                pass
 
-    _write_leaderboard(leaderboard, run_dir)
+        # ------------------------------------------------------------------
+        # Persist manifest + leaderboard
+        # ------------------------------------------------------------------
+        manifest_path = os.path.join(run_dir, "manifest.json")
+        with open(manifest_path, "w", encoding="utf-8") as fh:
+            json.dump([e.to_dict() for e in manifest], fh, indent=2, allow_nan=False)
 
-    recommendation = generate_recommendation(manifest, parent_baseline_agreement)
-    rec_path = os.path.join(run_dir, "recommendation.txt")
-    with open(rec_path, "w", encoding="utf-8") as fh:
-        fh.write(recommendation)
+        leaderboard = build_leaderboard(manifest, parent_baseline_agreement)
 
-    logger.info(
-        "crossover_search_complete",
-        n_children=len(manifest),
-        manifest_path=manifest_path,
-        best_child_id=leaderboard[0].get("child_id") if leaderboard else None,
-        best_primary_metric=leaderboard[0].get("primary_metric") if leaderboard else None,
-    )
+        _write_leaderboard(leaderboard, run_dir)
 
-    return manifest, leaderboard
+        recommendation = generate_recommendation(manifest, parent_baseline_agreement)
+        rec_path = os.path.join(run_dir, "recommendation.txt")
+        with open(rec_path, "w", encoding="utf-8") as fh:
+            fh.write(recommendation)
+
+        logger.info(
+            "crossover_search_complete",
+            n_children=len(manifest),
+            manifest_path=manifest_path,
+            best_child_id=leaderboard[0].get("child_id") if leaderboard else None,
+            best_primary_metric=leaderboard[0].get("primary_metric") if leaderboard else None,
+        )
+
+        return manifest, leaderboard
+    finally:
+        _restore_train_state(parent_a, snap_a)
+        _restore_train_state(parent_b, snap_b)
 
 
 # ---------------------------------------------------------------------------
@@ -805,7 +837,7 @@ def build_leaderboard(
                 "child_vs_parent_b_agreement": (
                     parent_baseline_agreement if parent_label == "parent_a" else 1.0
                 ),
-                "oracle_agreement": 1.0,
+                "oracle_agreement": None,
                 "kl_divergence_a": 0.0 if parent_label == "parent_a" else None,
                 "kl_divergence_b": None if parent_label == "parent_a" else 0.0,
                 "mse_a": 0.0 if parent_label == "parent_a" else None,
@@ -909,8 +941,12 @@ def generate_recommendation(
         marker = " ← recommended" if regime == best_regime else ""
         lines.append(f"  {regime:<12}  avg={avg:.4f}{marker}")
 
-    best_lr = next(r.finetune_lr for r in manifest if r.finetune_regime == best_regime)
-    best_epochs = next(r.finetune_epochs for r in manifest if r.finetune_regime == best_regime)
+    # Hyperparams for the recommended regime: use the best primary_metric child in that
+    # regime (not the first manifest row with the same name).
+    in_best_regime = [e for e in manifest if e.finetune_regime == best_regime]
+    best_in_regime = max(in_best_regime, key=lambda e: e.primary_metric)
+    best_lr = best_in_regime.finetune_lr
+    best_epochs = best_in_regime.finetune_epochs
     lines += [
         "",
         "Recommended default strategy:",
@@ -938,8 +974,11 @@ def generate_recommendation(
         f"  primary_metric     : {best.primary_metric:.4f}",
         f"  agree_a / agree_b  : {best.child_vs_parent_a_agreement:.4f} / "
         f"{best.child_vs_parent_b_agreement:.4f}",
-        f"  oracle_agreement   : "
-        f"{best.oracle_agreement:.4f}" if best.oracle_agreement is not None else "  oracle_agreement   : N/A",
+        (
+            f"  oracle_agreement   : {best.oracle_agreement:.4f}"
+            if best.oracle_agreement is not None
+            else "  oracle_agreement   : N/A"
+        ),
         "",
         "=" * 72,
     ]

@@ -393,6 +393,18 @@ class TestGenerateRecommendation:
         for mode in ("random", "layer", "weighted"):
             assert mode in rec
 
+    def test_recommended_regime_hyperparams_from_best_primary_in_regime(self):
+        """Same regime label with different LR/epochs: use the best child's hyperparams."""
+        low = _make_entry("c_low", 0.50, regime="tune", mode="random")
+        low.finetune_lr = 1e-2
+        low.finetune_epochs = 3
+        high = _make_entry("c_high", 0.90, regime="tune", mode="layer")
+        high.finetune_lr = 1e-4
+        high.finetune_epochs = 30
+        rec = generate_recommendation([low, high])
+        assert "epochs=30" in rec
+        assert "1e-04" in rec
+
 
 # ---------------------------------------------------------------------------
 # run_crossover_search — end-to-end smoke test
@@ -433,6 +445,27 @@ class TestRunCrossoverSearch:
                 parent_a, parent_b, states, self._tiny_config(max_runs=2), run_dir
             )
         assert len(manifest) == 2
+
+    def test_restores_parent_training_mode_and_requires_grad(self):
+        parent_a = _make_net(seed=0)
+        parent_b = _make_net(seed=1)
+        parent_a.train()
+        parent_b.train()
+        for p in parent_a.parameters():
+            p.requires_grad_(True)
+        for p in parent_b.parameters():
+            p.requires_grad_(True)
+        states = _make_states()
+
+        with tempfile.TemporaryDirectory() as run_dir:
+            run_crossover_search(
+                parent_a, parent_b, states, self._tiny_config(max_runs=1), run_dir
+            )
+
+        assert parent_a.training
+        assert parent_b.training
+        assert all(p.requires_grad for p in parent_a.parameters())
+        assert all(p.requires_grad for p in parent_b.parameters())
 
     def test_per_child_artifacts_exist(self):
         parent_a = _make_net(seed=0)

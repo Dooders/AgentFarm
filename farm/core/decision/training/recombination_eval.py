@@ -61,6 +61,90 @@ logger = get_logger(__name__)
 REPORT_SCHEMA_VERSION = "1.0"
 
 
+@dataclass
+class _PairwiseChunkAgg:
+    """Running sums for streaming metrics over state batches (one ref/query pair)."""
+
+    n_rows: int = 0
+    n_actions: int = 0
+    top1_matches: int = 0
+    topk_matches: Dict[int, int] = field(default_factory=dict)
+    kl_sum: float = 0.0
+    mse_sum: float = 0.0
+    mae_sum: float = 0.0
+    cos_sum: float = 0.0
+
+
+def _new_pairwise_agg(k_values: List[int]) -> _PairwiseChunkAgg:
+    return _PairwiseChunkAgg(topk_matches={k: 0 for k in k_values})
+
+
+@torch.no_grad()
+def _update_pairwise_agg(
+    agg: _PairwiseChunkAgg,
+    ref_logits: torch.Tensor,
+    qry_logits: torch.Tensor,
+    k_values: List[int],
+) -> None:
+    """Accumulate metrics for one tensor batch (same semantics as :meth:`_pairwise`)."""
+    batch_n = ref_logits.size(0)
+    n_act = ref_logits.size(-1)
+    if agg.n_actions == 0:
+        agg.n_actions = n_act
+    elif agg.n_actions != n_act:
+        raise ValueError(
+            f"Inconsistent action dimension across batches: {agg.n_actions} vs {n_act}"
+        )
+
+    ref_actions = ref_logits.argmax(dim=-1)
+    qry_actions = qry_logits.argmax(dim=-1)
+    agg.top1_matches += int((ref_actions == qry_actions).sum().item())
+
+    for k in k_values:
+        k_clamped = min(k, n_act)
+        topk_qry = qry_logits.topk(k_clamped, dim=-1).indices
+        matches = (topk_qry == ref_actions.unsqueeze(-1)).any(dim=-1)
+        agg.topk_matches[k] += int(matches.sum().item())
+
+    p_ref = F.softmax(ref_logits, dim=-1)
+    log_p_qry = F.log_softmax(qry_logits, dim=-1)
+    kl_batch = F.kl_div(log_p_qry, p_ref, reduction="batchmean", log_target=False)
+    agg.kl_sum += float(kl_batch.item()) * batch_n
+    agg.mse_sum += float(F.mse_loss(qry_logits, ref_logits, reduction="sum").item())
+    agg.mae_sum += float((qry_logits - ref_logits).abs().sum().item())
+    agg.cos_sum += float(F.cosine_similarity(ref_logits, qry_logits, dim=-1).sum().item())
+    agg.n_rows += batch_n
+
+
+def _finalize_pairwise_agg(
+    agg: _PairwiseChunkAgg,
+    k_values: List[int],
+    *,
+    label: str,
+    ref_lat_ms: float,
+    qry_lat_ms: float,
+    apply_thresholds: bool,
+    thresholds: RecombinationThresholds,
+) -> PairwiseComparison:
+    """Turn chunk aggregates into a :class:`PairwiseComparison` (global means)."""
+    n = max(agg.n_rows, 1)
+    denom_elems = max(n * agg.n_actions, 1)
+    top_k_agreements = {k: agg.topk_matches[k] / n for k in k_values}
+    return PairwiseComparison(
+        label=label,
+        action_agreement=agg.top1_matches / n,
+        top_k_agreements=top_k_agreements,
+        kl_divergence=agg.kl_sum / n,
+        mse=agg.mse_sum / denom_elems,
+        mae=agg.mae_sum / denom_elems,
+        mean_cosine_similarity=agg.cos_sum / n,
+        reference_inference_ms=ref_lat_ms,
+        query_inference_ms=qry_lat_ms,
+        thresholds=thresholds,
+        apply_thresholds=apply_thresholds,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Thresholds
 # ---------------------------------------------------------------------------
@@ -340,6 +424,7 @@ class RecombinationEvaluator:
         n_latency_warmup: int = 5,
         n_latency_repeats: int = 50,
         states_source: str = "synthetic_standard_normal",
+        eval_batch_size: Optional[int] = None,
         model_paths: Optional[Dict[str, Optional[str]]] = None,
     ) -> RecombinationReport:
         """Run all comparisons and return a :class:`RecombinationReport`.
@@ -362,6 +447,10 @@ class RecombinationEvaluator:
         states_source:
             Human-readable description of the state source (e.g. a file path
             or ``"synthetic_standard_normal"``).  Stored in the report.
+        eval_batch_size:
+            Maximum number of states per forward pass.  ``None`` or non-positive
+            values evaluate the full buffer in one batch (highest memory use).
+            Smaller values reduce peak memory with identical reported means.
         model_paths:
             Optional mapping of role → checkpoint path to embed in the report
             (e.g. ``{"parent_a": "checkpoints/parent_A.pt", ...}``).
@@ -377,49 +466,64 @@ class RecombinationEvaluator:
         n_states = int(states_arr.shape[0])
         input_dim = int(states_arr.shape[1])
 
-        tensor = torch.tensor(states_arr, dtype=torch.float32, device=self.device)
+        if eval_batch_size is not None and eval_batch_size > 0:
+            chunk_size = min(n_states, int(eval_batch_size))
+        else:
+            chunk_size = n_states
 
-        # Compute logits for all three models in one pass (eval + no_grad).
-        with torch.no_grad():
-            logits_a = self._forward(self.parent_a, tensor)
-            logits_b = self._forward(self.parent_b, tensor)
-            logits_c = self._forward(self.child, tensor)
-
-        # Actions for oracle computation.
-        actions_a = logits_a.argmax(dim=-1)
-        actions_b = logits_b.argmax(dim=-1)
-        actions_c = logits_c.argmax(dim=-1)
-
-        oracle_agreement = float(
-            ((actions_c == actions_a) | (actions_c == actions_b)).float().mean().item()
+        agg_ca = _new_pairwise_agg(k_values)
+        agg_cb = _new_pairwise_agg(k_values)
+        agg_ab: Optional[_PairwiseChunkAgg] = (
+            _new_pairwise_agg(k_values) if include_parent_baseline else None
         )
 
+        oracle_matches = 0
+        for start in range(0, n_states, chunk_size):
+            end = min(start + chunk_size, n_states)
+            chunk = torch.tensor(
+                states_arr[start:end], dtype=torch.float32, device=self.device
+            )
+            logits_a = self._forward(self.parent_a, chunk)
+            logits_b = self._forward(self.parent_b, chunk)
+            logits_c = self._forward(self.child, chunk)
+
+            actions_a = logits_a.argmax(dim=-1)
+            actions_b = logits_b.argmax(dim=-1)
+            actions_c = logits_c.argmax(dim=-1)
+            oracle_matches += int(
+                ((actions_c == actions_a) | (actions_c == actions_b)).sum().item()
+            )
+
+            _update_pairwise_agg(agg_ca, logits_a, logits_c, k_values)
+            _update_pairwise_agg(agg_cb, logits_b, logits_c, k_values)
+            if agg_ab is not None:
+                _update_pairwise_agg(agg_ab, logits_a, logits_b, k_values)
+
+        oracle_agreement = float(oracle_matches / max(n_states, 1))
+
         # Latency measurements (one representative state).
-        single = tensor[:1]
+        single = torch.tensor(states_arr[:1], dtype=torch.float32, device=self.device)
         lat_a = self._measure_latency(self.parent_a, single, n_latency_warmup, n_latency_repeats)
         lat_b = self._measure_latency(self.parent_b, single, n_latency_warmup, n_latency_repeats)
         lat_c = self._measure_latency(self.child, single, n_latency_warmup, n_latency_repeats)
 
-        # Build pairwise comparisons.
-        cmp_ca = self._pairwise(
+        cmp_ca = _finalize_pairwise_agg(
+            agg_ca,
+            k_values,
             label="child_vs_parent_a",
-            ref_logits=logits_a,
-            qry_logits=logits_c,
-            ref_actions=actions_a,
             ref_lat_ms=lat_a,
             qry_lat_ms=lat_c,
-            k_values=k_values,
             apply_thresholds=True,
+            thresholds=self.thresholds,
         )
-        cmp_cb = self._pairwise(
+        cmp_cb = _finalize_pairwise_agg(
+            agg_cb,
+            k_values,
             label="child_vs_parent_b",
-            ref_logits=logits_b,
-            qry_logits=logits_c,
-            ref_actions=actions_b,
             ref_lat_ms=lat_b,
             qry_lat_ms=lat_c,
-            k_values=k_values,
             apply_thresholds=True,
+            thresholds=self.thresholds,
         )
 
         comparisons: Dict[str, PairwiseComparison] = {
@@ -427,16 +531,15 @@ class RecombinationEvaluator:
             "child_vs_parent_b": cmp_cb,
         }
 
-        if include_parent_baseline:
-            cmp_ab = self._pairwise(
+        if include_parent_baseline and agg_ab is not None:
+            cmp_ab = _finalize_pairwise_agg(
+                agg_ab,
+                k_values,
                 label="parent_a_vs_parent_b",
-                ref_logits=logits_a,
-                qry_logits=logits_b,
-                ref_actions=actions_a,
                 ref_lat_ms=lat_a,
                 qry_lat_ms=lat_b,
-                k_values=k_values,
-                apply_thresholds=False,  # baseline only – not threshold-checked
+                apply_thresholds=False,
+                thresholds=self.thresholds,
             )
             comparisons["parent_a_vs_parent_b"] = cmp_ab
 

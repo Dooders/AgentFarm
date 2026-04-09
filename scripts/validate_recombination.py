@@ -282,6 +282,14 @@ def _parse_args() -> argparse.Namespace:
 
     # Output
     p.add_argument("--report-dir", default="reports/recombination", help="Directory to write the JSON report.")
+    p.add_argument(
+        "--eval-batch-size",
+        type=int,
+        default=0,
+        help=(
+            "Max states per forward pass during evaluation (0 = single batch over all states)."
+        ),
+    )
 
     return p.parse_args()
 
@@ -322,6 +330,7 @@ def main() -> None:
     evaluator = RecombinationEvaluator(
         parent_a, parent_b, child, thresholds=thresholds
     )
+    eval_bs = args.eval_batch_size if args.eval_batch_size > 0 else None
     report = evaluator.evaluate(
         states,
         include_parent_baseline=args.include_parent_baseline,
@@ -329,6 +338,7 @@ def main() -> None:
         n_latency_warmup=args.latency_warmup,
         n_latency_repeats=args.latency_repeats,
         states_source=states_source,
+        eval_batch_size=eval_bs,
         model_paths={
             "parent_a": parent_a_ckpt,
             "parent_b": parent_b_ckpt,
