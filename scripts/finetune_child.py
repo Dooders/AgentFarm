@@ -326,6 +326,14 @@ def main() -> None:
         label="parent_b",
     )
 
+    child_hidden_size = int(parent_a.network[0].out_features)
+    parent_b_hidden_size = int(parent_b.network[0].out_features)
+    if child_hidden_size != parent_b_hidden_size:
+        raise ValueError(
+            "Parent hidden sizes must match for crossover initialization: "
+            f"parent_a={child_hidden_size}, parent_b={parent_b_hidden_size}."
+        )
+
     # 2. Construct child via crossover
     print(f"\n[2/4] Crossover: mode={args.crossover_mode!r}, alpha={args.crossover_alpha} …")
     child_sd = crossover_quantized_state_dict(
@@ -335,13 +343,6 @@ def main() -> None:
         alpha=args.crossover_alpha,
         seed=args.crossover_seed,
     )
-    child_hidden_size = int(parent_a.network[0].out_features)
-    parent_b_hidden_size = int(parent_b.network[0].out_features)
-    if child_hidden_size != parent_b_hidden_size:
-        raise ValueError(
-            "Parent hidden sizes must match for crossover initialization: "
-            f"parent_a={child_hidden_size}, parent_b={parent_b_hidden_size}."
-        )
     child = BaseQNetwork(
         input_dim=args.input_dim,
         output_dim=args.output_dim,
