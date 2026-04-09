@@ -909,13 +909,13 @@ def generate_recommendation(
         marker = " ← recommended" if regime == best_regime else ""
         lines.append(f"  {regime:<12}  avg={avg:.4f}{marker}")
 
+    best_lr = next(r.finetune_lr for r in manifest if r.finetune_regime == best_regime)
+    best_epochs = next(r.finetune_epochs for r in manifest if r.finetune_regime == best_regime)
     lines += [
         "",
         "Recommended default strategy:",
         f"  Crossover : {best_mode}",
-        f"  Fine-tune : {best_regime}  "
-        f"(LR={regime_scores[best_regime] and [r.finetune_lr for r in manifest if r.finetune_regime == best_regime][0]:.0e}  "
-        f"epochs={[r.finetune_epochs for r in manifest if r.finetune_regime == best_regime][0]})",
+        f"  Fine-tune : {best_regime}  (LR={best_lr:.0e}  epochs={best_epochs})",
     ]
 
     if parent_baseline_agreement is not None:

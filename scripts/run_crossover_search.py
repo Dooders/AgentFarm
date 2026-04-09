@@ -302,16 +302,11 @@ def _parse_args() -> argparse.Namespace:
         help="RNG seed for synthetic state generation.",
     )
 
-    # Evaluation thresholds
+    # Evaluation thresholds (recorded in reports for analysis; search always runs in report-only mode)
     p.add_argument("--min-action-agreement", type=float, default=0.70)
     p.add_argument("--max-kl-divergence", type=float, default=1.0)
     p.add_argument("--max-mse", type=float, default=5.0)
     p.add_argument("--min-cosine-similarity", type=float, default=0.70)
-    p.add_argument(
-        "--report-only",
-        action="store_true",
-        help="Emit eval reports without applying pass/fail thresholds.",
-    )
 
     # Misc
     p.add_argument(
@@ -365,12 +360,14 @@ def main() -> None:
     states = _load_states(args.states_file, args.n_states, args.input_dim, args.seed)
 
     # 4. Build thresholds
+    # The search runner always uses report-only mode: thresholds are recorded
+    # in each eval_report.json for post-hoc analysis but never gate the run.
     thresholds = RecombinationThresholds(
         min_action_agreement=args.min_action_agreement,
         max_kl_divergence=args.max_kl_divergence,
         max_mse=args.max_mse,
         min_cosine_similarity=args.min_cosine_similarity,
-        report_only=args.report_only or True,  # always report-only in search mode
+        report_only=True,
     )
 
     # 5. Run search

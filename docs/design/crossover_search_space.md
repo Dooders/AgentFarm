@@ -1,6 +1,6 @@
 # Crossover + Fine-tune Search Space
 
-*Related issues: [#8](https://github.com/Dooders/AgentFarm/issues/8) (Distillation, Quantization, and Crossover pipeline), [Capstone experiment issue](https://github.com/Dooders/AgentFarm/issues/).*
+*Related issues: [#8](https://github.com/Dooders/AgentFarm/issues/8) (Distillation, Quantization, and Crossover pipeline).*
 
 *See also: [`crossover_strategies.md`](crossover_strategies.md) for strategy semantics.*
 
