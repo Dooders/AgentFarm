@@ -281,7 +281,6 @@ class TestRunComparisonMatrixIntegration:
         mod = _get_driver()
         states = np.random.default_rng(42).standard_normal((50, INPUT_DIM)).astype("float32")
         from farm.core.decision.training.recombination_eval import RecombinationThresholds
-        from farm.core.decision.training.quantize_ptq import QuantizedValidationThresholds
 
         # Load models
         pa = mod._load_base_qnetwork(str(minimal_ckpt_dir / "parent_A.pt"), INPUT_DIM, OUTPUT_DIM, HIDDEN)

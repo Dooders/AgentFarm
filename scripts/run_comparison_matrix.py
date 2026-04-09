@@ -390,7 +390,7 @@ def _write_summary(report_dir: str, rows: List[Dict[str, str]], n_states: int, i
 
     # CSV (all rows, all keys)
     all_keys: List[str] = []
-    seen: set = set()
+    seen = set()
     for r in rows:
         for k in r:
             if k not in seen:

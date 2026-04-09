@@ -293,7 +293,7 @@ def main() -> None:
     # CSV — all rows combined with a 'type' column to distinguish
     all_rows = recombi_rows + quant_rows
     all_keys: List[str] = []
-    seen_keys: set = set()
+    seen_keys = set()
     for r in all_rows:
         for k in r:
             if k not in seen_keys:
