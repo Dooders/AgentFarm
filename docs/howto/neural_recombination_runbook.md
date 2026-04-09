@@ -17,7 +17,7 @@
 9. [Parameter Reference](#9-parameter-reference)
 10. [Tuning Guide](#10-tuning-guide)
 11. [Copy-Paste Recipes](#11-copy-paste-recipes)
-12. [Generalisation: Holdout & Domain-Shift Evaluation](#12-generalisation-holdout--domain-shift-evaluation)
+12. [Generalization: Holdout & Domain-Shift Evaluation](#12-generalization-holdout--domain-shift-evaluation)
 
 ---
 
@@ -690,11 +690,11 @@ python scripts/validate_recombination.py \
 
 ---
 
-## 12. Generalisation: Holdout & Domain-Shift Evaluation
+## 12. Generalization: Holdout & Domain-Shift Evaluation
 
 **Script:** `scripts/eval_generalization.py`
 
-Standard validation metrics (Sections 7.1–7.3) are measured on a single state buffer that may overlap with calibration or training data.  For publication-grade **generalisation** claims, you need:
+Standard validation metrics (Sections 7.1–7.3) are measured on a single state buffer that may overlap with calibration or training data.  For publication-grade **generalization** claims, you need:
 
 1. A held-out test split that was never used for training or calibration.
 2. An optional **domain-shift** evaluation on states from a shifted distribution (sensor noise, input scaling, or a second `.npy` profile).
@@ -830,7 +830,7 @@ python scripts/eval_generalization.py \
 }
 ```
 
-A **meaningful generalisation drop** is when holdout or shifted agreement falls
+A **meaningful generalization drop** is when holdout or shifted agreement falls
 more than ~5 pp below the ID score.  If this happens, consider:
 
 - Training on a larger or more diverse replay buffer.

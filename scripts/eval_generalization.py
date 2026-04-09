@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate generalisation of a crossover child on holdout and shifted-domain data.
+"""Evaluate generalization of a crossover child on holdout and shifted-domain data.
 
 This script wraps :class:`~farm.core.decision.training.RecombinationEvaluator` and
 runs it on up to **three** state sets produced from a single replay buffer:
@@ -438,7 +438,7 @@ def main() -> None:
     # --- Print ---
     sep = "=" * 72
     print(f"\n{sep}")
-    print("Generalisation evaluation summary")
+    print("Generalization evaluation summary")
     print(sep)
     for set_name, metrics in sets.items():
         _print_set_summary(set_name, metrics)
