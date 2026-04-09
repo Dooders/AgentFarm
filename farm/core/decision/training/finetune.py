@@ -1069,7 +1069,7 @@ class FineTuner:
                 "lr_schedule_factor": self.config.lr_schedule_factor,
                 "quantization_applied": self.config.quantization_applied,
                 "optimizer": self.config.optimizer,
-                "optimizer_kwargs": self.config.optimizer_kwargs,
+                "optimizer_kwargs": _sanitize_for_json(self.config.optimizer_kwargs),
                 "early_stopping_patience": self.config.early_stopping_patience,
                 "custom_optimizer": self._optimizer_factory is not None,
             },

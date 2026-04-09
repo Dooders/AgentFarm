@@ -81,8 +81,13 @@ from __future__ import annotations
 
 import json
 import os
-import resource
 import time
+
+try:
+    import resource
+except ImportError:  # pragma: no cover
+    resource = None  # type: ignore[assignment]
+
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -794,6 +799,8 @@ def _current_rss_bytes() -> Optional[int]:
 
 def _sample_process_peak_rss_kb() -> Optional[int]:
     """Best-effort peak RSS from ``resource.getrusage`` (units vary by OS)."""
+    if resource is None:  # pragma: no cover
+        return None
     try:
         return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
     except (AttributeError, ValueError, OSError):
@@ -1404,23 +1411,23 @@ class QuantizedValidator:
         float_single = torch.from_numpy(states[:1]).to(self.device)
         quant_single = torch.from_numpy(states[:1])
 
-        def _sync() -> None:
-            if self.device.type == "cuda":
-                torch.cuda.synchronize(self.device)
+        def _sync(inp: torch.Tensor) -> None:
+            if inp.is_cuda:
+                torch.cuda.synchronize(inp.device)
 
         def _time_model(model: nn.Module, inp: torch.Tensor) -> LatencyTimingStats:
             model.eval()
             with torch.no_grad():
                 for _ in range(n_warmup):
                     model(inp)
-            _sync()
+            _sync(inp)
             times: List[float] = []
             with torch.no_grad():
                 for _ in range(n_repeats):
-                    _sync()
+                    _sync(inp)
                     t0 = time.perf_counter()
                     model(inp)
-                    _sync()
+                    _sync(inp)
                     times.append((time.perf_counter() - t0) * 1_000.0)
             return _latency_stats_from_times(times)
 
