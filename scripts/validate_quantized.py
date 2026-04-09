@@ -15,6 +15,7 @@ How to run
     python scripts/validate_quantized.py \\
         --float-dir   checkpoints/distillation \\
         --quant-dir   checkpoints/quantized \\
+        --allow-unsafe-unpickle \\
         --report-dir  reports/quantization_validation
 
     # Validate a single pair with a real state file
@@ -32,6 +33,8 @@ Inputs
 - ``--float-dir`` / ``--float-{a,b}-ckpt``: float student checkpoint(s).
 - ``--quant-dir`` / ``--quant-{a,b}-ckpt``: quantized checkpoint(s)
   (saved by :class:`PostTrainingQuantizer` or :class:`QATTrainer`).
+- ``--allow-unsafe-unpickle``: explicit opt-in required to load quantized
+  full-model pickle checkpoints (trusted artifacts only).
 - ``--states-file``: optional NumPy ``.npy`` file of shape ``(N, input_dim)``
   with ``dtype=float32``.  When absent a synthetic standard-normal dataset is
   used for quick sanity checks.
@@ -198,6 +201,16 @@ def _print_report(pair: str, report_dict: dict) -> None:
     print(f"Passed              : {report_dict.get('passed', False)}")
 
 
+def _ensure_unsafe_unpickle_allowed(allow_flag: bool) -> None:
+    """Guard full-model pickle loading behind explicit CLI opt-in."""
+    if not allow_flag:
+        raise ValueError(
+            "Loading quantized checkpoints requires full-model unpickling "
+            "(weights_only=False), which can execute arbitrary code. "
+            "Re-run with --allow-unsafe-unpickle only for trusted checkpoints."
+        )
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -219,6 +232,14 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--quant-dir", default="", help="Dir containing student_A_int8.pt / student_B_int8.pt.")
     p.add_argument("--quant-a-ckpt", default="")
     p.add_argument("--quant-b-ckpt", default="")
+    p.add_argument(
+        "--allow-unsafe-unpickle",
+        action="store_true",
+        help=(
+            "Allow loading quantized full-model pickles via torch.load(weights_only=False). "
+            "Use only with trusted checkpoints."
+        ),
+    )
 
     # Architecture
     p.add_argument("--input-dim", type=int, default=8)
@@ -340,6 +361,7 @@ def main() -> None:
             not_found_template="Float student checkpoint not found: {path}",
             bad_state_template="Expected a state dict at {path!r}, got {type_name}.",
         )
+        _ensure_unsafe_unpickle_allowed(args.allow_unsafe_unpickle)
         q_model, meta = load_quantized_checkpoint(quant_ckpt, device=device)
 
         teacher_path = teacher_ckpts[pair]
