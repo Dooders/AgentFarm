@@ -86,7 +86,7 @@ import torch.nn as nn
 from farm.core.decision.base_dqn import BaseQNetwork
 from farm.utils.logging import get_logger
 
-from .crossover import CROSSOVER_MODES, crossover_quantized_state_dict
+from .crossover import CROSSOVER_MODES, MutationConfig, crossover_quantized_state_dict, mutate_state_dict
 from .finetune import FineTuner, FineTuningConfig, _sanitize_for_json
 from .recombination_eval import (
     RecombinationEvaluator,
@@ -1209,3 +1209,411 @@ def _write_leaderboard(leaderboard: List[Dict[str, Any]], run_dir: str) -> None:
 
     with open(json_path, "w", encoding="utf-8") as fh:
         json.dump(leaderboard, fh, indent=2, allow_nan=False, default=str)
+
+
+# ---------------------------------------------------------------------------
+# Multi-generation pipeline
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class GenerationConfig:
+    """Configuration for a multi-generation evolutionary search.
+
+    Each generation consists of a full :func:`run_crossover_search` run.
+    After each generation the top-*k* children (ranked by *primary_metric*)
+    are promoted as the parent pair for the next generation.
+
+    Attributes
+    ----------
+    num_generations:
+        Total number of generations to run.  Must be >= 1.
+    search_config:
+        :class:`SearchConfig` used for the crossover + fine-tune search in
+        every generation (shared / frozen across all generations).
+    keep_top_k:
+        How many of the best children to retain in the lineage registry at the
+        end of each generation.  ``None`` keeps all children.
+    mutation_config:
+        Optional :class:`~farm.core.decision.training.crossover.MutationConfig`
+        applied to the **promoted parent** state dicts before each new
+        generation begins.  ``None`` disables mutation (pure crossover).
+    selection_strategy:
+        How to pick the two parents for the next generation from the
+        leaderboard:
+
+        ``"best"``
+            Select the top-1 child as parent A and the top-2 child (or
+            parent B if only one child was produced) as parent B.
+
+        ``"best_vs_original"``
+            Parent A is always the best child; parent B is the original
+            parent B supplied to :func:`run_multi_generation_search`.
+
+    seed:
+        Optional base RNG seed.  When provided, per-generation seeds are
+        derived as ``seed + generation_index`` to ensure full reproducibility.
+    """
+
+    num_generations: int
+    search_config: SearchConfig
+    keep_top_k: Optional[int] = None
+    mutation_config: Optional[MutationConfig] = None
+    selection_strategy: str = "best"
+    seed: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if self.num_generations < 1:
+            raise ValueError(
+                f"GenerationConfig.num_generations must be >= 1; "
+                f"got {self.num_generations!r}"
+            )
+        if self.selection_strategy not in ("best", "best_vs_original"):
+            raise ValueError(
+                f"GenerationConfig.selection_strategy must be 'best' or "
+                f"'best_vs_original'; got {self.selection_strategy!r}"
+            )
+
+
+@dataclass
+class LineageRecord:
+    """Provenance record for a single child across generations.
+
+    Attributes
+    ----------
+    generation:
+        Zero-based generation index.
+    child_id:
+        Child identifier (same as :attr:`ManifestEntry.child_id`).
+    parent_a_id:
+        Identifier of the parent A used in this generation.  For generation 0
+        this is ``"original_parent_a"``; for later generations it is the
+        child_id of the promoted parent.
+    parent_b_id:
+        Identifier of parent B, analogous to *parent_a_id*.
+    primary_metric:
+        Evaluation primary metric for this child.
+    mutation_applied:
+        ``True`` if the parents' weights were perturbed by mutation noise
+        before this generation's crossover.
+    """
+
+    generation: int
+    child_id: str
+    parent_a_id: str
+    parent_b_id: str
+    primary_metric: float
+    mutation_applied: bool
+
+
+@dataclass
+class GenerationSummary:
+    """Aggregated metrics for a single completed generation.
+
+    Attributes
+    ----------
+    generation:
+        Zero-based generation index.
+    n_children:
+        Number of children evaluated in this generation.
+    best_primary_metric:
+        Highest primary metric among all children in this generation.
+    mean_primary_metric:
+        Mean primary metric across all children.
+    best_child_id:
+        ``child_id`` of the top-ranked child.
+    promoted_parent_a_id:
+        Child (or original parent) selected as parent A for the *next*
+        generation.  ``None`` for the final generation.
+    promoted_parent_b_id:
+        Child (or original parent) selected as parent B for the *next*
+        generation.  ``None`` for the final generation.
+    run_dir:
+        Filesystem path of this generation's output directory.
+    """
+
+    generation: int
+    n_children: int
+    best_primary_metric: float
+    mean_primary_metric: float
+    best_child_id: str
+    promoted_parent_a_id: Optional[str]
+    promoted_parent_b_id: Optional[str]
+    run_dir: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-serialisable dictionary."""
+        return {
+            "generation": self.generation,
+            "n_children": self.n_children,
+            "best_primary_metric": self.best_primary_metric,
+            "mean_primary_metric": self.mean_primary_metric,
+            "best_child_id": self.best_child_id,
+            "promoted_parent_a_id": self.promoted_parent_a_id,
+            "promoted_parent_b_id": self.promoted_parent_b_id,
+            "run_dir": self.run_dir,
+        }
+
+
+def _load_child_as_module(
+    parent_template: nn.Module,
+    child_pt_path: str,
+) -> nn.Module:
+    """Load a saved child checkpoint into a deep-copy of *parent_template*."""
+    child = copy.deepcopy(parent_template)
+    sd = torch.load(child_pt_path, map_location="cpu", weights_only=True)
+    child.load_state_dict(sd)
+    return child
+
+
+def run_multi_generation_search(
+    parent_a: nn.Module,
+    parent_b: nn.Module,
+    states: np.ndarray,
+    generation_config: GenerationConfig,
+    run_dir: str,
+    *,
+    thresholds: Optional[RecombinationThresholds] = None,
+    include_parent_baseline: bool = True,
+    eval_batch_size: Optional[int] = 2048,
+) -> Tuple[List[GenerationSummary], List[LineageRecord]]:
+    """Run an iterated multi-generation evolutionary crossover search.
+
+    Each generation produces a set of child Q-networks via
+    :func:`run_crossover_search`.  The best child(ren) from that generation
+    are then promoted as parents for the next generation, enabling iterated
+    evolutionary improvement.
+
+    The pipeline per generation *g*:
+
+    1. Run :func:`run_crossover_search` with the current parents and the
+       shared :attr:`GenerationConfig.search_config`.
+    2. Apply optional :attr:`GenerationConfig.mutation_config` Gaussian noise
+       to the promoted parent state dicts.
+    3. Select the next parent pair from the leaderboard according to
+       :attr:`GenerationConfig.selection_strategy`.
+    4. Repeat from step 1 for *g+1*.
+
+    Output is written under ``<run_dir>/gen_<N>/`` for each generation *N*,
+    with a summary file ``<run_dir>/multi_gen_summary.json`` and
+    ``<run_dir>/lineage.json`` containing all :class:`LineageRecord` entries.
+
+    Parameters
+    ----------
+    parent_a:
+        First parent network (generation 0).
+    parent_b:
+        Second parent network (generation 0).
+    states:
+        Shared evaluation state buffer — all generations use the same array.
+    generation_config:
+        :class:`GenerationConfig` controlling the multi-generation search.
+    run_dir:
+        Root output directory; per-generation outputs under ``gen_0/``, etc.
+    thresholds:
+        Optional pass/fail thresholds for :class:`RecombinationEvaluator`.
+    include_parent_baseline:
+        Forwarded to :func:`run_crossover_search`.
+    eval_batch_size:
+        Forwarded to :func:`run_crossover_search`.
+
+    Returns
+    -------
+    summaries : List[GenerationSummary]
+        One :class:`GenerationSummary` per generation, in order.
+    lineage : List[LineageRecord]
+        Full lineage registry: one :class:`LineageRecord` per child across
+        all generations.
+    """
+    os.makedirs(run_dir, exist_ok=True)
+
+    summaries: List[GenerationSummary] = []
+    lineage: List[LineageRecord] = []
+
+    current_parent_a = parent_a
+    current_parent_b = parent_b
+    current_parent_a_id = "original_parent_a"
+    current_parent_b_id = "original_parent_b"
+
+    # Keep a reference to the original parent B for the "best_vs_original" strategy.
+    original_parent_b = parent_b
+    original_parent_b_id = "original_parent_b"
+
+    logger.info(
+        "multi_gen_search_start",
+        num_generations=generation_config.num_generations,
+        selection_strategy=generation_config.selection_strategy,
+        mutation_enabled=generation_config.mutation_config is not None,
+        run_dir=run_dir,
+    )
+
+    for gen_idx in range(generation_config.num_generations):
+        gen_dir = os.path.join(run_dir, f"gen_{gen_idx}")
+
+        logger.info(
+            "multi_gen_search_generation_start",
+            generation=gen_idx,
+            parent_a_id=current_parent_a_id,
+            parent_b_id=current_parent_b_id,
+            gen_dir=gen_dir,
+        )
+
+        # ------------------------------------------------------------------
+        # Run one generation of crossover search
+        # ------------------------------------------------------------------
+        manifest, _ = run_crossover_search(
+            current_parent_a,
+            current_parent_b,
+            states,
+            generation_config.search_config,
+            gen_dir,
+            thresholds=thresholds,
+            include_parent_baseline=include_parent_baseline,
+            eval_batch_size=eval_batch_size,
+        )
+
+        if not manifest:
+            logger.warning(
+                "multi_gen_search_empty_manifest",
+                generation=gen_idx,
+            )
+            summaries.append(
+                GenerationSummary(
+                    generation=gen_idx,
+                    n_children=0,
+                    best_primary_metric=float("nan"),
+                    mean_primary_metric=float("nan"),
+                    best_child_id="",
+                    promoted_parent_a_id=None,
+                    promoted_parent_b_id=None,
+                    run_dir=gen_dir,
+                )
+            )
+            break
+
+        # ------------------------------------------------------------------
+        # Lineage tracking
+        # ------------------------------------------------------------------
+        for entry in manifest:
+            lineage.append(
+                LineageRecord(
+                    generation=gen_idx,
+                    child_id=entry.child_id,
+                    parent_a_id=current_parent_a_id,
+                    parent_b_id=current_parent_b_id,
+                    primary_metric=entry.primary_metric,
+                    mutation_applied=generation_config.mutation_config is not None and gen_idx > 0,
+                )
+            )
+
+        # ------------------------------------------------------------------
+        # Generation summary
+        # ------------------------------------------------------------------
+        sorted_manifest = sorted(manifest, key=lambda e: e.primary_metric, reverse=True)
+        keep_k = generation_config.keep_top_k
+        top_entries = sorted_manifest[:keep_k] if keep_k is not None else sorted_manifest
+        best = top_entries[0]
+        metrics = [e.primary_metric for e in manifest]
+        mean_metric = sum(metrics) / len(metrics)
+
+        is_last = gen_idx == generation_config.num_generations - 1
+
+        # ------------------------------------------------------------------
+        # Select next-generation parents (skip on the final generation)
+        # ------------------------------------------------------------------
+        next_parent_a_id: Optional[str] = None
+        next_parent_b_id: Optional[str] = None
+        next_parent_a: Optional[nn.Module] = None
+        next_parent_b: Optional[nn.Module] = None
+
+        if not is_last:
+            # Load best child as next parent A
+            next_parent_a = _load_child_as_module(current_parent_a, best.child_pt_path)
+            next_parent_a_id = best.child_id
+
+            if generation_config.selection_strategy == "best" and len(top_entries) >= 2:
+                next_parent_b = _load_child_as_module(current_parent_a, top_entries[1].child_pt_path)
+                next_parent_b_id = top_entries[1].child_id
+            else:
+                # "best_vs_original" or only one child available
+                next_parent_b = original_parent_b
+                next_parent_b_id = original_parent_b_id
+
+            # Apply optional mutation to parent state dicts before promoting
+            if generation_config.mutation_config is not None:
+                mut_cfg = generation_config.mutation_config
+                # Derive a per-generation seed for reproducibility
+                if mut_cfg.seed is not None:
+                    from dataclasses import replace
+                    mut_cfg = replace(mut_cfg, seed=mut_cfg.seed + gen_idx + 1)
+
+                mutated_a_sd = mutate_state_dict(next_parent_a.state_dict(), mut_cfg)
+                next_parent_a.load_state_dict(mutated_a_sd)
+
+                if next_parent_b is not original_parent_b:
+                    mutated_b_sd = mutate_state_dict(next_parent_b.state_dict(), mut_cfg)
+                    next_parent_b.load_state_dict(mutated_b_sd)
+
+        summaries.append(
+            GenerationSummary(
+                generation=gen_idx,
+                n_children=len(manifest),
+                best_primary_metric=best.primary_metric,
+                mean_primary_metric=mean_metric,
+                best_child_id=best.child_id,
+                promoted_parent_a_id=next_parent_a_id,
+                promoted_parent_b_id=next_parent_b_id,
+                run_dir=gen_dir,
+            )
+        )
+
+        logger.info(
+            "multi_gen_search_generation_complete",
+            generation=gen_idx,
+            n_children=len(manifest),
+            best_primary_metric=round(best.primary_metric, 4),
+            mean_primary_metric=round(mean_metric, 4),
+            best_child_id=best.child_id,
+            promoted_parent_a_id=next_parent_a_id,
+            promoted_parent_b_id=next_parent_b_id,
+        )
+
+        # Advance parents for the next generation
+        if not is_last and next_parent_a is not None:
+            current_parent_a = next_parent_a
+            current_parent_a_id = next_parent_a_id  # type: ignore[assignment]
+            current_parent_b = next_parent_b  # type: ignore[assignment]
+            current_parent_b_id = next_parent_b_id  # type: ignore[assignment]
+
+    # ------------------------------------------------------------------
+    # Persist multi-generation summary and lineage
+    # ------------------------------------------------------------------
+    summary_path = os.path.join(run_dir, "multi_gen_summary.json")
+    with open(summary_path, "w", encoding="utf-8") as fh:
+        json.dump([s.to_dict() for s in summaries], fh, indent=2, allow_nan=False)
+
+    lineage_path = os.path.join(run_dir, "lineage.json")
+    lineage_dicts = [
+        {
+            "generation": lr.generation,
+            "child_id": lr.child_id,
+            "parent_a_id": lr.parent_a_id,
+            "parent_b_id": lr.parent_b_id,
+            "primary_metric": lr.primary_metric,
+            "mutation_applied": lr.mutation_applied,
+        }
+        for lr in lineage
+    ]
+    with open(lineage_path, "w", encoding="utf-8") as fh:
+        json.dump(lineage_dicts, fh, indent=2, allow_nan=False)
+
+    logger.info(
+        "multi_gen_search_complete",
+        num_generations=len(summaries),
+        summary_path=summary_path,
+        lineage_path=lineage_path,
+        total_children=len(lineage),
+    )
+
+    return summaries, lineage
+
