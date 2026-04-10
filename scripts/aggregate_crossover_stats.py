@@ -176,8 +176,6 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Print summary table
     # ------------------------------------------------------------------
     metric = args.metric
-    mean_key = f"mean_{metric}" if metric == "primary_metric" else f"mean_{metric}"
-    std_key = f"std_{metric}" if metric == "primary_metric" else f"std_{metric}"
 
     print(f"\nCondition Summary  (metric: {metric})")
     print("=" * 100)
@@ -218,8 +216,8 @@ def main(argv: Optional[List[str]] = None) -> None:
         val_a, val_b = args.compare
         field = args.compare_field
 
-        group_a = [r.get(metric) for r in rows if str(r.get(field)) == val_a]
-        group_b = [r.get(metric) for r in rows if str(r.get(field)) == val_b]
+        group_a = [r.get(metric) for r in rows if r.get(field) == val_a]
+        group_b = [r.get(metric) for r in rows if r.get(field) == val_b]
 
         group_a = [v for v in group_a if v is not None]
         group_b = [v for v in group_b if v is not None]

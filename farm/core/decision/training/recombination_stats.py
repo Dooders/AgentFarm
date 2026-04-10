@@ -336,7 +336,10 @@ def compute_condition_summary(
         Keys: ``mean``, ``std``, ``min``, ``max``, ``count``.
         ``std`` is ``float("nan")`` when fewer than two finite values remain.
     """
-    arr = np.array([v for v in values if v is not None and not math.isnan(float(v))], dtype=float)
+    arr = np.array(
+        [float(v) for v in values if v is not None and not math.isnan(float(v))],
+        dtype=float,
+    )
     n = len(arr)
     if n == 0:
         return {"mean": float("nan"), "std": float("nan"), "min": float("nan"), "max": float("nan"), "count": 0}
@@ -478,7 +481,8 @@ def paired_ttest(
         diff = a_arr - b_arr
         mean_diff = float(np.mean(diff))
         std_diff = float(np.std(diff, ddof=1))
-        t_stat = mean_diff / (std_diff / math.sqrt(n)) if std_diff > 0 else float("nan")
+        se = std_diff / math.sqrt(n)
+        t_stat = mean_diff / se if std_diff > 0 else float("nan")
         dof = float(n - 1)
         # Two-sided p-value via normal approximation for large N, else nan.
         pval = _two_sided_pvalue_from_t(t_stat, dof)

@@ -299,14 +299,15 @@ class TestAggregateConditions:
 
 
 class TestPairedTtest:
-    def test_identical_samples_p1(self):
-        # Differences all zero → std(d)=0 so t is NaN (division by zero).
-        # Both SciPy and the manual path return NaN for t when std(diff)=0.
+    def test_identical_samples_undefined_t(self):
+        # When all paired differences are zero, std(diff)=0.
+        # Both SciPy and the manual path return NaN for t (division by zero
+        # is mathematically undefined, not zero).  This is the expected behavior.
         a = [0.7, 0.8, 0.9]
         b = [0.7, 0.8, 0.9]
         r = paired_ttest(a, b)
-        # t-statistic is undefined (NaN) when differences have zero variance.
-        assert math.isnan(r.statistic) or r.statistic == pytest.approx(0.0, abs=1e-6)
+        # t-statistic must be NaN (std of zero-differences → undefined).
+        assert math.isnan(r.statistic)
 
     def test_known_large_effect(self):
         # a consistently higher than b → t > 0, p small.
