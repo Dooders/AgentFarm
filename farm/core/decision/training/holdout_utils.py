@@ -44,6 +44,7 @@ from typing import Tuple
 import numpy as np
 
 __all__ = [
+    "SHIFT_TYPES",
     "apply_gaussian_noise",
     "apply_input_scaling",
     "make_shifted_states",

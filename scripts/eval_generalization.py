@@ -170,8 +170,16 @@ def _extract_summary_metrics(report: dict) -> dict:
 def _print_set_summary(label: str, metrics: dict) -> None:
     print(f"\n  [{label}]")
     print(f"    n_states                 : {metrics.get('n_states')}")
-    print(f"    child ↔ parent A         : {metrics.get('child_agrees_with_parent_a', 'N/A'):.4f}")
-    print(f"    child ↔ parent B         : {metrics.get('child_agrees_with_parent_b', 'N/A'):.4f}")
+    parent_a = metrics.get("child_agrees_with_parent_a")
+    if parent_a is not None:
+        print(f"    child ↔ parent A         : {parent_a:.4f}")
+    else:
+        print("    child ↔ parent A         : N/A")
+    parent_b = metrics.get("child_agrees_with_parent_b")
+    if parent_b is not None:
+        print(f"    child ↔ parent B         : {parent_b:.4f}")
+    else:
+        print("    child ↔ parent B         : N/A")
     oracle = metrics.get("oracle_agreement")
     if oracle is not None:
         print(f"    oracle agreement         : {oracle:.4f}")
