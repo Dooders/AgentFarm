@@ -719,10 +719,11 @@ The split and perturbation logic is available as standalone functions in
 
 All helpers are also re-exported from `farm.core.decision.training`.
 
-### Minimal synthetic run (no checkpoints needed for a smoke test)
+### Minimal synthetic run (synthetic states, existing checkpoints required)
 
-> This example assumes you have trained parent A, parent B, and child checkpoints
-> from the Recipe A workflow in Section 11.  Replace paths as needed.
+> This example uses synthetic evaluation states, but it still requires trained
+> parent A, parent B, and child checkpoints from the Recipe A workflow in
+> Section 11. Replace paths as needed.
 
 ```bash
 python scripts/eval_generalization.py \
