@@ -54,6 +54,11 @@ Known limitations
   concurrent kernels may inflate the reading.
 * Allocator warm-up effects: on the first forward pass PyTorch may allocate
   extra buffers.  Pass ``n_warmup`` > 0 to exclude these from measurements.
+* Nested :func:`profile_peak_ram`: if ``tracemalloc`` was already tracing
+  before entry, ``tracemalloc_peak_bytes`` is the peak since tracing began
+  (process-wide), not isolated to the inner block alone.
+* ``state_dict_bytes`` sums tensor element counts per ``state_dict`` entry;
+  unusual parameter sharing can make the sum exceed unique physical storage.
 """
 
 from __future__ import annotations
@@ -63,7 +68,7 @@ import time
 import tracemalloc
 from contextlib import contextmanager
 from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, Generator, List, Optional, Sequence
+from typing import Any, Dict, Generator, List, Optional
 
 try:
     import resource as _resource
@@ -139,6 +144,10 @@ def _state_dict_bytes(model: nn.Module) -> int:
 
     Handles quantized model state dicts that contain non-tensor entries such
     as ``torch.dtype`` objects inside ``PackedParams``.
+
+    Each ``state_dict`` key is summed separately; tensors that share storage
+    across keys still contribute once per key, so totals can exceed unique
+    backing storage in edge cases.
     """
     return _estimate_obj_bytes(model.state_dict())
 
@@ -155,8 +164,9 @@ class PeakRAMSample:
     Attributes
     ----------
     tracemalloc_peak_bytes:
-        Peak Python heap delta (bytes) during the block as measured by
-        ``tracemalloc``.  ``None`` if tracing could not be started.
+        Peak Python heap (bytes) from ``tracemalloc.get_traced_memory`` at
+        block exit.  If tracing was already active before this block, the
+        value is the peak since tracing began, not block-local.
     rss_bytes_before:
         Process RSS (bytes) at block entry.  ``None`` if ``psutil`` absent.
     rss_bytes_after:
@@ -195,6 +205,12 @@ def profile_peak_ram(
 
     Yields a :class:`PeakRAMSample` that is populated *after* the block exits.
 
+    If ``tracemalloc`` is already tracing when the block is entered, this
+    context manager does **not** call ``stop()`` on exit, so outer tracing
+    stays enabled.  In that case ``tracemalloc_peak_bytes`` reflects the
+    process-wide peak since tracing started, not allocations confined to
+    this block.
+
     Parameters
     ----------
     device:
@@ -214,7 +230,9 @@ def profile_peak_ram(
 
     _reset_cuda_peak(dev)
     rss_before = _rss_bytes()
-    tracemalloc.start()
+    already_tracing = tracemalloc.is_tracing()
+    if not already_tracing:
+        tracemalloc.start()
     t0 = time.perf_counter()
 
     try:
@@ -222,7 +240,8 @@ def profile_peak_ram(
     finally:
         elapsed = time.perf_counter() - t0
         _current, peak_tm = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
+        if not already_tracing:
+            tracemalloc.stop()
 
         rss_after = _rss_bytes()
         cuda_peak = _cuda_peak_bytes(dev)
@@ -279,8 +298,7 @@ class StageMemoryProfile:
     notes: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
-        d = asdict(self)
-        return d
+        return asdict(self)
 
 
 # ---------------------------------------------------------------------------
@@ -317,7 +335,7 @@ def profile_model_stage(
         The ``nn.Module`` to profile.  It is placed in ``eval()`` mode.
     states:
         NumPy array of shape ``(N, input_dim)`` with ``dtype=float32``.
-        Must contain at least ``batch_size`` rows.
+        Must be non-empty.  ``batch_size`` is clamped to ``N``.
     batch_size:
         Number of samples per forward pass.  Clamped to ``len(states)``.
     n_warmup:
@@ -339,6 +357,8 @@ def profile_model_stage(
     model.eval()
 
     states_arr = np.asarray(states, dtype=np.float32)
+    if states_arr.size == 0:
+        raise ValueError("states must be non-empty (at least one row).")
     effective_bs = min(batch_size, len(states_arr))
     batch_np = states_arr[:effective_bs]
     batch_t = torch.from_numpy(batch_np).to(dev)
@@ -367,8 +387,13 @@ def profile_model_stage(
 
     sd_bytes = _state_dict_bytes(model)
     ckpt_bytes: Optional[int] = None
-    if checkpoint_path and os.path.isfile(checkpoint_path):
-        ckpt_bytes = os.path.getsize(checkpoint_path)
+    if checkpoint_path:
+        if os.path.isfile(checkpoint_path):
+            ckpt_bytes = os.path.getsize(checkpoint_path)
+        else:
+            notes.append(
+                f"checkpoint_path {checkpoint_path!r} is not a readable file; checkpoint_bytes omitted."
+            )
 
     if _psutil is None:
         notes.append("psutil not installed; RSS metrics unavailable.")

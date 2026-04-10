@@ -6,6 +6,8 @@ Covers:
 - PipelineMemoryReport: to_dict schema and summary aggregation.
 - profile_model_stage with a dynamically-quantized model.
 - Edge cases: batch_size larger than states, zero warmup.
+- Tracemalloc: preserves outer tracing; nested contexts complete.
+- Empty states, missing checkpoint path note; optional CUDA device.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import tracemalloc
 
 import numpy as np
 import pytest
@@ -117,6 +120,24 @@ class TestProfilePeakRam:
         # Should not raise
         json.dumps(sample.to_dict())
 
+    def test_preserves_tracing_when_already_tracing(self):
+        tracemalloc.start()
+        try:
+            assert tracemalloc.is_tracing()
+            with profile_peak_ram() as sample:
+                _buf = bytearray(128 * 1024)
+            assert tracemalloc.is_tracing()
+            assert sample.tracemalloc_peak_bytes is not None
+        finally:
+            tracemalloc.stop()
+
+    def test_nested_contexts_complete(self):
+        with profile_peak_ram() as outer:
+            with profile_peak_ram() as inner:
+                _buf = bytearray(64 * 1024)
+        assert isinstance(outer, PeakRAMSample)
+        assert isinstance(inner, PeakRAMSample)
+
 
 # ---------------------------------------------------------------------------
 # profile_model_stage
@@ -159,6 +180,24 @@ class TestProfileModelStage:
             profile = profile_model_stage("student", model, states, checkpoint_path=ckpt_path)
         assert profile.checkpoint_bytes is not None
         assert profile.checkpoint_bytes > 0
+
+    def test_checkpoint_missing_path_adds_note(self):
+        model = _make_student()
+        states = _make_states()
+        profile = profile_model_stage(
+            "student",
+            model,
+            states,
+            checkpoint_path="/nonexistent/checkpoint/missing.pt",
+        )
+        assert profile.checkpoint_bytes is None
+        assert any("not a readable file" in n for n in profile.notes)
+
+    def test_empty_states_raises(self):
+        model = _make_student()
+        states = np.zeros((0, INPUT_DIM), dtype=np.float32)
+        with pytest.raises(ValueError, match="non-empty"):
+            profile_model_stage("student", model, states)
 
     def test_batch_size_clamped_to_state_count(self):
         model = _make_student()
@@ -236,6 +275,17 @@ class TestProfileModelStage:
         # Both should have positive state-dict bytes
         assert p_a.state_dict_bytes > 0
         assert p_b.state_dict_bytes > 0
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+class TestProfileModelStageCuda:
+    def test_cuda_device_reports_cuda_peak(self):
+        model = _make_student()
+        states = _make_states()
+        profile = profile_model_stage("student", model, states, device=torch.device("cuda"))
+        assert profile.device.startswith("cuda")
+        assert profile.peak_ram.cuda_peak_bytes is not None
+        assert not any("CUDA profiling skipped" in n for n in profile.notes)
 
 
 # ---------------------------------------------------------------------------

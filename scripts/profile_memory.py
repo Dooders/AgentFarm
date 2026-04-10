@@ -30,6 +30,7 @@ How to run
     python scripts/profile_memory.py \\
         --input-dim 16 --output-dim 8 --parent-hidden 128 \\
         --batch-size 128 --n-forward-passes 10 \\
+        --device cuda:0 \\
         --parent-ckpt   checkpoints/parent_A.pt \\
         --student-ckpt  checkpoints/student_A.pt \\
         --report-dir    reports/memory
@@ -44,6 +45,11 @@ Architecture flags
 ------------------
 ``--input-dim``, ``--output-dim``, ``--parent-hidden`` must match the values
 used when the checkpoints were created (see ``run_distillation.py``).
+
+Device
+------
+Use ``--device cuda`` or ``--device cuda:0`` to profile on GPU (CUDA must be
+available).  The default is ``cpu``.
 
 Interpreting the report
 -----------------------
@@ -221,6 +227,11 @@ def _parse_args() -> argparse.Namespace:
         default=64,
         help="Hidden size of the parent (BaseQNetwork) and student networks.",
     )
+    p.add_argument(
+        "--device",
+        default="cpu",
+        help="Torch device for models and profiling (e.g. cpu, cuda, cuda:0).",
+    )
 
     # States
     p.add_argument("--states-file", default="", help="NumPy .npy file of shape (N, input_dim).")
@@ -260,15 +271,23 @@ def main() -> None:
     args = _parse_args()
     rng = np.random.default_rng(args.seed)
 
+    device = torch.device(args.device)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise SystemExit("CUDA device requested but torch.cuda.is_available() is False.")
+
     # Load or generate states
     if args.states_file:
         states = np.load(args.states_file).astype("float32")
+        if states.ndim != 2:
+            raise SystemExit(f"States file must be 2-D (N, input_dim), got shape {states.shape}.")
+        if states.shape[1] != args.input_dim:
+            raise SystemExit(
+                f"States second dimension {states.shape[1]} does not match --input-dim {args.input_dim}."
+            )
         print(f"Loaded states from {args.states_file}: {states.shape}")
     else:
         states = rng.standard_normal((args.n_states, args.input_dim)).astype("float32")
         print(f"Using {args.n_states} synthetic states (shape {states.shape})")
-
-    device = torch.device("cpu")
     stages: list[StageMemoryProfile] = []
 
     common_kwargs = dict(
