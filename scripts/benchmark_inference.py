@@ -105,6 +105,16 @@ from farm.core.decision.training.quantize_ptq import (  # noqa: E402
     load_quantized_checkpoint,
 )
 
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_P95_PERCENTILE: int = 95
+"""Percentile value used to compute P95 latency statistics."""
+
+_MIN_ELAPSED_SEC: float = 1e-9
+"""Minimum elapsed time guard (seconds) to avoid division-by-zero in throughput."""
+
 
 # ---------------------------------------------------------------------------
 # Data types
@@ -236,7 +246,7 @@ def _time_model_single(
             _sync_cuda(device)
             times.append((time.perf_counter() - t0) * 1_000.0)
     arr = np.asarray(times, dtype=np.float64)
-    return float(np.median(arr)), float(np.mean(arr)), float(np.percentile(arr, 95))
+    return float(np.median(arr)), float(np.mean(arr)), float(np.percentile(arr, _P95_PERCENTILE))
 
 
 def _throughput_batches_per_sec(
@@ -260,7 +270,7 @@ def _throughput_batches_per_sec(
             model(inp)
             _sync_cuda(device)
     elapsed = time.perf_counter() - t0
-    return float(n_timed / max(elapsed, 1e-9))
+    return float(n_timed / max(elapsed, _MIN_ELAPSED_SEC))
 
 
 # ---------------------------------------------------------------------------
