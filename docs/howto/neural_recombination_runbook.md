@@ -18,6 +18,7 @@
 10. [Tuning Guide](#10-tuning-guide)
 11. [Copy-Paste Recipes](#11-copy-paste-recipes)
 12. [Generalization: Holdout & Domain-Shift Evaluation](#12-generalization-holdout--domain-shift-evaluation)
+13. [Publication Ablations](#13-publication-ablations)
 
 ---
 
@@ -838,6 +839,156 @@ more than ~5 pp below the ID score.  If this happens, consider:
 - Training on a larger or more diverse replay buffer.
 - Increasing the holdout fraction to detect over-fitting earlier in development.
 - Tuning the crossover alpha or fine-tuning LR to reduce ID–holdout gap.
+
+---
+
+## 13. Publication Ablations
+
+**Script:** `scripts/run_recombination_ablation.py`
+
+For reproducible paper tables and CI-style regression of the full pipeline,
+use the unified ablation runner.  A single invocation sweeps multiple
+**conditions** (e.g. distill-only, distill+quantize, or the full pipeline)
+across a list of **seeds** and writes every result into a structured
+`results/` tree together with a consolidated CSV and Markdown summary
+table.  If you provide a shared `states_file`, that same state buffer is
+reused across seeds and conditions.  If `states_file` is omitted, the
+runner generates synthetic states per seed, so cross-seed results are not
+directly comparable unless you supply a common state buffer.
+
+### Quick start (no config file needed)
+
+```bash
+# Dry-run: validate plan, write stub summary, no training
+python scripts/run_recombination_ablation.py --smoke-test --dry-run
+
+# Smoke-test: tiny synthetic run (2 seeds × 3 conditions, 50 states, 2 epochs)
+python scripts/run_recombination_ablation.py --smoke-test --results-dir /tmp/ablation_smoke
+```
+
+### Full run from a config file
+
+```bash
+python scripts/run_recombination_ablation.py --config ablation.yaml
+```
+
+The config file is YAML (recommended) or JSON.  A minimal example:
+
+```yaml
+seeds: [0, 1, 2]
+n_states: 2000
+states_file: ""           # leave empty to synthesise per-seed (supply a .npy path for comparable cross-seed results)
+input_dim: 8
+output_dim: 4
+hidden_size: 64
+results_dir: results/ablation
+
+conditions:
+  - name: distill_only
+    stages: [distill]
+  - name: distill_quantize
+    stages: [distill, quantize]
+  - name: full_pipeline
+    stages: [distill, quantize, crossover, compare]
+
+distillation:
+  epochs: 20
+  temperature: 3.0
+  alpha: 1.0
+  lr: 0.001
+  batch_size: 32
+
+quantization:
+  mode: dynamic
+
+crossover:
+  mode: weighted
+  alpha: 0.5
+
+comparison:
+  report_only: true
+```
+
+### Output layout
+
+```
+results/ablation/
+  distill_only/
+    seed_0/student_A.pt  student_B.pt
+    seed_1/...
+    seed_2/...
+  distill_quantize/
+    seed_0/student_A.pt  student_B.pt  student_A_int8.pt  student_B_int8.pt
+    ...
+  full_pipeline/
+    seed_0/student_A.pt  student_B.pt  student_A_int8.pt  student_B_int8.pt
+             child_finetuned.pt  compare_child_vs_students.json
+    ...
+  ablation_summary.csv          ← consolidated table (paste into spreadsheet)
+  ablation_summary.md           ← Markdown version (paste into GitHub issues)
+```
+
+### Per-condition stage overrides
+
+Each condition can override any global distillation / quantization /
+crossover / comparison setting:
+
+```yaml
+conditions:
+  - name: high_temp_distill
+    stages: [distill, crossover, compare]
+    distillation:
+      temperature: 6.0   # overrides global temperature: 3.0
+      epochs: 30
+```
+
+### Valid stages
+
+| Stage | What it runs |
+|-------|-------------|
+| `distill` | `DistillationTrainer` for both A and B pairs; writes `student_A.pt`, `student_B.pt` |
+| `quantize` | `PostTrainingQuantizer` on both students; writes `student_A_int8.pt`, `student_B_int8.pt` |
+| `crossover` | When `quantize` is included, int8 parents are loaded and **dequantized** to float weights, then `crossover_quantized_state_dict` blends them into a float child; otherwise float `student_*.pt` parents are blended. `FineTuner` always uses float student A as KD teacher. Writes `child_finetuned.pt`. |
+| `compare` | `RecombinationEvaluator` (float child vs float or int8 parents matching the pipeline); writes `compare_child_vs_students.json` |
+
+Stages are always applied in the order listed above regardless of declaration
+order in the config.  Parse-time rules: `quantize` and `crossover` require
+`distill`; **`compare` requires `crossover`** (there must be a child to score).
+
+### Dry-run mode
+
+```bash
+python scripts/run_recombination_ablation.py --config ablation.yaml --dry-run
+```
+
+Prints the full execution plan (conditions × seeds × stages × directories)
+and writes a stub `ablation_summary.md` / `ablation_summary.csv` without
+running any training.  Use this to verify the config before a long run.
+
+### Using a shared real replay buffer
+
+Set `states_file` in the config to a `.npy` file of shape `(N, input_dim)`
+float32.  All seeds and conditions will use **the same** state file, ensuring
+metrics are comparable across the ablation.
+
+```yaml
+states_file: data/replay_states.npy
+```
+
+### Reading the summary table
+
+The Markdown summary table (`ablation_summary.md`) contains one row per
+(condition, seed) pair.  Key columns:
+
+| Column | Meaning |
+|--------|---------|
+| `child_vs_ref_a_agreement` | Top-1 action agreement of child vs parent A (float student, or int8 checkpoint when the condition includes `quantize`) |
+| `child_vs_ref_b_agreement` | Top-1 action agreement of child vs parent B (same rule) |
+| `oracle_agreement` | Fraction where child matches *at least one* reference |
+| `elapsed_s` | Wall-clock seconds for the (condition, seed) run |
+
+`child_vs_ref_*_agreement` columns are populated only when the `compare`
+stage is included.  Conditions without a `compare` stage show `n/a`.
 
 ---
 
