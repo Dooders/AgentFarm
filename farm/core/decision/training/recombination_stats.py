@@ -92,6 +92,18 @@ NUMERIC_METRIC_KEYS: Tuple[str, ...] = (
     "cosine_b",
 )
 
+
+def _json_safe(obj: Any) -> Any:
+    """Recursively map non-finite floats to ``None`` for strict JSON (``allow_nan=False``)."""
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
 # ---------------------------------------------------------------------------
 # Data containers
 # ---------------------------------------------------------------------------
@@ -139,20 +151,22 @@ class ConditionSummary:
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a JSON-serialisable representation."""
-        return {
-            "condition_key": list(self.condition_key),
-            "n_runs": self.n_runs,
-            "mean_primary_metric": self.mean_primary_metric,
-            "std_primary_metric": self.std_primary_metric,
-            "mean_agree_a": self.mean_agree_a,
-            "std_agree_a": self.std_agree_a,
-            "mean_agree_b": self.mean_agree_b,
-            "std_agree_b": self.std_agree_b,
-            "mean_oracle_agreement": self.mean_oracle_agreement,
-            "std_oracle_agreement": self.std_oracle_agreement,
-            "n_degenerate": self.n_degenerate,
-            **self.extra,
-        }
+        return _json_safe(
+            {
+                "condition_key": list(self.condition_key),
+                "n_runs": self.n_runs,
+                "mean_primary_metric": self.mean_primary_metric,
+                "std_primary_metric": self.std_primary_metric,
+                "mean_agree_a": self.mean_agree_a,
+                "std_agree_a": self.std_agree_a,
+                "mean_agree_b": self.mean_agree_b,
+                "std_agree_b": self.std_agree_b,
+                "mean_oracle_agreement": self.mean_oracle_agreement,
+                "std_oracle_agreement": self.std_oracle_agreement,
+                "n_degenerate": self.n_degenerate,
+                **self.extra,
+            }
+        )
 
 
 @dataclass

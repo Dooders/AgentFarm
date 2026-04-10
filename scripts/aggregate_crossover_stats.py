@@ -65,7 +65,7 @@ from farm.core.decision.training.recombination_stats import (  # noqa: E402
     welch_ttest,
 )
 
-_METRIC_CHOICES = ("primary_metric",) + NUMERIC_METRIC_KEYS
+_METRIC_CHOICES = NUMERIC_METRIC_KEYS
 
 
 # ---------------------------------------------------------------------------

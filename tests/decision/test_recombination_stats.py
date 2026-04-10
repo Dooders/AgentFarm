@@ -313,6 +313,16 @@ class TestAggregateConditions:
             assert "n_runs" in d
             json.dumps(d)  # must be JSON-serialisable (no NaN in this case)
 
+    def test_to_dict_strict_json_when_single_observation(self):
+        rows = [_make_manifest_row(mode="solo", regime="short", primary=0.8, seed=0)]
+        summaries = aggregate_conditions(
+            rows, group_by=["crossover_mode"], extra_metrics=["mse_a"]
+        )
+        d = next(iter(summaries.values())).to_dict()
+        assert d["std_primary_metric"] is None
+        assert d["mse_a"]["std"] is None
+        json.dumps(d, allow_nan=False)
+
 
 # ---------------------------------------------------------------------------
 # Tests: paired_ttest
