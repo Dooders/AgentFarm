@@ -57,6 +57,9 @@ Known limitations
 * Nested :func:`profile_peak_ram`: if ``tracemalloc`` was already tracing
   before entry, ``tracemalloc_peak_bytes`` is the peak since tracing began
   (process-wide), not isolated to the inner block alone.
+* **Quantized** ``nn.Module`` trees (``torch.nn.quantized`` /
+  ``torch.ao.nn.quantized``) are profiled on **CPU** only; a non-CPU
+  ``device`` request is overridden and noted in :attr:`StageMemoryProfile.notes`.
 * ``state_dict_bytes`` sums tensor element counts per ``state_dict`` entry;
   unusual parameter sharing can make the sum exceed unique physical storage.
 """
@@ -123,6 +126,16 @@ def _cuda_peak_bytes(device: torch.device) -> Optional[int]:
 def _reset_cuda_peak(device: torch.device) -> None:
     if device.type == "cuda" and torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats(device)
+
+
+def _model_requires_cpu_profiling(model: nn.Module) -> bool:
+    """Return True if *model* uses PyTorch quantized modules (CPU-only for .to(cuda))."""
+    prefixes = ("torch.nn.quantized", "torch.ao.nn.quantized")
+    for mod in model.modules():
+        mod_name = getattr(mod.__class__, "__module__", "") or ""
+        if any(mod_name.startswith(p) for p in prefixes):
+            return True
+    return False
 
 
 def _state_dict_bytes(model: nn.Module) -> int:
@@ -332,24 +345,41 @@ def profile_model_stage(
         Optional path to an on-disk checkpoint file; when provided the file
         size is recorded in :attr:`StageMemoryProfile.checkpoint_bytes`.
     device:
-        Target device.  Defaults to ``torch.device("cpu")``.
+        Target device.  Defaults to ``torch.device("cpu")``.  Models that
+        contain quantized submodules are always profiled on CPU; the
+        requested device is overridden and a note is recorded.
 
     Returns
     -------
     StageMemoryProfile
     """
-    dev = device or torch.device("cpu")
-    model = model.to(dev)
-    model.eval()
+    if batch_size < 1:
+        raise ValueError("batch_size must be >= 1.")
+    if n_warmup < 0:
+        raise ValueError("n_warmup must be >= 0.")
+    if n_forward_passes < 1:
+        raise ValueError("n_forward_passes must be >= 1.")
 
     states_arr = np.asarray(states, dtype=np.float32)
     if states_arr.size == 0:
         raise ValueError("states must be non-empty (at least one row).")
+
+    requested = device or torch.device("cpu")
+    dev = requested
+    notes: List[str] = []
+    if _model_requires_cpu_profiling(model) and dev.type != "cpu":
+        dev = torch.device("cpu")
+        notes.append(
+            f"Quantized modules are CPU-only in this profiler; device was pinned to cpu "
+            f"(requested {requested!s})."
+        )
+
+    model = model.to(dev)
+    model.eval()
+
     effective_bs = min(batch_size, len(states_arr))
     batch_np = states_arr[:effective_bs]
     batch_t = torch.from_numpy(batch_np).to(dev)
-
-    notes: List[str] = []
 
     # Warmup
     with torch.no_grad():
@@ -375,7 +405,14 @@ def profile_model_stage(
     ckpt_bytes: Optional[int] = None
     if checkpoint_path:
         if os.path.isfile(checkpoint_path):
-            ckpt_bytes = os.path.getsize(checkpoint_path)
+            try:
+                ckpt_bytes = os.path.getsize(checkpoint_path)
+            except OSError as exc:
+                ckpt_bytes = None
+                notes.append(
+                    f"could not read checkpoint size for {checkpoint_path!r} ({exc!s}); "
+                    "checkpoint_bytes omitted."
+                )
         else:
             notes.append(
                 f"checkpoint_path {checkpoint_path!r} is not a readable file; checkpoint_bytes omitted."

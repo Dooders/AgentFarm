@@ -16,6 +16,7 @@ import json
 import os
 import tempfile
 import tracemalloc
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -199,6 +200,38 @@ class TestProfileModelStage:
         with pytest.raises(ValueError, match="non-empty"):
             profile_model_stage("student", model, states)
 
+    def test_batch_size_below_one_raises(self):
+        model = _make_student()
+        states = _make_states()
+        with pytest.raises(ValueError, match="batch_size must be >= 1"):
+            profile_model_stage("student", model, states, batch_size=0)
+
+    def test_n_warmup_negative_raises(self):
+        model = _make_student()
+        states = _make_states()
+        with pytest.raises(ValueError, match="n_warmup must be >= 0"):
+            profile_model_stage("student", model, states, n_warmup=-1)
+
+    def test_n_forward_passes_below_one_raises(self):
+        model = _make_student()
+        states = _make_states()
+        with pytest.raises(ValueError, match="n_forward_passes must be >= 1"):
+            profile_model_stage("student", model, states, n_forward_passes=0)
+
+    def test_checkpoint_getsize_oserror_adds_note(self):
+        model = _make_student()
+        states = _make_states()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ckpt_path = os.path.join(tmpdir, "student.pt")
+            torch.save(model.state_dict(), ckpt_path)
+            with mock.patch(
+                "farm.core.decision.training.memory_profiler.os.path.getsize",
+                side_effect=OSError("simulated stat failure"),
+            ):
+                profile = profile_model_stage("student", model, states, checkpoint_path=ckpt_path)
+        assert profile.checkpoint_bytes is None
+        assert any("could not read checkpoint size" in n for n in profile.notes)
+
     def test_batch_size_clamped_to_state_count(self):
         model = _make_student()
         states = _make_states(n=10)
@@ -322,6 +355,18 @@ class TestProfileQuantizedStage:
         qp = profile_model_stage("quantized", quantized_model, states)
         # int8 weight packing → quantized state dict ≤ float state dict
         assert qp.state_dict_bytes <= fp.state_dict_bytes
+
+    def test_quantized_non_cpu_device_request_pinned_to_cpu(self, quantized_model):
+        """Dynamic quantized modules cannot move to CUDA; profiler pins to CPU."""
+        states = _make_states()
+        profile = profile_model_stage(
+            "quantized",
+            quantized_model,
+            states,
+            device=torch.device("cuda:0"),
+        )
+        assert profile.device == "cpu"
+        assert any("Quantized modules are CPU-only" in n for n in profile.notes)
 
 
 # ---------------------------------------------------------------------------

@@ -48,8 +48,10 @@ used when the checkpoints were created (see ``run_distillation.py``).
 
 Device
 ------
-Use ``--device cuda`` or ``--device cuda:0`` to profile on GPU (CUDA must be
-available).  The default is ``cpu``.
+Use ``--device cuda`` or ``--device cuda:0`` to profile float stages on GPU
+(CUDA must be available).  The default is ``cpu``.  The **quantized** stage
+always loads and profiles on **CPU** (PyTorch quantized ops are not used on
+CUDA in this pipeline); the JSON report lists the actual device per stage.
 
 Interpreting the report
 -----------------------
@@ -332,17 +334,19 @@ def main() -> None:
     else:
         print("Skipping student stage (no --student-ckpt).")
 
-    # Quantized stage
+    # Quantized stage (CPU-only: dynamic/static quantized modules are not CUDA-moved here)
     if args.quant_ckpt:
         _ensure_unsafe_unpickle_allowed(args.allow_unsafe_unpickle)
-        print(f"\nProfiling quantized: {args.quant_ckpt}")
-        q_model, _meta = load_quantized_checkpoint(args.quant_ckpt, device=device)
+        quant_device = torch.device("cpu")
+        print(f"\nProfiling quantized: {args.quant_ckpt} (device={quant_device}, float stages use {device})")
+        q_model, _meta = load_quantized_checkpoint(args.quant_ckpt, device=quant_device)
+        quant_kwargs = {**common_kwargs, "device": quant_device}
         stages.append(
             profile_model_stage(
                 "quantized",
                 q_model,
                 checkpoint_path=args.quant_ckpt,
-                **common_kwargs,
+                **quant_kwargs,
             )
         )
     else:
