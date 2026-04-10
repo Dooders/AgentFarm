@@ -69,6 +69,8 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
                 "StudentValidator",
                 "ValidationReport",
                 "ValidationThresholds",
+                "LabelMetrics",
+                "compute_label_metrics",
                 "WeightOnlyFakeQuantLinear",
                 "build_finetune_optimizer",
                 "build_leaderboard",
