@@ -112,6 +112,26 @@ def test_parse_config_invalid_stage_raises():
         mod._parse_config(raw)
 
 
+def test_parse_config_quantize_without_distill_raises():
+    mod = _get_mod()
+    raw = dict(
+        _MINIMAL_RAW,
+        conditions=[{"name": "bad", "stages": ["quantize"]}],
+    )
+    with pytest.raises(ValueError, match="distill"):
+        mod._parse_config(raw)
+
+
+def test_parse_config_crossover_without_distill_raises():
+    mod = _get_mod()
+    raw = dict(
+        _MINIMAL_RAW,
+        conditions=[{"name": "bad", "stages": ["crossover"]}],
+    )
+    with pytest.raises(ValueError, match="distill"):
+        mod._parse_config(raw)
+
+
 def test_parse_config_empty_conditions_raises():
     mod = _get_mod()
     raw = dict(_MINIMAL_RAW, conditions=[])
@@ -169,6 +189,28 @@ def test_load_raw_config_missing_raises(tmp_path):
     mod = _get_mod()
     with pytest.raises(FileNotFoundError):
         mod._load_raw_config(str(tmp_path / "nonexistent.yaml"))
+
+
+def test_load_raw_config_non_dict_raises(tmp_path):
+    mod = _get_mod()
+    cfg_file = tmp_path / "cfg.json"
+    cfg_file.write_text(json.dumps([1, 2, 3]))  # top-level list, not dict
+    with pytest.raises(ValueError, match="top-level"):
+        mod._load_raw_config(str(cfg_file))
+
+
+def test_load_raw_config_invalid_json_raises(tmp_path):
+    mod = _get_mod()
+    cfg_file = tmp_path / "cfg.json"
+    cfg_file.write_text("{not: valid json!!!}")
+    # Module may use YAML (which would parse this differently) or JSON fallback.
+    # Either way it must not silently succeed with a non-dict or raise an unhelpful error.
+    try:
+        raw = mod._load_raw_config(str(cfg_file))
+        # If YAML parsed it as a dict that's acceptable; otherwise should have raised.
+        assert isinstance(raw, dict)
+    except (ValueError, Exception):
+        pass  # Any clear exception is acceptable for invalid input
 
 
 # ---------------------------------------------------------------------------

@@ -849,9 +849,12 @@ more than ~5 pp below the ID score.  If this happens, consider:
 For reproducible paper tables and CI-style regression of the full pipeline,
 use the unified ablation runner.  A single invocation sweeps multiple
 **conditions** (e.g. distill-only, distill+quantize, or the full pipeline)
-across a list of **seeds**, shares the same state buffer across all runs, and
-writes every result into a structured `results/` tree together with a
-consolidated CSV and Markdown summary table.
+across a list of **seeds** and writes every result into a structured
+`results/` tree together with a consolidated CSV and Markdown summary
+table.  If you provide a shared `states_file`, that same state buffer is
+reused across seeds and conditions.  If `states_file` is omitted, the
+runner generates synthetic states per seed, so cross-seed results are not
+directly comparable unless you supply a common state buffer.
 
 ### Quick start (no config file needed)
 
@@ -874,7 +877,7 @@ The config file is YAML (recommended) or JSON.  A minimal example:
 ```yaml
 seeds: [0, 1, 2]
 n_states: 2000
-states_file: ""           # leave empty to synthesise from seed
+states_file: ""           # leave empty to synthesise per-seed (supply a .npy path for comparable cross-seed results)
 input_dim: 8
 output_dim: 4
 hidden_size: 64
@@ -949,8 +952,8 @@ conditions:
 | `compare` | `RecombinationEvaluator` (child vs students); writes `compare_child_vs_students.json` |
 
 Stages are always applied in the order listed above regardless of declaration
-order in the config.  A `quantize` stage without a preceding `distill` stage
-will log a warning and skip.
+order in the config.  A `quantize` or `crossover` stage without a preceding
+`distill` stage will be rejected at config-parse time with a clear error.
 
 ### Dry-run mode
 

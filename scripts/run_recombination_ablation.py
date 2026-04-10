@@ -168,9 +168,31 @@ def _load_raw_config(path: str) -> Dict[str, Any]:
         content = fh.read()
     # Try YAML first (superset of JSON).
     if _YAML_AVAILABLE:
-        return _yaml.safe_load(content)  # type: ignore[return-value]
-    # Fallback to JSON.
-    return json.loads(content)  # type: ignore[return-value]
+        try:
+            raw = _yaml.safe_load(content)
+        except Exception as exc:
+            raise ValueError(
+                f"Failed to parse config file '{path}' as YAML. "
+                "Expected a YAML or JSON object at the top level."
+            ) from exc
+    else:
+        # Fallback to JSON.
+        try:
+            raw = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Failed to parse config file '{path}' as JSON. "
+                "Expected a YAML or JSON object at the top level."
+            ) from exc
+
+    if not isinstance(raw, dict):
+        parsed_type = type(raw).__name__
+        raise ValueError(
+            f"Config file '{path}' must contain a top-level YAML/JSON object, "
+            f"got {parsed_type}."
+        )
+
+    return raw
 
 
 def _parse_config(raw: Dict[str, Any], results_dir_override: str = "") -> _AblationConfig:
@@ -209,6 +231,17 @@ def _parse_config(raw: Dict[str, Any], results_dir_override: str = "") -> _Ablat
             raise ValueError(
                 f"Condition '{name}' has unknown stages: {sorted(invalid)}. "
                 f"Valid stages are: {sorted(_VALID_STAGES)}."
+            )
+        stages = set(stages_raw)
+        if "quantize" in stages and "distill" not in stages:
+            raise ValueError(
+                f"Condition '{name}' includes 'quantize' but is missing required "
+                "'distill' stage."
+            )
+        if "crossover" in stages and "distill" not in stages:
+            raise ValueError(
+                f"Condition '{name}' includes 'crossover' but is missing required "
+                "'distill' stage."
             )
         conditions.append(
             _ConditionConfig(
@@ -633,7 +666,9 @@ def _write_summary(rows: List[Dict[str, Any]], results_dir: str, dry_run: bool) 
         "",
         "## Notes",
         "",
-        "- All seeds used the same state buffer (synthetic or from `states_file`).",
+        "- When `states_file` is set, all seeds share the same state buffer.",
+        "  When omitted, synthetic states are generated per seed (cross-seed results",
+        "  are not directly comparable without a shared `states_file`).",
         "- Offline metrics only (action agreement, KL, MSE, cosine); no online rollout.",
         "- `child_vs_ref_a/b_agreement` are populated only when the `compare` stage runs.",
         "- Stage order: `distill` → `quantize` → `crossover` → `compare`.",
