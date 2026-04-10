@@ -51,6 +51,13 @@ from .recombination_eval import (
     RecombinationReport,
     RecombinationThresholds,
 )
+from .holdout_utils import (
+    SHIFT_TYPES,
+    apply_gaussian_noise,
+    apply_input_scaling,
+    make_shifted_states,
+    split_replay_buffer,
+)
 from .trainer import AlgorithmTrainer
 from .distillation_rollout import (
     RolloutComparisonResult,
@@ -76,6 +83,8 @@ from .trainer_distill import (
 
 __all__ = [
     "AlgorithmTrainer",
+    "apply_gaussian_noise",
+    "apply_input_scaling",
     "CROSSOVER_MODES",
     "ChildArchitectureSpec",
     "CrossoverRecipe",
@@ -128,6 +137,9 @@ __all__ = [
     "load_finetuning_config_from_yaml",
     "load_qat_checkpoint",
     "load_quantized_checkpoint",
+    "make_shifted_states",
     "relative_return_drop",
     "run_crossover_search",
+    "SHIFT_TYPES",
+    "split_replay_buffer",
 ]
