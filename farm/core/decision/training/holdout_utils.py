@@ -49,6 +49,7 @@ __all__ = [
     "apply_input_scaling",
     "make_shifted_states",
     "split_replay_buffer",
+    "SHIFT_TYPES",
 ]
 
 # ---------------------------------------------------------------------------
