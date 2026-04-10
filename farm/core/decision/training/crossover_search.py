@@ -1360,8 +1360,10 @@ class GenerationSummary:
         Number of children evaluated in this generation.
     best_primary_metric:
         Highest primary metric among all children in this generation.
+        ``None`` when ``n_children == 0``.
     mean_primary_metric:
         Mean primary metric across all children.
+        ``None`` when ``n_children == 0``.
     best_child_id:
         ``child_id`` of the top-ranked child.
     promoted_parent_a_id:
@@ -1376,8 +1378,8 @@ class GenerationSummary:
 
     generation: int
     n_children: int
-    best_primary_metric: float
-    mean_primary_metric: float
+    best_primary_metric: Optional[float]
+    mean_primary_metric: Optional[float]
     best_child_id: str
     promoted_parent_a_id: Optional[str]
     promoted_parent_b_id: Optional[str]
@@ -1532,8 +1534,8 @@ def run_multi_generation_search(
                 GenerationSummary(
                     generation=gen_idx,
                     n_children=0,
-                    best_primary_metric=float("nan"),
-                    mean_primary_metric=float("nan"),
+                    best_primary_metric=None,
+                    mean_primary_metric=None,
                     best_child_id="",
                     promoted_parent_a_id=None,
                     promoted_parent_b_id=None,
@@ -1606,7 +1608,10 @@ def run_multi_generation_search(
                 next_parent_a.load_state_dict(mutated_a_sd)
 
                 if next_parent_b is not original_parent_b:
-                    mutated_b_sd = mutate_state_dict(next_parent_b.state_dict(), mut_cfg)
+                    mut_cfg_b = mut_cfg
+                    if mut_cfg.seed is not None:
+                        mut_cfg_b = replace(mut_cfg, seed=int(mut_cfg.seed) + 1)
+                    mutated_b_sd = mutate_state_dict(next_parent_b.state_dict(), mut_cfg_b)
                     next_parent_b.load_state_dict(mutated_b_sd)
 
         summaries.append(
