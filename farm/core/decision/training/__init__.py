@@ -80,6 +80,10 @@ from .trainer_distill import (
     ValidationReport,
     ValidationThresholds,
 )
+from .label_metrics import (
+    LabelMetrics,
+    compute_label_metrics,
+)
 from .recombination_stats import (
     NUMERIC_METRIC_KEYS,
     BootstrapCIResult,
@@ -149,6 +153,8 @@ __all__ = [
     "TTestResult",
     "ValidationReport",
     "ValidationThresholds",
+    "LabelMetrics",
+    "compute_label_metrics",
     "WeightOnlyFakeQuantLinear",
     "welch_ttest",
     "build_leaderboard",
