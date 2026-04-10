@@ -60,6 +60,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from farm.utils.logging import get_logger
+from farm.core.decision.training.label_metrics import LabelMetrics, compute_label_metrics
 
 logger = get_logger(__name__)
 
@@ -752,6 +753,11 @@ class ValidationReport:
         Empty when no slices were provided.
     thresholds:
         The :class:`ValidationThresholds` used to determine pass/fail.
+    label_metrics:
+        Optional :class:`~farm.core.decision.training.label_metrics.LabelMetrics`
+        computed against ground-truth labels, when labels are passed to
+        :meth:`StudentValidator.validate`.  ``None`` when no labels are
+        provided (the default).
     """
 
     action_agreement: float
@@ -768,6 +774,7 @@ class ValidationReport:
     latency_ratio: float
     robustness_slice_agreements: Dict[str, float]
     thresholds: ValidationThresholds
+    label_metrics: Optional[LabelMetrics] = None
 
     @property
     def passed(self) -> bool:
@@ -811,6 +818,7 @@ class ValidationReport:
             "latency_ratio": self.latency_ratio,
             "robustness_slice_agreements": self.robustness_slice_agreements,
             "passed": self.passed,
+            "label_metrics": self.label_metrics.to_dict() if self.label_metrics is not None else None,
             "thresholds": {
                 "min_action_agreement": self.thresholds.min_action_agreement,
                 "max_kl_divergence": self.thresholds.max_kl_divergence,
@@ -904,6 +912,7 @@ class StudentValidator:
         k_values: Optional[List[int]] = None,
         n_latency_warmup: int = 5,
         n_latency_repeats: int = 50,
+        labels: Optional[np.ndarray] = None,
     ) -> ValidationReport:
         """Run all validation checks and return a :class:`ValidationReport`.
 
@@ -927,6 +936,21 @@ class StudentValidator:
         n_latency_repeats:
             Number of timed single-sample forward passes; the median is
             reported to reduce noise.
+        labels:
+            Optional 1-D integer array of shape ``(N,)`` containing
+            ground-truth action labels for supervised evaluation.  When
+            provided, :attr:`ValidationReport.label_metrics` is populated
+            with accuracy, macro-F1, and a confusion matrix for the
+            **student**'s predictions against these labels.  When ``None``
+            (default) ``label_metrics`` is ``None``.
+
+            .. note::
+               These supervised metrics differ conceptually from
+               ``action_agreement``, which measures how often the student
+               mimics the *parent*.  Use ``label_metrics`` only when you
+               have ground-truth labels (e.g. expert demonstrations or a
+               labelled offline dataset) and want to report standard
+               classification metrics alongside Q-value fidelity.
 
         Returns
         -------
@@ -969,6 +993,21 @@ class StudentValidator:
                     raise ValueError(
                         f"robustness slice {slice_name!r} must be non-empty; got 0 rows."
                     )
+
+        # -- Validate labels (optional) --
+        labels_arr: Optional[np.ndarray] = None
+        if labels is not None:
+            labels_arr = np.asarray(labels, dtype=np.int64)
+            if labels_arr.ndim != 1:
+                raise ValueError(
+                    f"labels must be a 1-D integer array with shape (N,); "
+                    f"got shape {labels_arr.shape!r}"
+                )
+            if len(labels_arr) != len(states_arr):
+                raise ValueError(
+                    f"labels length {len(labels_arr)} does not match "
+                    f"states length {len(states_arr)}"
+                )
 
         tensor = torch.tensor(states_arr, dtype=torch.float32, device=self.device)
 
@@ -1020,6 +1059,12 @@ class StudentValidator:
             parent_lat, student_lat = 0.0, 0.0
         latency_ratio = student_lat / max(parent_lat, 1e-9)
 
+        # -- Supervised label metrics (optional) --
+        lm: Optional[LabelMetrics] = None
+        if labels_arr is not None:
+            student_preds = student_actions.cpu().numpy().astype(np.int64)
+            lm = compute_label_metrics(labels_arr, student_preds)
+
         return ValidationReport(
             action_agreement=action_agreement,
             top_k_agreements=top_k_agreements,
@@ -1035,6 +1080,7 @@ class StudentValidator:
             latency_ratio=latency_ratio,
             robustness_slice_agreements=slice_agreements,
             thresholds=self.thresholds,
+            label_metrics=lm,
         )
 
     # ------------------------------------------------------------------

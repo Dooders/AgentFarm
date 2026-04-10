@@ -96,6 +96,9 @@ from .recombination_analysis import (
     extract_activations,
     extract_disagreements,
     worst_k_states,
+from .label_metrics import (
+    LabelMetrics,
+    compute_label_metrics,
 )
 from .recombination_stats import (
     NUMERIC_METRIC_KEYS,
@@ -177,6 +180,8 @@ __all__ = [
     "TTestResult",
     "ValidationReport",
     "ValidationThresholds",
+    "LabelMetrics",
+    "compute_label_metrics",
     "WeightOnlyFakeQuantLinear",
     "worst_k_states",
     "WORST_K_CRITERIA",
