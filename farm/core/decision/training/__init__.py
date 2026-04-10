@@ -4,19 +4,25 @@ from .collector import ExperienceCollector
 from .crossover_search import (
     CrossoverRecipe,
     FineTuneRegime,
+    GenerationConfig,
+    GenerationSummary,
     LEADERBOARD_COLUMNS,
+    LineageRecord,
     ManifestEntry,
     SearchConfig,
     build_leaderboard,
     generate_recommendation,
     run_crossover_search,
+    run_multi_generation_search,
 )
 from .crossover import (
     CROSSOVER_MODES,
     ChildArchitectureSpec,
+    MutationConfig,
     crossover_checkpoints,
     crossover_quantized_state_dict,
     initialize_child_from_crossover,
+    mutate_state_dict,
 )
 from .finetune import (
     FINETUNE_OPTIMIZERS,
@@ -87,6 +93,20 @@ from .trainer_distill import (
     ValidationReport,
     ValidationThresholds,
 )
+from .recombination_analysis import (
+    ANALYSIS_SCHEMA_VERSION,
+    WORST_K_CRITERIA,
+    DisagreementRecord,
+    export_disagreements_csv,
+    export_disagreements_json,
+    extract_activations,
+    extract_disagreements,
+    worst_k_states,
+)
+from .label_metrics import (
+    LabelMetrics,
+    compute_label_metrics,
+)
 from .recombination_stats import (
     NUMERIC_METRIC_KEYS,
     BootstrapCIResult,
@@ -102,6 +122,7 @@ from .recombination_stats import (
 )
 
 __all__ = [
+    "ANALYSIS_SCHEMA_VERSION",
     "AlgorithmTrainer",
     "apply_gaussian_noise",
     "apply_input_scaling",
@@ -113,9 +134,14 @@ __all__ = [
     "CROSSOVER_MODES",
     "ChildArchitectureSpec",
     "CrossoverRecipe",
+    "DisagreementRecord",
     "DistillationConfig",
     "DistillationMetrics",
     "DistillationTrainer",
+    "export_disagreements_csv",
+    "export_disagreements_json",
+    "extract_activations",
+    "extract_disagreements",
     "EpisodeEnvProtocol",
     "ExperienceCollector",
     "FineTuneRegime",
@@ -123,10 +149,15 @@ __all__ = [
     "FineTuner",
     "FineTuningConfig",
     "FineTuningMetrics",
+    "GenerationConfig",
+    "GenerationSummary",
     "LEADERBOARD_COLUMNS",
+    "LineageRecord",
     "load_eval_reports",
     "load_manifest_entries",
     "ManifestEntry",
+    "MutationConfig",
+    "mutate_state_dict",
     "NUMERIC_METRIC_KEYS",
     "paired_ttest",
     "PairwiseComparison",
@@ -152,6 +183,7 @@ __all__ = [
     "RecombinationReport",
     "RecombinationThresholds",
     "RolloutComparisonResult",
+    "run_multi_generation_search",
     "SearchConfig",
     "SeededLinearMDP",
     "SimEpisodeStats",
@@ -161,7 +193,11 @@ __all__ = [
     "TTestResult",
     "ValidationReport",
     "ValidationThresholds",
+    "LabelMetrics",
+    "compute_label_metrics",
     "WeightOnlyFakeQuantLinear",
+    "worst_k_states",
+    "WORST_K_CRITERIA",
     "welch_ttest",
     "build_leaderboard",
     "compare_outputs",

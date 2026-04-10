@@ -104,8 +104,12 @@ from farm.core.decision.training.recombination_eval import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 
-def _build_search_config(args: argparse.Namespace) -> SearchConfig:
-    """Construct a SearchConfig from parsed CLI arguments."""
+def build_search_config_from_cli_args(args: argparse.Namespace) -> SearchConfig:
+    """Construct a SearchConfig from parsed CLI arguments.
+
+    Shared with ``run_multi_gen_search.py`` so both CLIs use the same
+    search-space presets and custom-grid logic.
+    """
     if args.search_space == "default":
         cfg = SearchConfig.default()
     elif args.search_space == "minimal":
@@ -180,9 +184,14 @@ def _build_search_config(args: argparse.Namespace) -> SearchConfig:
 # ---------------------------------------------------------------------------
 
 
-def _parse_args() -> argparse.Namespace:
+def build_crossover_search_arg_parser(
+    *,
+    description: str | None = None,
+) -> argparse.ArgumentParser:
+    """Build the shared ArgumentParser for crossover search CLIs."""
     p = argparse.ArgumentParser(
-        description=(
+        description=description
+        or (
             "Systematic crossover + fine-tune search for optimal recombination strategy."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -325,18 +334,23 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
 
-    return p.parse_args()
+    return p
+
+
+def parse_crossover_search_cli_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse argv for a single-generation crossover search (default CLI)."""
+    return build_crossover_search_arg_parser().parse_args(argv)
 
 
 def main() -> None:
-    args = _parse_args()
+    args = parse_crossover_search_cli_args()
 
     print("\n" + "=" * 72)
     print("Crossover + Fine-tune Search")
     print("=" * 72)
 
     # 1. Build search config
-    search_cfg = _build_search_config(args)
+    search_cfg = build_search_config_from_cli_args(args)
     pairs = search_cfg.pairs()
     print(f"\nSearch space: {len(pairs)} children")
     print(f"  Crossover recipes : {len(search_cfg.crossover_recipes)}")

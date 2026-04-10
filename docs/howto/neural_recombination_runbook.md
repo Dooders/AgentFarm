@@ -19,6 +19,8 @@
 11. [Copy-Paste Recipes](#11-copy-paste-recipes)
 12. [Generalization: Holdout & Domain-Shift Evaluation](#12-generalization-holdout--domain-shift-evaluation)
 13. [Publication Ablations](#13-publication-ablations)
+14. [Qualitative Error Analysis for Recombined Networks](#14-qualitative-error-analysis-for-recombined-networks)
+15. [Multi-Generation Crossover Search](#15-multi-generation-crossover-search)
 
 ---
 
@@ -454,6 +456,8 @@ Key threshold flags:
 | `--min-cosine-similarity` | `0.8` | Child vs parent cosine similarity |
 
 > **"Good enough" heuristic:** aim for child-vs-A and child-vs-B top-1 agreement both ≥ 0.7, with neither collapsing to one parent.  The `primary_metric = min(agreement_A, agreement_B)` used by `run_crossover_search.py` captures this directly.
+
+> **Case-level analysis:** for per-state disagreements, logit summaries, worst-*k* states, and hidden-layer activations see [§ 14 — Qualitative Error Analysis](#14-qualitative-error-analysis-for-recombined-networks) and `scripts/analyze_recombination.py`.
 
 ### Validation report layout
 
@@ -992,12 +996,154 @@ stage is included.  Conditions without a `compare` stage show `n/a`.
 
 ---
 
+## 14. Qualitative Error Analysis for Recombined Networks
+
+**Script:** `scripts/analyze_recombination.py`  
+**Python API:** `farm.core.decision.training.recombination_analysis`
+
+The aggregate fidelity report from `validate_recombination.py` (§ 7.3) shows
+*mean* agreement across all states.  For publication or debugging you often
+need **case-level** insight: *which* states does the child get wrong, and is
+the disagreement systematic?  `analyze_recombination.py` provides this.
+
+### What it produces
+
+| Output | Description |
+|--------|-------------|
+| `disagreements.csv` | One row per evaluation state.  Columns: actions, agreement flags, per-state KL / MSE / cosine similarity, top-*k* mismatch flags. |
+| `disagreements.json` | Same records in JSON with summary counts; includes raw logits when `--include-logits` is set. |
+| `worst_<k>_states.json` | The *k* states with the largest errors, sorted by the chosen criterion. |
+| `<activations>.npy` | (Optional) NumPy array of shape `(N, activation_dim)` — hidden-layer activations for a memory-bounded probe set. |
+
+### Minimal run
+
+```bash
+python scripts/analyze_recombination.py \
+  --checkpoint-dir checkpoints/finetune \
+  --parent-a-ckpt  checkpoints/parent_A.pt \
+  --parent-b-ckpt  checkpoints/parent_B.pt \
+  --child-ckpt     checkpoints/finetune/child_finetuned.pt \
+  --states-file    data/replay_states.npy \
+  --output-dir     reports/analysis
+```
+
+### With logits, worst-10 states, and activation export
+
+```bash
+python scripts/analyze_recombination.py \
+  --checkpoint-dir      checkpoints/finetune \
+  --states-file         data/replay_states.npy \
+  --include-logits \
+  --worst-k             10 \
+  --worst-k-criterion   max_kl \
+  --activations-out     reports/analysis/child_activations.npy \
+  --activation-layer-index 4 \
+  --activation-max-states  500 \
+  --output-dir          reports/analysis
+```
+
+`--activation-layer-index` selects a sub-module by its index in
+`list(model.modules())`.  For `BaseQNetwork`:
+
+| Index | Layer |
+|-------|-------|
+| 4 | First hidden ReLU (post LayerNorm) |
+| 8 | Second hidden ReLU (post LayerNorm) |
+
+### Python API
+
+```python
+import numpy as np
+from farm.core.decision.training.recombination_analysis import (
+    extract_disagreements,
+    worst_k_states,
+    export_disagreements_csv,
+    export_disagreements_json,
+    extract_activations,
+)
+
+states = np.load("data/replay_states.npy")
+
+records = extract_disagreements(
+    parent_a, parent_b, child, states,
+    include_logits=True,
+    k_values=[1, 2, 3],
+)
+
+# Worst-10 states by maximum KL divergence across the two parents
+worst = worst_k_states(records, k=10, criterion="max_kl")
+
+export_disagreements_csv(records, "reports/analysis/disagreements.csv")
+export_disagreements_json(records, "reports/analysis/disagreements.json")
+
+# Memory-bounded activation export (first hidden ReLU, max 500 states)
+acts = extract_activations(child, states, layer_index=4, max_states=500)
+np.save("reports/analysis/child_activations.npy", acts)
+```
+
+### Worst-k criteria
+
+| Criterion | Sorts by |
+|-----------|---------|
+| `max_kl` (default) | `max(KL_vs_A, KL_vs_B)` |
+| `kl_parent_a` | KL divergence vs parent A |
+| `kl_parent_b` | KL divergence vs parent B |
+| `max_mse` | `max(MSE_vs_A, MSE_vs_B)` |
+| `mse_parent_a` | MSE vs parent A |
+| `mse_parent_b` | MSE vs parent B |
+
+**KL columns:** `kl_child_vs_parent_a` / `_b` are **KL(parent ‖ child)** over action softmaxes (parent as the reference distribution).  The field names are historical; compare to other tools that report KL(child ‖ parent) carefully.
+
+### Integration with validate_recombination.py
+
+Run `validate_recombination.py` first to check that aggregate fidelity meets
+thresholds, then run `analyze_recombination.py` to drill into problem states.
+Both share the same architecture flags and checkpoint conventions.
+
+---
+
+## 15. Multi-Generation Crossover Search
+
+**Script:** `scripts/run_multi_gen_search.py`  
+**Python API:** `farm.core.decision.training.crossover_search.run_multi_generation_search`, `GenerationConfig`
+
+This mode runs :func:`~farm.core.decision.training.crossover_search.run_crossover_search` repeatedly.  After each generation, the best child checkpoint becomes **parent A** for the next generation; **parent B** is chosen from the leaderboard according to `selection_strategy` (see below).  Optional Gaussian **mutation** perturbs promoted parents’ weights before the next generation’s crossovers.
+
+### Semantics (parent selection)
+
+| Role | Rule |
+|------|--------|
+| Parent A (next gen) | Always the **globally best** child of the current generation (highest `primary_metric` on the full manifest). |
+| Parent B under `selection_strategy="best"` | The **rank-2** child in the sorted leaderboard **within the first `keep_top_k` entries** when at least two distinct children exist there.  If `keep_top_k` is `1`, or only one child exists in that prefix, parent B falls back to the **original** parent B from generation 0. |
+| Parent B under `"best_vs_original"` | Always the **original** parent B (same in-memory / checkpoint object as at start). |
+| Mutation | Applied only to **loaded** child checkpoints promoted as parents.  The original parent B reference is **never** mutated when it is reused as parent B. |
+| Lineage | `lineage.json` lists **every** child from every generation; `keep_top_k` does **not** trim stored lineage—it only affects which leaderboard prefix is used to pick rank-2 for parent B. |
+
+### Per-generation RNG (`GenerationConfig.seed`)
+
+In the CLI, `--seed` is forwarded to `GenerationConfig.seed` **and** seeds synthetic parent/state generation when you omit checkpoint/state files.  When `seed` is set, generation *g* adds **`seed + g`** to every non-`None` crossover recipe seed and fine-tune regime seed in the shared `SearchConfig`.  When `seed` is `None`, recipe and regime seeds are used exactly as configured.  Mutation RNG seeds combine `MutationConfig.seed`, `GenerationConfig.seed`, and the generation index; see the `GenerationConfig` docstring in code.
+
+### Minimal CLI example
+
+```bash
+python scripts/run_multi_gen_search.py \
+  --search-space minimal \
+  --max-runs 3 \
+  --num-generations 3 \
+  --seed 1000 \
+  --run-dir runs/multi_gen_smoke
+```
+
+For a **single** generation with the full `run_crossover_search.py` flag surface (eval batch size, workers, recombination thresholds, etc.), use `scripts/run_crossover_search.py`.  `run_multi_gen_search.py` uses a smaller argument set focused on multi-gen knobs; extend the Python API if you need full parity.
+
+---
+
 ## Related Documentation
 
 | Document | Contents |
 |----------|---------|
 | [`docs/design/distill_quantize_crossover_finetune.md`](../design/distill_quantize_crossover_finetune.md) | Architecture overview, Mermaid pipeline diagram, module map, and recorded experimental results |
 | [`docs/design/crossover_strategies.md`](../design/crossover_strategies.md) | Detailed semantics of `random`, `layer`, and `weighted` crossover strategies with code examples |
-| [`docs/design/crossover_search_space.md`](../design/crossover_search_space.md) | Grid definitions, pre-defined search presets, and leaderboard format for `run_crossover_search.py` |
+| [`docs/design/crossover_search_space.md`](../design/crossover_search_space.md) | Grid definitions, pre-defined search presets, and leaderboard format for `run_crossover_search.py` / `run_multi_gen_search.py` |
 | [`docs/distillation_soft_label_comparison.md`](../distillation_soft_label_comparison.md) | Hard vs blended vs soft distillation objective comparison with reproducible results |
 | [`farm/config/default.yaml`](../../farm/config/default.yaml) | All YAML defaults including the `crossover_child_finetune` section |
