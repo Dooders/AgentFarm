@@ -258,9 +258,7 @@ def test_dry_run_writes_summary(tmp_path):
     assert os.path.isfile(os.path.join(results_dir, "ablation_summary.csv"))
     assert os.path.isfile(os.path.join(results_dir, "ablation_summary.md"))
     # No model checkpoint should be created
-    assert not any(
-        f.endswith(".pt") for _, _, files in os.walk(results_dir) for f in files
-    )
+    assert not any(f.endswith(".pt") for f in _find_pt_files(results_dir))
 
 
 def test_dry_run_with_config_file(tmp_path):
@@ -290,6 +288,16 @@ def test_no_args_exits(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+def _find_pt_files(root: str) -> list:
+    """Return a list of all .pt file paths under *root*."""
+    return [
+        os.path.join(dirpath, fname)
+        for dirpath, _, fnames in os.walk(root)
+        for fname in fnames
+        if fname.endswith(".pt")
+    ]
+
+
 @pytest.mark.slow
 def test_smoke_test_end_to_end(tmp_path):
     """Full smoke-test run: tiny config, real training, check outputs."""
@@ -303,13 +311,7 @@ def test_smoke_test_end_to_end(tmp_path):
     md_path = os.path.join(results_dir, "ablation_summary.md")
     assert os.path.isfile(md_path)
     # At least one student checkpoint produced
-    pt_files = [
-        f
-        for _, _, files in os.walk(results_dir)
-        for f in files
-        if f.endswith(".pt")
-    ]
-    assert len(pt_files) >= 1
+    assert len(_find_pt_files(results_dir)) >= 1
 
 
 @pytest.mark.slow

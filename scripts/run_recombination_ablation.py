@@ -297,6 +297,8 @@ def _run_distill_stage(
     )
 
     ckpts: Dict[str, str] = {}
+    _pair_offset = {"A": 0, "B": 1}
+
     for pair in ("A", "B"):
         teacher = BaseQNetwork(
             input_dim=cfg.input_dim,
@@ -304,7 +306,7 @@ def _run_distill_stage(
             hidden_size=cfg.hidden_size,
         )
         import torch
-        torch.manual_seed(seed + ord(pair))
+        torch.manual_seed(seed + _pair_offset[pair])
         student = StudentQNetwork(
             input_dim=cfg.input_dim,
             output_dim=cfg.output_dim,
