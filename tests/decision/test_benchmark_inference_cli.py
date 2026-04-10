@@ -11,7 +11,6 @@ import importlib.util
 import json
 import os
 import sys
-import tempfile
 from pathlib import Path
 from typing import Tuple
 
@@ -200,6 +199,38 @@ def test_resolve_checkpoint_returns_empty_when_not_found(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# _load_int8
+# ---------------------------------------------------------------------------
+
+
+def test_load_int8_requires_checkpoint_path():
+    mod = _get_mod()
+    with pytest.raises(ValueError, match="--int8-ckpt"):
+        mod._load_int8("", allow_unsafe=True)
+
+
+def test_load_int8_requires_unsafe_flag():
+    mod = _get_mod()
+    with pytest.raises(ValueError, match="allow-unsafe-unpickle"):
+        mod._load_int8("/nonexistent/for_gating_only.pt", allow_unsafe=False)
+
+
+def test_load_int8_unpacks_checkpoint_and_sets_eval(monkeypatch):
+    mod = _get_mod()
+    dummy = torch.nn.Linear(4, 2)
+    dummy.train()
+
+    def fake_load(path: str):
+        assert path == "/fake/int8.pt"
+        return dummy, {"meta": True}
+
+    monkeypatch.setattr(mod, "load_quantized_checkpoint", fake_load)
+    out = mod._load_int8("/fake/int8.pt", allow_unsafe=True)
+    assert out is dummy
+    assert not out.training
+
+
+# ---------------------------------------------------------------------------
 # BenchmarkRow / BenchmarkReport serialisation
 # ---------------------------------------------------------------------------
 
@@ -324,6 +355,25 @@ def test_run_benchmark_multiple_models_cpu():
     assert models_seen == {"parent", "student"}
     batch_sizes_seen = {r.batch_size for r in report.rows}
     assert batch_sizes_seen == {1, 4}
+
+
+def test_run_benchmark_states_shape_matches_probe_not_full_array():
+    """``states_shape`` reflects the probe slice (max batch), not ``states.shape``."""
+    mod = _get_mod()
+    states = _make_states(n=64, dim=8)
+    parent = _make_tiny_parent()
+    report = mod.run_benchmark(
+        named_models=[("parent", parent)],
+        states=states,
+        devices=["cpu"],
+        batch_sizes=[1, 4],
+        n_warmup=1,
+        n_repeats=2,
+        throughput_n_timed=0,
+        **_bench_meta(states),
+    )
+    assert report.states_shape == (4, 8)
+    assert report.states_loaded_shape == (64, 8)
 
 
 def test_run_benchmark_no_throughput():
@@ -611,6 +661,42 @@ def test_main_cuda_unavailable_skips_gracefully(tmp_path, capsys, monkeypatch):
     with open(json_path) as fh:
         data = json.load(fh)
     # Only CPU rows should be present.
+    assert all(r["device"] == "cpu" for r in data["rows"])
+
+
+def test_main_cuda_index_unavailable_skips_gracefully(tmp_path, capsys, monkeypatch):
+    """``cuda:N`` is skipped when CUDA is unavailable, same as bare ``cuda``."""
+    mod = _get_mod()
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+
+    report_dir = str(tmp_path / "reports")
+
+    old_argv = sys.argv
+    sys.argv = [
+        "benchmark_inference.py",
+        "--input-dim", "4",
+        "--output-dim", "2",
+        "--hidden-size", "8",
+        "--n-states", "4",
+        "--devices", "cpu,cuda:0",
+        "--batch-sizes", "1",
+        "--warmup", "1",
+        "--repeats", "3",
+        "--throughput-repeats", "0",
+        "--report-dir", report_dir,
+    ]
+    try:
+        mod.main()
+    finally:
+        sys.argv = old_argv
+
+    captured = capsys.readouterr()
+    assert "CUDA requested but not available" in captured.out
+    assert "cuda:0" in captured.out
+
+    json_path = os.path.join(report_dir, "inference_benchmark.json")
+    with open(json_path, encoding="utf-8") as fh:
+        data = json.load(fh)
     assert all(r["device"] == "cpu" for r in data["rows"])
 
 

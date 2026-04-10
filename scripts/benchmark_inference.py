@@ -58,8 +58,9 @@ Results are printed to stdout as a Markdown table and (when ``--report-dir``
 is provided) written to:
 
 - ``<report-dir>/inference_benchmark.json`` — full metrics dict
-  (``schema_version`` ``1.1``: run metadata includes ``states_loaded_shape``,
-  ``devices``, ``batch_sizes``, ``git_commit``, ``hostname``, etc.).
+  (``schema_version`` ``1.1``: run metadata includes ``states_shape`` (probe rows
+  used, capped at ``max(batch_sizes)``), ``states_loaded_shape``, ``devices``,
+  ``batch_sizes``, ``git_commit``, ``hostname``, etc.).
 - ``<report-dir>/inference_benchmark.md`` — human-readable Markdown table.
 
 Sample output
@@ -167,7 +168,12 @@ class BenchmarkRow:
 
 @dataclass
 class BenchmarkReport:
-    """Full benchmark output containing all rows and run metadata."""
+    """Full benchmark output containing all rows and run metadata.
+
+    ``states_shape`` is the probe tensor shape (at most ``max(batch_sizes)`` rows)
+    that timed forwards use; ``states_loaded_shape`` is the array shape before any
+    padding to satisfy the largest batch (when applicable).
+    """
 
     schema_version: str
     torch_version: str
@@ -338,8 +344,8 @@ def run_benchmark(
         List of ``(label, model)`` pairs.  Models are expected to be on CPU
         initially; they will be moved to each target device as needed.
     states:
-        Float32 array of shape ``(N, input_dim)`` — the benchmark probe data.
-        Only the first ``max(batch_sizes)`` rows are used.
+        Float32 array of shape ``(N, input_dim)`` — source rows for the probe tensor.
+        Only the first ``max(batch_sizes)`` rows are used (see ``states_shape`` in the report).
     devices:
         Device strings, e.g. ``["cpu"]`` or ``["cpu", "cuda"]``.
     batch_sizes:
@@ -370,6 +376,7 @@ def run_benchmark(
     max_batch = max(batch_sizes)
     # Slice the states array to the largest required batch.
     probe_cpu = torch.tensor(states[:max_batch], dtype=torch.float32)
+    states_shape = (int(probe_cpu.shape[0]), int(probe_cpu.shape[1]))
 
     for device_str in devices:
         device = torch.device(device_str)
@@ -416,7 +423,6 @@ def run_benchmark(
                     )
                 )
 
-    states_shape = (int(states.shape[0]), int(states.shape[1]))
     return BenchmarkReport(
         schema_version="1.1",
         torch_version=torch.__version__,
@@ -513,7 +519,7 @@ def _write_reports(report: BenchmarkReport, report_dir: str, show_throughput: bo
     os.makedirs(report_dir, exist_ok=True)
 
     json_path = os.path.join(report_dir, "inference_benchmark.json")
-    with open(json_path, "w") as fh:
+    with open(json_path, "w", encoding="utf-8") as fh:
         json.dump(report.to_dict(), fh, indent=2)
     print(f"JSON report : {json_path}")
 
@@ -537,7 +543,7 @@ def _write_reports(report: BenchmarkReport, report_dir: str, show_throughput: bo
         f"**Hostname**: {report.hostname or '—'}  \n"
         f"**Git commit**: {report.git_commit or '—'}  \n\n"
     )
-    with open(md_path, "w") as fh:
+    with open(md_path, "w", encoding="utf-8") as fh:
         fh.write(header)
         fh.write(_format_table(report.rows, show_throughput))
         fh.write("\n")
