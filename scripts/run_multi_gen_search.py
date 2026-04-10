@@ -73,12 +73,12 @@ if _repo_root not in sys.path:
 
 from farm.core.decision.base_dqn import BaseQNetwork  # noqa: E402
 from farm.core.decision.training import (  # noqa: E402
-    CrossoverRecipe,
-    FineTuneRegime,
     GenerationConfig,
     MutationConfig,
-    SearchConfig,
     run_multi_generation_search,
+)
+from scripts.run_crossover_search import (  # noqa: E402
+    build_search_config_from_cli_args,
 )
 
 
@@ -186,6 +186,15 @@ def _parse_args() -> argparse.Namespace:
         help="Cap on children per generation (truncates Cartesian product).",
     )
     p.add_argument(
+        "--degenerate-threshold",
+        type=float,
+        default=None,
+        help=(
+            "Children below this primary metric are flagged as degenerate in reports. "
+            "Forwarded to SearchConfig (same as run_crossover_search.py)."
+        ),
+    )
+    p.add_argument(
         "--crossover-modes",
         nargs="+",
         choices=["random", "layer", "weighted"],
@@ -209,7 +218,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--finetune-regimes",
         nargs="+",
-        choices=["short", "medium", "long"],
+        choices=["short", "medium", "long", "lr_high", "short_qat"],
         default=["short"],
         help="Fine-tune regime names (custom search).",
     )
@@ -222,44 +231,6 @@ def _parse_args() -> argparse.Namespace:
     )
 
     return p.parse_args()
-
-
-def _build_search_config(args: argparse.Namespace) -> SearchConfig:
-    if args.search_space == "custom":
-        recipes: list = []
-        for mode in args.crossover_modes:
-            if mode == "layer":
-                recipes.append(CrossoverRecipe("layer"))
-            else:
-                for alpha in args.alpha_values:
-                    if mode == "random":
-                        for seed in args.crossover_seeds:
-                            recipes.append(CrossoverRecipe(mode, alpha=alpha, seed=seed))
-                    else:
-                        recipes.append(CrossoverRecipe(mode, alpha=alpha))
-
-        _regime_map = {
-            "short": FineTuneRegime("short", epochs=5, lr=1e-3, seed=42),
-            "medium": FineTuneRegime("medium", epochs=10, lr=5e-4, seed=42),
-            "long": FineTuneRegime("long", epochs=20, lr=1e-4, seed=42),
-        }
-        regimes = [_regime_map[r] for r in args.finetune_regimes]
-        return SearchConfig(
-            crossover_recipes=recipes,
-            finetune_regimes=regimes,
-            max_runs=args.max_runs,
-        )
-
-    cfg_map = {
-        "default": SearchConfig.default,
-        "minimal": SearchConfig.minimal,
-        "default-qat": SearchConfig.default_with_qat,
-        "minimal-qat": SearchConfig.minimal_with_qat,
-    }
-    cfg = cfg_map[args.search_space]()
-    if args.max_runs is not None:
-        cfg.max_runs = args.max_runs
-    return cfg
 
 
 def main() -> None:
@@ -316,7 +287,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Configs
     # ------------------------------------------------------------------
-    search_config = _build_search_config(args)
+    search_config = build_search_config_from_cli_args(args)
 
     mutation_config: MutationConfig | None = None
     if args.mutation_std > 0.0:

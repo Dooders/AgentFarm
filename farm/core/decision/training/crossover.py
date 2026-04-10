@@ -107,8 +107,8 @@ class MutationConfig:
     ----------
     noise_std:
         Standard deviation of the zero-mean Gaussian noise added to each
-        selected parameter element.  ``0.0`` is a no-op (noise is still
-        generated but has zero magnitude).  Typical values: ``0.001``–``0.05``.
+        selected parameter element.  ``0.0`` skips noise generation and returns
+        a copied float32 state dict.  Typical values: ``0.001``–``0.05``.
     noise_fraction:
         Fraction of **elements** in each tensor that receive noise.
         ``1.0`` (default) mutates all weights uniformly.  Values in ``(0, 1)``
@@ -176,7 +176,7 @@ def mutate_state_dict(
             continue
         t = _to_float(val)  # dequantize + cast to float32
         if config.noise_std == 0.0:
-            mutated[key] = t
+            mutated[key] = t.clone()
             continue
         noise = torch.from_numpy(
             rng.standard_normal(t.shape).astype("float32")

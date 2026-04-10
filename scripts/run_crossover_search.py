@@ -107,7 +107,7 @@ from farm.core.decision.training.recombination_eval import (  # noqa: E402
 def build_search_config_from_cli_args(args: argparse.Namespace) -> SearchConfig:
     """Construct a SearchConfig from parsed CLI arguments.
 
-    Shared with ``run_multi_generation_search.py`` so both CLIs use the same
+    Shared with ``run_multi_gen_search.py`` so both CLIs use the same
     search-space presets and custom-grid logic.
     """
     if args.search_space == "default":

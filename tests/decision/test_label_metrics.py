@@ -178,6 +178,28 @@ class TestComputeLabelMetricsValidation:
         with pytest.raises(ValueError, match="at least 2"):
             compute_label_metrics(np.array([0], dtype=np.int64), np.array([0], dtype=np.int64), n_classes=1)
 
+    def test_negative_label_raises(self):
+        with pytest.raises(ValueError, match="non-negative"):
+            compute_label_metrics(
+                np.array([-1, 0], dtype=np.int64),
+                np.array([0, 0], dtype=np.int64),
+            )
+
+    def test_index_out_of_range_raises(self):
+        with pytest.raises(ValueError, match="n_classes"):
+            compute_label_metrics(
+                np.array([0, 1], dtype=np.int64),
+                np.array([0, 2], dtype=np.int64),
+                n_classes=2,
+            )
+
+    def test_non_integer_like_raises(self):
+        with pytest.raises(ValueError, match="integer class indices"):
+            compute_label_metrics(
+                np.array([0.0, 0.5], dtype=np.float64),
+                np.array([0.0, 1.0], dtype=np.float64),
+            )
+
 
 # ---------------------------------------------------------------------------
 # LabelMetrics.to_dict

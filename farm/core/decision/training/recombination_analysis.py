@@ -72,6 +72,7 @@ from __future__ import annotations
 import csv
 import json
 from dataclasses import asdict, dataclass, field
+from numbers import Integral
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 import numpy as np
@@ -273,10 +274,31 @@ def extract_disagreements(
     Raises
     ------
     ValueError
-        If *states* is not a non-empty 2-D array.
+        If *states* is not a non-empty 2-D array, if *batch_size* is not a
+        positive integer, or if *k_values* is empty or contains invalid *k*.
     """
     if k_values is None:
         k_values = [1, 2, 3]
+    if batch_size < 1:
+        raise ValueError(
+            f"batch_size must be a positive integer; got {batch_size!r}"
+        )
+    if not k_values:
+        raise ValueError("k_values must be a non-empty list of positive integers")
+    k_norm: List[int] = []
+    for k in k_values:
+        if isinstance(k, bool) or not isinstance(k, Integral):
+            raise ValueError(
+                "k_values entries must be positive integers; "
+                f"got {k!r} ({type(k).__name__})"
+            )
+        k_int = int(k)
+        if k_int < 1:
+            raise ValueError(
+                f"k_values entries must be >= 1; got {k!r}"
+            )
+        k_norm.append(k_int)
+    k_values = sorted(set(k_norm))
 
     _dev = device or torch.device("cpu")
     states_arr = _validate_states_2d(states)
@@ -639,8 +661,13 @@ def extract_activations(
     Raises
     ------
     ValueError
-        If *layer_index* is out of range for *model*, or *states* is invalid.
+        If *layer_index* is out of range for *model*, *states* is invalid, or
+        *batch_size* is not a positive integer.
     """
+    if batch_size < 1:
+        raise ValueError(
+            f"batch_size must be a positive integer; got {batch_size!r}"
+        )
     _dev = device or torch.device("cpu")
     states_arr = _validate_states_2d(states)
 

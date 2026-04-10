@@ -198,6 +198,13 @@ class TestMutateStateDict:
         for k in sd:
             assert torch.allclose(sd[k], result[k])
 
+    def test_zero_std_output_storage_independent(self):
+        """Returned tensors must not alias the source when noise_std=0."""
+        sd = self._simple_sd()
+        result = mutate_state_dict(sd, MutationConfig(noise_std=0.0, seed=0))
+        result["w"][0] = 999.0
+        assert not torch.equal(sd["w"], result["w"])
+
     def test_input_not_modified(self):
         """mutate_state_dict must not modify the source state dict in-place."""
         sd = self._simple_sd()
@@ -303,6 +310,14 @@ class TestGenerationConfig:
     def test_no_mutation(self):
         cfg = _tiny_gen_config(mutation_std=0.0)
         assert cfg.mutation_config is None
+
+    def test_keep_top_k_zero_raises(self):
+        with pytest.raises(ValueError, match="keep_top_k"):
+            GenerationConfig(
+                num_generations=2,
+                search_config=_tiny_search_config(),
+                keep_top_k=0,
+            )
 
 
 # ===========================================================================

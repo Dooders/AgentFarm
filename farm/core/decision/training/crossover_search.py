@@ -1315,6 +1315,11 @@ class GenerationConfig:
                 f"GenerationConfig.selection_strategy must be 'best' or "
                 f"'best_vs_original'; got {self.selection_strategy!r}"
             )
+        if self.keep_top_k is not None and self.keep_top_k < 1:
+            raise ValueError(
+                f"GenerationConfig.keep_top_k must be None or >= 1; "
+                f"got {self.keep_top_k!r}"
+            )
 
 
 @dataclass
@@ -1595,14 +1600,18 @@ def run_multi_generation_search(
             # Apply optional mutation to parent state dicts before promoting
             if generation_config.mutation_config is not None:
                 mut_cfg = generation_config.mutation_config
-                gen_base = 0 if generation_config.seed is None else int(generation_config.seed)
-                if mut_cfg.seed is not None:
+                if generation_config.seed is not None:
+                    gen_base = int(generation_config.seed)
+                    if mut_cfg.seed is not None:
+                        mut_seed = int(mut_cfg.seed) + gen_base + gen_idx + 1
+                    else:
+                        mut_seed = gen_base + gen_idx + 1
+                    mut_cfg = replace(mut_cfg, seed=mut_seed)
+                elif mut_cfg.seed is not None:
                     mut_cfg = replace(
                         mut_cfg,
-                        seed=int(mut_cfg.seed) + gen_base + gen_idx + 1,
+                        seed=int(mut_cfg.seed) + gen_idx + 1,
                     )
-                elif gen_base != 0:
-                    mut_cfg = replace(mut_cfg, seed=gen_base + gen_idx + 1)
 
                 mutated_a_sd = mutate_state_dict(next_parent_a.state_dict(), mut_cfg)
                 next_parent_a.load_state_dict(mutated_a_sd)

@@ -125,7 +125,9 @@ def compute_label_metrics(
     ------
     ValueError
         If *labels* or *predictions* is not 1-D, if they have different
-        lengths, or if *n_classes* is less than 2.
+        lengths, if either array is empty, if values are not finite
+        integer-like class indices in ``[0, n_classes)``, or if *n_classes*
+        is less than 2.
 
     Examples
     --------
@@ -155,22 +157,35 @@ def compute_label_metrics(
             f"predictions must be a 1-D array; got shape {predictions_in.shape!r}"
         )
 
-    labels = labels_in
-    predictions = predictions_in
-
-    if len(labels) != len(predictions):
+    if len(labels_in) != len(predictions_in):
         raise ValueError(
             f"labels and predictions must have the same length; "
-            f"got {len(labels)} and {len(predictions)}"
+            f"got {len(labels_in)} and {len(predictions_in)}"
         )
-    if len(labels) == 0:
+    if len(labels_in) == 0:
         raise ValueError("labels and predictions must be non-empty.")
+
+    labels = _as_int64_class_indices(labels_in, "labels")
+    predictions = _as_int64_class_indices(predictions_in, "predictions")
+
+    if labels.min() < 0 or predictions.min() < 0:
+        raise ValueError(
+            "labels and predictions must be non-negative class indices; "
+            f"got min(labels)={int(labels.min())}, min(predictions)={int(predictions.min())}"
+        )
 
     if n_classes is None:
         n_classes = int(max(labels.max(), predictions.max())) + 1
     if n_classes < 2:
         raise ValueError(
             f"n_classes must be at least 2; got {n_classes}"
+        )
+
+    if labels.max() >= n_classes or predictions.max() >= n_classes:
+        raise ValueError(
+            "labels and predictions must satisfy 0 <= index < n_classes "
+            f"(n_classes={n_classes}); got max(labels)={int(labels.max())}, "
+            f"max(predictions)={int(predictions.max())}"
         )
 
     # --- Accuracy ---
@@ -184,7 +199,7 @@ def compute_label_metrics(
     # --- Per-class F1 ---
     per_class_f1: List[float] = []
     support: List[int] = []
-    classes_in_labels = set(int(x) for x in labels)
+    classes_in_labels = set(labels.tolist())
 
     for c in range(n_classes):
         tp = int(cm[c, c])
@@ -214,3 +229,18 @@ def compute_label_metrics(
         support=support,
         per_class_f1=per_class_f1,
     )
+
+
+def _as_int64_class_indices(arr: np.ndarray, name: str) -> np.ndarray:
+    """Coerce *arr* to int64 class indices, rejecting non-integer-like values."""
+    a = np.asarray(arr)
+    if not np.all(np.isfinite(a)):
+        raise ValueError(f"{name} must contain finite values; got non-finite entries")
+    if np.issubdtype(a.dtype, np.integer):
+        return a.astype(np.int64, copy=False)
+    rounded = np.rint(a)
+    if not np.all(rounded == a):
+        raise ValueError(
+            f"{name} must contain integer class indices; got non-integer values"
+        )
+    return rounded.astype(np.int64, copy=False)
