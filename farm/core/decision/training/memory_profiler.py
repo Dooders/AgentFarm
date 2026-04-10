@@ -86,6 +86,8 @@ import torch.nn as nn
 
 from farm.utils.logging import get_logger
 
+from .quantize_ptq import _estimate_tensor_bytes
+
 logger = get_logger(__name__)
 
 
@@ -123,22 +125,6 @@ def _reset_cuda_peak(device: torch.device) -> None:
         torch.cuda.reset_peak_memory_stats(device)
 
 
-def _estimate_obj_bytes(obj: Any) -> int:
-    """Recursively estimate tensor bytes in an arbitrarily nested object.
-
-    Quantized model state dicts may contain non-tensor entries (e.g.
-    ``torch.dtype`` scalars inside ``PackedParams``).  This function skips
-    non-tensor values so as not to raise ``AttributeError``.
-    """
-    if torch.is_tensor(obj):
-        return int(obj.numel() * obj.element_size())
-    if isinstance(obj, dict):
-        return sum(_estimate_obj_bytes(v) for v in obj.values())
-    if isinstance(obj, (tuple, list)):
-        return sum(_estimate_obj_bytes(v) for v in obj)
-    return 0
-
-
 def _state_dict_bytes(model: nn.Module) -> int:
     """Estimate in-memory byte footprint of all tensors in *model*'s state dict.
 
@@ -149,7 +135,7 @@ def _state_dict_bytes(model: nn.Module) -> int:
     across keys still contribute once per key, so totals can exceed unique
     backing storage in edge cases.
     """
-    return _estimate_obj_bytes(model.state_dict())
+    return _estimate_tensor_bytes(model.state_dict())
 
 
 # ---------------------------------------------------------------------------
