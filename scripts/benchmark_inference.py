@@ -57,7 +57,9 @@ Outputs
 Results are printed to stdout as a Markdown table and (when ``--report-dir``
 is provided) written to:
 
-- ``<report-dir>/inference_benchmark.json`` — full metrics dict.
+- ``<report-dir>/inference_benchmark.json`` — full metrics dict
+  (``schema_version`` ``1.1``: run metadata includes ``states_loaded_shape``,
+  ``devices``, ``batch_sizes``, ``git_commit``, ``hostname``, etc.).
 - ``<report-dir>/inference_benchmark.md`` — human-readable Markdown table.
 
 Sample output
@@ -83,10 +85,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
+import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import torch
@@ -116,6 +120,31 @@ _MIN_ELAPSED_SEC: float = 1e-9
 """Minimum elapsed time guard (seconds) to avoid division-by-zero in throughput."""
 
 
+def _is_supported_device_string(device_str: str) -> bool:
+    s = device_str.strip()
+    if s == "cpu":
+        return True
+    if s.startswith("cuda"):
+        return True
+    return False
+
+
+def _provenance() -> Tuple[str, str]:
+    """Return ``(git_commit, hostname)`` for reproducibility metadata; commit may be empty."""
+    hostname = socket.gethostname()
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=_repo_root,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+            text=True,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        commit = ""
+    return commit, hostname
+
+
 # ---------------------------------------------------------------------------
 # Data types
 # ---------------------------------------------------------------------------
@@ -143,13 +172,22 @@ class BenchmarkReport:
     schema_version: str
     torch_version: str
     states_shape: Tuple[int, int]
+    states_loaded_shape: Tuple[int, int]
     states_source: str
+    devices: List[str]
+    batch_sizes: List[int]
+    warmup: int
+    repeats: int
+    throughput_repeats: int
+    git_commit: str
+    hostname: str
     rows: List[BenchmarkRow]
 
     def to_dict(self) -> dict:
         d = asdict(self)
-        # Convert tuple to list for JSON serialisability
+        # Convert tuples to lists for JSON serialisability
         d["states_shape"] = list(self.states_shape)
+        d["states_loaded_shape"] = list(self.states_loaded_shape)
         return d
 
 
@@ -286,6 +324,11 @@ def run_benchmark(
     n_warmup: int,
     n_repeats: int,
     throughput_n_timed: int,
+    *,
+    states_source: str,
+    states_loaded_shape: Tuple[int, int],
+    git_commit: str,
+    hostname: str,
 ) -> BenchmarkReport:
     """Run latency benchmark for each (model, device, batch_size) combination.
 
@@ -308,6 +351,15 @@ def run_benchmark(
     throughput_n_timed:
         Number of forward passes used to measure throughput (batches/sec).
         Set to 0 to skip throughput measurement.
+    states_source:
+        Human-readable description of where *states* came from (file path or synthetic).
+    states_loaded_shape:
+        ``(N, input_dim)`` immediately after loading / synthesising states, **before**
+        any padding used to satisfy ``max(batch_sizes)``.
+    git_commit:
+        Repository ``HEAD`` revision if available (else empty string).
+    hostname:
+        Result of :func:`socket.gethostname` for the machine that ran the benchmark.
 
     Returns
     -------
@@ -325,15 +377,18 @@ def run_benchmark(
             # Move model to target device (or keep on CPU for int8 which must stay on CPU).
             try:
                 model = model_cpu.to(device)
-            except (RuntimeError, TypeError):
-                # Quantized int8 models must remain on CPU.
-                if device_str != "cpu":
+            except (RuntimeError, TypeError) as exc:
+                # Only int8 checkpoints are expected to refuse non-CPU devices; other
+                # failures (OOM, invalid device) should surface to the operator.
+                if device_str != "cpu" and label == "int8":
                     print(
                         f"  [warn] Cannot move {label!r} to {device_str}; "
                         "skipping (quantized models must run on CPU)."
                     )
                     continue
-                model = model_cpu
+                raise RuntimeError(
+                    f"Failed to move model {label!r} to {device_str!r}."
+                ) from exc
 
             model.eval()
             for batch_size in batch_sizes:
@@ -363,10 +418,18 @@ def run_benchmark(
 
     states_shape = (int(states.shape[0]), int(states.shape[1]))
     return BenchmarkReport(
-        schema_version="1.0",
+        schema_version="1.1",
         torch_version=torch.__version__,
         states_shape=states_shape,
-        states_source="",  # filled by caller
+        states_loaded_shape=states_loaded_shape,
+        states_source=states_source,
+        devices=list(devices),
+        batch_sizes=list(batch_sizes),
+        warmup=n_warmup,
+        repeats=n_repeats,
+        throughput_repeats=throughput_n_timed,
+        git_commit=git_commit,
+        hostname=hostname,
         rows=rows,
     )
 
@@ -431,8 +494,15 @@ def _print_report(report: BenchmarkReport, show_throughput: bool) -> None:
     print("===========================")
     print()
     print(f"States shape : {report.states_shape[0]} × {report.states_shape[1]}")
+    if report.states_loaded_shape != report.states_shape:
+        print(
+            f"States loaded: {report.states_loaded_shape[0]} × {report.states_loaded_shape[1]} "
+            "(padded/truncated to max batch for probe tensor)"
+        )
     if report.states_source:
         print(f"States source: {report.states_source}")
+    print(f"Devices      : {report.devices}")
+    print(f"Batch sizes  : {report.batch_sizes}")
     print(f"PyTorch      : {report.torch_version}")
     print()
     print(_format_table(report.rows, show_throughput))
@@ -448,11 +518,24 @@ def _write_reports(report: BenchmarkReport, report_dir: str, show_throughput: bo
     print(f"JSON report : {json_path}")
 
     md_path = os.path.join(report_dir, "inference_benchmark.md")
+    loaded_line = (
+        f"**States loaded shape** (before padding): {report.states_loaded_shape[0]} × "
+        f"{report.states_loaded_shape[1]}  \n"
+        if report.states_loaded_shape != report.states_shape
+        else ""
+    )
     header = (
         "# Inference Latency Benchmark\n\n"
-        f"**States shape**: {report.states_shape[0]} × {report.states_shape[1]}  \n"
+        f"**States shape** (array used): {report.states_shape[0]} × {report.states_shape[1]}  \n"
+        f"{loaded_line}"
         f"**States source**: {report.states_source or 'synthetic'}  \n"
-        f"**PyTorch**: {report.torch_version}  \n\n"
+        f"**PyTorch**: {report.torch_version}  \n"
+        f"**Devices**: {', '.join(report.devices)}  \n"
+        f"**Batch sizes**: {', '.join(str(b) for b in report.batch_sizes)}  \n"
+        f"**Warmup / repeats / throughput repeats**: "
+        f"{report.warmup} / {report.repeats} / {report.throughput_repeats}  \n"
+        f"**Hostname**: {report.hostname or '—'}  \n"
+        f"**Git commit**: {report.git_commit or '—'}  \n\n"
     )
     with open(md_path, "w") as fh:
         fh.write(header)
@@ -604,6 +687,12 @@ def main() -> None:
     if not devices_raw:
         raise ValueError("--devices cannot be empty")
 
+    for raw_dev in devices_raw:
+        if not _is_supported_device_string(raw_dev):
+            raise ValueError(
+                f"Unsupported device {raw_dev!r}; use 'cpu' or 'cuda' / 'cuda:N'."
+            )
+
     # Filter CUDA if not available.
     devices: List[str] = []
     for d in devices_raw:
@@ -623,6 +712,7 @@ def main() -> None:
         seed=args.seed,
     )
     states_source = states_file if states_file else f"synthetic_standard_normal(n={args.n_states})"
+    states_loaded_shape = (int(states.shape[0]), int(states.shape[1]))
 
     # Ensure we have enough rows for the largest batch.
     max_batch = max(batch_sizes)
@@ -680,6 +770,8 @@ def main() -> None:
     print(f"Warmup      : {args.warmup}")
     print(f"Repeats     : {args.repeats}")
 
+    git_commit, hostname = _provenance()
+
     # Run benchmark.
     report = run_benchmark(
         named_models=named_models,
@@ -689,8 +781,11 @@ def main() -> None:
         n_warmup=args.warmup,
         n_repeats=args.repeats,
         throughput_n_timed=args.throughput_repeats,
+        states_source=states_source,
+        states_loaded_shape=states_loaded_shape,
+        git_commit=git_commit,
+        hostname=hostname,
     )
-    report.states_source = states_source
 
     show_throughput = args.throughput_repeats > 0
     _print_report(report, show_throughput)

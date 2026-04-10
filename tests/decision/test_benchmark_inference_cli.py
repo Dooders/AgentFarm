@@ -10,9 +10,10 @@ import argparse
 import importlib.util
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import Tuple
 
 import numpy as np
 import pytest
@@ -28,8 +29,6 @@ _SCRIPT = _REPO_ROOT / "scripts" / "benchmark_inference.py"
 
 
 def _load_module():
-    import sys
-
     spec = importlib.util.spec_from_file_location("benchmark_inference_mod", _SCRIPT)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
@@ -82,6 +81,19 @@ def _default_ns(**overrides) -> argparse.Namespace:
 def _make_states(n: int = 32, dim: int = 8) -> np.ndarray:
     rng = np.random.default_rng(0)
     return rng.standard_normal((n, dim)).astype("float32")
+
+
+def _bench_meta(states: np.ndarray, **overrides) -> dict:
+    """Keyword-only metadata for :func:`run_benchmark` tests."""
+    sh: Tuple[int, int] = (int(states.shape[0]), int(states.shape[1]))
+    base = {
+        "states_source": "pytest",
+        "states_loaded_shape": sh,
+        "git_commit": "",
+        "hostname": "test-host",
+    }
+    base.update(overrides)
+    return base
 
 
 def _make_tiny_parent(input_dim: int = 8, output_dim: int = 4) -> torch.nn.Module:
@@ -223,17 +235,28 @@ def test_benchmark_report_to_dict_is_json_serialisable():
         n_repeats=50,
     )
     report = mod.BenchmarkReport(
-        schema_version="1.0",
+        schema_version="1.1",
         torch_version="2.0.0",
         states_shape=(32, 8),
+        states_loaded_shape=(16, 8),
         states_source="synthetic",
+        devices=["cpu"],
+        batch_sizes=[1, 4],
+        warmup=5,
+        repeats=50,
+        throughput_repeats=200,
+        git_commit="deadbeef",
+        hostname="pytest",
         rows=[row],
     )
     d = report.to_dict()
     serialised = json.dumps(d)
     parsed = json.loads(serialised)
-    assert parsed["schema_version"] == "1.0"
+    assert parsed["schema_version"] == "1.1"
     assert isinstance(parsed["states_shape"], list)
+    assert parsed["states_loaded_shape"] == [16, 8]
+    assert parsed["devices"] == ["cpu"]
+    assert parsed["batch_sizes"] == [1, 4]
     assert len(parsed["rows"]) == 1
 
 
@@ -269,6 +292,7 @@ def test_run_benchmark_single_model_cpu():
         n_warmup=2,
         n_repeats=5,
         throughput_n_timed=5,
+        **_bench_meta(states),
     )
     assert len(report.rows) == 1
     row = report.rows[0]
@@ -292,6 +316,7 @@ def test_run_benchmark_multiple_models_cpu():
         n_warmup=1,
         n_repeats=3,
         throughput_n_timed=3,
+        **_bench_meta(states),
     )
     # 2 models × 1 device × 2 batch sizes = 4 rows
     assert len(report.rows) == 4
@@ -313,6 +338,7 @@ def test_run_benchmark_no_throughput():
         n_warmup=1,
         n_repeats=3,
         throughput_n_timed=0,
+        **_bench_meta(states),
     )
     assert len(report.rows) == 1
     assert report.rows[0].throughput_batches_per_sec == 0.0
@@ -387,10 +413,18 @@ def test_write_reports_creates_files(tmp_path):
         n_repeats=50,
     )
     report = mod.BenchmarkReport(
-        schema_version="1.0",
+        schema_version="1.1",
         torch_version=torch.__version__,
         states_shape=(32, 8),
+        states_loaded_shape=(32, 8),
         states_source="synthetic",
+        devices=["cpu"],
+        batch_sizes=[1],
+        warmup=5,
+        repeats=50,
+        throughput_repeats=200,
+        git_commit="",
+        hostname="pytest",
         rows=[row],
     )
     mod._write_reports(report, str(tmp_path), show_throughput=True)
@@ -402,7 +436,7 @@ def test_write_reports_creates_files(tmp_path):
 
     with open(json_path) as fh:
         data = json.load(fh)
-    assert data["schema_version"] == "1.0"
+    assert data["schema_version"] == "1.1"
     assert len(data["rows"]) == 1
 
     md_content = md_path.read_text()
@@ -421,8 +455,6 @@ def test_main_end_to_end_cpu_random_weights(tmp_path, capsys):
     report_dir = str(tmp_path / "reports")
 
     # Patch sys.argv and call main().
-    import sys
-
     old_argv = sys.argv
     sys.argv = [
         "benchmark_inference.py",
@@ -454,6 +486,10 @@ def test_main_end_to_end_cpu_random_weights(tmp_path, capsys):
     # 1 model × 1 device × 2 batch sizes = 2 rows
     assert len(data["rows"]) == 2
     assert data["rows"][0]["device"] == "cpu"
+    assert data["schema_version"] == "1.1"
+    assert "hostname" in data and "git_commit" in data
+    assert data["devices"] == ["cpu"]
+    assert data["batch_sizes"] == [1, 4]
 
 
 def test_main_end_to_end_cpu_with_checkpoint(tmp_path, capsys):
@@ -468,8 +504,6 @@ def test_main_end_to_end_cpu_with_checkpoint(tmp_path, capsys):
     torch.save(net.state_dict(), ckpt_path)
 
     report_dir = str(tmp_path / "reports")
-
-    import sys
 
     old_argv = sys.argv
     sys.argv = [
@@ -514,8 +548,6 @@ def test_main_end_to_end_parent_and_student(tmp_path, capsys):
 
     report_dir = str(tmp_path / "reports")
 
-    import sys
-
     old_argv = sys.argv
     sys.argv = [
         "benchmark_inference.py",
@@ -552,8 +584,6 @@ def test_main_cuda_unavailable_skips_gracefully(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
 
     report_dir = str(tmp_path / "reports")
-
-    import sys
 
     old_argv = sys.argv
     sys.argv = [
@@ -592,8 +622,6 @@ def test_main_states_file_used(tmp_path, capsys):
     states_path = str(tmp_path / "states.npy")
     np.save(states_path, states)
 
-    import sys
-
     old_argv = sys.argv
     sys.argv = [
         "benchmark_inference.py",
@@ -617,3 +645,60 @@ def test_main_states_file_used(tmp_path, capsys):
     assert "Inference Latency Benchmark" in captured.out
     # The states path should appear in the output.
     assert states_path in captured.out
+
+
+def test_main_rejects_unsupported_device():
+    mod = _get_mod()
+    old_argv = sys.argv
+    sys.argv = [
+        "benchmark_inference.py",
+        "--devices",
+        "metal",
+        "--n-states",
+        "4",
+    ]
+    try:
+        with pytest.raises(ValueError, match="Unsupported device"):
+            mod.main()
+    finally:
+        sys.argv = old_argv
+
+
+def test_main_padded_states_preserves_loaded_shape_in_json(tmp_path):
+    """Fewer state rows than max batch: JSON records pre-pad and post-pad shapes."""
+    mod = _get_mod()
+    report_dir = str(tmp_path / "reports")
+    old_argv = sys.argv
+    sys.argv = [
+        "benchmark_inference.py",
+        "--input-dim",
+        "4",
+        "--output-dim",
+        "2",
+        "--hidden-size",
+        "8",
+        "--n-states",
+        "2",
+        "--batch-sizes",
+        "8",
+        "--devices",
+        "cpu",
+        "--warmup",
+        "1",
+        "--repeats",
+        "2",
+        "--throughput-repeats",
+        "0",
+        "--report-dir",
+        report_dir,
+    ]
+    try:
+        mod.main()
+    finally:
+        sys.argv = old_argv
+
+    json_path = os.path.join(report_dir, "inference_benchmark.json")
+    with open(json_path) as fh:
+        data = json.load(fh)
+    assert data["states_loaded_shape"] == [2, 4]
+    assert data["states_shape"] == [8, 4]
