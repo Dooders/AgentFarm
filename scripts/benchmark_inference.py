@@ -236,7 +236,7 @@ def _load_int8(path: str, allow_unsafe: bool) -> nn.Module:
             "Loading a quantized (int8) checkpoint requires --allow-unsafe-unpickle "
             "because it uses torch.load with weights_only=False."
         )
-    model = load_quantized_checkpoint(path)
+    model, _meta = load_quantized_checkpoint(path)
     model.eval()
     return model
 
@@ -696,7 +696,7 @@ def main() -> None:
     # Filter CUDA if not available.
     devices: List[str] = []
     for d in devices_raw:
-        if d == "cuda" and not torch.cuda.is_available():
+        if d.startswith("cuda") and not torch.cuda.is_available():
             print(f"  [warn] CUDA requested but not available; skipping device {d!r}.")
             continue
         devices.append(d)
