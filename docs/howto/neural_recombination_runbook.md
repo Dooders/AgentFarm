@@ -17,6 +17,7 @@
 9. [Parameter Reference](#9-parameter-reference)
 10. [Tuning Guide](#10-tuning-guide)
 11. [Copy-Paste Recipes](#11-copy-paste-recipes)
+12. [Generalization: Holdout & Domain-Shift Evaluation](#12-generalization-holdout--domain-shift-evaluation)
 
 ---
 
@@ -686,6 +687,155 @@ python scripts/validate_recombination.py \
   --include-parent-baseline \
   --report-dir $OUT/reports/recombination
 ```
+
+---
+
+## 12. Generalization: Holdout & Domain-Shift Evaluation
+
+**Script:** `scripts/eval_generalization.py`
+
+Standard validation metrics (Sections 7.1–7.3) are measured on a single state buffer that may overlap with calibration or training data.  For publication-grade **generalization** claims, you need:
+
+1. A held-out test split that was never used for training or calibration.
+2. An optional **domain-shift** evaluation on states from a shifted distribution (sensor noise, input scaling, or a second `.npy` profile).
+
+`eval_generalization.py` automates both steps by:
+- Splitting the state buffer into an **in-distribution (ID)** and **holdout** subset.
+- Optionally perturbing the holdout set with Gaussian noise or input scaling.
+- Running `RecombinationEvaluator` on each subset and writing a per-set JSON report plus a combined `generalization_summary.json`.
+
+### Library helpers
+
+The split and perturbation logic is available as standalone functions in
+`farm.core.decision.training.holdout_utils`:
+
+| Function | Purpose |
+|----------|---------|
+| `split_replay_buffer(states, holdout_fraction, seed)` | Random train/holdout split |
+| `apply_gaussian_noise(states, std, seed)` | Add i.i.d. Gaussian noise |
+| `apply_input_scaling(states, scale_factor)` | Multiply all features by a scalar |
+| `make_shifted_states(states, shift_type, **kwargs)` | Factory dispatcher for the above |
+
+All helpers are also re-exported from `farm.core.decision.training`.
+
+### Minimal synthetic run (no checkpoints needed for a smoke test)
+
+> This example assumes you have trained parent A, parent B, and child checkpoints
+> from the Recipe A workflow in Section 11.  Replace paths as needed.
+
+```bash
+python scripts/eval_generalization.py \
+  --parent-a-ckpt checkpoints/distillation/student_A.pt \
+  --parent-b-ckpt checkpoints/distillation/student_B.pt \
+  --child-ckpt    checkpoints/finetune/child_finetuned.pt \
+  --n-states 2000 --seed 42 \
+  --holdout-fraction 0.2 \
+  --report-dir reports/generalization
+```
+
+Output:
+```
+reports/generalization/
+  id_report.json           # in-distribution split report
+  holdout_report.json      # held-out split report
+  generalization_summary.json
+```
+
+### With a real replay buffer
+
+```bash
+python scripts/eval_generalization.py \
+  --parent-a-ckpt checkpoints/parents/parent_A.pt \
+  --parent-b-ckpt checkpoints/parents/parent_B.pt \
+  --child-ckpt    checkpoints/finetune/child_finetuned.pt \
+  --states-file   data/replay_states.npy \
+  --holdout-fraction 0.2 \
+  --report-dir    reports/generalization
+```
+
+### With Gaussian-noise domain shift
+
+```bash
+python scripts/eval_generalization.py \
+  --parent-a-ckpt checkpoints/parents/parent_A.pt \
+  --parent-b-ckpt checkpoints/parents/parent_B.pt \
+  --child-ckpt    checkpoints/finetune/child_finetuned.pt \
+  --states-file   data/replay_states.npy \
+  --holdout-fraction 0.2 \
+  --shift-type    gaussian_noise \
+  --shift-std     0.1 \
+  --shift-seed    0 \
+  --report-dir    reports/generalization
+```
+
+Output adds `reports/generalization/shifted_report.json`.
+
+### With input-scaling domain shift
+
+```bash
+python scripts/eval_generalization.py \
+  --parent-a-ckpt checkpoints/parents/parent_A.pt \
+  --parent-b-ckpt checkpoints/parents/parent_B.pt \
+  --child-ckpt    checkpoints/finetune/child_finetuned.pt \
+  --states-file   data/replay_states.npy \
+  --shift-type    input_scaling \
+  --shift-scale-factor 2.0 \
+  --report-dir    reports/generalization
+```
+
+### Key flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--holdout-fraction` | `0.2` | Fraction of states reserved for holdout |
+| `--no-shuffle` | off | Skip shuffle before split (for pre-randomised buffers) |
+| `--shift-type` | — | `gaussian_noise` or `input_scaling`; omit to skip shifted eval |
+| `--shift-std` | `0.1` | Gaussian noise standard deviation |
+| `--shift-scale-factor` | `2.0` | Input scaling multiplier |
+| `--shift-seed` | `0` | Noise RNG seed |
+| `--report-only` | off | Write reports without applying pass/fail thresholds |
+
+### Reading the `generalization_summary.json`
+
+```json
+{
+  "overall_passed": true,
+  "report_only": false,
+  "holdout_fraction": 0.2,
+  "shift_type": "gaussian_noise",
+  "sets": {
+    "in_distribution": {
+      "child_agrees_with_parent_a": 0.82,
+      "child_agrees_with_parent_b": 0.79,
+      "oracle_agreement": 0.91,
+      "n_states": 1600,
+      "passed": true
+    },
+    "holdout": {
+      "child_agrees_with_parent_a": 0.80,
+      "child_agrees_with_parent_b": 0.77,
+      "oracle_agreement": 0.89,
+      "n_states": 400,
+      "passed": true
+    },
+    "shifted": {
+      "child_agrees_with_parent_a": 0.73,
+      "child_agrees_with_parent_b": 0.70,
+      "oracle_agreement": 0.84,
+      "n_states": 400,
+      "passed": true,
+      "shift_type": "gaussian_noise"
+    }
+  }
+}
+```
+
+A **meaningful generalization drop** is when holdout or shifted agreement falls
+more than ~5 pp below the ID score.  If this happens, consider:
+
+- Training on a larger or more diverse replay buffer.
+- Increasing the holdout fraction to detect over-fitting earlier in development.
+- Tuning the crossover alpha or fine-tuning LR to reduce ID–holdout gap.
 
 ---
 

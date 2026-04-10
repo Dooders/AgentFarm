@@ -69,7 +69,12 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
                 "load_finetuning_config_from_yaml",
                 "load_qat_checkpoint",
                 "load_quantized_checkpoint",
+                "make_shifted_states",
                 "run_crossover_search",
+                "SHIFT_TYPES",
+                "split_replay_buffer",
+                "apply_gaussian_noise",
+                "apply_input_scaling",
             },
         )
 
