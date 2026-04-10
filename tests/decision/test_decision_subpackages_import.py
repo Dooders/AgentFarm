@@ -101,6 +101,13 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
                 "apply_input_scaling",
                 "profile_model_stage",
                 "profile_peak_ram",
+                # Multi-generation + mutation
+                "GenerationConfig",
+                "GenerationSummary",
+                "LineageRecord",
+                "MutationConfig",
+                "mutate_state_dict",
+                "run_multi_generation_search",
             },
         )
 

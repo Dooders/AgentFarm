@@ -96,6 +96,107 @@ CROSSOVER_MODES = ("random", "layer", "weighted")
 
 
 @dataclass
+class MutationConfig:
+    """Configuration for Gaussian weight-noise mutation.
+
+    Mutation adds small random noise to the parameters of a state dict,
+    providing diversity and preventing evolutionary stagnation when crossover
+    alone is insufficient.
+
+    Attributes
+    ----------
+    noise_std:
+        Standard deviation of the zero-mean Gaussian noise added to each
+        selected parameter element.  ``0.0`` is a no-op (noise is still
+        generated but has zero magnitude).  Typical values: ``0.001``–``0.05``.
+    noise_fraction:
+        Fraction of **elements** in each tensor that receive noise.
+        ``1.0`` (default) mutates all weights uniformly.  Values in ``(0, 1)``
+        apply a random binary mask so only a fraction of elements are perturbed.
+        Must be in ``(0.0, 1.0]``.
+    seed:
+        Integer RNG seed for reproducibility.  ``None`` → non-reproducible.
+    """
+
+    noise_std: float = 0.01
+    noise_fraction: float = 1.0
+    seed: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if self.noise_std < 0.0:
+            raise ValueError(
+                f"MutationConfig.noise_std must be >= 0.0; got {self.noise_std!r}"
+            )
+        if not 0.0 < self.noise_fraction <= 1.0:
+            raise ValueError(
+                f"MutationConfig.noise_fraction must be in (0.0, 1.0]; "
+                f"got {self.noise_fraction!r}"
+            )
+
+
+def mutate_state_dict(
+    state_dict: Dict[str, Any],
+    config: MutationConfig,
+) -> Dict[str, Any]:
+    """Apply Gaussian weight-noise mutation to a float32 state dict.
+
+    Returns a **new** dict; the input *state_dict* is not modified.
+    Non-tensor entries (e.g. integer scalars) are deep-copied unchanged.
+
+    Parameters
+    ----------
+    state_dict:
+        Source state dict (float32 tensors; quantized tensors are
+        dequantized to float32 before noise is added).
+    config:
+        :class:`MutationConfig` controlling noise scale and coverage.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Mutated float32 state dict.
+
+    Examples
+    --------
+    ::
+
+        from farm.core.decision.training.crossover import (
+            MutationConfig, mutate_state_dict
+        )
+
+        cfg = MutationConfig(noise_std=0.01, seed=42)
+        mutated_sd = mutate_state_dict(model.state_dict(), cfg)
+        model.load_state_dict(mutated_sd)
+    """
+    rng = np.random.default_rng(config.seed)
+    mutated: Dict[str, Any] = {}
+    for key, val in state_dict.items():
+        if not isinstance(val, torch.Tensor):
+            mutated[key] = copy.deepcopy(val)
+            continue
+        t = _to_float(val)  # dequantize + cast to float32
+        if config.noise_std == 0.0:
+            mutated[key] = t
+            continue
+        noise = torch.from_numpy(
+            rng.standard_normal(t.shape).astype("float32")
+        ) * config.noise_std
+        if config.noise_fraction < 1.0:
+            mask = torch.from_numpy(
+                (rng.random(t.shape) < config.noise_fraction).astype("float32")
+            )
+            noise = noise * mask
+        mutated[key] = t + noise
+    logger.info(
+        "mutate_state_dict",
+        n_params=len(state_dict),
+        noise_std=config.noise_std,
+        noise_fraction=config.noise_fraction,
+    )
+    return mutated
+
+
+@dataclass
 class ChildArchitectureSpec:
     """Explicit Q-network shape for :func:`initialize_child_from_crossover`.
 
