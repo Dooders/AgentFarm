@@ -56,6 +56,11 @@ Valid stages
 ------------
 ``distill``, ``quantize``, ``crossover``, ``compare``
 
+``compare`` must include ``crossover`` (it evaluates a crossover child).  When
+``quantize`` is present, crossover blends **dequantized** weights extracted from
+the int8 checkpoints; ``compare`` loads the same int8 modules as parent
+references when reporting agreement against the float fine-tuned child.
+
 Each stage writes its outputs into a per-seed sub-directory under
 ``<results_dir>/<condition_name>/seed_<seed>/``.
 
@@ -243,6 +248,11 @@ def _parse_config(raw: Dict[str, Any], results_dir_override: str = "") -> _Ablat
                 f"Condition '{name}' includes 'crossover' but is missing required "
                 "'distill' stage."
             )
+        if "compare" in stages and "crossover" not in stages:
+            raise ValueError(
+                f"Condition '{name}' includes 'compare' but is missing required "
+                "'crossover' stage (compare evaluates a crossover child)."
+            )
         conditions.append(
             _ConditionConfig(
                 name=name,
@@ -396,20 +406,34 @@ def _run_crossover_stage(
     cond: _ConditionConfig,
     seed: int,
     student_ckpts: Dict[str, str],
+    int8_ckpts: Dict[str, str],
     states: np.ndarray,
     work_dir: str,
 ) -> str:
-    """Run crossover + fine-tuning and return the child checkpoint path."""
+    """Run crossover + fine-tuning and return the child checkpoint path.
+
+    When ``quantize`` is in the condition's stages and both int8 checkpoints
+    exist, parents are loaded as dynamic PTQ modules and converted to float
+    parameter dicts (same helper as ``crossover`` training code) before
+    :func:`crossover_quantized_state_dict` blends them.  Otherwise float
+    ``student_*.pt`` checkpoints from distillation are blended.
+
+    Fine-tuning still uses the float distilled student A as the soft-label
+    teacher so KD targets stay in full precision.
+    """
     import torch
     from farm.core.decision.base_dqn import StudentQNetwork
-    from farm.core.decision.training.crossover import crossover_quantized_state_dict
+    from farm.core.decision.training.crossover import (
+        _float_state_dict_from_dynamic_quantized_module,
+        crossover_quantized_state_dict,
+    )
     from farm.core.decision.training.finetune import FineTuner, FineTuningConfig
+    from farm.core.decision.training.quantize_ptq import load_quantized_checkpoint
 
     xcfg_raw = _merged(cfg.crossover, cond.crossover)
     dcfg_raw = _merged(cfg.distillation, cond.distillation)
 
-    # Load students as parents (produced by the distill stage).
-    def _load_student(path: str) -> StudentQNetwork:
+    def _load_float_student(path: str) -> StudentQNetwork:
         net = StudentQNetwork(
             input_dim=cfg.input_dim,
             output_dim=cfg.output_dim,
@@ -426,8 +450,29 @@ def _run_crossover_stage(
     if not parent_a_path or not parent_b_path:
         raise RuntimeError("crossover stage requires 'distill' stage to run first.")
 
-    parent_a = _load_student(parent_a_path)
-    parent_b = _load_student(parent_b_path)
+    parent_a_float = _load_float_student(parent_a_path)
+
+    use_quantized_parents = (
+        "quantize" in cond.stages
+        and bool(int8_ckpts.get("A"))
+        and bool(int8_ckpts.get("B"))
+    )
+    if "quantize" in cond.stages and "crossover" in cond.stages and not use_quantized_parents:
+        raise RuntimeError(
+            f"Condition {cond.name!r}: crossover after quantize requires both "
+            "student_A_int8.pt and student_B_int8.pt; quantize stage did not produce them."
+        )
+
+    if use_quantized_parents:
+        parent_a_q, _ = load_quantized_checkpoint(int8_ckpts["A"])
+        parent_b_q, _ = load_quantized_checkpoint(int8_ckpts["B"])
+        # Dynamic PTQ modules use packed params; extract float weights for crossover.
+        sd_a = _float_state_dict_from_dynamic_quantized_module(parent_a_q)
+        sd_b = _float_state_dict_from_dynamic_quantized_module(parent_b_q)
+    else:
+        parent_b_float = _load_float_student(parent_b_path)
+        sd_a = parent_a_float.state_dict()
+        sd_b = parent_b_float.state_dict()
 
     # Crossover
     crossover_mode = str(xcfg_raw.get("mode", "weighted"))
@@ -435,8 +480,8 @@ def _run_crossover_stage(
     crossover_seed = int(xcfg_raw.get("seed", seed))
 
     child_state = crossover_quantized_state_dict(
-        parent_a.state_dict(),
-        parent_b.state_dict(),
+        sd_a,
+        sd_b,
         mode=crossover_mode,
         alpha=crossover_alpha,
         seed=crossover_seed,
@@ -460,8 +505,8 @@ def _run_crossover_stage(
         alpha=float(dcfg_raw.get("alpha", 1.0)),
         seed=seed,
     )
-    # FineTuner(reference, child, config) — parent_a acts as soft-label teacher.
-    tuner = FineTuner(parent_a, child, ft_config)
+    # FineTuner(reference, child, config) — float parent A as soft-label teacher.
+    tuner = FineTuner(parent_a_float, child, ft_config)
     child_path = os.path.join(work_dir, "child_finetuned.pt")
     tuner.finetune(states, checkpoint_path=child_path)
     print(f"    [crossover] child -> {child_path}")
@@ -471,20 +516,33 @@ def _run_crossover_stage(
 def _run_compare_stage(
     cfg: _AblationConfig,
     cond: _ConditionConfig,
-    seed: int,
     student_ckpts: Dict[str, str],
     int8_ckpts: Dict[str, str],
     child_path: str,
     states: np.ndarray,
     work_dir: str,
 ) -> Dict[str, Any]:
-    """Run comparison matrix and return a summary dict."""
+    """Run comparison matrix and return a summary dict.
+
+    Parents are loaded from int8 checkpoints when ``quantize`` ran and both
+    ``student_*_int8.pt`` paths exist; otherwise float ``student_*.pt`` parents
+    are used.  The child is always the fine-tuned float checkpoint from
+    crossover.
+    """
     import torch
     from farm.core.decision.base_dqn import StudentQNetwork
+    from farm.core.decision.training.quantize_ptq import load_quantized_checkpoint
     from farm.core.decision.training.recombination_eval import (
         RecombinationEvaluator,
         RecombinationThresholds,
     )
+
+    if not child_path:
+        raise RuntimeError(
+            "compare stage requires a crossover child checkpoint (run crossover first)."
+        )
+    if not student_ckpts.get("A") or not student_ckpts.get("B"):
+        raise RuntimeError("compare requires distilled student_A.pt and student_B.pt.")
 
     cmpcfg_raw = _merged(cfg.comparison, cond.comparison)
     report_only = bool(cmpcfg_raw.get("report_only", True))
@@ -508,29 +566,53 @@ def _run_compare_stage(
         net.eval()
         return net
 
-    summary: Dict[str, Any] = {}
+    use_quantized_refs = (
+        "quantize" in cond.stages
+        and bool(int8_ckpts.get("A"))
+        and bool(int8_ckpts.get("B"))
+    )
+    if "quantize" in cond.stages and not use_quantized_refs:
+        raise RuntimeError(
+            f"Condition {cond.name!r}: compare after quantize requires int8 checkpoints "
+            "for both students."
+        )
 
-    # Child vs students comparison (child is fine-tuned StudentQNetwork)
-    if child_path and student_ckpts.get("A") and student_ckpts.get("B"):
-        child_net = _load_student_net(child_path)
+    child_net = _load_student_net(child_path)
+    if use_quantized_refs:
+        ref_a, _ = load_quantized_checkpoint(int8_ckpts["A"])
+        ref_b, _ = load_quantized_checkpoint(int8_ckpts["B"])
+        model_paths = {
+            "parent_a": int8_ckpts["A"],
+            "parent_b": int8_ckpts["B"],
+            "child": child_path,
+        }
+        model_formats = {
+            "parent_a": "quantized_full_model",
+            "parent_b": "quantized_full_model",
+            "child": "float_state_dict",
+        }
+    else:
         ref_a = _load_student_net(student_ckpts["A"])
         ref_b = _load_student_net(student_ckpts["B"])
-        evaluator = RecombinationEvaluator(ref_a, ref_b, child_net, thresholds)
-        report = evaluator.evaluate(states)
-        report_dict = report.to_dict()
-        report_path = os.path.join(work_dir, "compare_child_vs_students.json")
-        with open(report_path, "w", encoding="utf-8") as fh:
-            json.dump(report_dict, fh, indent=2)
-        summary["child_vs_students"] = report_dict.get("summary", {})
-        print(f"    [compare] child vs students -> {report_path}")
-    elif student_ckpts.get("A") and student_ckpts.get("B") and not child_path:
-        # No child — just record student-vs-student similarity as a check
-        ref_a = _load_student_net(student_ckpts["A"])
-        ref_b = _load_student_net(student_ckpts["B"])
-        evaluator = RecombinationEvaluator(ref_a, ref_b, ref_a, thresholds)
-        report = evaluator.evaluate(states)
-        summary["student_self_check"] = report.to_dict().get("summary", {})
+        model_paths = {
+            "parent_a": student_ckpts["A"],
+            "parent_b": student_ckpts["B"],
+            "child": child_path,
+        }
+        model_formats = {
+            "parent_a": "float_state_dict",
+            "parent_b": "float_state_dict",
+            "child": "float_state_dict",
+        }
 
+    evaluator = RecombinationEvaluator(ref_a, ref_b, child_net, thresholds)
+    report = evaluator.evaluate(states, model_paths=model_paths, model_formats=model_formats)
+    report_dict = report.to_dict()
+    report_path = os.path.join(work_dir, "compare_child_vs_students.json")
+    with open(report_path, "w", encoding="utf-8") as fh:
+        json.dump(report_dict, fh, indent=2)
+    summary: Dict[str, Any] = {"child_vs_students": report_dict.get("summary", {})}
+    print(f"    [compare] child vs students -> {report_path}")
     return summary
 
 
@@ -583,11 +665,13 @@ def _run_condition_seed(
             int8_ckpts = _run_quantize_stage(cfg, cond, student_ckpts, states, work_dir)
 
     if "crossover" in cond.stages:
-        child_path = _run_crossover_stage(cfg, cond, seed, student_ckpts, states, work_dir)
+        child_path = _run_crossover_stage(
+            cfg, cond, seed, student_ckpts, int8_ckpts, states, work_dir
+        )
 
     if "compare" in cond.stages:
         compare_summary = _run_compare_stage(
-            cfg, cond, seed, student_ckpts, int8_ckpts, child_path, states, work_dir
+            cfg, cond, student_ckpts, int8_ckpts, child_path, states, work_dir
         )
         cvs = compare_summary.get("child_vs_students", {})
         row["child_vs_ref_a_agreement"] = cvs.get("child_agrees_with_parent_a", "n/a")
@@ -672,6 +756,7 @@ def _write_summary(rows: List[Dict[str, Any]], results_dir: str, dry_run: bool) 
         "- Offline metrics only (action agreement, KL, MSE, cosine); no online rollout.",
         "- `child_vs_ref_a/b_agreement` are populated only when the `compare` stage runs.",
         "- Stage order: `distill` → `quantize` → `crossover` → `compare`.",
+        "- `compare` requires `crossover`. With `quantize`, crossover and compare use int8 parents.",
         "",
     ]
     with open(md_path, "w", encoding="utf-8") as fh:
@@ -804,6 +889,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     # Real run
     # ------------------------------------------------------------------
     all_rows: List[Dict[str, Any]] = []
+    shared_states: Optional[np.ndarray] = None
 
     for cond in cfg.conditions:
         print(f"\n{'=' * 70}")
@@ -811,7 +897,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         print("=" * 70)
         for seed in cfg.seeds:
             print(f"\n  Seed {seed} …")
-            states = _make_states(cfg, seed)
+            if cfg.states_file:
+                if shared_states is None:
+                    shared_states = _make_states(cfg, seed)
+                states = shared_states
+            else:
+                states = _make_states(cfg, seed)
             row = _run_condition_seed(cfg, cond, seed, states, dry_run=False)
             all_rows.append(row)
             print(f"  Done. elapsed={row.get('elapsed_s', '?')}s")

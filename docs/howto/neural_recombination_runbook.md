@@ -921,8 +921,8 @@ results/ablation/
     seed_0/student_A.pt  student_B.pt  student_A_int8.pt  student_B_int8.pt
     ...
   full_pipeline/
-    seed_0/student_A.pt  student_B.pt  child_finetuned.pt
-             compare_child_vs_students.json
+    seed_0/student_A.pt  student_B.pt  student_A_int8.pt  student_B_int8.pt
+             child_finetuned.pt  compare_child_vs_students.json
     ...
   ablation_summary.csv          ← consolidated table (paste into spreadsheet)
   ablation_summary.md           ← Markdown version (paste into GitHub issues)
@@ -948,12 +948,12 @@ conditions:
 |-------|-------------|
 | `distill` | `DistillationTrainer` for both A and B pairs; writes `student_A.pt`, `student_B.pt` |
 | `quantize` | `PostTrainingQuantizer` on both students; writes `student_A_int8.pt`, `student_B_int8.pt` |
-| `crossover` | `crossover_quantized_state_dict` + `FineTuner`; writes `child_finetuned.pt` |
-| `compare` | `RecombinationEvaluator` (child vs students); writes `compare_child_vs_students.json` |
+| `crossover` | When `quantize` is included, int8 parents are loaded and **dequantized** to float weights, then `crossover_quantized_state_dict` blends them into a float child; otherwise float `student_*.pt` parents are blended. `FineTuner` always uses float student A as KD teacher. Writes `child_finetuned.pt`. |
+| `compare` | `RecombinationEvaluator` (float child vs float or int8 parents matching the pipeline); writes `compare_child_vs_students.json` |
 
 Stages are always applied in the order listed above regardless of declaration
-order in the config.  A `quantize` or `crossover` stage without a preceding
-`distill` stage will be rejected at config-parse time with a clear error.
+order in the config.  Parse-time rules: `quantize` and `crossover` require
+`distill`; **`compare` requires `crossover`** (there must be a child to score).
 
 ### Dry-run mode
 
@@ -982,8 +982,8 @@ The Markdown summary table (`ablation_summary.md`) contains one row per
 
 | Column | Meaning |
 |--------|---------|
-| `child_vs_ref_a_agreement` | Top-1 action agreement of child vs student A |
-| `child_vs_ref_b_agreement` | Top-1 action agreement of child vs student B |
+| `child_vs_ref_a_agreement` | Top-1 action agreement of child vs parent A (float student, or int8 checkpoint when the condition includes `quantize`) |
+| `child_vs_ref_b_agreement` | Top-1 action agreement of child vs parent B (same rule) |
 | `oracle_agreement` | Fraction where child matches *at least one* reference |
 | `elapsed_s` | Wall-clock seconds for the (condition, seed) run |
 

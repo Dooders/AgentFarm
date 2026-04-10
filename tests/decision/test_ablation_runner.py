@@ -132,6 +132,26 @@ def test_parse_config_crossover_without_distill_raises():
         mod._parse_config(raw)
 
 
+def test_parse_config_compare_without_crossover_raises():
+    mod = _get_mod()
+    raw = dict(
+        _MINIMAL_RAW,
+        conditions=[{"name": "bad", "stages": ["distill", "compare"]}],
+    )
+    with pytest.raises(ValueError, match="crossover"):
+        mod._parse_config(raw)
+
+
+def test_parse_config_compare_only_raises():
+    mod = _get_mod()
+    raw = dict(
+        _MINIMAL_RAW,
+        conditions=[{"name": "bad", "stages": ["compare"]}],
+    )
+    with pytest.raises(ValueError, match="crossover"):
+        mod._parse_config(raw)
+
+
 def test_parse_config_empty_conditions_raises():
     mod = _get_mod()
     raw = dict(_MINIMAL_RAW, conditions=[])
