@@ -90,6 +90,7 @@ from farm.core.decision.training.distillation_script_helpers import (  # noqa: E
     load_distillation_states,
 )
 from farm.core.decision.training.recombination_analysis import (  # noqa: E402
+    ANALYSIS_SCHEMA_VERSION,
     WORST_K_CRITERIA,
     export_disagreements_csv,
     export_disagreements_json,
@@ -395,7 +396,7 @@ def main() -> None:
             args.output_dir, f"worst_{len(worst_records)}_states.json"
         )
         worst_doc = {
-            "schema_version": "1.0",
+            "schema_version": ANALYSIS_SCHEMA_VERSION,
             "criterion": args.worst_k_criterion,
             "k": len(worst_records),
             "records": [r.to_dict() for r in worst_records],

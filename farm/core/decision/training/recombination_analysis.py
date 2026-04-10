@@ -132,9 +132,9 @@ class DisagreementRecord:
         Mapping ``{k: bool}`` — whether parent B's argmax appears in the
         child's top-*k* actions.
     kl_child_vs_parent_a:
-        Per-state KL divergence KL(softmax(parent_a) ‖ softmax(child)).
+        Per-state KL divergence KL(softmax(parent_a) || softmax(child)).
     kl_child_vs_parent_b:
-        Per-state KL divergence KL(softmax(parent_b) ‖ softmax(child)).
+        Per-state KL divergence KL(softmax(parent_b) || softmax(child)).
     mse_child_vs_parent_a:
         Per-state mean squared error between child and parent A raw logits.
     mse_child_vs_parent_b:
