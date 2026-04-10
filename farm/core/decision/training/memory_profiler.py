@@ -45,7 +45,7 @@ Known limitations
   virtual memory pages that are currently resident and may fluctuate due to
   OS paging activity and the kernel's lazy-eviction policy.
 * ``resource.getrusage`` units differ by OS: bytes on Linux, kilobytes on
-  macOS.  The field ``process_peak_rss_kb`` is reported in the OS-native
+  macOS.  The field ``process_peak_rss_ru`` is reported in the OS-native
   units (see ``ru_maxrss`` man page); callers should note this in
   publication tables.
 * GPU tracking with ``torch.cuda.max_memory_allocated`` reports the

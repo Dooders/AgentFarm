@@ -376,7 +376,7 @@ def main() -> None:
         "device": str(device),
     }
     with open(out_path, "w", encoding="utf-8") as fh:
-        json.dump(report_dict, fh, indent=2, allow_nan=False)
+        json.dump(report_dict, fh, indent=2)
     print(f"\nJSON report written: {out_path}")
 
 

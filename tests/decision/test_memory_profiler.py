@@ -59,7 +59,7 @@ def _make_states(n: int = 100, seed: int = 0) -> np.ndarray:
 class TestProfilePeakRam:
     def test_yields_peak_ram_sample(self):
         with profile_peak_ram() as sample:
-            _data = [0] * 1000  # allocate something
+            _unused = [0] * 1000  # allocate something
         assert isinstance(sample, PeakRAMSample)
 
     def test_elapsed_seconds_positive(self):
