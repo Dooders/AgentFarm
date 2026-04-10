@@ -57,11 +57,15 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from farm.core.decision.training.recombination_stats import (  # noqa: E402
+    NUMERIC_METRIC_KEYS,
+    ConditionSummary,
     aggregate_conditions,
     bootstrap_ci,
     load_manifest_entries,
     welch_ttest,
 )
+
+_METRIC_CHOICES = ("primary_metric",) + NUMERIC_METRIC_KEYS
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +102,11 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         "--metric",
         default="primary_metric",
         metavar="FIELD",
-        help="Numeric metric to display as the main comparison column. Default: primary_metric.",
+        choices=list(_METRIC_CHOICES),
+        help=(
+            "Numeric manifest field for the main Mean/Std column and comparisons. "
+            f"Default: primary_metric. Choices: {', '.join(_METRIC_CHOICES)}."
+        ),
     )
     parser.add_argument(
         "--compare",
@@ -153,6 +161,14 @@ def _fmt_float(v: float) -> str:
     return f"{v:7.4f}"
 
 
+def _summary_metric_mean(summary: ConditionSummary, metric: str) -> float:
+    """Mean of *metric* for one ConditionSummary (for sorting / display)."""
+    if metric == "primary_metric":
+        return float(summary.mean_primary_metric)
+    extra = summary.extra.get(metric, {})
+    return float(extra.get("mean", float("nan")))
+
+
 def main(argv: Optional[List[str]] = None) -> None:
     args = _parse_args(argv)
 
@@ -166,7 +182,8 @@ def main(argv: Optional[List[str]] = None) -> None:
     # ------------------------------------------------------------------
     # Aggregate
     # ------------------------------------------------------------------
-    summaries = aggregate_conditions(rows, group_by=args.group_by)
+    extra_metrics = (args.metric,) if args.metric != "primary_metric" else ()
+    summaries = aggregate_conditions(rows, group_by=args.group_by, extra_metrics=extra_metrics)
 
     if not summaries:
         print("\nNo rows found after grouping.  Check --group-by fields.")
@@ -185,7 +202,10 @@ def main(argv: Optional[List[str]] = None) -> None:
     print("".join(h.ljust(w) for h, w in zip(header, col_w)))
     print("-" * 100)
 
-    for key, s in sorted(summaries.items(), key=lambda kv: -kv[1].mean_primary_metric):
+    for key, s in sorted(
+        summaries.items(),
+        key=lambda kv: -_summary_metric_mean(kv[1], metric),
+    ):
         cond_str = ", ".join(f"{k}={v}" for k, v in key)
         # Get mean/std for requested metric.
         if metric == "primary_metric":
@@ -193,8 +213,8 @@ def main(argv: Optional[List[str]] = None) -> None:
             std_val = s.std_primary_metric
         else:
             extra = s.extra.get(metric, {})
-            mean_val = extra.get("mean", float("nan"))
-            std_val = extra.get("std", float("nan"))
+            mean_val = float(extra.get("mean", float("nan")))
+            std_val = float(extra.get("std", float("nan")))
 
         row = [
             cond_str[:39],
@@ -251,8 +271,14 @@ def main(argv: Optional[List[str]] = None) -> None:
             )
             pct = int(args.confidence * 100)
             print(f"\n  Bootstrap {pct}% CI (n_resamples={args.n_bootstrap}):")
-            print(f"    {val_a}: {ci_a.mean:.4f}  [{ci_a.ci_low:.4f}, {ci_a.ci_high:.4f}]")
-            print(f"    {val_b}: {ci_b.mean:.4f}  [{ci_b.ci_low:.4f}, {ci_b.ci_high:.4f}]")
+            print(
+                f"    {val_a}: {ci_a.point_estimate:.4f}  "
+                f"[{ci_a.ci_low:.4f}, {ci_a.ci_high:.4f}]"
+            )
+            print(
+                f"    {val_b}: {ci_b.point_estimate:.4f}  "
+                f"[{ci_b.ci_low:.4f}, {ci_b.ci_high:.4f}]"
+            )
 
     # ------------------------------------------------------------------
     # JSON output

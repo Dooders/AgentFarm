@@ -22,11 +22,16 @@ from __future__ import annotations
 import json
 import math
 import os
+import subprocess
+import sys
 import tempfile
+from pathlib import Path
 from typing import Any, Dict, List
 
 import numpy as np
 import pytest
+
+import farm.core.decision.training.recombination_stats as recombination_stats
 
 from farm.core.decision.training.recombination_stats import (
     NUMERIC_METRIC_KEYS,
@@ -40,6 +45,10 @@ from farm.core.decision.training.recombination_stats import (
     load_manifest_entries,
     paired_ttest,
     welch_ttest,
+)
+
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:Precision loss occurred in moment calculation:RuntimeWarning"
 )
 
 # ---------------------------------------------------------------------------
@@ -148,6 +157,18 @@ class TestLoadManifestEntries:
             path = fh.name
         try:
             with pytest.raises(ValueError, match="JSON array"):
+                load_manifest_entries(path)
+        finally:
+            os.unlink(path)
+
+    def test_non_object_row_raises(self):
+        with tempfile.NamedTemporaryFile(
+            suffix=".json", mode="w", delete=False, encoding="utf-8"
+        ) as fh:
+            json.dump([{"ok": True}, "bad"], fh)
+            path = fh.name
+        try:
+            with pytest.raises(ValueError, match="JSON object"):
                 load_manifest_entries(path)
         finally:
             os.unlink(path)
@@ -299,6 +320,11 @@ class TestAggregateConditions:
 
 
 class TestPairedTtest:
+    def test_requires_scipy(self, monkeypatch):
+        monkeypatch.setattr(recombination_stats, "_scipy_stats", None)
+        with pytest.raises(ImportError, match="SciPy"):
+            paired_ttest([0.1, 0.2], [0.2, 0.1])
+
     def test_identical_samples_undefined_t(self):
         # When all paired differences are zero, std(diff)=0.
         # Both SciPy and the manual path return NaN for t (division by zero
@@ -360,6 +386,11 @@ class TestPairedTtest:
 
 
 class TestWelchTtest:
+    def test_requires_scipy(self, monkeypatch):
+        monkeypatch.setattr(recombination_stats, "_scipy_stats", None)
+        with pytest.raises(ImportError, match="SciPy"):
+            welch_ttest([0.1, 0.2], [0.2, 0.1])
+
     def test_known_result(self):
         # Both groups identical → t≈0, p≈1.
         a = [0.8, 0.8, 0.8]
@@ -418,7 +449,7 @@ class TestBootstrapCI:
         rng = np.random.default_rng(42)
         values = rng.normal(0.8, 0.05, size=100).tolist()
         r = bootstrap_ci(values, confidence_level=0.95, n_bootstrap=1000, rng=0)
-        assert r.ci_low <= r.mean <= r.ci_high
+        assert r.ci_low <= r.point_estimate <= r.ci_high
 
     def test_seed_reproducibility(self):
         values = [0.8, 0.9, 0.7, 0.85, 0.75]
@@ -433,8 +464,8 @@ class TestBootstrapCI:
         r2 = bootstrap_ci(values, rng=999, n_bootstrap=100)
         # Very likely to differ (not guaranteed, but seed should differ).
         # Just verify both produce valid CIs.
-        assert r1.ci_low <= r1.mean <= r1.ci_high
-        assert r2.ci_low <= r2.mean <= r2.ci_high
+        assert r1.ci_low <= r1.point_estimate <= r1.ci_high
+        assert r2.ci_low <= r2.point_estimate <= r2.ci_high
 
     def test_confidence_level_stored(self):
         values = [0.8, 0.9, 0.7]
@@ -474,13 +505,17 @@ class TestBootstrapCI:
     def test_median_statistic(self):
         values = [0.8, 0.9, 0.7, 0.85, 0.75]
         r = bootstrap_ci(values, statistic="median", rng=0)
-        assert r.mean == pytest.approx(np.median(values))
+        assert r.point_estimate == pytest.approx(np.median(values))
 
     def test_to_dict(self):
         r = bootstrap_ci([0.8, 0.9, 0.7], rng=0)
         d = r.to_dict()
         assert set(d.keys()) == {
-            "mean", "ci_low", "ci_high", "confidence_level", "n_bootstrap"
+            "point_estimate",
+            "ci_low",
+            "ci_high",
+            "confidence_level",
+            "n_bootstrap",
         }
 
 
@@ -504,6 +539,43 @@ class TestNumericMetricKeys:
 # ---------------------------------------------------------------------------
 # Tests: __init__.py exports
 # ---------------------------------------------------------------------------
+
+
+class TestAggregateCrossoverStatsScript:
+    """Smoke-test the CLI script (path hacks + argparse)."""
+
+    @staticmethod
+    def _repo_root() -> Path:
+        return Path(__file__).resolve().parents[2]
+
+    def test_metric_mse_a_prints_numeric_mean(self, tmp_path):
+        rows = [_make_manifest_row()]
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(json.dumps(rows), encoding="utf-8")
+        script = self._repo_root() / "scripts" / "aggregate_crossover_stats.py"
+        proc = subprocess.run(
+            [sys.executable, str(script), str(manifest), "--metric", "mse_a"],
+            cwd=str(self._repo_root()),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert "0.5000" in proc.stdout
+
+    def test_invalid_metric_argparse_error(self, tmp_path):
+        rows = [_make_manifest_row()]
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(json.dumps(rows), encoding="utf-8")
+        script = self._repo_root() / "scripts" / "aggregate_crossover_stats.py"
+        proc = subprocess.run(
+            [sys.executable, str(script), str(manifest), "--metric", "not_a_field"],
+            cwd=str(self._repo_root()),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert proc.returncode == 2
 
 
 class TestInitExports:

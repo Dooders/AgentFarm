@@ -8,10 +8,9 @@ It covers three main use-cases:
    into a flat list of metric dictionaries.
 2. **Summary stats** – compute per-condition *mean ± std* and *count* for any
    numeric metric column (uses only numpy; SciPy is optional).
-3. **Significance tests** – compare two conditions with a paired t-test, a
-   Welch t-test, or a bootstrap confidence interval.  All three helpers use
-   SciPy when available and fall back to a pure-numpy implementation
-   otherwise; assumptions are clearly documented in each docstring.
+3. **Significance tests** – compare two conditions with a paired t-test or a
+   Welch t-test (both require **SciPy**), or a bootstrap confidence interval
+   (numpy only).  Assumptions are documented in each docstring.
 
 Typical workflow
 ----------------
@@ -51,7 +50,7 @@ Public API
 - :func:`aggregate_conditions` – group rows and return per-key summaries
 - :func:`paired_ttest`         – paired (dependent-samples) t-test
 - :func:`welch_ttest`          – Welch (independent, unequal-variance) t-test
-- :func:`bootstrap_ci`         – bootstrap confidence interval for the mean
+- :func:`bootstrap_ci`         – bootstrap confidence interval for mean or median
 """
 
 from __future__ import annotations
@@ -63,13 +62,18 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
-# SciPy is an optional runtime dep; we fall back to numpy implementations.
+# SciPy is required for t-tests; bootstrap and summaries use numpy only.
 try:
     from scipy import stats as _scipy_stats  # type: ignore[import]
-
-    _SCIPY_AVAILABLE = True
 except ImportError:  # pragma: no cover
-    _SCIPY_AVAILABLE = False
+    _scipy_stats = None  # type: ignore[assignment]
+
+
+def _require_scipy_stats() -> None:
+    if _scipy_stats is None:
+        raise ImportError(
+            "paired_ttest and welch_ttest require SciPy. Install with: pip install 'scipy>=1.7'"
+        )
 
 # ---------------------------------------------------------------------------
 # Numeric metric keys present in every ManifestEntry / manifest row.
@@ -170,7 +174,7 @@ class TTestResult:
     method:
         Either ``"paired"`` or ``"welch"``.
     scipy_used:
-        ``True`` when SciPy provided the computation.
+        Always ``True``; SciPy is required for t-tests.
     """
 
     statistic: float
@@ -201,8 +205,9 @@ class BootstrapCIResult:
 
     Attributes
     ----------
-    mean:
-        Observed sample mean.
+    point_estimate:
+        Observed statistic on the original sample (mean or median, per
+        ``bootstrap_ci(..., statistic=...)``).
     ci_low, ci_high:
         Lower and upper confidence-interval bounds.
     confidence_level:
@@ -211,7 +216,7 @@ class BootstrapCIResult:
         Number of bootstrap resamples used.
     """
 
-    mean: float
+    point_estimate: float
     ci_low: float
     ci_high: float
     confidence_level: float
@@ -219,7 +224,7 @@ class BootstrapCIResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "mean": self.mean,
+            "point_estimate": self.point_estimate,
             "ci_low": self.ci_low,
             "ci_high": self.ci_high,
             "confidence_level": self.confidence_level,
@@ -274,6 +279,10 @@ def load_manifest_entries(
                 f"{path!r} does not contain a JSON array; got {type(data).__name__}."
             )
         for row in data:
+            if not isinstance(row, dict):
+                raise ValueError(
+                    f"{path!r}: each manifest row must be a JSON object; got {type(row).__name__}."
+                )
             row = dict(row)
             row.setdefault("_source_file", path)
             rows.append(row)
@@ -317,7 +326,7 @@ def load_eval_reports(
 
 
 def compute_condition_summary(
-    values: Sequence[float],
+    values: Sequence[Optional[float]],
 ) -> Dict[str, float]:
     """Compute descriptive statistics for a sequence of scalar metric values.
 
@@ -442,10 +451,7 @@ def paired_ttest(
       Violated by very small samples (N < 5) or heavily skewed differences.
     * Observations are independent across pairs.
 
-    When SciPy is available, delegates to
-    :func:`scipy.stats.ttest_rel`; otherwise uses the equivalent manual
-    computation: ``t = mean(d) / (std(d, ddof=1) / sqrt(N))``,
-    ``dof = N - 1``, two-sided p-value from the t-distribution CDF.
+    Delegates to :func:`scipy.stats.ttest_rel` (SciPy is required).
 
     Parameters
     ----------
@@ -458,9 +464,12 @@ def paired_ttest(
 
     Raises
     ------
+    ImportError
+        If SciPy is not installed.
     ValueError
         If ``a`` and ``b`` have different lengths or fewer than 2 pairs.
     """
+    _require_scipy_stats()
     a_arr = np.asarray(a, dtype=float)
     b_arr = np.asarray(b, dtype=float)
     if a_arr.shape != b_arr.shape:
@@ -471,22 +480,10 @@ def paired_ttest(
     if n < 2:
         raise ValueError("paired_ttest requires at least 2 paired observations.")
 
-    if _SCIPY_AVAILABLE:
-        res = _scipy_stats.ttest_rel(a_arr, b_arr)
-        t_stat = float(res.statistic)
-        pval = float(res.pvalue)
-        dof = float(n - 1)
-        scipy_used = True
-    else:
-        diff = a_arr - b_arr
-        mean_diff = float(np.mean(diff))
-        std_diff = float(np.std(diff, ddof=1))
-        se = std_diff / math.sqrt(n)
-        t_stat = mean_diff / se if std_diff > 0 else float("nan")
-        dof = float(n - 1)
-        # Two-sided p-value via normal approximation for large N, else nan.
-        pval = _two_sided_pvalue_from_t(t_stat, dof)
-        scipy_used = False
+    res = _scipy_stats.ttest_rel(a_arr, b_arr)
+    t_stat = float(res.statistic)
+    pval = float(res.pvalue)
+    dof = float(n - 1)
 
     return TTestResult(
         statistic=t_stat,
@@ -496,7 +493,7 @@ def paired_ttest(
         mean_b=float(np.mean(b_arr)),
         mean_diff=float(np.mean(a_arr - b_arr)),
         method="paired",
-        scipy_used=scipy_used,
+        scipy_used=True,
     )
 
 
@@ -514,9 +511,8 @@ def welch_ttest(
     * Unlike Student's t-test, Welch's test does *not* assume equal variances
       (heteroscedastic-safe).
 
-    When SciPy is available, delegates to
-    :func:`scipy.stats.ttest_ind` with ``equal_var=False`` (Welch); otherwise
-    uses Welch–Satterthwaite degrees-of-freedom and the t-statistic formula.
+    Delegates to :func:`scipy.stats.ttest_ind` with ``equal_var=False`` (Welch).
+    SciPy is required.
 
     Parameters
     ----------
@@ -529,9 +525,12 @@ def welch_ttest(
 
     Raises
     ------
+    ImportError
+        If SciPy is not installed.
     ValueError
         If either sample has fewer than 2 observations.
     """
+    _require_scipy_stats()
     a_arr = np.asarray(a, dtype=float)
     b_arr = np.asarray(b, dtype=float)
     if len(a_arr) < 2:
@@ -539,27 +538,19 @@ def welch_ttest(
     if len(b_arr) < 2:
         raise ValueError("welch_ttest: sample 'b' must have at least 2 observations.")
 
-    if _SCIPY_AVAILABLE:
-        res = _scipy_stats.ttest_ind(a_arr, b_arr, equal_var=False)
-        t_stat = float(res.statistic)
-        pval = float(res.pvalue)
-        # Welch–Satterthwaite dof from scipy result
-        dof = float(getattr(res, "df", len(a_arr) + len(b_arr) - 2))
-        scipy_used = True
+    res = _scipy_stats.ttest_ind(a_arr, b_arr, equal_var=False)
+    t_stat = float(res.statistic)
+    pval = float(res.pvalue)
+    df_attr = getattr(res, "df", None)
+    if df_attr is not None:
+        dof = float(df_attr)
     else:
         n_a, n_b = len(a_arr), len(b_arr)
         var_a = float(np.var(a_arr, ddof=1))
         var_b = float(np.var(b_arr, ddof=1))
-        mean_a = float(np.mean(a_arr))
-        mean_b = float(np.mean(b_arr))
-        se = math.sqrt(var_a / n_a + var_b / n_b)
-        t_stat = (mean_a - mean_b) / se if se > 0 else float("nan")
-        # Welch–Satterthwaite degrees of freedom
         num = (var_a / n_a + var_b / n_b) ** 2
         den = (var_a / n_a) ** 2 / (n_a - 1) + (var_b / n_b) ** 2 / (n_b - 1)
         dof = num / den if den > 0 else float("nan")
-        pval = _two_sided_pvalue_from_t(t_stat, dof)
-        scipy_used = False
 
     return TTestResult(
         statistic=t_stat,
@@ -569,7 +560,7 @@ def welch_ttest(
         mean_b=float(np.mean(b_arr)),
         mean_diff=float(np.mean(a_arr)) - float(np.mean(b_arr)),
         method="welch",
-        scipy_used=scipy_used,
+        scipy_used=True,
     )
 
 
@@ -645,100 +636,9 @@ def bootstrap_ci(
     ci_high = float(np.percentile(boot_stats, 100 * (1 - alpha / 2)))
 
     return BootstrapCIResult(
-        mean=observed,
+        point_estimate=observed,
         ci_low=ci_low,
         ci_high=ci_high,
         confidence_level=confidence_level,
         n_bootstrap=n_bootstrap,
     )
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
-def _two_sided_pvalue_from_t(t_stat: float, dof: float) -> float:
-    """Approximate two-sided p-value using the incomplete beta function.
-
-    Falls back to a normal approximation when ``dof`` is large (≥ 30).
-    This is used only when SciPy is unavailable.
-    """
-    if math.isnan(t_stat) or math.isnan(dof) or dof <= 0:
-        return float("nan")
-
-    if dof >= 30:
-        # Normal approximation for large dof.
-        abs_t = abs(t_stat)
-        # Two-sided normal p-value via complementary error function.
-        pval = math.erfc(abs_t / math.sqrt(2))
-        return float(pval)
-
-    # Regularised incomplete beta function B(x; a, b) where
-    # x = dof / (dof + t^2), a = dof/2, b = 0.5.
-    try:
-        x = dof / (dof + t_stat ** 2)
-        pval = _betainc(dof / 2.0, 0.5, x)
-        return float(pval)
-    except Exception:
-        return float("nan")
-
-
-def _betainc(a: float, b: float, x: float) -> float:
-    """Regularised incomplete beta function I_x(a, b) via continued fraction.
-
-    Adapted from Numerical Recipes §6.4 (Lentz's method).  Accurate for the
-    range of parameters typical in t-distribution p-value computation.
-    """
-    if x < 0.0 or x > 1.0:
-        return float("nan")
-    if x == 0.0:
-        return 0.0
-    if x == 1.0:
-        return 1.0
-
-    # Use symmetry relation when x > (a+1)/(a+b+2) for better convergence.
-    if x > (a + 1.0) / (a + b + 2.0):
-        return 1.0 - _betainc(b, a, 1.0 - x)
-
-    lbeta = math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
-    front = math.exp(math.log(x) * a + math.log(1.0 - x) * b - lbeta) / a
-
-    # Lentz's continued fraction.
-    qab = a + b
-    qap = a + 1.0
-    qam = a - 1.0
-    c = 1.0
-    d = 1.0 - qab * x / qap
-    if abs(d) < 1e-30:
-        d = 1e-30
-    d = 1.0 / d
-    h = d
-
-    for m in range(1, 201):
-        m2 = 2 * m
-        # Even step.
-        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
-        d = 1.0 + aa * d
-        c = 1.0 + aa / c
-        if abs(d) < 1e-30:
-            d = 1e-30
-        if abs(c) < 1e-30:
-            c = 1e-30
-        d = 1.0 / d
-        h *= d * c
-        # Odd step.
-        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
-        d = 1.0 + aa * d
-        c = 1.0 + aa / c
-        if abs(d) < 1e-30:
-            d = 1e-30
-        if abs(c) < 1e-30:
-            c = 1e-30
-        d = 1.0 / d
-        delta = d * c
-        h *= delta
-        if abs(delta - 1.0) < 1e-10:
-            break
-
-    return front * h
