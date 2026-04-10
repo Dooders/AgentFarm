@@ -209,7 +209,7 @@ def test_load_raw_config_invalid_json_raises(tmp_path):
         raw = mod._load_raw_config(str(cfg_file))
         # If YAML parsed it as a dict that's acceptable; otherwise should have raised.
         assert isinstance(raw, dict)
-    except (ValueError, Exception):
+    except Exception:
         pass  # Any clear exception is acceptable for invalid input
 
 
