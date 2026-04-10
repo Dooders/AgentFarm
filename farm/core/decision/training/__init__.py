@@ -87,6 +87,15 @@ from .trainer_distill import (
     ValidationReport,
     ValidationThresholds,
 )
+from .recombination_analysis import (
+    ANALYSIS_SCHEMA_VERSION,
+    WORST_K_CRITERIA,
+    DisagreementRecord,
+    export_disagreements_csv,
+    export_disagreements_json,
+    extract_activations,
+    extract_disagreements,
+    worst_k_states,
 from .label_metrics import (
     LabelMetrics,
     compute_label_metrics,
@@ -106,6 +115,7 @@ from .recombination_stats import (
 )
 
 __all__ = [
+    "ANALYSIS_SCHEMA_VERSION",
     "AlgorithmTrainer",
     "apply_gaussian_noise",
     "apply_input_scaling",
@@ -117,9 +127,14 @@ __all__ = [
     "CROSSOVER_MODES",
     "ChildArchitectureSpec",
     "CrossoverRecipe",
+    "DisagreementRecord",
     "DistillationConfig",
     "DistillationMetrics",
     "DistillationTrainer",
+    "export_disagreements_csv",
+    "export_disagreements_json",
+    "extract_activations",
+    "extract_disagreements",
     "EpisodeEnvProtocol",
     "ExperienceCollector",
     "FineTuneRegime",
@@ -168,6 +183,8 @@ __all__ = [
     "LabelMetrics",
     "compute_label_metrics",
     "WeightOnlyFakeQuantLinear",
+    "worst_k_states",
+    "WORST_K_CRITERIA",
     "welch_ttest",
     "build_leaderboard",
     "compare_outputs",

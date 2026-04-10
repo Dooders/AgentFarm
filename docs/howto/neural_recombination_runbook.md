@@ -19,6 +19,7 @@
 11. [Copy-Paste Recipes](#11-copy-paste-recipes)
 12. [Generalization: Holdout & Domain-Shift Evaluation](#12-generalization-holdout--domain-shift-evaluation)
 13. [Publication Ablations](#13-publication-ablations)
+14. [Qualitative Error Analysis for Recombined Networks](#14-qualitative-error-analysis-for-recombined-networks)
 
 ---
 
@@ -454,6 +455,8 @@ Key threshold flags:
 | `--min-cosine-similarity` | `0.8` | Child vs parent cosine similarity |
 
 > **"Good enough" heuristic:** aim for child-vs-A and child-vs-B top-1 agreement both ≥ 0.7, with neither collapsing to one parent.  The `primary_metric = min(agreement_A, agreement_B)` used by `run_crossover_search.py` captures this directly.
+
+> **Case-level analysis:** for per-state disagreements, logit summaries, worst-*k* states, and hidden-layer activations see [§ 14 — Qualitative Error Analysis](#14-qualitative-error-analysis-for-recombined-networks) and `scripts/analyze_recombination.py`.
 
 ### Validation report layout
 
@@ -989,6 +992,110 @@ The Markdown summary table (`ablation_summary.md`) contains one row per
 
 `child_vs_ref_*_agreement` columns are populated only when the `compare`
 stage is included.  Conditions without a `compare` stage show `n/a`.
+
+---
+
+## 14. Qualitative Error Analysis for Recombined Networks
+
+**Script:** `scripts/analyze_recombination.py`  
+**Python API:** `farm.core.decision.training.recombination_analysis`
+
+The aggregate fidelity report from `validate_recombination.py` (§ 7.3) shows
+*mean* agreement across all states.  For publication or debugging you often
+need **case-level** insight: *which* states does the child get wrong, and is
+the disagreement systematic?  `analyze_recombination.py` provides this.
+
+### What it produces
+
+| Output | Description |
+|--------|-------------|
+| `disagreements.csv` | One row per evaluation state.  Columns: actions, agreement flags, per-state KL / MSE / cosine similarity, top-*k* mismatch flags. |
+| `disagreements.json` | Same records in JSON with summary counts; includes raw logits when `--include-logits` is set. |
+| `worst_<k>_states.json` | The *k* states with the largest errors, sorted by the chosen criterion. |
+| `<activations>.npy` | (Optional) NumPy array of shape `(N, activation_dim)` — hidden-layer activations for a memory-bounded probe set. |
+
+### Minimal run
+
+```bash
+python scripts/analyze_recombination.py \
+  --checkpoint-dir checkpoints/finetune \
+  --parent-a-ckpt  checkpoints/parent_A.pt \
+  --parent-b-ckpt  checkpoints/parent_B.pt \
+  --child-ckpt     checkpoints/finetune/child_finetuned.pt \
+  --states-file    data/replay_states.npy \
+  --output-dir     reports/analysis
+```
+
+### With logits, worst-10 states, and activation export
+
+```bash
+python scripts/analyze_recombination.py \
+  --checkpoint-dir      checkpoints/finetune \
+  --states-file         data/replay_states.npy \
+  --include-logits \
+  --worst-k             10 \
+  --worst-k-criterion   max_kl \
+  --activations-out     reports/analysis/child_activations.npy \
+  --activation-layer-index 4 \
+  --activation-max-states  500 \
+  --output-dir          reports/analysis
+```
+
+`--activation-layer-index` selects a sub-module by its index in
+`list(model.modules())`.  For `BaseQNetwork`:
+
+| Index | Layer |
+|-------|-------|
+| 4 | First hidden ReLU (post LayerNorm) |
+| 8 | Second hidden ReLU (post LayerNorm) |
+
+### Python API
+
+```python
+import numpy as np
+from farm.core.decision.training.recombination_analysis import (
+    extract_disagreements,
+    worst_k_states,
+    export_disagreements_csv,
+    export_disagreements_json,
+    extract_activations,
+)
+
+states = np.load("data/replay_states.npy")
+
+records = extract_disagreements(
+    parent_a, parent_b, child, states,
+    include_logits=True,
+    k_values=[1, 2, 3],
+)
+
+# Worst-10 states by maximum KL divergence across the two parents
+worst = worst_k_states(records, k=10, criterion="max_kl")
+
+export_disagreements_csv(records, "reports/analysis/disagreements.csv")
+export_disagreements_json(records, "reports/analysis/disagreements.json")
+
+# Memory-bounded activation export (first hidden ReLU, max 500 states)
+acts = extract_activations(child, states, layer_index=4, max_states=500)
+np.save("reports/analysis/child_activations.npy", acts)
+```
+
+### Worst-k criteria
+
+| Criterion | Sorts by |
+|-----------|---------|
+| `max_kl` (default) | `max(KL_vs_A, KL_vs_B)` |
+| `kl_parent_a` | KL divergence vs parent A |
+| `kl_parent_b` | KL divergence vs parent B |
+| `max_mse` | `max(MSE_vs_A, MSE_vs_B)` |
+| `mse_parent_a` | MSE vs parent A |
+| `mse_parent_b` | MSE vs parent B |
+
+### Integration with validate_recombination.py
+
+Run `validate_recombination.py` first to check that aggregate fidelity meets
+thresholds, then run `analyze_recombination.py` to drill into problem states.
+Both share the same architecture flags and checkpoint conventions.
 
 ---
 
