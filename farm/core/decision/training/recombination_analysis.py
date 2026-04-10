@@ -52,8 +52,8 @@ Typical API usage
     export_disagreements_csv(records, "disagreements.csv")
     export_disagreements_json(records, "disagreements.json")
 
-    # Hidden-layer activation export (first hidden ReLU output)
-    acts = extract_activations(child, states, layer_index=2, max_states=200)
+    # Hidden-layer activation export (first hidden ReLU — see extract_activations table)
+    acts = extract_activations(child, states, layer_index=4, max_states=200)
     np.save("child_activations.npy", acts)
 
 CLI
@@ -132,9 +132,12 @@ class DisagreementRecord:
         Mapping ``{k: bool}`` — whether parent B's argmax appears in the
         child's top-*k* actions.
     kl_child_vs_parent_a:
-        Per-state KL divergence KL(softmax(parent_a) || softmax(child)).
+        Per-state **KL(parent A ‖ child)** over action softmaxes (PyTorch
+        ``kl_div(log_softmax(child), softmax(parent_a))``, summed over actions).
+        The field name is historical; compare to metrics defined as
+        KL(child ‖ parent) carefully.
     kl_child_vs_parent_b:
-        Per-state KL divergence KL(softmax(parent_b) || softmax(child)).
+        Same as *kl_child_vs_parent_a* for parent B.
     mse_child_vs_parent_a:
         Per-state mean squared error between child and parent A raw logits.
     mse_child_vs_parent_b:
@@ -310,7 +313,7 @@ def extract_disagreements(
         agrees_b = (actions_c == actions_b)
         agrees_any = agrees_a | agrees_b
 
-        # Per-state KL divergence (KL(p_ref ‖ p_child) for each parent)
+        # Per-state KL(parent ‖ child): kl_div(log p_child, p_parent) summed over actions
         p_a = F.softmax(logits_a, dim=-1)
         p_b = F.softmax(logits_b, dim=-1)
         log_p_c = F.log_softmax(logits_c, dim=-1)

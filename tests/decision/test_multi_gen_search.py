@@ -38,6 +38,7 @@ from farm.core.decision.training.crossover_search import (
     GenerationSummary,
     LineageRecord,
     SearchConfig,
+    _search_config_with_generation_seed_bump,
     run_multi_generation_search,
 )
 
@@ -86,6 +87,39 @@ def _tiny_gen_config(
         selection_strategy=strategy,
         seed=0,
     )
+
+
+# ===========================================================================
+# _search_config_with_generation_seed_bump
+# ===========================================================================
+
+
+class TestSearchConfigGenerationSeedBump:
+    def test_zero_bump_returns_same_object(self):
+        sc = _tiny_search_config()
+        assert _search_config_with_generation_seed_bump(sc, 0) is sc
+
+    def test_bump_shifts_integer_seeds(self):
+        sc = SearchConfig(
+            crossover_recipes=[CrossoverRecipe("random", alpha=0.5, seed=10)],
+            finetune_regimes=[FineTuneRegime("smoke", epochs=1, lr=1e-3, batch_size=8, seed=20)],
+        )
+        out = _search_config_with_generation_seed_bump(sc, 7)
+        assert out.crossover_recipes[0].seed == 17
+        assert out.finetune_regimes[0].seed == 27
+        assert sc.crossover_recipes[0].seed == 10
+        assert sc.finetune_regimes[0].seed == 20
+
+    def test_none_seeds_unchanged(self):
+        sc = SearchConfig(
+            crossover_recipes=[CrossoverRecipe("layer")],
+            finetune_regimes=[
+                FineTuneRegime("smoke", epochs=1, lr=1e-3, batch_size=8, seed=None),
+            ],
+        )
+        out = _search_config_with_generation_seed_bump(sc, 99)
+        assert out.crossover_recipes[0].seed is None
+        assert out.finetune_regimes[0].seed is None
 
 
 # ===========================================================================

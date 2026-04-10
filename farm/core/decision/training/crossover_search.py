@@ -64,7 +64,8 @@ See also
 - :mod:`farm.core.decision.training.crossover` – crossover operators
 - :mod:`farm.core.decision.training.finetune`  – fine-tuning pipeline
 - :mod:`farm.core.decision.training.recombination_eval` – evaluation harness
-- ``scripts/run_crossover_search.py``          – CLI wrapper
+- ``scripts/run_crossover_search.py``          – single-generation CLI wrapper
+- ``scripts/run_multi_gen_search.py``          – multi-generation evolutionary CLI
 - ``docs/design/crossover_search_space.md``    – search space specification
 """
 
@@ -76,7 +77,7 @@ import json
 import multiprocessing as mp
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -378,6 +379,33 @@ class SearchConfig:
         if self.max_runs is not None:
             return all_pairs[: self.max_runs]
         return all_pairs
+
+
+def _search_config_with_generation_seed_bump(
+    search_config: SearchConfig,
+    bump: int,
+) -> SearchConfig:
+    """Return a shallow copy of *search_config* with integer seeds shifted by *bump*.
+
+    Each :class:`CrossoverRecipe` / :class:`FineTuneRegime` ``seed`` that is not
+    ``None`` becomes ``seed + bump``.  ``None`` seeds stay ``None``.  When
+    *bump* is zero, returns *search_config* unchanged (same object).
+    """
+    if bump == 0:
+        return search_config
+    new_recipes = [
+        replace(r, seed=None if r.seed is None else r.seed + bump)
+        for r in search_config.crossover_recipes
+    ]
+    new_regimes = [
+        replace(r, seed=None if r.seed is None else r.seed + bump)
+        for r in search_config.finetune_regimes
+    ]
+    return replace(
+        search_config,
+        crossover_recipes=new_recipes,
+        finetune_regimes=new_regimes,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1232,8 +1260,14 @@ class GenerationConfig:
         :class:`SearchConfig` used for the crossover + fine-tune search in
         every generation (shared / frozen across all generations).
     keep_top_k:
-        How many of the best children to retain in the lineage registry at the
-        end of each generation.  ``None`` keeps all children.
+        When selecting the **second** parent for the next generation under
+        ``selection_strategy="best"``, only the first *keep_top_k* entries of
+        the leaderboard (by *primary_metric*) are considered: parent B is the
+        rank-2 child **within that prefix**.  ``keep_top_k=1`` therefore has
+        no second distinct child and parent B falls back to the original
+        parent B (same as a single-child generation).  ``None`` uses the full
+        sorted leaderboard for that selection.  **Lineage JSON always records
+        every child** in the manifest; this knob does not trim stored lineage.
     mutation_config:
         Optional :class:`~farm.core.decision.training.crossover.MutationConfig`
         applied to the **promoted parent** state dicts before each new
@@ -1251,8 +1285,16 @@ class GenerationConfig:
             parent B supplied to :func:`run_multi_generation_search`.
 
     seed:
-        Optional base RNG seed.  When provided, per-generation seeds are
-        derived as ``seed + generation_index`` to ensure full reproducibility.
+        Optional integer combined with the zero-based generation index *g* to
+        diversify stochastic work **per generation**.  When not ``None``,
+        every non-``None`` crossover and fine-tune seed in
+        :attr:`search_config` is offset by ``seed + g`` for generation *g*
+        (so generation 0 matches the template when ``seed`` is ``0``).  When
+        :attr:`mutation_config` is set, its NumPy RNG seed is further combined
+        with ``seed`` when mutating promoted parents (see
+        :func:`run_multi_generation_search`).  ``None`` leaves recipe/regime
+        seeds exactly as given in :attr:`search_config` and does not inject a
+        mutation RNG seed when ``mutation_config.seed`` is also ``None``.
     """
 
     num_generations: int
@@ -1450,12 +1492,21 @@ def run_multi_generation_search(
     for gen_idx in range(generation_config.num_generations):
         gen_dir = os.path.join(run_dir, f"gen_{gen_idx}")
 
+        seed_bump = 0
+        if generation_config.seed is not None:
+            seed_bump = int(generation_config.seed) + gen_idx
+        search_cfg = _search_config_with_generation_seed_bump(
+            generation_config.search_config,
+            seed_bump,
+        )
+
         logger.info(
             "multi_gen_search_generation_start",
             generation=gen_idx,
             parent_a_id=current_parent_a_id,
             parent_b_id=current_parent_b_id,
             gen_dir=gen_dir,
+            generation_seed_bump=seed_bump,
         )
 
         # ------------------------------------------------------------------
@@ -1465,7 +1516,7 @@ def run_multi_generation_search(
             current_parent_a,
             current_parent_b,
             states,
-            generation_config.search_config,
+            search_cfg,
             gen_dir,
             thresholds=thresholds,
             include_parent_baseline=include_parent_baseline,
@@ -1542,10 +1593,14 @@ def run_multi_generation_search(
             # Apply optional mutation to parent state dicts before promoting
             if generation_config.mutation_config is not None:
                 mut_cfg = generation_config.mutation_config
-                # Derive a per-generation seed for reproducibility
+                gen_base = 0 if generation_config.seed is None else int(generation_config.seed)
                 if mut_cfg.seed is not None:
-                    from dataclasses import replace
-                    mut_cfg = replace(mut_cfg, seed=mut_cfg.seed + gen_idx + 1)
+                    mut_cfg = replace(
+                        mut_cfg,
+                        seed=int(mut_cfg.seed) + gen_base + gen_idx + 1,
+                    )
+                elif gen_base != 0:
+                    mut_cfg = replace(mut_cfg, seed=gen_base + gen_idx + 1)
 
                 mutated_a_sd = mutate_state_dict(next_parent_a.state_dict(), mut_cfg)
                 next_parent_a.load_state_dict(mutated_a_sd)

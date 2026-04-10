@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Multi-generation evolutionary crossover search.
 
-Runs :func:`~farm.core.decision.training.run_multi_generation_search` for
+Runs :func:`~farm.core.decision.training.crossover_search.run_multi_generation_search` for
 *--num-generations* rounds.  In each generation a population of child
 Q-networks is produced via crossover + fine-tune; the best child(ren) are
 promoted as parents for the next generation.  Optional Gaussian weight-noise
@@ -134,14 +134,21 @@ def _parse_args() -> argparse.Namespace:
         "--keep-top-k",
         type=int,
         default=None,
-        help="Number of top children to retain in lineage per generation. "
-        "None keeps all.",
+        help=(
+            "Leaderboard prefix length when picking parent B under 'best': "
+            "rank-2 must lie in the first K entries; see runbook §15. "
+            "None uses the full leaderboard.  Does not trim lineage.json."
+        ),
     )
     p.add_argument(
         "--seed",
         type=int,
         default=None,
-        help="Base RNG seed for reproducibility.",
+        help=(
+            "When using synthetic parents or states: PyTorch/NumPy RNG seed. "
+            "Also passed as GenerationConfig.seed: generation g adds (seed+g) to "
+            "every non-None crossover/fine-tune recipe seed in the search config."
+        ),
     )
 
     # Mutation

@@ -20,6 +20,7 @@
 12. [Generalization: Holdout & Domain-Shift Evaluation](#12-generalization-holdout--domain-shift-evaluation)
 13. [Publication Ablations](#13-publication-ablations)
 14. [Qualitative Error Analysis for Recombined Networks](#14-qualitative-error-analysis-for-recombined-networks)
+15. [Multi-Generation Crossover Search](#15-multi-generation-crossover-search)
 
 ---
 
@@ -1091,11 +1092,49 @@ np.save("reports/analysis/child_activations.npy", acts)
 | `mse_parent_a` | MSE vs parent A |
 | `mse_parent_b` | MSE vs parent B |
 
+**KL columns:** `kl_child_vs_parent_a` / `_b` are **KL(parent ‖ child)** over action softmaxes (parent as the reference distribution).  The field names are historical; compare to other tools that report KL(child ‖ parent) carefully.
+
 ### Integration with validate_recombination.py
 
 Run `validate_recombination.py` first to check that aggregate fidelity meets
 thresholds, then run `analyze_recombination.py` to drill into problem states.
 Both share the same architecture flags and checkpoint conventions.
+
+---
+
+## 15. Multi-Generation Crossover Search
+
+**Script:** `scripts/run_multi_gen_search.py`  
+**Python API:** `farm.core.decision.training.crossover_search.run_multi_generation_search`, `GenerationConfig`
+
+This mode runs :func:`~farm.core.decision.training.crossover_search.run_crossover_search` repeatedly.  After each generation, the best child checkpoint becomes **parent A** for the next generation; **parent B** is chosen from the leaderboard according to `selection_strategy` (see below).  Optional Gaussian **mutation** perturbs promoted parents’ weights before the next generation’s crossovers.
+
+### Semantics (parent selection)
+
+| Role | Rule |
+|------|--------|
+| Parent A (next gen) | Always the **globally best** child of the current generation (highest `primary_metric` on the full manifest). |
+| Parent B under `selection_strategy="best"` | The **rank-2** child in the sorted leaderboard **within the first `keep_top_k` entries** when at least two distinct children exist there.  If `keep_top_k` is `1`, or only one child exists in that prefix, parent B falls back to the **original** parent B from generation 0. |
+| Parent B under `"best_vs_original"` | Always the **original** parent B (same in-memory / checkpoint object as at start). |
+| Mutation | Applied only to **loaded** child checkpoints promoted as parents.  The original parent B reference is **never** mutated when it is reused as parent B. |
+| Lineage | `lineage.json` lists **every** child from every generation; `keep_top_k` does **not** trim stored lineage—it only affects which leaderboard prefix is used to pick rank-2 for parent B. |
+
+### Per-generation RNG (`GenerationConfig.seed`)
+
+In the CLI, `--seed` is forwarded to `GenerationConfig.seed` **and** seeds synthetic parent/state generation when you omit checkpoint/state files.  When `seed` is set, generation *g* adds **`seed + g`** to every non-`None` crossover recipe seed and fine-tune regime seed in the shared `SearchConfig`.  When `seed` is `None`, recipe and regime seeds are used exactly as configured.  Mutation RNG seeds combine `MutationConfig.seed`, `GenerationConfig.seed`, and the generation index; see the `GenerationConfig` docstring in code.
+
+### Minimal CLI example
+
+```bash
+python scripts/run_multi_gen_search.py \
+  --search-space minimal \
+  --max-runs 3 \
+  --num-generations 3 \
+  --seed 1000 \
+  --run-dir runs/multi_gen_smoke
+```
+
+For a **single** generation with the full `run_crossover_search.py` flag surface (eval batch size, workers, recombination thresholds, etc.), use `scripts/run_crossover_search.py`.  `run_multi_gen_search.py` uses a smaller argument set focused on multi-gen knobs; extend the Python API if you need full parity.
 
 ---
 
@@ -1105,6 +1144,6 @@ Both share the same architecture flags and checkpoint conventions.
 |----------|---------|
 | [`docs/design/distill_quantize_crossover_finetune.md`](../design/distill_quantize_crossover_finetune.md) | Architecture overview, Mermaid pipeline diagram, module map, and recorded experimental results |
 | [`docs/design/crossover_strategies.md`](../design/crossover_strategies.md) | Detailed semantics of `random`, `layer`, and `weighted` crossover strategies with code examples |
-| [`docs/design/crossover_search_space.md`](../design/crossover_search_space.md) | Grid definitions, pre-defined search presets, and leaderboard format for `run_crossover_search.py` |
+| [`docs/design/crossover_search_space.md`](../design/crossover_search_space.md) | Grid definitions, pre-defined search presets, and leaderboard format for `run_crossover_search.py` / `run_multi_gen_search.py` |
 | [`docs/distillation_soft_label_comparison.md`](../distillation_soft_label_comparison.md) | Hard vs blended vs soft distillation objective comparison with reproducible results |
 | [`farm/config/default.yaml`](../../farm/config/default.yaml) | All YAML defaults including the `crossover_child_finetune` section |
