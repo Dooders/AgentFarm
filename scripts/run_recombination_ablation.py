@@ -299,14 +299,15 @@ def _run_distill_stage(
     ckpts: Dict[str, str] = {}
     _pair_offset = {"A": 0, "B": 1}
 
+    import torch
+
     for pair in ("A", "B"):
+        torch.manual_seed(seed + _pair_offset[pair])
         teacher = BaseQNetwork(
             input_dim=cfg.input_dim,
             output_dim=cfg.output_dim,
             hidden_size=cfg.hidden_size,
         )
-        import torch
-        torch.manual_seed(seed + _pair_offset[pair])
         student = StudentQNetwork(
             input_dim=cfg.input_dim,
             output_dim=cfg.output_dim,
@@ -682,7 +683,7 @@ def _print_plan(cfg: _AblationConfig) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _parse_args() -> argparse.Namespace:
+def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Unified ablation runner: seeds × conditions → results/ tree + summary.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -711,7 +712,11 @@ def _parse_args() -> argparse.Namespace:
         default="",
         help="Override the results directory from the config (or the smoke-test default).",
     )
-    return p.parse_args()
+    return p
+
+
+def _parse_args() -> argparse.Namespace:
+    return _build_arg_parser().parse_args()
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
@@ -787,16 +792,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
 def _parse_args_from(argv: Sequence[str]) -> argparse.Namespace:
     """Parse *argv* using the same parser as ``_parse_args``."""
-    p = argparse.ArgumentParser(
-        description="Unified ablation runner: seeds × conditions → results/ tree + summary.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    source = p.add_mutually_exclusive_group()
-    source.add_argument("--config", default="")
-    source.add_argument("--smoke-test", action="store_true")
-    p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--results-dir", default="")
-    return p.parse_args(list(argv))
+    return _build_arg_parser().parse_args(list(argv))
 
 
 if __name__ == "__main__":
