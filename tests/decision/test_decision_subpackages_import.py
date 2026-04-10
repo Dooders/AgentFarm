@@ -32,6 +32,8 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
                 "LEADERBOARD_COLUMNS",
                 "ManifestEntry",
                 "PairwiseComparison",
+                "PeakRAMSample",
+                "PipelineMemoryReport",
                 "PolicyRolloutAdapter",
                 "PostTrainingQuantizer",
                 "QATConfig",
@@ -72,9 +74,12 @@ class TestDecisionSubpackagesImport(unittest.TestCase):
                 "make_shifted_states",
                 "run_crossover_search",
                 "SHIFT_TYPES",
+                "StageMemoryProfile",
                 "split_replay_buffer",
                 "apply_gaussian_noise",
                 "apply_input_scaling",
+                "profile_model_stage",
+                "profile_peak_ram",
             },
         )
 

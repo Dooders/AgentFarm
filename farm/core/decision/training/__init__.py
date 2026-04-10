@@ -72,6 +72,13 @@ from .sim_rollout_adapter import (
     SimRolloutConfig,
     SimRolloutResult,
 )
+from .memory_profiler import (
+    PeakRAMSample,
+    PipelineMemoryReport,
+    StageMemoryProfile,
+    profile_model_stage,
+    profile_peak_ram,
+)
 from .trainer_distill import (
     DistillationConfig,
     DistillationMetrics,
@@ -113,6 +120,11 @@ __all__ = [
     "QuantizedValidationReport",
     "QuantizedValidationThresholds",
     "QuantizedValidator",
+    "PeakRAMSample",
+    "PipelineMemoryReport",
+    "StageMemoryProfile",
+    "profile_model_stage",
+    "profile_peak_ram",
     "REPORT_SCHEMA_VERSION",
     "RecombinationEvaluator",
     "RecombinationReport",
