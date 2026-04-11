@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import dataclasses
 import json
 import os
 import random
@@ -351,7 +352,6 @@ def _recombine(
 
     # Fine-tune
     base_cfg = load_finetuning_config_from_yaml(None)
-    import dataclasses
     cfg = dataclasses.replace(
         base_cfg,
         epochs=finetune_epochs,
@@ -577,7 +577,7 @@ def main() -> None:
         )
     elif not parent_b_ckpt:
         parent_b_ckpt = default_b
-        print(f"[Stage 1] Skipping parent B training — using {parent_b_ckpt}")
+        print(f"\n[Stage 1] Skipping parent B training — using {parent_b_ckpt}")
 
     # -----------------------------------------------------------------------
     # Stage 2: crossover + fine-tune

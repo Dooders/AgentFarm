@@ -84,6 +84,10 @@ except ImportError as exc:
 
 from farm.core.decision.base_dqn import BaseQNetwork  # noqa: E402
 
+# CartPole-v1 dimensions used as fallback (inferred at runtime from environment).
+_CARTPOLE_INPUT_DIM = 4
+_CARTPOLE_OUTPUT_DIM = 2
+
 
 # ---------------------------------------------------------------------------
 # DQN trainer (self-contained, no SimulationDatabase dependency)
@@ -238,8 +242,8 @@ def _train_one_parent(
     print(f"{'=' * 60}")
 
     env = gym.make("CartPole-v1")
-    input_dim = int(env.observation_space.shape[0])   # 4
-    output_dim = int(env.action_space.n)               # 2
+    input_dim = int(env.observation_space.shape[0])   # _CARTPOLE_INPUT_DIM = 4
+    output_dim = int(env.action_space.n)               # _CARTPOLE_OUTPUT_DIM = 2
 
     agent = _CartPoleDQN(
         input_dim=input_dim,
