@@ -7,8 +7,8 @@ and ``parent_B.pt``) and finishing with a JSON validation report.
 
 Pipeline stages
 ---------------
-1. **Train parents** (optional) — calls ``train_cartpole_parents.py`` logic
-   inline to produce ``parent_A.pt`` / ``parent_B.pt`` if they don't already
+1. **Train parents** (optional) — uses shared ``cartpole_dqn_training`` logic
+   to produce ``parent_A.pt`` / ``parent_B.pt`` if they don't already
    exist (or if ``--force-train`` is set).
 2. **Crossover + fine-tune child** — combines parent weights via
    :func:`~farm.core.decision.training.crossover.crossover_quantized_state_dict`
@@ -65,28 +65,21 @@ CartPole dimensions
 from __future__ import annotations
 
 import argparse
-import collections
 import dataclasses
 import json
 import os
-import random
 import sys
-from typing import Deque, List, Optional
+from typing import Optional
 
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
 
 # Allow running directly from repo root without installing the package.
 _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _repo_root not in sys.path:
-    sys.path.insert(0, _repo_root)
-
-try:
-    import gymnasium as gym
-except ImportError as exc:
-    raise SystemExit("gymnasium is required: pip install gymnasium") from exc
+_scripts_dir = os.path.join(_repo_root, "scripts")
+for _p in (_repo_root, _scripts_dir):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from farm.core.decision.base_dqn import BaseQNetwork  # noqa: E402
 from farm.core.decision.training.crossover import (  # noqa: E402
@@ -105,101 +98,11 @@ from farm.core.decision.training.recombination_eval import (  # noqa: E402
     RecombinationThresholds,
 )
 
+from cartpole_dqn_training import train_cartpole_parent  # noqa: E402
+
 # CartPole-v1 fixed dimensions
 _INPUT_DIM = 4
 _OUTPUT_DIM = 2
-
-
-# ---------------------------------------------------------------------------
-# Minimal DQN agent for CartPole training (self-contained)
-# ---------------------------------------------------------------------------
-
-
-class _DQNAgent:
-    """Lightweight DQN agent for single-environment training."""
-
-    def __init__(
-        self,
-        hidden_size: int,
-        lr: float,
-        gamma: float,
-        epsilon_start: float,
-        epsilon_min: float,
-        epsilon_decay: float,
-        tau: float,
-        memory_size: int,
-        batch_size: int,
-        seed: Optional[int],
-    ) -> None:
-        self.device = torch.device("cpu")
-        self.gamma = gamma
-        self.epsilon = epsilon_start
-        self.epsilon_min = epsilon_min
-        self.epsilon_decay = epsilon_decay
-        self.tau = tau
-        self.batch_size = batch_size
-
-        if seed is not None:
-            random.seed(seed)
-            np.random.seed(seed)
-            torch.manual_seed(seed)
-
-        self.q_net = BaseQNetwork(_INPUT_DIM, _OUTPUT_DIM, hidden_size).to(self.device)
-        self.target_net = BaseQNetwork(_INPUT_DIM, _OUTPUT_DIM, hidden_size).to(self.device)
-        self.target_net.load_state_dict(self.q_net.state_dict())
-        self.target_net.eval()
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr)
-        self.criterion = nn.SmoothL1Loss()
-        self.memory: Deque = collections.deque(maxlen=memory_size)
-        self._states_seen: List[np.ndarray] = []
-
-    def act(self, state: np.ndarray) -> int:
-        if random.random() < self.epsilon:
-            return random.randint(0, _OUTPUT_DIM - 1)
-        s = torch.from_numpy(state).float().to(self.device)
-        self.q_net.eval()
-        with torch.no_grad():
-            q = self.q_net(s)
-        self.q_net.train()
-        return int(q.argmax().item())
-
-    def store(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
-        self._states_seen.append(state.astype("float32"))
-
-    def learn(self):
-        if len(self.memory) < self.batch_size:
-            return
-        batch = random.sample(self.memory, self.batch_size)
-        states = torch.from_numpy(np.stack([b[0] for b in batch])).float().to(self.device)
-        actions = torch.tensor([b[1] for b in batch], device=self.device).unsqueeze(1)
-        rewards = torch.tensor([b[2] for b in batch], dtype=torch.float32, device=self.device)
-        next_states = torch.from_numpy(np.stack([b[3] for b in batch])).float().to(self.device)
-        dones = torch.tensor([b[4] for b in batch], dtype=torch.float32, device=self.device)
-
-        self.q_net.eval()
-        current_q = self.q_net(states).gather(1, actions)
-        with torch.no_grad():
-            next_acts = self.q_net(next_states).argmax(1, keepdim=True)
-            next_q = self.target_net(next_states).gather(1, next_acts)
-            target_q = rewards.unsqueeze(1) + (1 - dones.unsqueeze(1)) * self.gamma * next_q
-        self.q_net.train()
-
-        loss = self.criterion(current_q, target_q)
-        self.optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), 1.0)
-        self.optimizer.step()
-
-        for tp, lp in zip(self.target_net.parameters(), self.q_net.parameters()):
-            tp.data.copy_(self.tau * lp.data + (1.0 - self.tau) * tp.data)
-
-        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-
-    def replay_states(self) -> np.ndarray:
-        if not self._states_seen:
-            return np.empty((0, _INPUT_DIM), dtype="float32")
-        return np.stack(self._states_seen, axis=0).astype("float32")
 
 
 # ---------------------------------------------------------------------------
@@ -225,8 +128,9 @@ def _train_parent(
 ) -> str:
     """Train one CartPole parent and return its checkpoint path."""
     print(f"\n[Stage 1] Training parent_{label}  ({episodes} episodes, seed={seed})")
-    env = gym.make("CartPole-v1")
-    agent = _DQNAgent(
+    result = train_cartpole_parent(
+        label=label,
+        episodes=episodes,
         hidden_size=hidden_size,
         lr=lr,
         gamma=gamma,
@@ -237,61 +141,15 @@ def _train_parent(
         memory_size=memory_size,
         batch_size=batch_size,
         seed=seed,
+        output_dir=output_dir,
+        log_every=log_every,
+        device=torch.device("cpu"),
     )
-
-    episode_rewards: List[float] = []
-    recent: Deque[float] = collections.deque(maxlen=100)
-
-    for ep in range(1, episodes + 1):
-        obs, _ = env.reset()
-        state = np.array(obs, dtype="float32")
-        total_reward = 0.0
-        done = False
-        while not done:
-            action = agent.act(state)
-            obs2, reward, terminated, truncated, _ = env.step(action)
-            next_state = np.array(obs2, dtype="float32")
-            done = terminated or truncated
-            agent.store(state, action, float(reward), next_state, done)
-            agent.learn()
-            state = next_state
-            total_reward += float(reward)
-        episode_rewards.append(total_reward)
-        recent.append(total_reward)
-        if ep % log_every == 0 or ep == episodes:
-            print(
-                f"  ep {ep:>5}/{episodes}  reward={total_reward:6.1f}"
-                f"  mean100={np.mean(recent):6.2f}  ε={agent.epsilon:.4f}"
-            )
-
-    env.close()
-
-    os.makedirs(output_dir, exist_ok=True)
-    ckpt = os.path.join(output_dir, f"parent_{label}.pt")
-    agent.q_net.eval()
-    torch.save(agent.q_net.state_dict(), ckpt)
-
-    mean_last50 = float(np.mean(episode_rewards[-50:])) if episode_rewards else 0.0
-    meta = {
-        "label": label,
-        "env": "CartPole-v1",
-        "input_dim": _INPUT_DIM,
-        "output_dim": _OUTPUT_DIM,
-        "hidden_size": hidden_size,
-        "episodes_trained": episodes,
-        "seed": seed,
-        "final_epsilon": round(agent.epsilon, 6),
-        "mean_reward_last_50_episodes": round(mean_last50, 4),
-        "episode_rewards": [round(r, 4) for r in episode_rewards],
-    }
-    with open(ckpt + ".json", "w", encoding="utf-8") as fh:
-        json.dump(meta, fh, indent=2)
-
-    # Write replay states (always from the most recent parent)
-    states_path = os.path.join(output_dir, "replay_states.npy")
-    np.save(states_path, agent.replay_states())
-    print(f"  ✓ parent_{label} → {ckpt}  (mean last-50: {mean_last50:.1f})")
-    return ckpt
+    print(
+        f"  ✓ parent_{label} → {result.checkpoint_path}  "
+        f"(mean last-50: {result.mean_reward_last_50:.1f})"
+    )
+    return result.checkpoint_path
 
 
 # ---------------------------------------------------------------------------
