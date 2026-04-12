@@ -39,10 +39,10 @@ Outputs
     Companion metadata: input/output dims, hidden size, seed, final epsilon,
     mean reward of the last 50 episodes.
 ``<output-dir>/parent_B.pt``  (and ``.pt.json``) — same for parent B.
-``<output-dir>/replay_states.npy``
-    Concatenated experience states (float32, shape ``(N, 4)``) collected during
-    the *last* training run (parent B, or parent A if only pair A is trained).
-    Useful as a real-distribution state buffer for downstream pipeline stages.
+``<output-dir>/replay_states_A.npy``, ``<output-dir>/replay_states_B.npy``
+    Per-parent experience states (float32, shape ``(N, 4)``), capped by
+    ``--max-replay-states`` (default 200000; use ``-1`` for no cap). Downstream
+    scripts typically prefer parent B's file when both exist.
 
 The script also writes per-episode rewards to stdout so progress can be
 monitored in real time.
@@ -71,7 +71,7 @@ for _p in (_repo_root, _scripts_dir):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from cartpole_dqn_training import train_cartpole_parent  # noqa: E402
+from cartpole_dqn_training import parse_torch_device, train_cartpole_parent  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +95,7 @@ def _train_one_parent(
     output_dir: str,
     log_every: int,
     device: torch.device,
+    max_replay_states: Optional[int],
 ) -> None:
     """Run a full DQN training loop for one parent and save the checkpoint."""
     print(f"\n{'=' * 60}")
@@ -122,6 +123,7 @@ def _train_one_parent(
         log_every=log_every,
         device=device,
         env_reset_seed=None,
+        max_replay_states=max_replay_states,
     )
 
     print(f"\n  ✓ Checkpoint   : {result.checkpoint_path}")
@@ -181,12 +183,26 @@ def _parse_args() -> argparse.Namespace:
         default=50,
         help="Print progress every N episodes.",
     )
+    p.add_argument(
+        "--device",
+        default="cpu",
+        help="Torch device for training (cpu, cuda, …).",
+    )
+    p.add_argument(
+        "--max-replay-states",
+        type=int,
+        default=200_000,
+        help="Max replay-state rows kept per parent (-1 = unlimited).",
+    )
     return p.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
-    device = torch.device("cpu")
+    device = parse_torch_device(args.device)
+    max_replay_states: Optional[int] = (
+        None if args.max_replay_states < 0 else args.max_replay_states
+    )
 
     common = dict(
         hidden_size=args.hidden_size,
@@ -201,6 +217,7 @@ def main() -> None:
         output_dir=args.output_dir,
         log_every=args.log_every,
         device=device,
+        max_replay_states=max_replay_states,
     )
 
     if args.pair in ("A", "both"):

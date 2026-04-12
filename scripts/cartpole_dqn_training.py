@@ -22,6 +22,11 @@ except ImportError as exc:
 from farm.core.decision.base_dqn import BaseQNetwork
 
 
+def parse_torch_device(spec: str) -> torch.device:
+    """Parse a CLI device string (e.g. ``cpu``, ``cuda``, ``cuda:0``)."""
+    return torch.device(spec)
+
+
 @dataclasses.dataclass(frozen=True)
 class CartPoleParentTrainResult:
     """Paths and summary stats after training one parent."""
@@ -55,6 +60,7 @@ class CartPoleDQN:
         batch_size: int,
         seed: Optional[int],
         device: torch.device,
+        max_replay_states: Optional[int] = 200_000,
     ) -> None:
         self.device = device
         self.input_dim = input_dim
@@ -79,7 +85,11 @@ class CartPoleDQN:
         self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr)
         self.criterion = nn.SmoothL1Loss()
         self.memory: Deque[Tuple] = collections.deque(maxlen=memory_size)
-        self._states_seen: List[np.ndarray] = []
+        self._states_seen: Deque[np.ndarray] = (
+            collections.deque(maxlen=max_replay_states)
+            if max_replay_states is not None
+            else collections.deque()
+        )
 
     def select_action(self, state: np.ndarray) -> int:
         if random.random() < self.epsilon:
@@ -135,7 +145,7 @@ class CartPoleDQN:
     def replay_states(self) -> np.ndarray:
         if not self._states_seen:
             return np.empty((0, self.input_dim), dtype="float32")
-        return np.stack(self._states_seen, axis=0).astype("float32")
+        return np.stack(list(self._states_seen), axis=0).astype("float32")
 
 
 def train_cartpole_parent(
@@ -155,86 +165,92 @@ def train_cartpole_parent(
     log_every: int,
     device: torch.device,
     env_reset_seed: Optional[int] = None,
+    max_replay_states: Optional[int] = 200_000,
 ) -> CartPoleParentTrainResult:
     """Train one CartPole-v1 parent, write checkpoint/metadata/replay states."""
     env = gym.make("CartPole-v1")
-    input_dim = int(env.observation_space.shape[0])
-    output_dim = int(env.action_space.n)
+    try:
+        input_dim = int(env.observation_space.shape[0])
+        output_dim = int(env.action_space.n)
 
-    agent = CartPoleDQN(
-        input_dim=input_dim,
-        output_dim=output_dim,
-        hidden_size=hidden_size,
-        lr=lr,
-        gamma=gamma,
-        epsilon_start=epsilon_start,
-        epsilon_min=epsilon_min,
-        epsilon_decay=epsilon_decay,
-        tau=tau,
-        memory_size=memory_size,
-        batch_size=batch_size,
-        seed=seed,
-        device=device,
-    )
+        agent = CartPoleDQN(
+            input_dim=input_dim,
+            output_dim=output_dim,
+            hidden_size=hidden_size,
+            lr=lr,
+            gamma=gamma,
+            epsilon_start=epsilon_start,
+            epsilon_min=epsilon_min,
+            epsilon_decay=epsilon_decay,
+            tau=tau,
+            memory_size=memory_size,
+            batch_size=batch_size,
+            seed=seed,
+            device=device,
+            max_replay_states=max_replay_states,
+        )
 
-    episode_rewards: List[float] = []
-    recent: Deque[float] = collections.deque(maxlen=100)
+        episode_rewards: List[float] = []
+        recent: Deque[float] = collections.deque(maxlen=100)
 
-    for ep in range(1, episodes + 1):
-        obs, _ = env.reset(seed=env_reset_seed)
-        state = np.array(obs, dtype="float32")
-        total_reward = 0.0
-        done = False
-        while not done:
-            action = agent.select_action(state)
-            obs2, reward, terminated, truncated, _ = env.step(action)
-            next_state = np.array(obs2, dtype="float32")
-            done = terminated or truncated
-            agent.store(state, action, float(reward), next_state, done)
-            agent.train_step()
-            state = next_state
-            total_reward += float(reward)
-        episode_rewards.append(total_reward)
-        recent.append(total_reward)
-        if ep % log_every == 0 or ep == episodes:
-            print(
-                f"  ep {ep:>5}/{episodes}  reward={total_reward:6.1f}"
-                f"  mean100={np.mean(recent):6.2f}  ε={agent.epsilon:.4f}"
-            )
+        for ep in range(1, episodes + 1):
+            obs, _ = env.reset(seed=env_reset_seed)
+            state = np.array(obs, dtype="float32")
+            total_reward = 0.0
+            done = False
+            while not done:
+                action = agent.select_action(state)
+                obs2, reward, terminated, truncated, _ = env.step(action)
+                next_state = np.array(obs2, dtype="float32")
+                done = terminated or truncated
+                agent.store(state, action, float(reward), next_state, done)
+                agent.train_step()
+                state = next_state
+                total_reward += float(reward)
+            episode_rewards.append(total_reward)
+            recent.append(total_reward)
+            if ep % log_every == 0 or ep == episodes:
+                print(
+                    f"  ep {ep:>5}/{episodes}  reward={total_reward:6.1f}"
+                    f"  mean100={np.mean(recent):6.2f}  ε={agent.epsilon:.4f}"
+                )
 
-    env.close()
+        os.makedirs(output_dir, exist_ok=True)
+        ckpt_path = os.path.join(output_dir, f"parent_{label}.pt")
+        agent.q_net.eval()
+        torch.save(agent.q_net.state_dict(), ckpt_path)
 
-    os.makedirs(output_dir, exist_ok=True)
-    ckpt_path = os.path.join(output_dir, f"parent_{label}.pt")
-    agent.q_net.eval()
-    torch.save(agent.q_net.state_dict(), ckpt_path)
+        mean_last50 = float(np.mean(episode_rewards[-50:])) if episode_rewards else 0.0
+        meta = {
+            "label": label,
+            "env": "CartPole-v1",
+            "input_dim": input_dim,
+            "output_dim": output_dim,
+            "hidden_size": hidden_size,
+            "episodes_trained": episodes,
+            "seed": seed,
+            "final_epsilon": round(agent.epsilon, 6),
+            "mean_reward_last_50_episodes": round(mean_last50, 4),
+            "episode_rewards": [round(r, 4) for r in episode_rewards],
+            "max_replay_states_cap": max_replay_states,
+        }
+        meta_path = ckpt_path + ".json"
+        with open(meta_path, "w", encoding="utf-8") as fh:
+            json.dump(meta, fh, indent=2)
 
-    mean_last50 = float(np.mean(episode_rewards[-50:])) if episode_rewards else 0.0
-    meta = {
-        "label": label,
-        "env": "CartPole-v1",
-        "input_dim": input_dim,
-        "output_dim": output_dim,
-        "hidden_size": hidden_size,
-        "episodes_trained": episodes,
-        "seed": seed,
-        "final_epsilon": round(agent.epsilon, 6),
-        "mean_reward_last_50_episodes": round(mean_last50, 4),
-        "episode_rewards": [round(r, 4) for r in episode_rewards],
-    }
-    meta_path = ckpt_path + ".json"
-    with open(meta_path, "w", encoding="utf-8") as fh:
-        json.dump(meta, fh, indent=2)
+        states_path = os.path.join(output_dir, f"replay_states_{label}.npy")
+        replay = agent.replay_states()
+        np.save(states_path, replay)
+        replay_shape = tuple(int(x) for x in replay.shape)
 
-    states_path = os.path.join(output_dir, "replay_states.npy")
-    replay = agent.replay_states()
-    np.save(states_path, replay)
-    replay_shape = tuple(int(x) for x in replay.shape)
+        result = CartPoleParentTrainResult(
+            checkpoint_path=ckpt_path,
+            metadata_path=meta_path,
+            replay_states_path=states_path,
+            mean_reward_last_50=mean_last50,
+            replay_states_shape=replay_shape,
+        )
+    finally:
+        env.close()
 
-    return CartPoleParentTrainResult(
-        checkpoint_path=ckpt_path,
-        metadata_path=meta_path,
-        replay_states_path=states_path,
-        mean_reward_last_50=mean_last50,
-        replay_states_shape=replay_shape,
-    )
+    return result

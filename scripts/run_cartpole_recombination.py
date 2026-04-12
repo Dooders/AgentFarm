@@ -49,8 +49,9 @@ All files are written under ``<output-dir>/``:
     Parent A checkpoint and metadata (training stage).
 ``parent_B.pt``, ``parent_B.pt.json``
     Parent B checkpoint and metadata (training stage).
-``replay_states.npy``
-    Replay buffer states collected during training (shape ``(N, 4)``).
+``replay_states_A.npy``, ``replay_states_B.npy`` (and legacy ``replay_states.npy``)
+    Per-parent replay state exports (shape ``(N, 4)``). The pipeline prefers B,
+    then A, then the legacy single file when choosing a default states path.
 ``child_finetuned.pt``, ``child_finetuned.pt.json``
     Fine-tuned child checkpoint and metadata (recombination stage).
 ``recombination_validation.json``
@@ -71,7 +72,6 @@ import os
 import sys
 from typing import Optional
 
-import numpy as np
 import torch
 
 # Allow running directly from repo root without installing the package.
@@ -87,6 +87,7 @@ from farm.core.decision.training.crossover import (  # noqa: E402
     crossover_quantized_state_dict,
 )
 from farm.core.decision.training.distillation_script_helpers import (  # noqa: E402
+    load_base_qnetwork_checkpoint,
     load_distillation_states,
 )
 from farm.core.decision.training.finetune import (  # noqa: E402
@@ -98,7 +99,7 @@ from farm.core.decision.training.recombination_eval import (  # noqa: E402
     RecombinationThresholds,
 )
 
-from cartpole_dqn_training import train_cartpole_parent  # noqa: E402
+from cartpole_dqn_training import parse_torch_device, train_cartpole_parent  # noqa: E402
 
 # CartPole-v1 fixed dimensions
 _INPUT_DIM = 4
@@ -125,6 +126,8 @@ def _train_parent(
     seed: Optional[int],
     output_dir: str,
     log_every: int,
+    device: torch.device,
+    max_replay_states: Optional[int],
 ) -> str:
     """Train one CartPole parent and return its checkpoint path."""
     print(f"\n[Stage 1] Training parent_{label}  ({episodes} episodes, seed={seed})")
@@ -143,7 +146,8 @@ def _train_parent(
         seed=seed,
         output_dir=output_dir,
         log_every=log_every,
-        device=torch.device("cpu"),
+        device=device,
+        max_replay_states=max_replay_states,
     )
     print(
         f"  ✓ parent_{label} → {result.checkpoint_path}  "
@@ -157,16 +161,55 @@ def _train_parent(
 # ---------------------------------------------------------------------------
 
 
-def _load_parent(path: str, hidden_size: int) -> BaseQNetwork:
+def _infer_hidden_size(path: str, fallback: int) -> int:
+    """Read first-layer width from a ``BaseQNetwork`` state dict checkpoint."""
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Parent checkpoint not found: {path!r}")
     state = torch.load(path, map_location="cpu", weights_only=True)
-    # Infer hidden size from checkpoint if possible
+    if not isinstance(state, dict):
+        raise ValueError(
+            f"Checkpoint at {path!r} does not contain a state dict (got {type(state).__name__})."
+        )
     key = "network.0.weight"
     if key in state:
-        hidden_size = int(state[key].shape[0])
-    model = BaseQNetwork(_INPUT_DIM, _OUTPUT_DIM, hidden_size=hidden_size)
-    model.load_state_dict(state)
-    model.eval()
-    return model
+        return int(state[key].shape[0])
+    return fallback
+
+
+def _load_parent_network(path: str, hidden_fallback: int) -> BaseQNetwork:
+    """Load a parent ``BaseQNetwork`` with the same validation as distillation scripts."""
+    hidden = _infer_hidden_size(path, hidden_fallback)
+    net = load_base_qnetwork_checkpoint(
+        path,
+        _INPUT_DIM,
+        _OUTPUT_DIM,
+        hidden,
+        loaded_template="  Loaded parent network from: {path}",
+    )
+    net.eval()
+    return net
+
+
+def _assert_parent_state_dicts_compatible(
+    sd_a: dict,
+    sd_b: dict,
+    path_a: str,
+    path_b: str,
+) -> None:
+    """Crossover requires identical keys and tensor shapes between parents."""
+    keys_a = set(sd_a.keys())
+    keys_b = set(sd_b.keys())
+    if keys_a != keys_b:
+        raise ValueError(
+            f"Parent checkpoints have different state-dict keys ({path_a!r} vs {path_b!r})."
+        )
+    for key in keys_a:
+        ta, tb = sd_a[key], sd_b[key]
+        if ta.shape != tb.shape:
+            raise ValueError(
+                f"Parent checkpoints shape mismatch on {key!r}: "
+                f"{tuple(ta.shape)} vs {tuple(tb.shape)} ({path_a!r} vs {path_b!r})."
+            )
 
 
 def _recombine(
@@ -182,11 +225,18 @@ def _recombine(
     finetune_batch: int,
     finetune_seed: Optional[int],
     output_dir: str,
+    device: torch.device,
 ) -> str:
     """Crossover two parents and fine-tune the child. Returns child ckpt path."""
     print("\n[Stage 2] Crossover + fine-tune")
-    parent_a = _load_parent(parent_a_ckpt, hidden_size)
-    parent_b = _load_parent(parent_b_ckpt, hidden_size)
+    parent_a = _load_parent_network(parent_a_ckpt, hidden_size)
+    parent_b = _load_parent_network(parent_b_ckpt, hidden_size)
+    _assert_parent_state_dicts_compatible(
+        parent_a.state_dict(),
+        parent_b.state_dict(),
+        parent_a_ckpt,
+        parent_b_ckpt,
+    )
     inferred_hidden = int(parent_a.network[0].out_features)
     print(f"  parents loaded  (hidden={inferred_hidden})")
 
@@ -217,7 +267,7 @@ def _recombine(
         batch_size=finetune_batch,
         seed=finetune_seed,
     )
-    tuner = FineTuner(reference=parent_a, child=child, config=cfg)
+    tuner = FineTuner(reference=parent_a, child=child, config=cfg, device=device)
     os.makedirs(output_dir, exist_ok=True)
     ckpt_path = os.path.join(output_dir, "child_finetuned.pt")
     metrics = tuner.finetune(states, checkpoint_path=ckpt_path)
@@ -249,12 +299,13 @@ def _validate(
     max_kl: float,
     max_mse: float,
     min_cosine: float,
+    device: torch.device,
 ) -> bool:
     """Run RecombinationEvaluator and write the JSON report. Returns passed."""
     print("\n[Stage 3] Recombination validation")
-    parent_a = _load_parent(parent_a_ckpt, hidden_size)
-    parent_b = _load_parent(parent_b_ckpt, hidden_size)
-    child = _load_parent(child_ckpt, hidden_size)
+    parent_a = _load_parent_network(parent_a_ckpt, hidden_size)
+    parent_b = _load_parent_network(parent_b_ckpt, hidden_size)
+    child = _load_parent_network(child_ckpt, hidden_size)
 
     states = load_distillation_states(
         states_file, n_states=2000, input_dim=_INPUT_DIM, seed=0
@@ -271,7 +322,7 @@ def _validate(
     evaluator = RecombinationEvaluator(
         parent_a, parent_b, child,
         thresholds=thresholds,
-        device=torch.device("cpu"),
+        device=device,
     )
     report = evaluator.evaluate(
         states,
@@ -306,6 +357,23 @@ def _validate(
         json.dump(report_dict, fh, indent=2, allow_nan=False)
     print(f"\n  ✓ Report → {out_path}")
     return bool(report.passed)
+
+
+def _default_replay_states_path(output_dir: str) -> str:
+    """Prefer B's replay export, then A's, then legacy single file."""
+    for name in ("replay_states_B.npy", "replay_states_A.npy", "replay_states.npy"):
+        candidate = os.path.join(output_dir, name)
+        if os.path.isfile(candidate):
+            return candidate
+    return os.path.join(output_dir, "replay_states_B.npy")
+
+
+def _require_parent_checkpoint(path: str, which: str) -> None:
+    if not os.path.isfile(path):
+        raise FileNotFoundError(
+            f"Parent {which} checkpoint is not a readable file: {path!r}. "
+            "Omit --parent-*-ckpt to train defaults under --output-dir, or fix the path."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +415,17 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--seed-a", type=int, default=42, help="RNG seed for parent A training.")
     p.add_argument("--seed-b", type=int, default=99, help="RNG seed for parent B training.")
     p.add_argument("--log-every", type=int, default=50)
+    p.add_argument(
+        "--device",
+        default="cpu",
+        help="Torch device for parent training, fine-tuning, and validation (cpu, cuda, …).",
+    )
+    p.add_argument(
+        "--max-replay-states",
+        type=int,
+        default=200_000,
+        help="Max replay-state rows kept per parent (-1 = unlimited; caps RAM and .npy size).",
+    )
     # Architecture
     p.add_argument("--hidden-size", type=int, default=64)
     # Crossover
@@ -363,7 +442,10 @@ def _parse_args() -> argparse.Namespace:
     # States
     p.add_argument(
         "--states-file", default="",
-        help="Path to replay_states.npy. Defaults to <output-dir>/replay_states.npy.",
+        help=(
+            "Path to replay states .npy. Default: first existing among "
+            "replay_states_B.npy, replay_states_A.npy, replay_states.npy under --output-dir."
+        ),
     )
     # Validation thresholds
     p.add_argument("--min-action-agreement", type=float, default=0.50)
@@ -387,11 +469,16 @@ def main() -> None:
     args = _parse_args()
     out = args.output_dir
     os.makedirs(out, exist_ok=True)
+    device = parse_torch_device(args.device)
+    max_replay_states: Optional[int] = (
+        None if args.max_replay_states < 0 else args.max_replay_states
+    )
 
     sep = "=" * 60
     print(f"\n{sep}")
     print("CartPole recombination pipeline")
     print(f"Output directory : {out}")
+    print(f"Device           : {device}")
     print(f"Crossover mode   : {args.crossover_mode}  (alpha={args.crossover_alpha})")
     print(f"{sep}")
 
@@ -416,6 +503,8 @@ def main() -> None:
         batch_size=args.train_batch,
         output_dir=out,
         log_every=args.log_every,
+        device=device,
+        max_replay_states=max_replay_states,
     )
 
     need_a = not parent_a_ckpt or args.force_train
@@ -437,12 +526,19 @@ def main() -> None:
         parent_b_ckpt = default_b
         print(f"\n[Stage 1] Skipping parent B training — using {parent_b_ckpt}")
 
+    _require_parent_checkpoint(parent_a_ckpt, "A")
+    _require_parent_checkpoint(parent_b_ckpt, "B")
+
     # -----------------------------------------------------------------------
     # Stage 2: crossover + fine-tune
     # -----------------------------------------------------------------------
-    states_file = args.states_file or os.path.join(out, "replay_states.npy")
+    states_file = args.states_file or _default_replay_states_path(out)
     if not os.path.isfile(states_file):
-        states_file = ""   # fall back to synthetic states
+        print(
+            f"\n[States] No replay states file at {states_file!r} — "
+            "using synthetic Gaussian states for fine-tune and validation."
+        )
+        states_file = ""
 
     child_ckpt = _recombine(
         parent_a_ckpt=parent_a_ckpt,
@@ -457,6 +553,7 @@ def main() -> None:
         finetune_batch=args.finetune_batch,
         finetune_seed=args.finetune_seed,
         output_dir=out,
+        device=device,
     )
 
     # -----------------------------------------------------------------------
@@ -475,6 +572,7 @@ def main() -> None:
         max_kl=args.max_kl_divergence,
         max_mse=args.max_mse,
         min_cosine=args.min_cosine_similarity,
+        device=device,
     )
 
     print(f"\n{sep}")
