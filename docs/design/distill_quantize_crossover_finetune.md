@@ -259,7 +259,63 @@ For the `short_qat` regime (5 epochs, lr=1e-4, `quantization_applied="ptq_dynami
 
 ---
 
-## Reproduce a Baseline Run
+## Canonical Issue #8 End-to-End Run
+
+> **This is the primary reproducible entrypoint for [Dooders/AgentFarm#8](https://github.com/Dooders/AgentFarm/issues/8).**
+>
+> `scripts/run_dual_teacher_cartpole.py` executes the **full dual-teacher
+> compression-first pipeline** in one command.  It differs from the quick-demo
+> script (`run_cartpole_recombination.py`) by:
+>
+> 1. Distilling *both* parents into dedicated students before any crossover.
+> 2. Quantizing the students with PTQ before crossover operates on them.
+> 3. Fine-tuning the child against **both** teachers simultaneously with a
+>    weighted dual-teacher KL loss `α·KL(A‖child) + (1−α)·KL(B‖child)`.
+> 4. Producing per-stage reports (distillation, quantization, recombination)
+>    and a master `pipeline_report.json` with all artefact paths and metrics.
+
+```bash
+# One-command full pipeline from scratch
+python scripts/run_dual_teacher_cartpole.py \
+    --output-dir checkpoints/issue8_run
+
+# Reuse existing parents, custom crossover and fine-tune settings
+python scripts/run_dual_teacher_cartpole.py \
+    --parent-a-ckpt checkpoints/cartpole/parent_A.pt \
+    --parent-b-ckpt checkpoints/cartpole/parent_B.pt \
+    --crossover-mode weighted --crossover-alpha 0.5 \
+    --finetune-epochs 15 --finetune-lr 5e-4 \
+    --finetune-teacher-weight-a 0.5 \
+    --output-dir checkpoints/issue8_run
+```
+
+**Outputs written to `<output-dir>/`:**
+
+| File | Stage |
+|------|-------|
+| `parent_A.pt`, `parent_B.pt` | Training |
+| `student_A.pt`, `student_B.pt` | Distillation |
+| `student_A_int8.pt`, `student_B_int8.pt` | Quantization |
+| `child_crossover.pt` | Crossover (pre-finetune snapshot) |
+| `child_finetuned.pt` | Dual-teacher fine-tune |
+| `distillation_report_A.json`, `distillation_report_B.json` | Per-pair distillation validation |
+| `quantization_report_A.json`, `quantization_report_B.json` | PTQ fidelity/size reports |
+| `recombination_validation.json` | Child-vs-A, child-vs-B, A-vs-B baseline |
+| `pipeline_report.json` | Master summary of all stage metrics |
+
+The `recombination_validation.json` and `pipeline_report.json` both contain a
+top-level `"passed": true/false` field so CI can gate on them.
+
+See `python scripts/run_dual_teacher_cartpole.py --help` for the full list of
+configurable hyperparameters.
+
+---
+
+## Reproduce a Baseline Run (step-by-step)
+
+> **Note:** For most purposes the single-command Issue #8 run above is
+> preferred.  The step-by-step sequence below is retained for cases where
+> individual stages need to be customised or re-run independently.
 
 All commands assume the virtual environment is activated (`source venv/bin/activate`).
 
@@ -359,5 +415,7 @@ Sweeps 9 crossover × fine-tune combinations and writes a leaderboard JSON. See 
 | [`docs/design/crossover_search_space.md`](crossover_search_space.md) | Search space definition (crossover recipes × fine-tune regimes), pre-defined grids, metrics |
 | [`docs/features/ai_machine_learning.md`](../features/ai_machine_learning.md) | User-facing ML feature overview including the crossover child fine-tuning section |
 | `farm/core/decision/training/` | All training modules (`trainer_distill`, `quantize_ptq`, `quantize_qat`, `crossover`, `finetune`, `recombination_eval`, `crossover_search`, `sim_rollout_adapter`) |
-| `scripts/` | Runnable CLI entry points for every stage and validator |
+| `scripts/run_dual_teacher_cartpole.py` | **Canonical Issue #8 script** — full dual-teacher compression-first pipeline in one command |
+| `scripts/run_cartpole_recombination.py` | Quick-demo script — single-command crossover + fine-tune (no distillation, single-teacher) |
+| `scripts/` | All runnable CLI entry points for every stage and validator |
 | `tests/decision/` | Unit and integration tests for distillation, quantization, crossover, fine-tuning, and validation |
