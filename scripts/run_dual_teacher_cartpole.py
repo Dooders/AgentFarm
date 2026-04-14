@@ -580,6 +580,7 @@ def _validate_distillation(
     states: np.ndarray,
     output_dir: str,
     report_only: bool,
+    distill_temperature: float,
 ) -> Dict[str, Any]:
     """Compare student to parent. Returns metrics dict and writes JSON report."""
     print(f"\n[Stage 6a] Distillation validation for pair {pair}")
@@ -609,7 +610,7 @@ def _validate_distillation(
     mae = float(np.mean(np.abs(q_teacher - q_student)))
 
     # KL divergence (teacher ‖ student)
-    temp = 3.0
+    temp = distill_temperature
     soft_t = torch.softmax(torch.tensor(q_teacher) / temp, dim=-1)
     soft_s = torch.log_softmax(torch.tensor(q_student) / temp, dim=-1)
     kl = float(F.kl_div(soft_s, soft_t, reduction="batchmean") * (temp ** 2))
@@ -1018,12 +1019,12 @@ def main() -> None:  # noqa: C901  (intentionally linear pipeline)
     # Stage 6: validate
     # -------------------------------------------------------------------
     dist_val_a = _validate_distillation(
-        "A", parent_a_ckpt, student_a_ckpt, args.hidden_size, states, out, args.report_only
+        "A", parent_a_ckpt, student_a_ckpt, args.hidden_size, states, out, args.report_only, args.distill_temperature
     )
     stage_metrics["distillation_validation_A"] = dist_val_a
 
     dist_val_b = _validate_distillation(
-        "B", parent_b_ckpt, student_b_ckpt, args.hidden_size, states, out, args.report_only
+        "B", parent_b_ckpt, student_b_ckpt, args.hidden_size, states, out, args.report_only, args.distill_temperature
     )
     stage_metrics["distillation_validation_B"] = dist_val_b
 
