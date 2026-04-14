@@ -351,7 +351,7 @@ def _crossover(
         network_class=StudentQNetwork,
         alpha=alpha,
     )
-    child = child  # already a StudentQNetwork in eval() mode
+    # initialize_child_from_crossover returns a StudentQNetwork in eval() mode
 
     ckpt_path = os.path.join(output_dir, "child_crossover.pt")
     torch.save(child.state_dict(), ckpt_path)
@@ -736,7 +736,7 @@ def _validate_recombination(
 def _write_pipeline_report(
     output_dir: str,
     args: argparse.Namespace,
-    artifacts: Dict[str, str],
+    artifact_paths: Dict[str, str],
     stage_metrics: Dict[str, Any],
     passed: bool,
 ) -> str:
@@ -758,7 +758,7 @@ def _write_pipeline_report(
             "finetune_temperature": args.finetune_temperature,
             "finetune_teacher_weight_a": args.finetune_teacher_weight_a,
         },
-        "artifacts": artifacts,
+        "artifacts": artifact_paths,
         "stages": stage_metrics,
         "passed": passed,
     }
