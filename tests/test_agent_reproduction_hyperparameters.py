@@ -70,4 +70,18 @@ def test_reproduce_mutates_learning_rate_and_passes_child_config():
     # Placeholder genes remain fixed by default registry.
     assert child_config.decision.epsilon_decay == 0.995
     assert child_config.decision.memory_size == 2000
+    assert offspring.hyperparameter_chromosome.get_value("learning_rate") == 0.012
+
+
+def test_reproduce_logs_exception_and_returns_false():
+    parent = _build_parent_agent_for_reproduction()
+
+    with patch(
+        "farm.core.agent.core.chromosome_from_learning_config",
+        side_effect=RuntimeError("boom"),
+    ), patch("farm.core.agent.core.logger.exception") as log_exception:
+        success = AgentCore.reproduce(parent)
+
+    assert success is False
+    log_exception.assert_called_once()
 

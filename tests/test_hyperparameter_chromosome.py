@@ -23,6 +23,12 @@ class _LearningConfigStub:
     memory_size = 4096
 
 
+class _LowEpsilonLearningConfigStub:
+    learning_rate = 0.02
+    epsilon_decay = 0.1
+    memory_size = 4096
+
+
 class TestHyperparameterGene(unittest.TestCase):
     def test_rejects_out_of_range_value(self):
         with self.assertRaises(ValueError):
@@ -85,6 +91,14 @@ class TestHyperparameterChromosome(unittest.TestCase):
         self.assertEqual(chromosome.get_value("learning_rate"), 0.02)
         self.assertEqual(chromosome.get_value("epsilon_decay"), 0.97)
         self.assertEqual(chromosome.get_value("memory_size"), 4096.0)
+
+    def test_accepts_low_valid_epsilon_decay_from_learning_config(self):
+        chromosome = chromosome_from_learning_config(_LowEpsilonLearningConfigStub())
+        self.assertEqual(chromosome.get_value("epsilon_decay"), 0.1)
+
+    def test_accepts_large_memory_size_override(self):
+        chromosome = chromosome_from_values({"memory_size": 250_000.0})
+        self.assertEqual(chromosome.get_value("memory_size"), 250_000.0)
 
     def test_mutation_only_changes_evolvable_genes(self):
         chromosome = default_hyperparameter_chromosome()

@@ -683,7 +683,13 @@ class AgentCore:
 
             return True
 
-        except Exception as e:
+        except Exception:
+            logger.exception(
+                "agent_reproduction_failed",
+                agent_id=self.agent_id,
+                generation=self.generation,
+                initial_resources=initial_resources,
+            )
             return False
 
     def take_damage(self, damage: float) -> float:
