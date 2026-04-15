@@ -283,3 +283,49 @@ def test_reproduce_skips_refund_when_partial_offspring_rollback_fails():
     assert success is False
     parent.get_component("resource").add.assert_not_called()
 
+
+def test_reproduce_uses_environment_partial_add_rollback_hook_when_available():
+    """Prefer Environment.rollback_partial_agent_add for rollback-aware cleanup."""
+    parent = _build_parent_agent_for_reproduction()
+
+    class _HookedRollbackEnvironment:
+        def __init__(self):
+            self.rollback_calls = []
+            self._agent_objects = {}
+            self.agents = []
+
+        def get_next_agent_id(self) -> str:
+            return "child_1"
+
+        def add_agent(self, offspring, flush_immediately: bool = False):
+            self._agent_objects[offspring.agent_id] = offspring
+            self.agents.append(offspring.agent_id)
+            raise RuntimeError("flush failed after insert")
+
+        def rollback_partial_agent_add(self, agent_id: str) -> bool:
+            self.rollback_calls.append(agent_id)
+            self._agent_objects.pop(agent_id, None)
+            if agent_id in self.agents:
+                self.agents.remove(agent_id)
+            return True
+
+    parent.environment = _HookedRollbackEnvironment()
+    offspring = SimpleNamespace(
+        agent_id="child_1",
+        state=Mock(),
+        generation=0,
+    )
+    offspring.state._state = Mock()
+    offspring.state._state.model_copy.return_value = Mock()
+
+    with patch("farm.core.hyperparameter_chromosome.random.random", return_value=1.0), patch(
+        "farm.core.agent.factory.AgentFactory"
+    ) as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is False
+    assert parent.environment.rollback_calls == ["child_1"]
+    parent.get_component("resource").add.assert_called_once_with(5.0)
+

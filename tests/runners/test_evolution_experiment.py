@@ -127,6 +127,28 @@ class TestEvolutionExperiment(unittest.TestCase):
             self.assertEqual(lineage[0]["generation"], 0)
             self.assertEqual(lineage[-1]["generation"], 1)
 
+    def test_repeated_run_on_same_instance_is_deterministic_with_seed(self):
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=2,
+            population_size=4,
+            num_steps_per_candidate=1,
+            seed=17,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+
+        def evaluator(candidate, candidate_config, generation, member_index):
+            fitness = candidate_config.learning.learning_rate * 1000.0
+            return fitness, {"generation": generation, "member": member_index}
+
+        result_a = experiment.run(fitness_evaluator=evaluator)
+        result_b = experiment.run(fitness_evaluator=evaluator)
+
+        lineage_a = [(ev.candidate_id, ev.parent_ids, ev.fitness) for ev in result_a.evaluations]
+        lineage_b = [(ev.candidate_id, ev.parent_ids, ev.fitness) for ev in result_b.evaluations]
+        self.assertEqual(lineage_a, lineage_b)
+        self.assertEqual(result_a.best_candidate.candidate_id, result_b.best_candidate.candidate_id)
+
 
 if __name__ == "__main__":
     unittest.main()

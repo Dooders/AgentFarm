@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import statistics
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -134,9 +135,13 @@ class EvolutionExperiment:
         self.config = config
         self._initial_chromosome = chromosome_from_learning_config(base_config.learning)
         self._selection_call_count = 0
+        self._run_rng: Optional[random.Random] = None
 
     def run(self, fitness_evaluator: Optional[FitnessEvaluator] = None) -> EvolutionExperimentResult:
         """Run the configured number of generations and return tracked lineage."""
+        # Keep seeded runs reproducible even when the same experiment instance is reused.
+        self._selection_call_count = 0
+        self._run_rng = random.Random(self.config.seed) if self.config.seed is not None else random.Random()
         evaluator = fitness_evaluator or self._default_fitness_evaluator
         population = self._initialize_population()
         generation_summaries: List[EvolutionGenerationSummary] = []
@@ -167,6 +172,7 @@ class EvolutionExperiment:
                     mutation_rate=1.0,
                     mutation_scale=self.config.mutation_scale,
                     mutation_mode=self.config.mutation_mode,
+                    rng=self._run_rng,
                 )
             population.append(
                 EvolutionCandidate(
@@ -228,12 +234,14 @@ class EvolutionExperiment:
                 parent_b.metadata["chromosome"],
                 mode=self.config.crossover_mode,
                 include_fixed=False,
+                rng=self._run_rng,
             )
             child_chromosome = mutate_chromosome(
                 child_chromosome,
                 mutation_rate=self.config.mutation_rate,
                 mutation_scale=self.config.mutation_scale,
                 mutation_mode=self.config.mutation_mode,
+                rng=self._run_rng,
             )
             child_idx = len(next_population)
             next_population.append(
