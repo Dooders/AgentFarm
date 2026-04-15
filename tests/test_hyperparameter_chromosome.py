@@ -121,6 +121,15 @@ class TestHyperparameterChromosome(unittest.TestCase):
         self.assertEqual(updated.epsilon_decay, 0.97)
         self.assertEqual(updated.memory_size, 4096)
 
+    def test_apply_chromosome_to_learning_config_plain_object_does_not_mutate_original(self):
+        stub = _LearningConfigStub()
+        chromosome = chromosome_from_values({"learning_rate": 0.05})
+        updated = apply_chromosome_to_learning_config(stub, chromosome)
+
+        self.assertIsNot(updated, stub)
+        self.assertEqual(updated.learning_rate, 0.05)
+        self.assertEqual(stub.learning_rate, 0.02)
+
 
 if __name__ == "__main__":
     unittest.main()

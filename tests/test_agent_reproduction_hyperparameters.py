@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 from farm.core.agent.config.component_configs import AgentComponentConfig
 from farm.core.agent.core import AgentCore
 from farm.core.decision.config import DecisionConfig
+from farm.core.hyperparameter_chromosome import chromosome_from_learning_config
 
 
 def _build_parent_agent_for_reproduction() -> AgentCore:
@@ -40,6 +41,7 @@ def _build_parent_agent_for_reproduction() -> AgentCore:
         "resource": resource_component,
         "reproduction": reproduction_component,
     }
+    agent.hyperparameter_chromosome = chromosome_from_learning_config(agent.config.decision)
     return agent
 
 
@@ -77,7 +79,7 @@ def test_reproduce_logs_exception_and_returns_false():
     parent = _build_parent_agent_for_reproduction()
 
     with patch(
-        "farm.core.agent.core.chromosome_from_learning_config",
+        "farm.core.agent.core.mutate_chromosome",
         side_effect=RuntimeError("boom"),
     ), patch("farm.core.agent.core.logger.exception") as log_exception:
         success = AgentCore.reproduce(parent)

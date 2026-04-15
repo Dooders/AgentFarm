@@ -646,7 +646,7 @@ class AgentCore:
             offspring_id = self.environment.get_next_agent_id()
 
             # Build child config from a mutated hyperparameter chromosome (for evolvable loci).
-            parent_chromosome = chromosome_from_learning_config(self.config.decision)
+            parent_chromosome = self.hyperparameter_chromosome
             child_chromosome = mutate_chromosome(
                 parent_chromosome,
                 mutation_rate=DEFAULT_HYPERPARAMETER_MUTATION_RATE,

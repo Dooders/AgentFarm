@@ -10,6 +10,7 @@ without changing the existing genome serialization abstraction.
 
 from __future__ import annotations
 
+import copy
 import random
 from dataclasses import dataclass
 from enum import Enum
@@ -263,7 +264,7 @@ def apply_chromosome_to_learning_config(
     """Return a copy of learning config with chromosome values applied.
 
     Supports Pydantic v2 models via ``model_copy(update=...)`` and falls back to
-    in-place attribute assignment for plain objects.
+    a shallow copy with attributes updated for plain objects.
     """
     updates: Dict[str, Any] = {}
     for gene in chromosome.genes:
@@ -278,6 +279,7 @@ def apply_chromosome_to_learning_config(
     if callable(model_copy):
         return learning_config.model_copy(update=updates)
 
+    copied = copy.copy(learning_config)
     for key, value in updates.items():
-        setattr(learning_config, key, value)
-    return learning_config
+        setattr(copied, key, value)
+    return copied
