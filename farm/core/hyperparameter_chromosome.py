@@ -36,6 +36,20 @@ class GeneEncodingScale(str, Enum):
     LOG = "log"
 
 
+class CrossoverMode(str, Enum):
+    """Supported crossover operators for chromosome vectors."""
+
+    SINGLE_POINT = "single_point"
+    UNIFORM = "uniform"
+
+
+class MutationMode(str, Enum):
+    """Supported mutation operators for real-valued genes."""
+
+    GAUSSIAN = "gaussian"
+    MULTIPLICATIVE = "multiplicative"
+
+
 @dataclass(frozen=True)
 class GeneEncodingSpec:
     """Encoding settings for converting gene values to stored representations."""
@@ -472,25 +486,115 @@ def mutate_chromosome(
     chromosome: HyperparameterChromosome,
     mutation_rate: float = 0.1,
     mutation_scale: float = 0.2,
+    mutation_mode: Union[MutationMode, str] = MutationMode.GAUSSIAN,
+    rng: Optional[random.Random] = None,
 ) -> HyperparameterChromosome:
-    """Mutate evolvable genes by bounded multiplicative perturbation."""
+    """Mutate evolvable genes using bounded real-valued perturbations.
+
+    Notes:
+        - ``gaussian``: additive Gaussian perturbation where sigma is
+          ``mutation_scale * (max_value - min_value)``.
+        - ``multiplicative``: legacy multiplicative perturbation using a
+          uniform delta in ``[-mutation_scale, mutation_scale]``.
+        - All mutations are clamped to each gene's bounds.
+    """
     if not 0.0 <= mutation_rate <= 1.0:
         raise ValueError("mutation_rate must be between 0 and 1.")
     if mutation_scale < 0.0:
         raise ValueError("mutation_scale must be non-negative.")
 
+    resolved_mode = MutationMode(mutation_mode)
+    resolved_rng = rng or random
     updated_genes: List[HyperparameterGene] = []
     for gene in chromosome.genes:
-        if not gene.evolvable or random.random() >= mutation_rate:
+        if not gene.evolvable or resolved_rng.random() >= mutation_rate:
             updated_genes.append(gene)
             continue
 
-        delta = random.uniform(-mutation_scale, mutation_scale)
-        raw_value = gene.value * (1.0 + delta)
+        if resolved_mode is MutationMode.GAUSSIAN:
+            span = gene.max_value - gene.min_value
+            sigma = span * mutation_scale
+            raw_value = gene.value + resolved_rng.gauss(0.0, sigma)
+        else:
+            delta = resolved_rng.uniform(-mutation_scale, mutation_scale)
+            raw_value = gene.value * (1.0 + delta)
+
         bounded_value = max(gene.min_value, min(gene.max_value, raw_value))
         updated_genes.append(gene.with_value(bounded_value))
 
     return HyperparameterChromosome(genes=tuple(updated_genes))
+
+
+def crossover_chromosomes(
+    parent_a: HyperparameterChromosome,
+    parent_b: HyperparameterChromosome,
+    *,
+    mode: Union[CrossoverMode, str] = CrossoverMode.SINGLE_POINT,
+    include_fixed: bool = False,
+    uniform_parent_b_probability: float = 0.5,
+    rng: Optional[random.Random] = None,
+) -> HyperparameterChromosome:
+    """Create a child chromosome by crossing two parent gene vectors.
+
+    Notes:
+        This operator intentionally lives outside ``Genome`` to keep action-set
+        genome evolution separate from hyperparameter chromosome evolution.
+    """
+    if not 0.0 <= uniform_parent_b_probability <= 1.0:
+        raise ValueError("uniform_parent_b_probability must be between 0 and 1.")
+
+    _validate_compatible_chromosomes(parent_a, parent_b)
+    resolved_mode = CrossoverMode(mode)
+    resolved_rng = rng or random
+
+    selected_indices = [
+        idx
+        for idx, gene in enumerate(parent_a.genes)
+        if include_fixed or gene.evolvable
+    ]
+    if not selected_indices:
+        return HyperparameterChromosome(genes=tuple(parent_a.genes))
+
+    child_genes = list(parent_a.genes)
+    if resolved_mode is CrossoverMode.SINGLE_POINT:
+        if len(selected_indices) == 1:
+            selected_parent = parent_b if resolved_rng.random() < 0.5 else parent_a
+            child_genes[selected_indices[0]] = selected_parent.genes[selected_indices[0]]
+        else:
+            pivot = resolved_rng.randint(1, len(selected_indices) - 1)
+            for selected_position, gene_idx in enumerate(selected_indices):
+                source = parent_a if selected_position < pivot else parent_b
+                child_genes[gene_idx] = source.genes[gene_idx]
+    else:
+        for gene_idx in selected_indices:
+            if resolved_rng.random() < uniform_parent_b_probability:
+                child_genes[gene_idx] = parent_b.genes[gene_idx]
+
+    return HyperparameterChromosome(genes=tuple(child_genes))
+
+
+def _validate_compatible_chromosomes(
+    parent_a: HyperparameterChromosome,
+    parent_b: HyperparameterChromosome,
+) -> None:
+    if len(parent_a.genes) != len(parent_b.genes):
+        raise ValueError("Chromosomes must have the same number of genes for crossover.")
+
+    for index, (gene_a, gene_b) in enumerate(zip(parent_a.genes, parent_b.genes)):
+        if gene_a.name != gene_b.name:
+            raise ValueError(
+                f"Chromosome gene mismatch at index {index}: "
+                f"'{gene_a.name}' != '{gene_b.name}'."
+            )
+        if (
+            gene_a.value_type != gene_b.value_type
+            or gene_a.min_value != gene_b.min_value
+            or gene_a.max_value != gene_b.max_value
+            or gene_a.evolvable != gene_b.evolvable
+        ):
+            raise ValueError(
+                f"Chromosome gene '{gene_a.name}' has incompatible schema across parents."
+            )
 
 
 def apply_chromosome_to_learning_config(
@@ -502,6 +606,11 @@ def apply_chromosome_to_learning_config(
     Supports Pydantic v2 models via ``model_copy(update=...)`` and falls back to
     a deep copy with attributes updated for plain objects, ensuring the original
     is never mutated regardless of config type.
+
+    Integration note:
+        ``Genome.from_agent`` captures action weights and module state only, not this
+        hyperparameter chromosome. Apply chromosome values to decision config before
+        constructing offspring so module initialization sees the evolved settings.
     """
     updates: Dict[str, Any] = {}
     for gene in chromosome.genes:

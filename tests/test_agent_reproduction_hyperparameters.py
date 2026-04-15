@@ -55,7 +55,7 @@ def test_reproduce_mutates_learning_rate_and_passes_child_config():
     offspring.state._state.model_copy.return_value = Mock()
 
     with patch("farm.core.hyperparameter_chromosome.random.random", return_value=0.0), patch(
-        "farm.core.hyperparameter_chromosome.random.uniform", return_value=0.2
+        "farm.core.hyperparameter_chromosome.random.gauss", return_value=0.002
     ), patch("farm.core.agent.factory.AgentFactory") as factory_cls:
         factory = factory_cls.return_value
         factory.create_learning_agent.return_value = offspring
@@ -188,4 +188,98 @@ def test_validate_decision_config_passes_for_valid_values():
 
     # Should not raise
     agent._validate_decision_config_for_hyperparameters()
+
+
+def test_reproduce_rolls_back_partially_added_offspring_before_refund():
+    """If add_agent partially inserts offspring and then fails, rollback then refund."""
+    parent = _build_parent_agent_for_reproduction()
+
+    class _PartiallyFailingEnvironment:
+        def __init__(self):
+            self._agent_objects = {}
+            self.agents = []
+            self.rewards = {}
+            self._cumulative_rewards = {}
+            self.terminations = {}
+            self.truncations = {}
+            self.infos = {}
+            self.observations = {}
+            self.agent_observations = {}
+            self.spatial_index = Mock()
+
+        def get_next_agent_id(self) -> str:
+            return "child_1"
+
+        def add_agent(self, offspring, flush_immediately: bool = False):
+            self._agent_objects[offspring.agent_id] = offspring
+            self.agents.append(offspring.agent_id)
+            raise RuntimeError("flush failed after insert")
+
+    parent.environment = _PartiallyFailingEnvironment()
+    offspring = SimpleNamespace(
+        agent_id="child_1",
+        state=Mock(),
+        generation=0,
+    )
+    offspring.state._state = Mock()
+    offspring.state._state.model_copy.return_value = Mock()
+
+    with patch("farm.core.hyperparameter_chromosome.random.random", return_value=1.0), patch(
+        "farm.core.agent.factory.AgentFactory"
+    ) as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is False
+    parent.get_component("resource").add.assert_called_once_with(5.0)
+    assert "child_1" not in parent.environment._agent_objects
+    assert "child_1" not in parent.environment.agents
+    # Verify spatial index was fully refreshed (not just marked dirty) so the
+    # removed offspring is evicted from KD-tree queries.
+    parent.environment.spatial_index.set_references.assert_called_once_with([], [])
+
+
+def test_reproduce_skips_refund_when_partial_offspring_rollback_fails():
+    """Avoid refund if offspring may still exist and rollback cannot complete."""
+    parent = _build_parent_agent_for_reproduction()
+
+    class _CleanupFailingDict(dict):
+        """dict subclass whose pop() always raises to simulate a cleanup failure."""
+
+        def pop(self, key, *args):
+            raise RuntimeError("rollback failed")
+
+    class _RollbackFailingEnvironment:
+        def __init__(self):
+            # Use the failing dict so direct cleanup (pop) raises during rollback.
+            self._agent_objects = _CleanupFailingDict()
+            self.agents = []
+
+        def get_next_agent_id(self) -> str:
+            return "child_1"
+
+        def add_agent(self, offspring, flush_immediately: bool = False):
+            self._agent_objects[offspring.agent_id] = offspring
+            self.agents.append(offspring.agent_id)
+            raise RuntimeError("flush failed after insert")
+
+    parent.environment = _RollbackFailingEnvironment()
+    offspring = SimpleNamespace(
+        agent_id="child_1",
+        state=Mock(),
+        generation=0,
+    )
+    offspring.state._state = Mock()
+    offspring.state._state.model_copy.return_value = Mock()
+
+    with patch("farm.core.hyperparameter_chromosome.random.random", return_value=1.0), patch(
+        "farm.core.agent.factory.AgentFactory"
+    ) as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is False
+    parent.get_component("resource").add.assert_not_called()
 
