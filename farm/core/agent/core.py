@@ -655,11 +655,17 @@ class AgentCore:
         # Store initial resources for logging
         initial_resources = self.resource_level
 
+        resource_comp = self.get_component("resource")
+        offspring_cost = repro_comp.config.offspring_cost
+        resource_deducted = False
+        offspring_added = False
+
         try:
             # Deduct reproduction cost
-            resource_comp = self.get_component("resource")
             if resource_comp:
-                resource_comp.remove(repro_comp.config.offspring_cost)
+                if not resource_comp.remove(offspring_cost):
+                    return False
+                resource_deducted = True
 
             # Get offspring initial resources from reproduction component config
             # This uses offspring_initial_resources (not initial_resource_level which is for initial population)
@@ -717,6 +723,7 @@ class AgentCore:
             # Add offspring to environment with immediate flush to ensure it's in database
             # Genome ID will be generated in add_agent() using parent info
             self.environment.add_agent(offspring, flush_immediately=True)
+            offspring_added = True
 
             # Update reproduction component tracking
             repro_comp.offspring_created += 1
@@ -724,6 +731,16 @@ class AgentCore:
             return True
 
         except Exception:
+            if resource_comp and resource_deducted and not offspring_added:
+                try:
+                    resource_comp.add(offspring_cost)
+                except Exception:
+                    logger.exception(
+                        "agent_reproduction_resource_refund_failed",
+                        agent_id=self.agent_id,
+                        generation=self.generation,
+                        offspring_cost=offspring_cost,
+                    )
             logger.exception(
                 "agent_reproduction_failed",
                 agent_id=self.agent_id,

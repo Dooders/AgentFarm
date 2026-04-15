@@ -87,6 +87,24 @@ class TestResourceGenerationConfig:
         assert cfg.regen_amount == 3
         assert cfg.max_amount == 20
 
+    @pytest.mark.parametrize("regen_rate", [-0.1, 1.1])
+    def test_rejects_invalid_regen_rate(self, regen_rate):
+        with pytest.raises(ValueError, match="regen_rate"):
+            ResourceGenerationConfig(regen_rate=regen_rate)
+
+    @pytest.mark.parametrize(
+        ("field_name", "value"),
+        [("regen_amount", -1), ("max_amount", -1), ("min_amount", -1)],
+    )
+    def test_rejects_negative_amount_fields(self, field_name, value):
+        kwargs = {field_name: value}
+        with pytest.raises(ValueError):
+            ResourceGenerationConfig(**kwargs)
+
+    def test_rejects_min_amount_greater_than_max_amount(self):
+        with pytest.raises(ValueError, match="min_amount"):
+            ResourceGenerationConfig(min_amount=11, max_amount=10)
+
 
 # ---------------------------------------------------------------------------
 # BasicRegenerator

@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+import torch.nn as nn
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 _SCRIPT_PATH = os.path.join(_REPO_ROOT, "scripts", "run_dual_teacher_cartpole.py")
@@ -164,3 +165,56 @@ def test_validate_cli_ranges_rejects_invalid_val_fraction(
                 finetune_val_fraction=val_fraction,
             )
         )
+
+
+@pytest.mark.ml
+def test_parse_args_defaults_unsafe_unpickle_disabled(
+    dual_teacher: Any, monkeypatch: Any
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["run_dual_teacher_cartpole.py"])
+    args = dual_teacher._parse_args()
+    assert args.allow_unsafe_unpickle is False
+
+
+@pytest.mark.ml
+def test_parse_args_enables_unsafe_unpickle_flag(
+    dual_teacher: Any, monkeypatch: Any
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["run_dual_teacher_cartpole.py", "--allow-unsafe-unpickle"],
+    )
+    args = dual_teacher._parse_args()
+    assert args.allow_unsafe_unpickle is True
+
+
+@pytest.mark.ml
+def test_crossover_forwards_unsafe_unpickle_flag(
+    dual_teacher: Any, monkeypatch: Any, tmp_path: Any
+) -> None:
+    calls: dict[str, Any] = {}
+
+    def _fake_initialize_child_from_crossover(*_args: Any, **kwargs: Any) -> Any:
+        calls["allow_unsafe_unpickle"] = kwargs["allow_unsafe_unpickle"]
+        return nn.Linear(1, 1)
+
+    monkeypatch.setattr(
+        dual_teacher,
+        "initialize_child_from_crossover",
+        _fake_initialize_child_from_crossover,
+    )
+
+    ckpt, _child = dual_teacher._crossover(
+        student_a_int8_ckpt="a.pt",
+        student_b_int8_ckpt="b.pt",
+        hidden_size=64,
+        mode="weighted",
+        alpha=0.5,
+        seed=0,
+        output_dir=str(tmp_path),
+        allow_unsafe_unpickle=True,
+    )
+
+    assert calls["allow_unsafe_unpickle"] is True
+    assert os.path.isfile(ckpt)
