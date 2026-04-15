@@ -6,6 +6,7 @@ Most capabilities are provided by components, but it contains some agent-specifi
 logic for reward calculation, lifecycle management, and orchestration.
 """
 
+from copy import deepcopy
 from typing import TYPE_CHECKING, Dict, Optional
 
 import torch
@@ -16,6 +17,11 @@ from farm.core.agent.components.base import AgentComponent
 from farm.core.agent.config.component_configs import AgentComponentConfig
 from farm.core.agent.services import AgentServices
 from farm.core.device_utils import create_device_from_config
+from farm.core.hyperparameter_chromosome import (
+    apply_chromosome_to_learning_config,
+    chromosome_from_learning_config,
+    mutate_chromosome,
+)
 from farm.core.state import AgentState, AgentStateManager
 from farm.utils.logging import get_logger
 
@@ -24,6 +30,7 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+DEFAULT_HYPERPARAMETER_MUTATION_RATE = 0.1
 
 
 class AgentCore:
@@ -131,6 +138,9 @@ class AgentCore:
         if movement_comp:
             movement_comp.position = position
             self.state.update_position(position)
+
+        # Maintain a typed hyperparameter track in parallel with action/module genome data.
+        self.hyperparameter_chromosome = chromosome_from_learning_config(self.config.decision)
 
     def _customize_action_weights(
         self, base_actions: list[Action], agent_type: str, environment: Optional["Environment"]
@@ -635,18 +645,31 @@ class AgentCore:
             # Generate new agent ID
             offspring_id = self.environment.get_next_agent_id()
 
+            # Build child config from a mutated hyperparameter chromosome (for evolvable loci).
+            parent_chromosome = chromosome_from_learning_config(self.config.decision)
+            child_chromosome = mutate_chromosome(
+                parent_chromosome,
+                mutation_rate=DEFAULT_HYPERPARAMETER_MUTATION_RATE,
+            )
+            child_config = deepcopy(self.config)
+            child_config.decision = apply_chromosome_to_learning_config(
+                child_config.decision,
+                child_chromosome,
+            )
+
             # Create offspring at same position as parent - use create_learning_agent to match initial agents
             offspring = factory.create_learning_agent(
                 agent_id=offspring_id,
                 position=self.position,
                 initial_resources=offspring_resources,
-                config=self.config,
+                config=child_config,
                 environment=self.environment,
                 agent_type=self.agent_type,
             )
 
             # Set offspring generation
             offspring.generation = self.generation + 1
+            offspring.hyperparameter_chromosome = child_chromosome
 
             # Set offspring parent IDs (genome_id will be generated in add_agent() using parent info)
             offspring.state._state = offspring.state._state.model_copy(update={"parent_ids": [self.agent_id]})
