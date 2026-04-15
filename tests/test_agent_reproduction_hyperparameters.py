@@ -86,6 +86,8 @@ def test_reproduce_logs_exception_and_returns_false():
         success = AgentCore.reproduce(parent)
 
     assert success is False
+    parent.get_component("resource").remove.assert_called_once_with(5.0)
+    parent.get_component("resource").add.assert_called_once_with(5.0)
     log_exception.assert_called_once()
 
 

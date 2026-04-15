@@ -56,6 +56,15 @@ resource_regen_amount: 2            # Resources added per regeneration
 max_resource_amount: 30             # Maximum resources per cell
 ```
 
+> **Validation rules for `ResourceGenerationConfig`** (`farm/core/resource_patterns.py`):
+> - `regen_rate` must be in `[0.0, 1.0]`
+> - `regen_amount` must be `≥ 0`
+> - `max_amount` must be `≥ 0`
+> - `min_amount` must be `≥ 0`
+> - `min_amount` must not exceed `max_amount`
+>
+> These constraints are enforced at construction time; invalid values raise `ValueError`.
+
 ### Agent Population and Basic Properties
 
 ```yaml

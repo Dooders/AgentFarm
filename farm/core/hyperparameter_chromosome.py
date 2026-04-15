@@ -11,10 +11,11 @@ without changing the existing genome serialization abstraction.
 from __future__ import annotations
 
 import copy
+import math
 import random
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 
 class GeneValueType(str, Enum):
@@ -26,6 +27,25 @@ class GeneValueType(str, Enum):
     """
 
     REAL = "real"
+
+
+class GeneEncodingScale(str, Enum):
+    """Supported scale transforms for real-valued genes."""
+
+    LINEAR = "linear"
+    LOG = "log"
+
+
+@dataclass(frozen=True)
+class GeneEncodingSpec:
+    """Encoding settings for converting gene values to stored representations."""
+
+    scale: GeneEncodingScale = GeneEncodingScale.LINEAR
+    bit_width: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if self.bit_width is not None and self.bit_width <= 0:
+            raise ValueError("bit_width must be positive when provided.")
 
 
 @dataclass(frozen=True)
@@ -81,6 +101,69 @@ class HyperparameterGene:
             default=self.default,
             evolvable=self.evolvable,
         )
+
+    def normalize(
+        self,
+        value: Optional[float] = None,
+        *,
+        scale: GeneEncodingScale = GeneEncodingScale.LINEAR,
+    ) -> float:
+        """Normalize a real value to [0, 1] using the requested scale."""
+        raw_value = self.value if value is None else float(value)
+        self._validate_value(raw_value, field_name="value")
+        return _normalize_real_value(raw_value, self.min_value, self.max_value, scale)
+
+    def denormalize(
+        self,
+        normalized_value: float,
+        *,
+        scale: GeneEncodingScale = GeneEncodingScale.LINEAR,
+    ) -> float:
+        """Decode a normalized [0, 1] scalar into the gene's value range."""
+        if not 0.0 <= normalized_value <= 1.0:
+            raise ValueError("normalized_value must be within [0, 1].")
+        return _denormalize_real_value(normalized_value, self.min_value, self.max_value, scale)
+
+    def encode(
+        self,
+        value: Optional[float] = None,
+        *,
+        encoding: Optional[GeneEncodingSpec] = None,
+    ) -> Union[float, int]:
+        """Encode a gene value as normalized float or quantized integer."""
+        resolved_encoding = encoding or default_encoding_spec_for_gene(self.name)
+        normalized = self.normalize(value=value, scale=resolved_encoding.scale)
+        if resolved_encoding.bit_width is None:
+            return normalized
+
+        max_bucket = _quantization_max_bucket(resolved_encoding.bit_width)
+        return int(round(normalized * max_bucket))
+
+    def decode(
+        self,
+        encoded_value: Union[float, int],
+        *,
+        encoding: Optional[GeneEncodingSpec] = None,
+    ) -> float:
+        """Decode a normalized float or quantized integer into real value."""
+        resolved_encoding = encoding or default_encoding_spec_for_gene(self.name)
+        normalized_value: float
+        if resolved_encoding.bit_width is None:
+            normalized_value = float(encoded_value)
+        else:
+            if not isinstance(encoded_value, (int, float)):
+                raise TypeError("Quantized encoded value must be numeric.")
+            if isinstance(encoded_value, float) and not encoded_value.is_integer():
+                raise ValueError("Quantized encoded value must be an integer bucket.")
+            bucket = int(encoded_value)
+            max_bucket = _quantization_max_bucket(resolved_encoding.bit_width)
+            if bucket < 0 or bucket > max_bucket:
+                raise ValueError(
+                    f"Quantized encoded value must be within [0, {max_bucket}], got {bucket}."
+                )
+            normalized_value = bucket / max_bucket
+
+        return self.denormalize(normalized_value, scale=resolved_encoding.scale)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize gene data to a plain dictionary."""
@@ -168,6 +251,14 @@ class HyperparameterChromosome:
         return cls(genes=genes)
 
 
+# Default encoding policy by gene name.
+# learning_rate uses log-space 8-bit quantization so equal bucket changes map to
+# multiplicative LR changes, which is typically more meaningful than linear shifts.
+DEFAULT_GENE_ENCODINGS: Dict[str, GeneEncodingSpec] = {
+    "learning_rate": GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8),
+}
+
+
 # Default hyperparameter loci.
 # learning_rate is enabled for evolution now; others are placeholders that
 # document the extension path while remaining fixed in global config.
@@ -205,6 +296,151 @@ DEFAULT_HYPERPARAMETER_GENES: Tuple[HyperparameterGene, ...] = (
 def default_hyperparameter_chromosome() -> HyperparameterChromosome:
     """Return default chromosome with baseline hyperparameter loci."""
     return HyperparameterChromosome(genes=DEFAULT_HYPERPARAMETER_GENES)
+
+
+def default_encoding_spec_for_gene(gene_name: str) -> GeneEncodingSpec:
+    """Return default encoding settings for a gene name."""
+    return DEFAULT_GENE_ENCODINGS.get(gene_name, GeneEncodingSpec())
+
+
+def _quantization_max_bucket(bit_width: int) -> int:
+    return (1 << bit_width) - 1
+
+
+def _normalize_real_value(
+    value: float,
+    min_value: float,
+    max_value: float,
+    scale: GeneEncodingScale,
+) -> float:
+    if min_value == max_value:
+        return 0.0
+
+    if scale is GeneEncodingScale.LINEAR:
+        return (value - min_value) / (max_value - min_value)
+
+    if min_value <= 0.0 or max_value <= 0.0 or value <= 0.0:
+        raise ValueError("Log scale encoding requires strictly positive bounds and value.")
+
+    min_log = math.log10(min_value)
+    max_log = math.log10(max_value)
+    value_log = math.log10(value)
+    return (value_log - min_log) / (max_log - min_log)
+
+
+def _denormalize_real_value(
+    normalized_value: float,
+    min_value: float,
+    max_value: float,
+    scale: GeneEncodingScale,
+) -> float:
+    if min_value == max_value:
+        return min_value
+
+    if scale is GeneEncodingScale.LINEAR:
+        return min_value + normalized_value * (max_value - min_value)
+
+    if min_value <= 0.0 or max_value <= 0.0:
+        raise ValueError("Log scale decoding requires strictly positive bounds.")
+
+    min_log = math.log10(min_value)
+    max_log = math.log10(max_value)
+    decoded_log = min_log + normalized_value * (max_log - min_log)
+    return math.pow(10.0, decoded_log)
+
+
+def _resolve_encoding_spec(
+    gene_name: str,
+    encoding_specs: Optional[Mapping[str, GeneEncodingSpec]],
+) -> GeneEncodingSpec:
+    if encoding_specs and gene_name in encoding_specs:
+        return encoding_specs[gene_name]
+    return default_encoding_spec_for_gene(gene_name)
+
+
+def _selected_genes(
+    chromosome: HyperparameterChromosome,
+    include_fixed: bool,
+) -> Tuple[HyperparameterGene, ...]:
+    if include_fixed:
+        return chromosome.genes
+    return tuple(gene for gene in chromosome.genes if gene.evolvable)
+
+
+def encode_chromosome(
+    chromosome: HyperparameterChromosome,
+    *,
+    include_fixed: bool = False,
+    encoding_specs: Optional[Mapping[str, GeneEncodingSpec]] = None,
+) -> Dict[str, Union[int, float]]:
+    """Encode genes by name to normalized floats or quantized integers."""
+    return {
+        gene.name: gene.encode(encoding=_resolve_encoding_spec(gene.name, encoding_specs))
+        for gene in _selected_genes(chromosome, include_fixed=include_fixed)
+    }
+
+
+def decode_chromosome(
+    encoded_values: Mapping[str, Union[int, float]],
+    *,
+    template: Optional[HyperparameterChromosome] = None,
+    encoding_specs: Optional[Mapping[str, GeneEncodingSpec]] = None,
+) -> HyperparameterChromosome:
+    """Decode named encoded values into a chromosome instance."""
+    chromosome_template = template or default_hyperparameter_chromosome()
+    genes_by_name = {gene.name: gene for gene in chromosome_template.genes}
+
+    unknown_names = set(encoded_values) - set(genes_by_name)
+    if unknown_names:
+        unknown = ", ".join(sorted(unknown_names))
+        raise KeyError(f"Unknown encoded gene value(s): {unknown}")
+
+    overrides: Dict[str, float] = {}
+    for gene_name, encoded_value in encoded_values.items():
+        gene = genes_by_name[gene_name]
+        overrides[gene_name] = gene.decode(
+            encoded_value,
+            encoding=_resolve_encoding_spec(gene_name, encoding_specs),
+        )
+    return chromosome_template.with_overrides(overrides)
+
+
+def encode_chromosome_vector(
+    chromosome: HyperparameterChromosome,
+    *,
+    include_fixed: bool = False,
+    encoding_specs: Optional[Mapping[str, GeneEncodingSpec]] = None,
+) -> Tuple[Union[int, float], ...]:
+    """Encode selected genes as an ordered vector."""
+    return tuple(
+        gene.encode(encoding=_resolve_encoding_spec(gene.name, encoding_specs))
+        for gene in _selected_genes(chromosome, include_fixed=include_fixed)
+    )
+
+
+def decode_chromosome_vector(
+    encoded_values: Sequence[Union[int, float]],
+    *,
+    template: Optional[HyperparameterChromosome] = None,
+    include_fixed: bool = False,
+    encoding_specs: Optional[Mapping[str, GeneEncodingSpec]] = None,
+) -> HyperparameterChromosome:
+    """Decode an ordered vector into a chromosome using template gene order."""
+    chromosome_template = template or default_hyperparameter_chromosome()
+    genes = _selected_genes(chromosome_template, include_fixed=include_fixed)
+    if len(encoded_values) != len(genes):
+        raise ValueError(
+            f"encoded_values length {len(encoded_values)} does not match expected {len(genes)}."
+        )
+
+    overrides = {
+        gene.name: gene.decode(
+            encoded_value,
+            encoding=_resolve_encoding_spec(gene.name, encoding_specs),
+        )
+        for gene, encoded_value in zip(genes, encoded_values)
+    }
+    return chromosome_template.with_overrides(overrides)
 
 
 def hyperparameter_evolution_registry() -> Dict[str, bool]:

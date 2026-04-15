@@ -35,10 +35,8 @@ from __future__ import annotations
 import math
 import random
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional
-
-import numpy as np
 
 if TYPE_CHECKING:
     from farm.core.resources import Resource
@@ -69,6 +67,18 @@ class ResourceGenerationConfig:
     regen_amount: int = 1
     max_amount: int = 10
     min_amount: int = 0
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.regen_rate <= 1.0:
+            raise ValueError("regen_rate must be within [0, 1].")
+        if self.regen_amount < 0:
+            raise ValueError("regen_amount must be >= 0.")
+        if self.max_amount < 0:
+            raise ValueError("max_amount must be >= 0.")
+        if self.min_amount < 0:
+            raise ValueError("min_amount must be >= 0.")
+        if self.min_amount > self.max_amount:
+            raise ValueError("min_amount cannot be greater than max_amount.")
 
 
 # ---------------------------------------------------------------------------
