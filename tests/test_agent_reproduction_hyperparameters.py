@@ -55,7 +55,7 @@ def test_reproduce_mutates_learning_rate_and_passes_child_config():
     offspring.state._state.model_copy.return_value = Mock()
 
     with patch("farm.core.hyperparameter_chromosome.random.random", return_value=0.0), patch(
-        "farm.core.hyperparameter_chromosome.random.uniform", return_value=0.2
+        "farm.core.hyperparameter_chromosome.random.gauss", return_value=0.002
     ), patch("farm.core.agent.factory.AgentFactory") as factory_cls:
         factory = factory_cls.return_value
         factory.create_learning_agent.return_value = offspring
