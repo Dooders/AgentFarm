@@ -287,7 +287,20 @@ python scripts/run_dual_teacher_cartpole.py \
     --finetune-epochs 15 --finetune-lr 5e-4 \
     --finetune-teacher-weight-a 0.5 \
     --output-dir checkpoints/issue8_run
+
+# When the pipeline must load dynamic-PTQ checkpoints that require full unpickling
+# (only use this with checkpoints you trust):
+python scripts/run_dual_teacher_cartpole.py \
+    --parent-a-ckpt checkpoints/cartpole/parent_A_int8.pt \
+    --parent-b-ckpt checkpoints/cartpole/parent_B_int8.pt \
+    --allow-unsafe-unpickle \
+    --output-dir checkpoints/issue8_run
 ```
+
+> **Security note:** `--allow-unsafe-unpickle` defaults to **disabled**.  Pickle
+> deserialization can execute arbitrary code; only pass this flag when you control
+> the source of the checkpoint files.  The flag is recorded in `pipeline_report.json`
+> under `parameters.allow_unsafe_unpickle` for audit purposes.
 
 **Outputs written to `<output-dir>/`:**
 
