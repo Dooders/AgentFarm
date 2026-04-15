@@ -175,6 +175,51 @@ class PopulationConfig:
 
 
 @dataclass
+class EnvironmentalFactorsConfig:
+    """Configuration for abiotic environmental conditions used by ecosystem regenerators.
+
+    Each factor is a normalised value in ``[0, 1]`` where 0 represents the
+    minimum extreme and 1 the maximum extreme of that dimension.
+
+    Attributes
+    ----------
+    temperature : float
+        Current temperature level (0 = freezing, 1 = scorching).
+    moisture : float
+        Current moisture level (0 = arid, 1 = waterlogged).
+    light : float
+        Current light level (0 = full darkness, 1 = peak sunlight).
+    soil_quality : float
+        Soil or substrate quality (0 = barren, 1 = very fertile).
+    optimal_temperature : float
+        Temperature value at which growth is maximised.
+    optimal_moisture : float
+        Moisture value at which growth is maximised.
+    optimal_light : float
+        Light value at which growth is maximised.
+    optimal_soil : float
+        Soil quality value at which growth is maximised.
+    tolerance_width : float
+        Width parameter (σ) of the Gaussian tolerance curve applied to each
+        factor.  Smaller values result in narrower tolerance ranges.
+    """
+
+    temperature: float = 0.5
+    moisture: float = 0.5
+    light: float = 0.5
+    soil_quality: float = 0.5
+    optimal_temperature: float = 0.6
+    optimal_moisture: float = 0.7
+    optimal_light: float = 0.6
+    optimal_soil: float = 0.7
+    tolerance_width: float = 0.3
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to a JSON-serializable dictionary."""
+        return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+
+
+@dataclass
 class ResourceConfig:
     """Configuration for resource system settings."""
 
@@ -184,6 +229,30 @@ class ResourceConfig:
     max_resource_amount: int = 30
     memmap_delete_on_close: bool = False  # Delete memmap files when Environment closes
     default_spawn_amount: int = 5  # Default amount when spawning new resources
+
+    # Regeneration strategy selection (see farm.core.resource_patterns._REGENERATOR_REGISTRY for all valid types)
+    regenerator_type: str = "basic"
+
+    # Environmental factors for EnvironmentalRegenerator / EcosystemRegenerator
+    environmental_factors: EnvironmentalFactorsConfig = field(
+        default_factory=EnvironmentalFactorsConfig
+    )
+
+    # Ecosystem relationship networks
+    mutualistic_types: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    competitive_types: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    carrying_capacity_factor: float = 1.0
+
+    # AdaptiveRegenerator parameters
+    adaptation_memory_length: int = 100
+    adaptation_rate: float = 0.1
+
+    # EvolutionaryRegenerator parameters
+    stress_threshold: float = 0.3
+    stress_adaptation_rate: float = 0.05
+    evolutionary_relaxation_rate: float = 0.02
+    mutation_rate: float = 0.01
+    mutation_interval: int = 50
 
 
 @dataclass
@@ -827,12 +896,10 @@ class SimulationConfig:
                 for k, v in value.__dict__.items():
                     if k.startswith("_"):
                         continue
-                    elif key == "environment" and k == "spatial_index" and v is not None:
-                        # Handle SpatialIndexConfig specially
-                        if hasattr(v, "to_dict"):
-                            config_dict[f"{key}.{k}"] = v.to_dict()
-                        else:
-                            config_dict[f"{key}.{k}"] = v
+                    elif hasattr(v, "to_dict") and callable(v.to_dict):
+                        # Handle nested config dataclasses (e.g. SpatialIndexConfig,
+                        # EnvironmentalFactorsConfig) that provide a to_dict method.
+                        config_dict[f"{key}.{k}"] = v.to_dict()
                     else:
                         config_dict[f"{key}.{k}"] = v
             else:
