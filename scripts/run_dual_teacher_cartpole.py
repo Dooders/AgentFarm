@@ -64,7 +64,9 @@ All artefacts are written under ``<output-dir>/``:
 ``parent_A.pt``, ``parent_B.pt``
     DQN parent checkpoints (training stage).
 ``replay_states_A.npy``, ``replay_states_B.npy``
-    Per-parent CartPole replay-buffer state exports.
+    Per-parent CartPole replay-buffer state exports.  When both exist, the
+    pipeline **merges** them and subsamples to ``--n-states`` so neither
+    parent's coverage is silently dropped (see ``_resolve_pipeline_states``).
 ``student_A.pt``, ``student_B.pt``
     Distilled ``StudentQNetwork`` checkpoints (distillation stage).
 ``student_A_int8.pt``, ``student_B_int8.pt``
@@ -91,7 +93,6 @@ CartPole dimensions
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import json
 import os
 import sys
@@ -142,6 +143,94 @@ from cartpole_dqn_training import parse_torch_device, train_cartpole_parent  # n
 # CartPole-v1 fixed dimensions
 _INPUT_DIM = 4
 _OUTPUT_DIM = 2
+
+
+def _resolve_pipeline_states(
+    *,
+    output_dir: str,
+    states_file: str,
+    n_states: int,
+    input_dim: int,
+    seed: int,
+) -> Tuple[np.ndarray, str]:
+    """Pick calibration / eval states for the pipeline.
+
+    Precedence: explicit ``--states-file``; else if both ``replay_states_A.npy``
+    and ``replay_states_B.npy`` exist under *output_dir*, **merge** them (so
+    neither parent is silently dropped), subsample to *n_states* when the merge
+    is larger; else a single replay export or ``replay_states.npy``; else
+    synthetic Gaussian via :func:`load_distillation_states`.
+    """
+    if states_file:
+        arr = load_distillation_states(
+            states_file,
+            n_states=n_states,
+            input_dim=input_dim,
+            seed=seed,
+        )
+        return arr, states_file
+
+    path_a = os.path.join(output_dir, "replay_states_A.npy")
+    path_b = os.path.join(output_dir, "replay_states_B.npy")
+    legacy = os.path.join(output_dir, "replay_states.npy")
+    have_a = os.path.isfile(path_a)
+    have_b = os.path.isfile(path_b)
+
+    def _validate_rows(name: str, arr: np.ndarray) -> None:
+        if arr.ndim != 2:
+            raise ValueError(
+                f"{name} states must be 2-D (N, {input_dim}); got shape {arr.shape!r}"
+            )
+        if arr.shape[1] != input_dim:
+            raise ValueError(
+                f"{name} states input_dim mismatch: expected {input_dim}, got {arr.shape[1]}"
+            )
+
+    if have_a and have_b:
+        a = np.load(path_a).astype(np.float32, copy=False)
+        b = np.load(path_b).astype(np.float32, copy=False)
+        _validate_rows(path_a, a)
+        _validate_rows(path_b, b)
+        merged = np.vstack([a, b])
+        rng = np.random.default_rng(seed)
+        if merged.shape[0] > n_states:
+            pick = rng.permutation(merged.shape[0])[:n_states]
+            merged = merged[pick]
+        label = f"merged({path_a}+{path_b}), n={merged.shape[0]}"
+        print(f"  Loaded merged replay states: {label}, shape={merged.shape}")
+        return merged, label
+
+    if have_a:
+        return load_distillation_states(path_a, n_states, input_dim, seed), path_a
+    if have_b:
+        return load_distillation_states(path_b, n_states, input_dim, seed), path_b
+    if os.path.isfile(legacy):
+        return load_distillation_states(legacy, n_states, input_dim, seed), legacy
+
+    arr = load_distillation_states("", n_states, input_dim, seed)
+    return arr, "synthetic Gaussian"
+
+
+def _aggregate_pipeline_passed(
+    *,
+    report_only: bool,
+    distillation_reports: List[Dict[str, Any]],
+    recombination_report: Dict[str, Any],
+) -> Tuple[bool, bool, bool]:
+    """Compute pipeline pass and components.
+
+    Returns
+    -------
+    overall, distillation_passed, recombination_passed
+        When *report_only* is True, *overall* is always True; component flags
+        still reflect each report's ``passed`` field when present.
+    """
+    recomb = bool(recombination_report.get("passed", False))
+    dist_ok = all(bool(r.get("passed", False)) for r in distillation_reports)
+    if report_only:
+        return True, dist_ok, recomb
+    return (dist_ok and recomb), dist_ok, recomb
+
 
 # ---------------------------------------------------------------------------
 # Stage 1: train CartPole parents
@@ -740,6 +829,9 @@ def _write_pipeline_report(
     artifact_paths: Dict[str, str],
     stage_metrics: Dict[str, Any],
     passed: bool,
+    *,
+    distillation_passed: bool,
+    recombination_passed: bool,
 ) -> str:
     """Write pipeline_report.json aggregating all stage results."""
     report = {
@@ -761,6 +853,8 @@ def _write_pipeline_report(
         },
         "artifacts": artifact_paths,
         "stages": stage_metrics,
+        "distillation_passed": distillation_passed,
+        "recombination_passed": recombination_passed,
         "passed": passed,
     }
     out_path = os.path.join(output_dir, "pipeline_report.json")
@@ -912,23 +1006,15 @@ def main() -> None:  # noqa: C901  (intentionally linear pipeline)
     # -------------------------------------------------------------------
     # Prepare shared state buffer
     # -------------------------------------------------------------------
-    states_file = args.states_file
-    if not states_file:
-        # Prefer replay exports written by the training stage
-        for name in ("replay_states_B.npy", "replay_states_A.npy", "replay_states.npy"):
-            candidate = os.path.join(out, name)
-            if os.path.isfile(candidate):
-                states_file = candidate
-                break
-
-    states_source_label = repr(states_file) if states_file else "'synthetic Gaussian'"
-    print(f"\n[States] source: {states_source_label}")
-    states = load_distillation_states(
-        states_file,
+    print("\n[States] resolving calibration / eval buffer …")
+    states, states_source_label = _resolve_pipeline_states(
+        output_dir=out,
+        states_file=args.states_file,
         n_states=args.n_states,
         input_dim=_INPUT_DIM,
         seed=args.states_seed,
     )
+    print(f"  source label: {states_source_label}")
     print(f"  states shape: {states.shape}")
 
     # -------------------------------------------------------------------
@@ -1048,11 +1134,21 @@ def main() -> None:  # noqa: C901  (intentionally linear pipeline)
     # -------------------------------------------------------------------
     # Write master pipeline report
     # -------------------------------------------------------------------
-    passed = bool(recomb_report.get("passed", False))
-    if args.report_only:
-        passed = True
+    passed, dist_passed, recomb_passed = _aggregate_pipeline_passed(
+        report_only=args.report_only,
+        distillation_reports=[dist_val_a, dist_val_b],
+        recombination_report=recomb_report,
+    )
 
-    report_path = _write_pipeline_report(out, args, artifacts, stage_metrics, passed)
+    report_path = _write_pipeline_report(
+        out,
+        args,
+        artifacts,
+        stage_metrics,
+        passed,
+        distillation_passed=dist_passed,
+        recombination_passed=recomb_passed,
+    )
     artifacts["pipeline_report"] = report_path
 
     # -------------------------------------------------------------------
@@ -1062,7 +1158,7 @@ def main() -> None:  # noqa: C901  (intentionally linear pipeline)
     print("Dual-teacher CartPole pipeline complete.")
     print(f"All outputs in    : {out}")
     print(f"Pipeline report   : {report_path}")
-    print(f"Validation passed : {passed}")
+    print(f"Validation passed : {passed}  (distillation: {dist_passed}, recombination: {recomb_passed})")
 
     summary = recomb_report.get("summary", {})
     print("\nFinal metrics (child vs teachers):")

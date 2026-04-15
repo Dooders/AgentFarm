@@ -303,8 +303,15 @@ python scripts/run_dual_teacher_cartpole.py \
 | `recombination_validation.json` | Child-vs-A, child-vs-B, A-vs-B baseline |
 | `pipeline_report.json` | Master summary of all stage metrics |
 
-The `recombination_validation.json` and `pipeline_report.json` both contain a
-top-level `"passed": true/false` field so CI can gate on them.
+`recombination_validation.json` has a top-level `"passed"` flag for the child
+vs parents checks.  `pipeline_report.json` includes `"passed"` (true only when
+**both** distillation validations and recombination pass, unless `--report-only`)
+plus `"distillation_passed"` and `"recombination_passed"` for granular CI
+signals.
+
+When both `replay_states_A.npy` and `replay_states_B.npy` are present under the
+output directory, the script **merges** them and subsamples to `--n-states`
+instead of preferring one parent’s replay only.
 
 See `python scripts/run_dual_teacher_cartpole.py --help` for the full list of
 configurable hyperparameters.
