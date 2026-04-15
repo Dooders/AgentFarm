@@ -94,6 +94,22 @@ class BaseDQNConfig(BaseModel):
             raise ValueError("epsilon_decay must be between 0 and 1")
         return v
 
+    @field_validator("learning_rate")
+    @classmethod
+    def validate_learning_rate(cls, v):
+        """Validate learning rate is positive."""
+        if v <= 0:
+            raise ValueError("learning_rate must be > 0")
+        return v
+
+    @field_validator("memory_size")
+    @classmethod
+    def validate_memory_size(cls, v):
+        """Validate memory size is positive."""
+        if v <= 0:
+            raise ValueError("memory_size must be > 0")
+        return v
+
 
 class DecisionConfig(BaseDQNConfig):
     """Configuration for select action module.

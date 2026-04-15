@@ -140,7 +140,40 @@ class AgentCore:
             self.state.update_position(position)
 
         # Maintain a typed hyperparameter track in parallel with action/module genome data.
-        self.hyperparameter_chromosome = chromosome_from_learning_config(self.config.decision)
+        self._validate_decision_config_for_hyperparameters()
+        try:
+            self.hyperparameter_chromosome = chromosome_from_learning_config(self.config.decision)
+        except ValueError as exc:
+            raise ValueError(
+                "Invalid config.decision values for hyperparameter chromosome initialization: "
+                f"{exc}"
+            ) from exc
+
+    def _validate_decision_config_for_hyperparameters(self) -> None:
+        """Validate decision-config values that must satisfy chromosome bounds.
+
+        Keeps failures explicit and easier to diagnose during agent construction
+        instead of relying on lower-level chromosome conversion to raise a less
+        contextual error.
+
+        This check runs before Pydantic validation applies and covers plain
+        (non-Pydantic) config objects that lack field validators, providing a
+        consistent safety net regardless of config type.
+        """
+        decision_config = self.config.decision
+
+        validations = (
+            ("learning_rate", "must be > 0"),
+            ("memory_size", "must be > 0"),
+        )
+
+        for field_name, requirement in validations:
+            if hasattr(decision_config, field_name):
+                value = getattr(decision_config, field_name)
+                if value is not None and value <= 0:
+                    raise ValueError(
+                        f"config.decision.{field_name}={value!r} is invalid; {requirement}."
+                    )
 
     def _customize_action_weights(
         self, base_actions: list[Action], agent_type: str, environment: Optional["Environment"]
@@ -646,9 +679,16 @@ class AgentCore:
             offspring_id = self.environment.get_next_agent_id()
 
             # Build child config from a mutated hyperparameter chromosome (for evolvable loci).
-            parent_chromosome = self.hyperparameter_chromosome
+            # Prefer the stored chromosome so reproduction uses a single authoritative
+            # representation of inheritable hyperparameters. If it is missing, derive it
+            # from the current learning config and synchronize the instance state.
+            parent_chromosome = getattr(self, "hyperparameter_chromosome", None)
+            if parent_chromosome is None:
+                parent_chromosome = chromosome_from_learning_config(self.config.decision)
+                self.hyperparameter_chromosome = deepcopy(parent_chromosome)
+
             child_chromosome = mutate_chromosome(
-                parent_chromosome,
+                deepcopy(parent_chromosome),
                 mutation_rate=DEFAULT_HYPERPARAMETER_MUTATION_RATE,
             )
             child_config = deepcopy(self.config)

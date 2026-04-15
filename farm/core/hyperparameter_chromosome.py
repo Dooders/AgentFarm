@@ -264,7 +264,8 @@ def apply_chromosome_to_learning_config(
     """Return a copy of learning config with chromosome values applied.
 
     Supports Pydantic v2 models via ``model_copy(update=...)`` and falls back to
-    a shallow copy with attributes updated for plain objects.
+    a deep copy with attributes updated for plain objects, ensuring the original
+    is never mutated regardless of config type.
     """
     updates: Dict[str, Any] = {}
     for gene in chromosome.genes:
@@ -279,7 +280,7 @@ def apply_chromosome_to_learning_config(
     if callable(model_copy):
         return learning_config.model_copy(update=updates)
 
-    copied = copy.copy(learning_config)
+    copied = copy.deepcopy(learning_config)
     for key, value in updates.items():
         setattr(copied, key, value)
     return copied

@@ -1,5 +1,6 @@
 """Tests for hyperparameter chromosome wiring in AgentCore reproduction."""
 
+import pytest
 from unittest.mock import Mock, patch
 
 from farm.core.agent.config.component_configs import AgentComponentConfig
@@ -86,4 +87,63 @@ def test_reproduce_logs_exception_and_returns_false():
 
     assert success is False
     log_exception.assert_called_once()
+
+
+def test_reproduce_fallback_derives_chromosome_when_missing():
+    """Reproduction must recover gracefully when hyperparameter_chromosome is absent."""
+    parent = _build_parent_agent_for_reproduction()
+    # Simulate an agent that was created without the chromosome attribute
+    del parent.hyperparameter_chromosome
+
+    offspring = Mock()
+    offspring.state = Mock()
+    offspring.state._state = Mock()
+    offspring.state._state.model_copy.return_value = Mock()
+
+    with patch("farm.core.hyperparameter_chromosome.random.random", return_value=1.0), patch(
+        "farm.core.agent.factory.AgentFactory"
+    ) as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    # Chromosome must have been derived and synced back to the parent.
+    assert hasattr(parent, "hyperparameter_chromosome")
+    assert parent.hyperparameter_chromosome.get_value("learning_rate") == pytest.approx(0.01)
+
+
+def test_validate_decision_config_rejects_non_positive_learning_rate():
+    """_validate_decision_config_for_hyperparameters raises for learning_rate <= 0."""
+    agent = object.__new__(AgentCore)
+    config = AgentComponentConfig.default()
+    # Bypass Pydantic validation to simulate a plain object with bad value
+    object.__setattr__(config.decision, "learning_rate", 0.0)
+    agent.config = config
+
+    with pytest.raises(ValueError, match="learning_rate.*invalid"):
+        agent._validate_decision_config_for_hyperparameters()
+
+
+def test_validate_decision_config_rejects_non_positive_memory_size():
+    """_validate_decision_config_for_hyperparameters raises for memory_size <= 0."""
+    agent = object.__new__(AgentCore)
+    config = AgentComponentConfig.default()
+    # Bypass Pydantic validation to simulate a plain object with bad value
+    object.__setattr__(config.decision, "memory_size", -1)
+    agent.config = config
+
+    with pytest.raises(ValueError, match="memory_size.*invalid"):
+        agent._validate_decision_config_for_hyperparameters()
+
+
+def test_validate_decision_config_passes_for_valid_values():
+    """_validate_decision_config_for_hyperparameters must not raise for valid defaults."""
+    agent = object.__new__(AgentCore)
+    config = AgentComponentConfig.default()
+    agent.config = config
+
+    # Should not raise
+    agent._validate_decision_config_for_hyperparameters()
 
