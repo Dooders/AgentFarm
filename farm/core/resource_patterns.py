@@ -123,6 +123,17 @@ class ResourceRegenerator(ABC):
             Amount to regenerate (always ≥ 1).
         """
 
+    def _safe_max_amount(self, resource: "Resource") -> int:
+        """Return a safe non-zero max_amount for use as a normalisation denominator.
+
+        Falls back to ``resource.max_amount`` when ``config.max_amount`` is 0
+        (which signals "no cap" elsewhere).  Returns 0 only when both sources
+        yield 0, in which case callers should skip the division entirely.
+        """
+        if self.config.max_amount > 0:
+            return self.config.max_amount
+        return getattr(resource, "max_amount", 0)
+
 
 # ---------------------------------------------------------------------------
 # Concrete regenerators
@@ -138,7 +149,7 @@ class BasicRegenerator(ResourceRegenerator):
         return random.random() < self.config.regen_rate
 
     def get_regen_amount(self, resource: "Resource") -> int:
-        return self.config.regen_amount
+        return max(1, self.config.regen_amount)
 
 
 class TimeBasedRegenerator(ResourceRegenerator):
@@ -152,6 +163,8 @@ class TimeBasedRegenerator(ResourceRegenerator):
 
     def __init__(self, config: ResourceGenerationConfig, interval: int = 10) -> None:
         super().__init__(config)
+        if interval <= 0:
+            raise ValueError("interval must be greater than 0")
         self.interval = interval
         self._step_counter: Dict[str, int] = {}
 
@@ -163,7 +176,7 @@ class TimeBasedRegenerator(ResourceRegenerator):
         return self._step_counter[rid] % self.interval == 0
 
     def get_regen_amount(self, resource: "Resource") -> int:
-        return self.config.regen_amount
+        return max(1, self.config.regen_amount)
 
 
 class SeasonalRegenerator(ResourceRegenerator):
@@ -184,6 +197,10 @@ class SeasonalRegenerator(ResourceRegenerator):
         peak_rate_multiplier: float = 2.0,
     ) -> None:
         super().__init__(config)
+        if season_length <= 0:
+            raise ValueError("season_length must be greater than 0")
+        if peak_rate_multiplier < 0:
+            raise ValueError("peak_rate_multiplier must be >= 0")
         self.season_length = season_length
         self.peak_rate_multiplier = peak_rate_multiplier
         self._global_step: int = 0
@@ -196,7 +213,7 @@ class SeasonalRegenerator(ResourceRegenerator):
         return self._global_step
 
     def _seasonal_factor(self, resource: Optional["Resource"] = None) -> float:
-        """Sinusoidal factor in ``[0, peak_rate_multiplier]``."""
+        """Sinusoidal factor oscillating between ``1`` (trough) and ``peak_rate_multiplier`` (peak)."""
         step = self._season_step(resource)
         angle = 2 * math.pi * (step % self.season_length) / self.season_length
         # Oscillates between 1 (trough, sin=-1) and peak_rate_multiplier (peak, sin=+1)
@@ -335,7 +352,9 @@ class ResourceDependentRegenerator(ResourceRegenerator):
 
             if nearby:
                 avg_amount = sum(r.amount for r in nearby) / len(nearby)
-                satisfaction += weight * min(1.0, avg_amount / self.config.max_amount)
+                denom = self._safe_max_amount(resource)
+                if denom > 0:
+                    satisfaction += weight * min(1.0, avg_amount / denom)
 
         return satisfaction / total_weight if total_weight > 0 else 1.0
 
@@ -548,7 +567,8 @@ class EnvironmentalRegenerator(ResourceRegenerator):
 
     def _gaussian_tolerance(self, value: float, optimal: float) -> float:
         """Gaussian bell-shaped tolerance score centred at *optimal*."""
-        return math.exp(-((value - optimal) ** 2) / (2 * self.tolerance_width ** 2))
+        safe_tolerance_width = max(abs(self.tolerance_width), 1e-12)
+        return math.exp(-((value - optimal) ** 2) / (2 * safe_tolerance_width ** 2))
 
     def environmental_factor(self) -> float:
         """Return the weighted combined environmental suitability (0–1).
@@ -740,7 +760,9 @@ class EcosystemRegenerator(ResourceRegenerator):
             ]
             if nearby:
                 avg_amount = sum(r.amount for r in nearby) / len(nearby)
-                modifier += weight * min(1.0, avg_amount / self.config.max_amount)
+                denom = self._safe_max_amount(resource)
+                if denom > 0:
+                    modifier += weight * min(1.0, avg_amount / denom)
 
         # Competitive relationships decrease modifier
         for rtype, params in self.competitive_types.items():
@@ -762,7 +784,9 @@ class EcosystemRegenerator(ResourceRegenerator):
             ]
             if nearby:
                 avg_amount = sum(r.amount for r in nearby) / len(nearby)
-                modifier -= weight * min(1.0, avg_amount / self.config.max_amount)
+                denom = self._safe_max_amount(resource)
+                if denom > 0:
+                    modifier -= weight * min(1.0, avg_amount / denom)
 
         # Normalise and clamp to [0, 2]
         return max(0.0, min(2.0, 1.0 + modifier))
@@ -836,6 +860,8 @@ class EvolutionaryRegenerator(ResourceRegenerator):
         max_rate: float = 0.99,
     ) -> None:
         super().__init__(config)
+        if mutation_interval <= 0:
+            raise ValueError("mutation_interval must be greater than 0")
         self.stress_threshold = stress_threshold
         self.stress_adaptation_rate = stress_adaptation_rate
         self.relaxation_rate = relaxation_rate

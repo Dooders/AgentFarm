@@ -214,6 +214,25 @@ class EnvironmentalFactorsConfig:
     optimal_soil: float = 0.7
     tolerance_width: float = 0.3
 
+    def __post_init__(self) -> None:
+        """Clamp normalized factors to [0, 1] and validate tolerance settings."""
+        normalized_fields = (
+            "temperature",
+            "moisture",
+            "light",
+            "soil_quality",
+            "optimal_temperature",
+            "optimal_moisture",
+            "optimal_light",
+            "optimal_soil",
+        )
+        for field_name in normalized_fields:
+            value = getattr(self, field_name)
+            setattr(self, field_name, max(0.0, min(1.0, value)))
+
+        if self.tolerance_width <= 0:
+            raise ValueError("tolerance_width must be greater than 0")
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to a JSON-serializable dictionary."""
         return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
@@ -229,6 +248,12 @@ class ResourceConfig:
     max_resource_amount: int = 30
     memmap_delete_on_close: bool = False  # Delete memmap files when Environment closes
     default_spawn_amount: int = 5  # Default amount when spawning new resources
+
+    # ---------------------------------------------------------------------------
+    # Experimental: pluggable regeneration strategies (farm.core.resource_patterns)
+    # These fields are not yet wired into the active resource update path.  They
+    # are intended for future use with ``create_regenerator`` from that module.
+    # ---------------------------------------------------------------------------
 
     # Regeneration strategy selection (see farm.core.resource_patterns._REGENERATOR_REGISTRY for all valid types)
     regenerator_type: str = "basic"
