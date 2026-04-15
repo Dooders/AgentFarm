@@ -50,7 +50,7 @@ The chromosome model is intentionally narrow and strict:
 
 The default registry is defined in `DEFAULT_HYPERPARAMETER_GENES`:
 
-- `learning_rate` (evolvable) — range `[1e-5, 1e-1]`, encoded with **log-scale 8-bit quantization** by default so that equal bucket steps map to multiplicative LR changes
+- `learning_rate` (evolvable) — range `[1e-6, 1.0]`, encoded with **log-scale 8-bit quantization** by default so that equal bucket steps map to multiplicative LR changes
 - `epsilon_decay` (fixed placeholder)
 - `memory_size` (fixed placeholder)
 
@@ -126,7 +126,7 @@ spec_log_8bit = GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8)
 ### Gene-level encode/decode
 
 ```python
-gene = HyperparameterGene("learning_rate", ..., min_value=1e-5, max_value=1e-1, value=1e-3)
+gene = HyperparameterGene("learning_rate", ..., min_value=1e-6, max_value=1.0, value=1e-3)
 
 # Encode using the default policy for this gene name (log + 8-bit)
 bucket = gene.encode()          # e.g., 102 (integer 0..255)

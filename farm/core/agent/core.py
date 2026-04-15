@@ -658,7 +658,7 @@ class AgentCore:
         resource_comp = self.get_component("resource")
         offspring_cost = repro_comp.config.offspring_cost
         resource_deducted = False
-        offspring_added = False
+        offspring_id: Optional[str] = None
 
         try:
             # Deduct reproduction cost
@@ -723,15 +723,8 @@ class AgentCore:
             # Add offspring to environment with immediate flush to ensure it's in database
             # Genome ID will be generated in add_agent() using parent info
             self.environment.add_agent(offspring, flush_immediately=True)
-            offspring_added = True
-
-            # Update reproduction component tracking
-            repro_comp.offspring_created += 1
-
-            return True
-
         except Exception:
-            if resource_comp and resource_deducted and not offspring_added:
+            if resource_comp and resource_deducted:
                 try:
                     resource_comp.add(offspring_cost)
                 except Exception:
@@ -740,14 +733,29 @@ class AgentCore:
                         agent_id=self.agent_id,
                         generation=self.generation,
                         offspring_cost=offspring_cost,
+                        offspring_id=offspring_id,
                     )
             logger.exception(
                 "agent_reproduction_failed",
                 agent_id=self.agent_id,
                 generation=self.generation,
                 initial_resources=initial_resources,
+                offspring_id=offspring_id,
             )
             return False
+
+        # Offspring insertion succeeded: reproduction is successful. Any bookkeeping
+        # errors below should not convert the operation into a failed reproduction.
+        try:
+            repro_comp.offspring_created += 1
+        except Exception:
+            logger.exception(
+                "agent_reproduction_post_add_bookkeeping_failed",
+                agent_id=self.agent_id,
+                generation=self.generation,
+                offspring_id=offspring_id,
+            )
+        return True
 
     def take_damage(self, damage: float) -> float:
         """
