@@ -188,21 +188,31 @@ class SeasonalRegenerator(ResourceRegenerator):
         self.peak_rate_multiplier = peak_rate_multiplier
         self._global_step: int = 0
 
-    def _seasonal_factor(self) -> float:
+    def _season_step(self, resource: Optional["Resource"] = None) -> int:
+        """Simulation step index for the seasonal cycle (one tick, not one resource call)."""
+        env = getattr(resource, "environment", None) if resource is not None else None
+        if env is not None and hasattr(env, "time"):
+            return int(getattr(env, "time"))
+        return self._global_step
+
+    def _seasonal_factor(self, resource: Optional["Resource"] = None) -> float:
         """Sinusoidal factor in ``[0, peak_rate_multiplier]``."""
-        angle = 2 * math.pi * (self._global_step % self.season_length) / self.season_length
+        step = self._season_step(resource)
+        angle = 2 * math.pi * (step % self.season_length) / self.season_length
         # Oscillates between 1 (trough, sin=-1) and peak_rate_multiplier (peak, sin=+1)
         return (1 + math.sin(angle)) / 2 * (self.peak_rate_multiplier - 1) + 1
 
     def should_regenerate(self, resource: "Resource") -> bool:
         if self.config.max_amount and resource.amount >= self.config.max_amount:
             return False
-        self._global_step += 1
-        effective_rate = self.config.regen_rate * self._seasonal_factor()
+        # Advance local step only when no environment time is available (e.g. unit tests).
+        if getattr(getattr(resource, "environment", None), "time", None) is None:
+            self._global_step += 1
+        effective_rate = self.config.regen_rate * self._seasonal_factor(resource)
         return random.random() < effective_rate
 
     def get_regen_amount(self, resource: "Resource") -> int:
-        factor = self._seasonal_factor()
+        factor = self._seasonal_factor(resource)
         return max(1, int(self.config.regen_amount * factor))
 
 

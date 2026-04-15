@@ -984,6 +984,11 @@ class SimulationConfig:
             elif parent == "population":
                 nested_data[parent] = PopulationConfig(**config_dict)
             elif parent == "resources":
+                env_fac = config_dict.get("environmental_factors")
+                if isinstance(env_fac, dict):
+                    config_dict["environmental_factors"] = EnvironmentalFactorsConfig(
+                        **env_fac
+                    )
                 nested_data[parent] = ResourceConfig(**config_dict)
             elif parent == "learning":
                 nested_data[parent] = LearningConfig(**config_dict)
