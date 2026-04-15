@@ -1,0 +1,106 @@
+[
+  {
+    "candidate_id": "g0_c0",
+    "generation": 0,
+    "fitness": 6.0,
+    "learning_rate": 0.001,
+    "parent_ids": [
+      "seed",
+      "seed"
+    ],
+    "metadata": {
+      "final_population": 6
+    }
+  },
+  {
+    "candidate_id": "g0_c1",
+    "generation": 0,
+    "fitness": 6.0,
+    "learning_rate": 1e-06,
+    "parent_ids": [
+      "seed",
+      "seed"
+    ],
+    "metadata": {
+      "final_population": 6
+    }
+  },
+  {
+    "candidate_id": "g0_c2",
+    "generation": 0,
+    "fitness": 6.0,
+    "learning_rate": 0.004224876496908031,
+    "parent_ids": [
+      "seed",
+      "seed"
+    ],
+    "metadata": {
+      "final_population": 6
+    }
+  },
+  {
+    "candidate_id": "g0_c3",
+    "generation": 0,
+    "fitness": 6.0,
+    "learning_rate": 1e-06,
+    "parent_ids": [
+      "seed",
+      "seed"
+    ],
+    "metadata": {
+      "final_population": 6
+    }
+  },
+  {
+    "candidate_id": "g1_elite0",
+    "generation": 1,
+    "fitness": 6.0,
+    "learning_rate": 0.001,
+    "parent_ids": [
+      "g0_c0",
+      "g0_c0"
+    ],
+    "metadata": {
+      "final_population": 6
+    }
+  },
+  {
+    "candidate_id": "g1_c1",
+    "generation": 1,
+    "fitness": 6.0,
+    "learning_rate": 1e-06,
+    "parent_ids": [
+      "g0_c0",
+      "g0_c1"
+    ],
+    "metadata": {
+      "final_population": 6
+    }
+  },
+  {
+    "candidate_id": "g1_c2",
+    "generation": 1,
+    "fitness": 6.0,
+    "learning_rate": 1e-06,
+    "parent_ids": [
+      "g0_c0",
+      "g0_c3"
+    ],
+    "metadata": {
+      "final_population": 6
+    }
+  },
+  {
+    "candidate_id": "g1_c3",
+    "generation": 1,
+    "fitness": 6.0,
+    "learning_rate": 1e-06,
+    "parent_ids": [
+      "g0_c3",
+      "g0_c1"
+    ],
+    "metadata": {
+      "final_population": 6
+    }
+  }
+]

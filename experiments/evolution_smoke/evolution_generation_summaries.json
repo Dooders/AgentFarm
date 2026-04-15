@@ -1,0 +1,16 @@
+[
+  {
+    "generation": 0,
+    "best_fitness": 6.0,
+    "mean_fitness": 6.0,
+    "min_fitness": 6.0,
+    "best_candidate_id": "g0_c0"
+  },
+  {
+    "generation": 1,
+    "best_fitness": 6.0,
+    "mean_fitness": 6.0,
+    "min_fitness": 6.0,
+    "best_candidate_id": "g1_elite0"
+  }
+]
