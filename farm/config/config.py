@@ -230,8 +230,8 @@ class ResourceConfig:
     memmap_delete_on_close: bool = False  # Delete memmap files when Environment closes
     default_spawn_amount: int = 5  # Default amount when spawning new resources
 
-    # Regeneration strategy selection
-    regenerator_type: str = "basic"  # Options: basic, time_based, seasonal, proximity, dependent, adaptive, environmental, ecosystem, evolutionary
+    # Regeneration strategy selection (see farm.core.resource_patterns._REGENERATOR_REGISTRY for all valid types)
+    regenerator_type: str = "basic"
 
     # Environmental factors for EnvironmentalRegenerator / EcosystemRegenerator
     environmental_factors: EnvironmentalFactorsConfig = field(

@@ -57,7 +57,7 @@ def _make_resource(
     return r
 
 
-def _make_env_with_resources(resources):
+def _make_environment(resources):
     """Create a mock environment containing *resources*."""
     env = SimpleNamespace(resources=resources)
     return env
@@ -212,7 +212,7 @@ class TestProximityRegenerator:
         )
         target = _make_resource(resource_id=0, position=(0.0, 0.0))
         competitor = _make_resource(resource_id=1, position=(5.0, 0.0))
-        env = _make_env_with_resources([target, competitor])
+        env = _make_environment([target, competitor])
         target.environment = env
         factor = reg._proximity_factor(target)
         assert factor < 1.0
@@ -223,7 +223,7 @@ class TestProximityRegenerator:
         )
         target = _make_resource(resource_id=0, position=(0.0, 0.0))
         neighbour = _make_resource(resource_id=1, position=(30.0, 0.0))
-        env = _make_env_with_resources([target, neighbour])
+        env = _make_environment([target, neighbour])
         target.environment = env
         factor = reg._proximity_factor(target)
         assert factor > 1.0
@@ -253,7 +253,7 @@ class TestResourceDependentRegenerator:
 
         water = _make_resource(resource_id=10, amount=10, resource_type="water", position=(5.0, 0.0))
         target = _make_resource(resource_id=1, amount=0, position=(0.0, 0.0))
-        env = _make_env_with_resources([target, water])
+        env = _make_environment([target, water])
         target.environment = env
         water.environment = env
 
@@ -266,7 +266,7 @@ class TestResourceDependentRegenerator:
         reg = ResourceDependentRegenerator(default_config, dependencies=deps)
 
         target = _make_resource(resource_id=1, amount=0, position=(0.0, 0.0))
-        env = _make_env_with_resources([target])  # No water resources
+        env = _make_environment([target])  # No water resources
         target.environment = env
 
         satisfaction = reg._evaluate_dependencies(target)
@@ -473,7 +473,7 @@ class TestEcosystemRegenerator:
         mutualist = _make_resource(
             resource_id=1, amount=10, position=(10.0, 0.0), resource_type="nitrogen_fixer"
         )
-        env = _make_env_with_resources([target, mutualist])
+        env = _make_environment([target, mutualist])
         target.environment = env
         mutualist.environment = env
 
@@ -492,7 +492,7 @@ class TestEcosystemRegenerator:
         competitor = _make_resource(
             resource_id=1, amount=10, position=(5.0, 0.0), resource_type="invasive"
         )
-        env = _make_env_with_resources([target, competitor])
+        env = _make_environment([target, competitor])
         target.environment = env
         competitor.environment = env
 

@@ -191,7 +191,7 @@ class SeasonalRegenerator(ResourceRegenerator):
     def _seasonal_factor(self) -> float:
         """Sinusoidal factor in ``[0, peak_rate_multiplier]``."""
         angle = 2 * math.pi * (self._global_step % self.season_length) / self.season_length
-        # Oscillates between 0 and peak_rate_multiplier
+        # Oscillates between 1 (trough, sin=-1) and peak_rate_multiplier (peak, sin=+1)
         return (1 + math.sin(angle)) / 2 * (self.peak_rate_multiplier - 1) + 1
 
     def should_regenerate(self, resource: "Resource") -> bool:
