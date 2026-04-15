@@ -232,6 +232,20 @@ def _aggregate_pipeline_passed(
     return (dist_ok and recomb), dist_ok, recomb
 
 
+def _validate_cli_ranges(args: argparse.Namespace) -> None:
+    """Validate bounded CLI arguments and fail fast on invalid input."""
+    if not (0.0 <= args.finetune_teacher_weight_a <= 1.0):
+        raise ValueError(
+            "--finetune-teacher-weight-a must be within [0, 1], "
+            f"got {args.finetune_teacher_weight_a}."
+        )
+    if not (0.0 <= args.finetune_val_fraction < 1.0):
+        raise ValueError(
+            "--finetune-val-fraction must be within [0, 1), "
+            f"got {args.finetune_val_fraction}."
+        )
+
+
 # ---------------------------------------------------------------------------
 # Stage 1: train CartPole parents
 # ---------------------------------------------------------------------------
@@ -746,6 +760,7 @@ def _validate_recombination(
     max_kl: float,
     max_mse: float,
     min_cosine: float,
+    states_source: str,
     device: torch.device,
 ) -> Dict[str, Any]:
     """Evaluate child vs both teachers + A-vs-B baseline."""
@@ -792,7 +807,7 @@ def _validate_recombination(
         states,
         include_parent_baseline=True,
         k_values=[1, 2],
-        states_source="dual_teacher_pipeline_synthetic",
+        states_source=states_source,
         model_paths={
             "parent_a": parent_a_ckpt,
             "parent_b": parent_b_ckpt,
@@ -944,6 +959,7 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:  # noqa: C901  (intentionally linear pipeline)
     args = _parse_args()
+    _validate_cli_ranges(args)
     out = args.output_dir
     os.makedirs(out, exist_ok=True)
     device = parse_torch_device(args.device)
@@ -1126,6 +1142,7 @@ def main() -> None:  # noqa: C901  (intentionally linear pipeline)
         max_kl=args.max_kl_divergence,
         max_mse=args.max_mse,
         min_cosine=args.min_cosine_similarity,
+        states_source=states_source_label,
         device=device,
     )
     stage_metrics["recombination_validation"] = recomb_report

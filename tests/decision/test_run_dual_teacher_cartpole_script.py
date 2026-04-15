@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import sys
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -125,3 +126,41 @@ def test_aggregate_pipeline_passed(dual_teacher: Any) -> None:
         recombination_report=bad_recomb,
     )
     assert overall is True and d_ok is False and r_ok is False
+
+
+@pytest.mark.ml
+def test_validate_cli_ranges_accepts_valid_values(dual_teacher: Any) -> None:
+    dual_teacher._validate_cli_ranges(
+        SimpleNamespace(
+            finetune_teacher_weight_a=0.5,
+            finetune_val_fraction=0.2,
+        )
+    )
+
+
+@pytest.mark.ml
+@pytest.mark.parametrize("alpha", [-0.1, 1.1])
+def test_validate_cli_ranges_rejects_invalid_teacher_weight(
+    dual_teacher: Any, alpha: float
+) -> None:
+    with pytest.raises(ValueError, match="--finetune-teacher-weight-a"):
+        dual_teacher._validate_cli_ranges(
+            SimpleNamespace(
+                finetune_teacher_weight_a=alpha,
+                finetune_val_fraction=0.2,
+            )
+        )
+
+
+@pytest.mark.ml
+@pytest.mark.parametrize("val_fraction", [-0.1, 1.0, 1.5])
+def test_validate_cli_ranges_rejects_invalid_val_fraction(
+    dual_teacher: Any, val_fraction: float
+) -> None:
+    with pytest.raises(ValueError, match="--finetune-val-fraction"):
+        dual_teacher._validate_cli_ranges(
+            SimpleNamespace(
+                finetune_teacher_weight_a=0.5,
+                finetune_val_fraction=val_fraction,
+            )
+        )

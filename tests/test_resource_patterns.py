@@ -443,6 +443,11 @@ class TestEnvironmentalRegenerator:
 
 
 class TestEcosystemRegenerator:
+    def test_invalid_tolerance_width_raises(self):
+        cfg = ResourceGenerationConfig(max_amount=10)
+        with pytest.raises(ValueError, match="tolerance_width must be greater than 0"):
+            EcosystemRegenerator(cfg, tolerance_width=0.0)
+
     def test_no_relationships_combined_factor_equals_env(self):
         cfg = ResourceGenerationConfig(max_amount=10)
         reg = EcosystemRegenerator(

@@ -673,6 +673,8 @@ class EcosystemRegenerator(ResourceRegenerator):
         carrying_capacity_factor: float = 1.0,
     ) -> None:
         super().__init__(config)
+        if tolerance_width <= 0:
+            raise ValueError("tolerance_width must be greater than 0")
         # Environmental conditions
         self.temperature = temperature
         self.moisture = moisture
@@ -718,7 +720,8 @@ class EcosystemRegenerator(ResourceRegenerator):
     # ------------------------------------------------------------------
 
     def _gaussian_tolerance(self, value: float, optimal: float) -> float:
-        return math.exp(-((value - optimal) ** 2) / (2 * self.tolerance_width ** 2))
+        safe_tolerance_width = max(abs(self.tolerance_width), 1e-12)
+        return math.exp(-((value - optimal) ** 2) / (2 * safe_tolerance_width ** 2))
 
     def _environmental_factor(self) -> float:
         """Average Gaussian tolerance across four environmental factors."""
