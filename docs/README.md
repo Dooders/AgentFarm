@@ -88,6 +88,7 @@ metrics = obs.get_metrics()
 ### AI & Learning
 - [Deep Q Learning](deep_q_learning.md) - Reinforcement learning implementation
 - [Redis Agent Memory](redis_agent_memory.md) - Distributed agent memory system
+- [Hyperparameter Chromosome Design](design/hyperparameter_chromosome.md) - Typed, bounded hyperparameter genes and reproduction-time evolution wiring
 
 ## 🔬 Research & Experiments
 

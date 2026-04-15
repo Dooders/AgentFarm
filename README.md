@@ -234,6 +234,7 @@ For detailed documentation and advanced usage:
 - [Monitoring & Performance](docs/monitoring.md)
 - [Benchmarking & Profiling Report](benchmarks/reports/0.1.0/benchmark_profiling_summary_report.md)
 - [Core Architecture](docs/core_architecture.md)
+- [Hyperparameter Chromosome Design](docs/design/hyperparameter_chromosome.md)
 - [Full Documentation Index](docs/README.md)
 
 ## Contributing
