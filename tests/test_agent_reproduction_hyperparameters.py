@@ -1,6 +1,7 @@
 """Tests for hyperparameter chromosome wiring in AgentCore reproduction."""
 
 import pytest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from farm.core.agent.config.component_configs import AgentComponentConfig
@@ -88,6 +89,45 @@ def test_reproduce_logs_exception_and_returns_false():
     assert success is False
     parent.get_component("resource").remove.assert_called_once_with(5.0)
     parent.get_component("resource").add.assert_called_once_with(5.0)
+    log_exception.assert_called_once()
+
+
+def test_reproduce_returns_true_when_post_add_bookkeeping_fails():
+    """Once offspring insertion succeeds, bookkeeping errors should not flip success to failure."""
+    parent = _build_parent_agent_for_reproduction()
+    offspring = Mock()
+    offspring.state = Mock()
+    offspring.state._state = Mock()
+    offspring.state._state.model_copy.return_value = Mock()
+
+    class _ReproductionComponentWithFailingCounter:
+        def __init__(self):
+            self.config = SimpleNamespace(offspring_cost=5.0, offspring_initial_resources=7.0)
+
+        def can_reproduce(self) -> bool:
+            return True
+
+        @property
+        def offspring_created(self) -> int:
+            return 0
+
+        @offspring_created.setter
+        def offspring_created(self, _value: int) -> None:
+            raise RuntimeError("counter write failed")
+
+    parent._components["reproduction"] = _ReproductionComponentWithFailingCounter()
+
+    with patch("farm.core.hyperparameter_chromosome.random.random", return_value=1.0), patch(
+        "farm.core.agent.factory.AgentFactory"
+    ) as factory_cls, patch("farm.core.agent.core.logger.exception") as log_exception:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    parent.environment.add_agent.assert_called_once_with(offspring, flush_immediately=True)
+    parent.get_component("resource").add.assert_not_called()
     log_exception.assert_called_once()
 
 

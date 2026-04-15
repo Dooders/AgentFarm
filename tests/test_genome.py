@@ -5,7 +5,12 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock
 
-from farm.core.genome import Genome, ACTION_FUNCTIONS
+from farm.core.genome import (
+    ACTION_FUNCTIONS,
+    Genome,
+    RouletteSelectionConfig,
+    TournamentSelectionConfig,
+)
 
 
 def _make_mock_genome():
@@ -305,3 +310,87 @@ class TestGenomeToAgent(unittest.TestCase):
             genome["current_health"], combat_comp.config.starting_health
         )
         mock_agent.state.update_health.assert_called_once_with(expected_health)
+
+
+class TestGenomeSelectionOperators(unittest.TestCase):
+    def setUp(self):
+        self.population = ["a", "b", "c", "d"]
+        self.fitnesses = [1.0, 3.0, 2.0, 4.0]
+
+    def test_tournament_returns_indices_when_requested(self):
+        config = TournamentSelectionConfig(
+            num_selected=5,
+            tournament_size=2,
+            seed=7,
+            return_indices=True,
+        )
+        selected = Genome.tournament_selection(self.population, self.fitnesses, config)
+        self.assertEqual(len(selected), 5)
+        self.assertTrue(all(isinstance(idx, int) for idx in selected))
+        self.assertTrue(all(0 <= idx < len(self.population) for idx in selected))
+
+    def test_tournament_is_deterministic_with_seed(self):
+        config = TournamentSelectionConfig(
+            num_selected=6,
+            tournament_size=3,
+            seed=123,
+            return_indices=True,
+        )
+        selected_a = Genome.tournament_selection(self.population, self.fitnesses, config)
+        selected_b = Genome.tournament_selection(self.population, self.fitnesses, config)
+        self.assertEqual(selected_a, selected_b)
+
+    def test_tournament_single_individual(self):
+        config = TournamentSelectionConfig(
+            num_selected=4,
+            tournament_size=3,
+            return_indices=True,
+        )
+        selected = Genome.tournament_selection(["only"], [9.0], config)
+        self.assertEqual(selected, [0, 0, 0, 0])
+
+    def test_roulette_returns_population_items(self):
+        config = RouletteSelectionConfig(
+            num_selected=4,
+            seed=11,
+            return_indices=False,
+        )
+        selected = Genome.roulette_selection(self.population, self.fitnesses, config)
+        self.assertEqual(len(selected), 4)
+        self.assertTrue(all(item in self.population for item in selected))
+
+    def test_roulette_is_deterministic_with_seed(self):
+        config = RouletteSelectionConfig(
+            num_selected=8,
+            seed=99,
+            return_indices=True,
+        )
+        selected_a = Genome.roulette_selection(self.population, self.fitnesses, config)
+        selected_b = Genome.roulette_selection(self.population, self.fitnesses, config)
+        self.assertEqual(selected_a, selected_b)
+
+    def test_roulette_rejects_negative_fitness_without_shift(self):
+        config = RouletteSelectionConfig(num_selected=2, seed=1)
+        with self.assertRaises(ValueError):
+            Genome.roulette_selection(["x", "y"], [-1.0, 3.0], config)
+
+    def test_roulette_supports_negative_fitness_with_shift(self):
+        config = RouletteSelectionConfig(
+            num_selected=5,
+            seed=1,
+            shift_negative_fitness=True,
+            return_indices=True,
+        )
+        selected = Genome.roulette_selection(["x", "y"], [-1.0, 3.0], config)
+        self.assertEqual(len(selected), 5)
+        self.assertTrue(all(idx in [0, 1] for idx in selected))
+
+    def test_roulette_uniform_fallback_for_zero_total_fitness(self):
+        config = RouletteSelectionConfig(
+            num_selected=5,
+            seed=5,
+            return_indices=True,
+        )
+        selected = Genome.roulette_selection(["x", "y", "z"], [0.0, 0.0, 0.0], config)
+        self.assertEqual(len(selected), 5)
+        self.assertTrue(all(0 <= idx < 3 for idx in selected))
