@@ -300,7 +300,7 @@ python scripts/run_dual_teacher_cartpole.py \
 > **Security note:** `--allow-unsafe-unpickle` defaults to **disabled**.  Pickle
 > deserialization can execute arbitrary code; only pass this flag when you control
 > the source of the checkpoint files.  The flag is recorded in `pipeline_report.json`
-> under `parameters.allow_unsafe_unpickle` for audit purposes.
+> under `config.allow_unsafe_unpickle` for audit purposes.
 
 **Outputs written to `<output-dir>/`:**
 

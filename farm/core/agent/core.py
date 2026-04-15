@@ -724,7 +724,18 @@ class AgentCore:
             # Genome ID will be generated in add_agent() using parent info
             self.environment.add_agent(offspring, flush_immediately=True)
         except Exception:
-            if resource_comp and resource_deducted:
+            should_refund = bool(resource_comp and resource_deducted)
+            if should_refund and offspring_id and self._is_agent_present_in_environment(offspring_id):
+                rollback_ok = self._rollback_offspring_from_environment(offspring_id)
+                if not rollback_ok:
+                    should_refund = False
+                    logger.exception(
+                        "agent_reproduction_partial_offspring_rollback_failed",
+                        agent_id=self.agent_id,
+                        generation=self.generation,
+                        offspring_id=offspring_id,
+                    )
+            if should_refund and resource_comp:
                 try:
                     resource_comp.add(offspring_cost)
                 except Exception:
@@ -756,6 +767,77 @@ class AgentCore:
                 offspring_id=offspring_id,
             )
         return True
+
+    def _is_agent_present_in_environment(self, agent_id: str) -> bool:
+        """Return whether an agent ID appears in environment tracking structures."""
+        if not self.environment:
+            return False
+
+        agent_objects = getattr(self.environment, "_agent_objects", None)
+        in_objects = bool(isinstance(agent_objects, dict) and agent_id in agent_objects)
+        agent_ids = getattr(self.environment, "agents", None)
+        in_ids = bool(isinstance(agent_ids, list) and agent_id in agent_ids)
+        return in_objects or in_ids
+
+    def _rollback_offspring_from_environment(self, agent_id: str) -> bool:
+        """Best-effort rollback for a partially inserted offspring."""
+        if not self.environment:
+            return True
+
+        if not self._is_agent_present_in_environment(agent_id):
+            return True
+
+        # Prefer environment-level removal when available so dependent state is
+        # cleaned consistently.
+        if (
+            hasattr(self.environment, "_agent_objects")
+            and hasattr(self.environment, "remove_agent")
+            and isinstance(self.environment._agent_objects, dict)
+        ):
+            offspring_obj = self.environment._agent_objects.get(agent_id)
+            if offspring_obj is not None:
+                try:
+                    self.environment.remove_agent(offspring_obj)
+                except Exception:
+                    return False
+                return not self._is_agent_present_in_environment(agent_id)
+
+        # Fallback for partially inserted records where no object is available.
+        if (
+            hasattr(self.environment, "_agent_objects")
+            and isinstance(self.environment._agent_objects, dict)
+        ):
+            self.environment._agent_objects.pop(agent_id, None)
+        if (
+            hasattr(self.environment, "agents")
+            and isinstance(self.environment.agents, list)
+            and agent_id in self.environment.agents
+        ):
+            self.environment.agents.remove(agent_id)
+        for mapping_name in (
+            "rewards",
+            "_cumulative_rewards",
+            "terminations",
+            "truncations",
+            "infos",
+            "observations",
+            "agent_observations",
+        ):
+            mapping = getattr(self.environment, mapping_name, None)
+            if hasattr(mapping, "pop"):
+                mapping.pop(agent_id, None)
+
+        if hasattr(self.environment, "spatial_index"):
+            try:
+                self.environment.spatial_index.mark_positions_dirty()
+            except Exception:
+                logger.exception(
+                    "agent_reproduction_partial_offspring_spatial_cleanup_failed",
+                    agent_id=self.agent_id,
+                    generation=self.generation,
+                    offspring_id=agent_id,
+                )
+        return not self._is_agent_present_in_environment(agent_id)
 
     def take_damage(self, damage: float) -> float:
         """
