@@ -5,6 +5,10 @@ from unittest.mock import patch
 
 from farm.core.hyperparameter_chromosome import (
     apply_chromosome_to_learning_config,
+    decode_chromosome,
+    decode_chromosome_vector,
+    encode_chromosome,
+    encode_chromosome_vector,
     GeneValueType,
     HyperparameterChromosome,
     HyperparameterGene,
@@ -129,6 +133,67 @@ class TestHyperparameterChromosome(unittest.TestCase):
         self.assertIsNot(updated, stub)
         self.assertEqual(updated.learning_rate, 0.05)
         self.assertEqual(stub.learning_rate, 0.02)
+
+
+class TestHyperparameterEncoding(unittest.TestCase):
+    def test_learning_rate_quantized_encoding_uses_8bit_bounds(self):
+        chromosome = default_hyperparameter_chromosome()
+        learning_rate_gene = chromosome.get_gene("learning_rate")
+        assert learning_rate_gene is not None
+
+        self.assertEqual(learning_rate_gene.encode(learning_rate_gene.min_value), 0)
+        self.assertEqual(learning_rate_gene.encode(learning_rate_gene.max_value), 255)
+
+    def test_learning_rate_encoding_is_monotonic(self):
+        chromosome = default_hyperparameter_chromosome()
+        learning_rate_gene = chromosome.get_gene("learning_rate")
+        assert learning_rate_gene is not None
+
+        values = [1e-6, 1e-4, 1e-2, 0.1, 1.0]
+        encoded = [learning_rate_gene.encode(value) for value in values]
+        self.assertEqual(encoded, sorted(encoded))
+
+    def test_learning_rate_encode_decode_round_trip_with_quantization_tolerance(self):
+        chromosome = default_hyperparameter_chromosome()
+        learning_rate_gene = chromosome.get_gene("learning_rate")
+        assert learning_rate_gene is not None
+
+        original = 0.0123
+        encoded = learning_rate_gene.encode(original)
+        decoded = learning_rate_gene.decode(encoded)
+        self.assertAlmostEqual(decoded, original, delta=original * 0.06)
+
+    def test_chromosome_dict_encode_decode_round_trip(self):
+        chromosome = chromosome_from_values({"learning_rate": 0.02})
+        encoded = encode_chromosome(chromosome)
+        decoded = decode_chromosome(encoded, template=chromosome)
+        self.assertAlmostEqual(
+            decoded.get_value("learning_rate"),
+            chromosome.get_value("learning_rate"),
+            delta=chromosome.get_value("learning_rate") * 0.06,
+        )
+
+    def test_chromosome_vector_encode_decode_round_trip(self):
+        chromosome = chromosome_from_values({"learning_rate": 0.02})
+        encoded = encode_chromosome_vector(chromosome)
+        decoded = decode_chromosome_vector(encoded, template=chromosome)
+        self.assertAlmostEqual(
+            decoded.get_value("learning_rate"),
+            chromosome.get_value("learning_rate"),
+            delta=chromosome.get_value("learning_rate") * 0.06,
+        )
+
+    def test_decode_rejects_out_of_range_quantized_value(self):
+        chromosome = default_hyperparameter_chromosome()
+        learning_rate_gene = chromosome.get_gene("learning_rate")
+        assert learning_rate_gene is not None
+
+        with self.assertRaises(ValueError):
+            learning_rate_gene.decode(256)
+
+    def test_decode_chromosome_rejects_unknown_gene_name(self):
+        with self.assertRaises(KeyError):
+            decode_chromosome({"unknown_gene": 12})
 
 
 if __name__ == "__main__":
