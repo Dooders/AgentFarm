@@ -780,56 +780,74 @@ class AgentCore:
         return in_objects or in_ids
 
     def _rollback_offspring_from_environment(self, agent_id: str) -> bool:
-        """Best-effort rollback for a partially inserted offspring."""
+        """Best-effort rollback for a partially inserted offspring.
+
+        Removes the offspring from environment tracking structures without
+        triggering lifecycle events (death recording, DB writes, metrics skew)
+        that ``Environment.remove_agent`` would cause for an agent that was
+        never fully born.
+        """
         if not self.environment:
             return True
 
         if not self._is_agent_present_in_environment(agent_id):
             return True
 
-        # Prefer environment-level removal when available so dependent state is
-        # cleaned consistently.
-        if (
-            hasattr(self.environment, "_agent_objects")
-            and hasattr(self.environment, "remove_agent")
-            and isinstance(self.environment._agent_objects, dict)
-        ):
-            offspring_obj = self.environment._agent_objects.get(agent_id)
-            if offspring_obj is not None:
-                try:
-                    self.environment.remove_agent(offspring_obj)
-                except Exception:
-                    return False
-                return not self._is_agent_present_in_environment(agent_id)
+        # Directly clean up tracking structures, bypassing remove_agent so that
+        # no death events, DB writes, or metrics updates occur for an agent that
+        # was never fully inserted.
+        try:
+            if (
+                hasattr(self.environment, "_agent_objects")
+                and isinstance(self.environment._agent_objects, dict)
+            ):
+                self.environment._agent_objects.pop(agent_id, None)
+            if (
+                hasattr(self.environment, "agents")
+                and isinstance(self.environment.agents, list)
+                and agent_id in self.environment.agents
+            ):
+                self.environment.agents.remove(agent_id)
+            for mapping_name in (
+                "rewards",
+                "_cumulative_rewards",
+                "terminations",
+                "truncations",
+                "infos",
+                "observations",
+                "agent_observations",
+            ):
+                mapping = getattr(self.environment, mapping_name, None)
+                if hasattr(mapping, "pop"):
+                    mapping.pop(agent_id, None)
+        except Exception:
+            logger.exception(
+                "agent_reproduction_partial_offspring_cleanup_failed",
+                agent_id=self.agent_id,
+                generation=self.generation,
+                offspring_id=agent_id,
+            )
+            return False
 
-        # Fallback for partially inserted records where no object is available.
-        if (
-            hasattr(self.environment, "_agent_objects")
-            and isinstance(self.environment._agent_objects, dict)
-        ):
-            self.environment._agent_objects.pop(agent_id, None)
-        if (
-            hasattr(self.environment, "agents")
-            and isinstance(self.environment.agents, list)
-            and agent_id in self.environment.agents
-        ):
-            self.environment.agents.remove(agent_id)
-        for mapping_name in (
-            "rewards",
-            "_cumulative_rewards",
-            "terminations",
-            "truncations",
-            "infos",
-            "observations",
-            "agent_observations",
-        ):
-            mapping = getattr(self.environment, mapping_name, None)
-            if hasattr(mapping, "pop"):
-                mapping.pop(agent_id, None)
-
+        # Refresh the spatial index so the removed offspring is no longer
+        # visible in KD-tree queries.  mark_positions_dirty() alone only flags
+        # the index as stale but does not evict the object reference from
+        # SpatialIndex._agents; set_references() must be called with the
+        # current agent list to fully remove the ghost entry.
         if hasattr(self.environment, "spatial_index"):
             try:
-                self.environment.spatial_index.mark_positions_dirty()
+                spatial_index = self.environment.spatial_index
+                if hasattr(spatial_index, "set_references"):
+                    agents = (
+                        list(self.environment._agent_objects.values())
+                        if hasattr(self.environment, "_agent_objects")
+                        and isinstance(self.environment._agent_objects, dict)
+                        else []
+                    )
+                    resources = getattr(self.environment, "resources", [])
+                    spatial_index.set_references(agents, resources)
+                else:
+                    spatial_index.mark_positions_dirty()
             except Exception:
                 logger.exception(
                     "agent_reproduction_partial_offspring_spatial_cleanup_failed",

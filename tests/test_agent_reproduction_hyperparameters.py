@@ -215,11 +215,6 @@ def test_reproduce_rolls_back_partially_added_offspring_before_refund():
             self.agents.append(offspring.agent_id)
             raise RuntimeError("flush failed after insert")
 
-        def remove_agent(self, offspring) -> None:
-            self._agent_objects.pop(offspring.agent_id, None)
-            if offspring.agent_id in self.agents:
-                self.agents.remove(offspring.agent_id)
-
     parent.environment = _PartiallyFailingEnvironment()
     offspring = SimpleNamespace(
         agent_id="child_1",
@@ -240,15 +235,25 @@ def test_reproduce_rolls_back_partially_added_offspring_before_refund():
     parent.get_component("resource").add.assert_called_once_with(5.0)
     assert "child_1" not in parent.environment._agent_objects
     assert "child_1" not in parent.environment.agents
+    # Verify spatial index was fully refreshed (not just marked dirty) so the
+    # removed offspring is evicted from KD-tree queries.
+    parent.environment.spatial_index.set_references.assert_called_once_with([], [])
 
 
 def test_reproduce_skips_refund_when_partial_offspring_rollback_fails():
     """Avoid refund if offspring may still exist and rollback cannot complete."""
     parent = _build_parent_agent_for_reproduction()
 
+    class _CleanupFailingDict(dict):
+        """dict subclass whose pop() always raises to simulate a cleanup failure."""
+
+        def pop(self, key, *args):
+            raise RuntimeError("rollback failed")
+
     class _RollbackFailingEnvironment:
         def __init__(self):
-            self._agent_objects = {}
+            # Use the failing dict so direct cleanup (pop) raises during rollback.
+            self._agent_objects = _CleanupFailingDict()
             self.agents = []
 
         def get_next_agent_id(self) -> str:
@@ -258,9 +263,6 @@ def test_reproduce_skips_refund_when_partial_offspring_rollback_fails():
             self._agent_objects[offspring.agent_id] = offspring
             self.agents.append(offspring.agent_id)
             raise RuntimeError("flush failed after insert")
-
-        def remove_agent(self, offspring) -> None:
-            raise RuntimeError("rollback failed")
 
     parent.environment = _RollbackFailingEnvironment()
     offspring = SimpleNamespace(
