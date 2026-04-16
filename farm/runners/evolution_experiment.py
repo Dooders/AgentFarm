@@ -404,11 +404,17 @@ class EvolutionExperiment:
 
         serialized_evaluations: List[Dict[str, Any]] = []
         for evaluation in result.evaluations:
-            payload = asdict(evaluation)
-            payload["metadata"] = {
-                key: value
-                for key, value in evaluation.metadata.items()
-                if key != "chromosome"
+            payload: Dict[str, Any] = {
+                "candidate_id": evaluation.candidate_id,
+                "generation": evaluation.generation,
+                "fitness": evaluation.fitness,
+                "learning_rate": evaluation.learning_rate,
+                "parent_ids": list(evaluation.parent_ids),
+                "metadata": {
+                    key: value
+                    for key, value in evaluation.metadata.items()
+                    if key != "chromosome"
+                },
             }
             serialized_evaluations.append(payload)
 

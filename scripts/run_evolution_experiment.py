@@ -9,14 +9,19 @@ import os
 import sys
 import time
 
-from farm.config import SimulationConfig
-from farm.runners import (
+# Allow running directly from repo root without installing the package
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+from farm.config import SimulationConfig  # noqa: E402
+from farm.runners import (  # noqa: E402
     EvolutionExperiment,
     EvolutionExperimentConfig,
     EvolutionFitnessMetric,
     EvolutionSelectionMethod,
 )
-from farm.utils.logging import configure_logging, get_logger
+from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
 
 def _parse_args() -> argparse.Namespace:

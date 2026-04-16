@@ -156,9 +156,10 @@ class AgentCore:
         instead of relying on lower-level chromosome conversion to raise a less
         contextual error.
 
-        This check runs before Pydantic validation applies and covers plain
-        (non-Pydantic) config objects that lack field validators, providing a
-        consistent safety net regardless of config type.
+        This serves as an additional guard for plain (non-Pydantic) config
+        objects that lack field validators, and for configs that may have been
+        mutated after initial validation, providing a consistent safety net
+        regardless of config type.
         """
         decision_config = self.config.decision
 
