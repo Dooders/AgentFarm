@@ -741,11 +741,14 @@ class AgentCore:
                     # may remain active (to avoid double-crediting parent resources).
                     if self._is_agent_present_in_environment(offspring_id):
                         should_refund = False
-                        logger.exception(
+                        logger.warning(
                             "agent_reproduction_refund_suppressed_unresolved_offspring_state",
                             agent_id=self.agent_id,
                             generation=self.generation,
                             offspring_id=offspring_id,
+                            rollback_attempted=True,
+                            rollback_ok=False,
+                            suppression_reason="offspring_still_present_after_rollback_attempt",
                         )
             if should_refund and resource_comp:
                 try:
