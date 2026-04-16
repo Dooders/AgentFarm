@@ -1296,15 +1296,24 @@ class Environment(AECEnv):
                 step=self.time,
             )
 
-        # If a DB row for this agent was persisted, mark it dead at this step
-        # so "alive population" queries do not include a phantom agent.
+        # If a DB row for this agent was persisted, remove it as compensation.
+        # This avoids polluting death analytics with rollback-only artifacts.
         try:
-            if hasattr(self, "db") and self.db is not None:
-                self.db.update_agent_death(
-                    agent_id=agent_id,
-                    death_time=self.time,
-                    cause="rollback_partial_add",
-                )
+            if (
+                hasattr(self, "db")
+                and self.db is not None
+                and hasattr(self.db, "_execute_in_transaction")
+            ):
+                from farm.database.models import AgentModel
+
+                def _delete_agent_row(session):
+                    row = session.query(AgentModel).filter(AgentModel.agent_id == agent_id).first()
+                    if row is None:
+                        return False
+                    session.delete(row)
+                    return True
+
+                self.db._execute_in_transaction(_delete_agent_row)
         except Exception:
             logger.exception(
                 "environment_partial_agent_add_db_rollback_failed",

@@ -80,13 +80,20 @@ On agent init:
 - `self.hyperparameter_chromosome` is created from `self.config.decision`.
 
 On `AgentCore.reproduce()`:
-1. Build a chromosome from the parent decision config.
+1. Use the parent's stored chromosome (`self.hyperparameter_chromosome`) as the
+   source of inheritable hyperparameters.
+   - If that attribute is missing, derive it from `self.config.decision` and
+     sync it back onto the parent.
 2. Mutate evolvable genes via `mutate_chromosome(...)`.
 3. Deep-copy parent config.
 4. Apply chromosome values to child decision config via `apply_chromosome_to_learning_config(...)`.
 5. Deduct the reproduction resource cost (`offspring_cost`) from the parent agent.
    - If the resource component reports that the deduction failed (insufficient resources), `reproduce()` returns `False` immediately without creating offspring.
-   - If offspring creation subsequently raises an exception after the cost has been deducted, the cost is **refunded** by calling `resource_comp.add(offspring_cost)` before propagating the error, preventing phantom resource loss.
+   - If offspring creation subsequently raises an exception after the cost has
+     been deducted, reproduction attempts a partial-add rollback when needed and
+     then refunds by calling `resource_comp.add(offspring_cost)`.
+   - Refund is only suppressed when rollback fails *and* the offspring still
+     appears present in environment tracking structures (unresolved state).
 6. Create offspring with the child config.
 7. Store the resulting chromosome on the offspring.
 
@@ -96,11 +103,14 @@ This keeps:
 
 ## Mutation behavior
 
-`mutate_chromosome(chromosome, mutation_rate=0.1, mutation_scale=0.2)`:
+`mutate_chromosome(chromosome, mutation_rate=0.1, mutation_scale=0.2, mutation_mode="gaussian")`:
 
 - only mutates genes where `evolvable=True`
-- applies multiplicative perturbation for real-valued genes:
-  - `new_value = old_value * (1 + uniform(-scale, scale))`
+- supports two real-valued mutation operators:
+  - `gaussian` (default):
+    - `new_value = old_value + Normal(0, mutation_scale * (max_value - min_value))`
+  - `multiplicative` (legacy mode):
+    - `new_value = old_value * (1 + uniform(-scale, scale))`
 - clamps to `[min_value, max_value]`
 
 ## Gene encoding and decoding
@@ -230,7 +240,8 @@ The current mutation strategy is simple and intentionally local.
 
 To adapt:
 
-- replace multiplicative mutation with additive/log-space strategy
+- change the default mutation operator (for example, gaussian ↔ multiplicative,
+  or implement log-space mutation for selected genes)
 - add per-gene mutation scales
 - add schedule-based mutation rate by generation
 - support crossover across two parent chromosomes
@@ -257,3 +268,16 @@ They are parallel tracks today; a future unification step can compose both into 
 - log-scale encoding requires strictly positive gene bounds; genes with `min_value ≤ 0` must use `GeneEncodingScale.LINEAR`
 
 These are deliberate for a small, verifiable first increment.
+
+## Evolution experiment outputs
+
+`farm/runners/evolution_experiment.py` persists two machine-readable artifacts when `output_dir` is set:
+
+- `evolution_generation_summaries.json`
+  - per-generation fitness aggregates (`best_fitness`, `mean_fitness`, `min_fitness`)
+  - per-gene statistics (`mean`, `median`, `std`, `min`, `max`)
+  - best candidate chromosome values for that generation
+- `evolution_lineage.json`
+  - one row per evaluated candidate with lineage (`parent_ids`) and fitness metadata
+
+Use `scripts/plot_hyperparameter_evolution.py` to produce a convergence chart from the summaries JSON.

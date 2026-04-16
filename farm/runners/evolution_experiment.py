@@ -110,6 +110,8 @@ class EvolutionGenerationSummary:
     mean_fitness: float
     min_fitness: float
     best_candidate_id: str
+    gene_statistics: Dict[str, Dict[str, float]]
+    best_chromosome: Dict[str, float]
 
 
 @dataclass
@@ -299,13 +301,44 @@ class EvolutionExperiment:
     ) -> EvolutionGenerationSummary:
         best = max(generation_evals, key=lambda item: item.fitness)
         fitness_values = [evaluation.fitness for evaluation in generation_evals]
+        gene_statistics = self._build_gene_statistics(generation_evals)
+        best_chromosome = {
+            gene.name: gene.value
+            for gene in best.metadata["chromosome"].genes
+        }
         return EvolutionGenerationSummary(
             generation=generation,
             best_fitness=max(fitness_values),
             mean_fitness=statistics.mean(fitness_values),
             min_fitness=min(fitness_values),
             best_candidate_id=best.candidate_id,
+            gene_statistics=gene_statistics,
+            best_chromosome=best_chromosome,
         )
+
+    def _build_gene_statistics(
+        self,
+        generation_evals: List[EvolutionCandidateEvaluation],
+    ) -> Dict[str, Dict[str, float]]:
+        if not generation_evals:
+            return {}
+
+        gene_values: Dict[str, List[float]] = {}
+        for evaluation in generation_evals:
+            chromosome = evaluation.metadata["chromosome"]
+            for gene in chromosome.genes:
+                gene_values.setdefault(gene.name, []).append(gene.value)
+
+        gene_statistics: Dict[str, Dict[str, float]] = {}
+        for gene_name, values in gene_values.items():
+            gene_statistics[gene_name] = {
+                "mean": statistics.mean(values),
+                "median": statistics.median(values),
+                "std": statistics.pstdev(values) if len(values) > 1 else 0.0,
+                "min": min(values),
+                "max": max(values),
+            }
+        return gene_statistics
 
     def _config_for_chromosome(self, chromosome: HyperparameterChromosome) -> SimulationConfig:
         config_copy = self.base_config.copy()
