@@ -28,10 +28,15 @@ The chromosome model is intentionally narrow and strict:
   - `bit_width` must be positive (validated at construction)
 - `HyperparameterGene`
   - name, type, value, min/max bounds, default, and `evolvable` flag
+  - per-gene mutation controls:
+    - `mutation_scale` (default `0.2`)
+    - `mutation_probability` (default `0.1`)
+    - `mutation_strategy` (`MutationMode`, default `GAUSSIAN`)
   - validates:
     - non-empty name
     - valid min/max range
     - in-range numeric value and default
+    - valid mutation controls (non-negative scale, probability in `[0, 1]`)
   - **new methods** (real-valued genes only):
     - `normalize(value, *, scale)` → `float` in `[0, 1]`
     - `denormalize(normalized_value, *, scale)` → `float` in gene range
@@ -68,6 +73,7 @@ Helpers:
 
 - `default_hyperparameter_chromosome()`
 - `hyperparameter_evolution_registry()`
+- `default_hyperparameter_registry()` *(alias for the default evolution registry)*
 - `chromosome_from_values()`
 - `chromosome_from_learning_config()`
 - `default_encoding_spec_for_gene(gene_name)` — look up the default `GeneEncodingSpec` for a gene name
@@ -103,9 +109,14 @@ This keeps:
 
 ## Mutation behavior
 
-`mutate_chromosome(chromosome, mutation_rate=0.1, mutation_scale=0.2, mutation_mode="gaussian")`:
+`mutate_chromosome(chromosome, mutation_rate=None, mutation_scale=None, mutation_mode=None)`:
 
 - only mutates genes where `evolvable=True`
+- resolves mutation settings per gene by default:
+  - probability from `gene.mutation_probability`
+  - scale from `gene.mutation_scale`
+  - strategy from `gene.mutation_strategy`
+- optional global arguments override per-gene values when provided
 - supports two real-valued mutation operators:
   - `gaussian` (default):
     - `new_value = old_value + Normal(0, mutation_scale * (max_value - min_value))`
@@ -248,7 +259,7 @@ To adapt:
 
 Recommended approach:
 - keep `HyperparameterGene` and `HyperparameterChromosome` validation unchanged
-- implement strategy changes behind `mutate_chromosome(...)` or a new strategy function
+- prefer per-gene mutation controls first; add new strategy functions only when needed
 - keep tests deterministic by patching randomness in unit tests
 
 ## Relationship to `Genome`

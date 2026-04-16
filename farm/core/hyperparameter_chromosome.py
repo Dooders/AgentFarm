@@ -18,7 +18,7 @@ from enum import Enum
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 
-class GeneValueType(str, Enum):
+class GeneValueType(Enum):
     """Supported gene value kinds.
 
     Notes:
@@ -73,12 +73,16 @@ class HyperparameterGene:
     max_value: float
     default: float
     evolvable: bool = True
+    mutation_scale: float = 0.2
+    mutation_probability: float = 0.1
+    mutation_strategy: MutationMode = MutationMode.GAUSSIAN
 
     def __post_init__(self) -> None:
         self._validate_name()
         self._validate_real_bounds()
         self._validate_value(self.default, field_name="default")
         self._validate_value(self.value, field_name="value")
+        self._validate_mutation_controls()
 
     def _validate_name(self) -> None:
         if not self.name or not self.name.strip():
@@ -104,6 +108,12 @@ class HyperparameterGene:
                 f"[{self.min_value}, {self.max_value}]."
             )
 
+    def _validate_mutation_controls(self) -> None:
+        if self.mutation_scale < 0.0:
+            raise ValueError("mutation_scale must be non-negative.")
+        if not 0.0 <= self.mutation_probability <= 1.0:
+            raise ValueError("mutation_probability must be between 0 and 1.")
+
     def with_value(self, value: float) -> "HyperparameterGene":
         """Return a copy of this gene with a validated replacement value."""
         return HyperparameterGene(
@@ -114,6 +124,9 @@ class HyperparameterGene:
             max_value=self.max_value,
             default=self.default,
             evolvable=self.evolvable,
+            mutation_scale=self.mutation_scale,
+            mutation_probability=self.mutation_probability,
+            mutation_strategy=self.mutation_strategy,
         )
 
     def normalize(
@@ -189,6 +202,9 @@ class HyperparameterGene:
             "max_value": self.max_value,
             "default": self.default,
             "evolvable": self.evolvable,
+            "mutation_scale": self.mutation_scale,
+            "mutation_probability": self.mutation_probability,
+            "mutation_strategy": self.mutation_strategy.value,
         }
 
     @classmethod
@@ -202,6 +218,9 @@ class HyperparameterGene:
             max_value=float(data["max_value"]),
             default=float(data["default"]),
             evolvable=bool(data.get("evolvable", True)),
+            mutation_scale=float(data.get("mutation_scale", 0.2)),
+            mutation_probability=float(data.get("mutation_probability", 0.1)),
+            mutation_strategy=MutationMode(data.get("mutation_strategy", MutationMode.GAUSSIAN.value)),
         )
 
 
@@ -463,6 +482,11 @@ def hyperparameter_evolution_registry() -> Dict[str, bool]:
     return {gene.name: gene.evolvable for gene in chromosome.genes}
 
 
+def default_hyperparameter_registry() -> Dict[str, bool]:
+    """Alias for ``hyperparameter_evolution_registry`` with shorter name."""
+    return hyperparameter_evolution_registry()
+
+
 def chromosome_from_values(
     values: Optional[Dict[str, float]] = None,
 ) -> HyperparameterChromosome:
@@ -484,9 +508,9 @@ def chromosome_from_learning_config(learning_config: Any) -> HyperparameterChrom
 
 def mutate_chromosome(
     chromosome: HyperparameterChromosome,
-    mutation_rate: float = 0.1,
-    mutation_scale: float = 0.2,
-    mutation_mode: Union[MutationMode, str] = MutationMode.GAUSSIAN,
+    mutation_rate: Optional[float] = None,
+    mutation_scale: Optional[float] = None,
+    mutation_mode: Optional[Union[MutationMode, str]] = None,
     rng: Optional[random.Random] = None,
 ) -> HyperparameterChromosome:
     """Mutate evolvable genes using bounded real-valued perturbations.
@@ -498,25 +522,27 @@ def mutate_chromosome(
           uniform delta in ``[-mutation_scale, mutation_scale]``.
         - All mutations are clamped to each gene's bounds.
     """
-    if not 0.0 <= mutation_rate <= 1.0:
+    if mutation_rate is not None and not 0.0 <= mutation_rate <= 1.0:
         raise ValueError("mutation_rate must be between 0 and 1.")
-    if mutation_scale < 0.0:
+    if mutation_scale is not None and mutation_scale < 0.0:
         raise ValueError("mutation_scale must be non-negative.")
-
-    resolved_mode = MutationMode(mutation_mode)
+    resolved_mode_override = MutationMode(mutation_mode) if mutation_mode is not None else None
     resolved_rng = rng or random
     updated_genes: List[HyperparameterGene] = []
     for gene in chromosome.genes:
-        if not gene.evolvable or resolved_rng.random() >= mutation_rate:
+        resolved_probability = mutation_rate if mutation_rate is not None else gene.mutation_probability
+        resolved_scale = mutation_scale if mutation_scale is not None else gene.mutation_scale
+        resolved_mode = resolved_mode_override if resolved_mode_override is not None else gene.mutation_strategy
+        if not gene.evolvable or resolved_rng.random() >= resolved_probability:
             updated_genes.append(gene)
             continue
 
         if resolved_mode is MutationMode.GAUSSIAN:
             span = gene.max_value - gene.min_value
-            sigma = span * mutation_scale
+            sigma = span * resolved_scale
             raw_value = gene.value + resolved_rng.gauss(0.0, sigma)
         else:
-            delta = resolved_rng.uniform(-mutation_scale, mutation_scale)
+            delta = resolved_rng.uniform(-resolved_scale, resolved_scale)
             raw_value = gene.value * (1.0 + delta)
 
         bounded_value = max(gene.min_value, min(gene.max_value, raw_value))
