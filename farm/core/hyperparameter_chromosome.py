@@ -291,6 +291,9 @@ DEFAULT_GENE_ENCODINGS: Dict[str, GeneEncodingSpec] = {
     "learning_rate": GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8),
 }
 
+# Smallest positive IEEE-754 binary64; mirrors DecisionConfig allowing any (0, 1].
+_EPSILON_DECAY_GENE_MIN = math.ldexp(1.0, -1074)
+
 
 # Default hyperparameter loci.
 # learning_rate is enabled for evolution now; others are placeholders that
@@ -309,7 +312,7 @@ DEFAULT_HYPERPARAMETER_GENES: Tuple[HyperparameterGene, ...] = (
         name="epsilon_decay",
         value_type=GeneValueType.REAL,
         value=0.995,
-        min_value=1e-6,
+        min_value=_EPSILON_DECAY_GENE_MIN,
         max_value=1.0,
         default=0.995,
         evolvable=False,

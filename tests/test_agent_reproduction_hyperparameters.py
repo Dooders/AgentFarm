@@ -240,6 +240,54 @@ def test_reproduce_rolls_back_partially_added_offspring_before_refund():
     parent.environment.spatial_index.set_references.assert_called_once_with([], [])
 
 
+def test_reproduce_rolls_back_partial_offspring_without_resource_component():
+    """Partial insert cleanup must run even when no resource was deducted (no resource component)."""
+    parent = _build_parent_agent_for_reproduction()
+    parent._components = {"reproduction": parent._components["reproduction"]}
+
+    class _PartiallyFailingEnvironment:
+        def __init__(self):
+            self._agent_objects = {}
+            self.agents = []
+            self.rewards = {}
+            self._cumulative_rewards = {}
+            self.terminations = {}
+            self.truncations = {}
+            self.infos = {}
+            self.observations = {}
+            self.agent_observations = {}
+            self.spatial_index = Mock()
+
+        def get_next_agent_id(self) -> str:
+            return "child_1"
+
+        def add_agent(self, offspring, flush_immediately: bool = False):
+            self._agent_objects[offspring.agent_id] = offspring
+            self.agents.append(offspring.agent_id)
+            raise RuntimeError("flush failed after insert")
+
+    parent.environment = _PartiallyFailingEnvironment()
+    offspring = SimpleNamespace(
+        agent_id="child_1",
+        state=Mock(),
+        generation=0,
+    )
+    offspring.state._state = Mock()
+    offspring.state._state.model_copy.return_value = Mock()
+
+    with patch("farm.core.hyperparameter_chromosome.random.random", return_value=1.0), patch(
+        "farm.core.agent.factory.AgentFactory"
+    ) as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is False
+    assert "child_1" not in parent.environment._agent_objects
+    assert "child_1" not in parent.environment.agents
+    parent.environment.spatial_index.set_references.assert_called_once_with([], [])
+
+
 def test_reproduce_skips_refund_when_partial_offspring_rollback_fails():
     """Avoid refund if offspring may still exist and rollback cannot complete."""
     parent = _build_parent_agent_for_reproduction()

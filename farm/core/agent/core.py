@@ -727,7 +727,7 @@ class AgentCore:
             should_refund = bool(resource_comp and resource_deducted)
             rollback_attempted = False
             rollback_ok = False
-            if should_refund and offspring_id and self._is_agent_present_in_environment(offspring_id):
+            if offspring_id and self._is_agent_present_in_environment(offspring_id):
                 rollback_attempted = True
                 rollback_ok = self._rollback_offspring_from_environment(offspring_id)
                 if not rollback_ok:
@@ -739,7 +739,7 @@ class AgentCore:
                     )
                     # Refund unless we still have strong evidence that offspring
                     # may remain active (to avoid double-crediting parent resources).
-                    if self._is_agent_present_in_environment(offspring_id):
+                    if should_refund and self._is_agent_present_in_environment(offspring_id):
                         should_refund = False
                         logger.warning(
                             "agent_reproduction_refund_suppressed_unresolved_offspring_state",

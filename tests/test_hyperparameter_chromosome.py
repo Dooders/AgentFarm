@@ -125,6 +125,12 @@ class TestHyperparameterChromosome(unittest.TestCase):
         chromosome = chromosome_from_learning_config(_LowEpsilonLearningConfigStub())
         self.assertEqual(chromosome.get_value("epsilon_decay"), 0.1)
 
+    def test_accepts_tiny_valid_epsilon_decay_matching_decision_config(self):
+        """Values in (0, 1] accepted by DecisionConfig must encode into the chromosome."""
+        decision = DecisionConfig(learning_rate=0.02, epsilon_decay=5e-7, memory_size=1000)
+        chromosome = chromosome_from_learning_config(decision)
+        self.assertEqual(chromosome.get_value("epsilon_decay"), 5e-7)
+
     def test_accepts_large_memory_size_override(self):
         chromosome = chromosome_from_values({"memory_size": 250_000.0})
         self.assertEqual(chromosome.get_value("memory_size"), 250_000.0)
