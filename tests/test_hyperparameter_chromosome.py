@@ -1,6 +1,7 @@
 """Tests for typed hyperparameter chromosome schema."""
 
 import unittest
+import json
 import random
 from unittest.mock import patch
 
@@ -18,6 +19,7 @@ from farm.core.hyperparameter_chromosome import (
     HyperparameterGene,
     chromosome_from_learning_config,
     chromosome_from_values,
+    default_hyperparameter_registry,
     default_hyperparameter_chromosome,
     hyperparameter_evolution_registry,
     mutate_chromosome,
@@ -72,6 +74,9 @@ class TestHyperparameterChromosome(unittest.TestCase):
         self.assertFalse(registry["epsilon_decay"])
         self.assertFalse(registry["memory_size"])
 
+    def test_short_registry_alias_matches_evolution_registry(self):
+        self.assertEqual(default_hyperparameter_registry(), hyperparameter_evolution_registry())
+
     def test_rejects_unknown_override_name(self):
         chromosome = default_hyperparameter_chromosome()
         with self.assertRaises(KeyError):
@@ -93,6 +98,22 @@ class TestHyperparameterChromosome(unittest.TestCase):
         )
         self.assertEqual(restored.get_value("learning_rate"), 0.05)
         self.assertEqual(restored.get_value("epsilon_decay"), 0.97)
+
+    def test_serialization_preserves_gene_order(self):
+        chromosome = chromosome_from_values({"learning_rate": 0.03, "epsilon_decay": 0.92})
+        payload = chromosome.to_dict()
+        restored = HyperparameterChromosome.from_dict(payload)
+        self.assertEqual(
+            [gene.name for gene in chromosome.genes],
+            [gene.name for gene in restored.genes],
+        )
+
+    def test_serialization_round_trip_through_json_keeps_float_precision(self):
+        original = chromosome_from_values({"learning_rate": 0.123456789012345, "epsilon_decay": 0.987654321012345})
+        as_json = json.dumps(original.to_dict(), sort_keys=True)
+        restored = HyperparameterChromosome.from_dict(json.loads(as_json))
+        self.assertAlmostEqual(restored.get_value("learning_rate"), 0.123456789012345, places=15)
+        self.assertAlmostEqual(restored.get_value("epsilon_decay"), 0.987654321012345, places=15)
 
     def test_builds_from_learning_config_like_object(self):
         chromosome = chromosome_from_learning_config(_LearningConfigStub())
@@ -132,6 +153,65 @@ class TestHyperparameterChromosome(unittest.TestCase):
                 mutation_mode=MutationMode.MULTIPLICATIVE,
             )
         self.assertAlmostEqual(mutated.get_value("learning_rate"), 0.012)
+
+    def test_mutation_uses_per_gene_controls_when_globals_not_provided(self):
+        chromosome = HyperparameterChromosome(
+            genes=(
+                HyperparameterGene(
+                    name="learning_rate",
+                    value_type=GeneValueType.REAL,
+                    value=0.01,
+                    min_value=1e-6,
+                    max_value=1.0,
+                    default=0.001,
+                    evolvable=True,
+                    mutation_scale=0.5,
+                    mutation_probability=1.0,
+                    mutation_strategy=MutationMode.MULTIPLICATIVE,
+                ),
+            )
+        )
+        with patch("farm.core.hyperparameter_chromosome.random.uniform", return_value=0.5):
+            mutated = mutate_chromosome(chromosome)
+        self.assertAlmostEqual(mutated.get_value("learning_rate"), 0.015)
+
+    def test_mutation_globals_override_per_gene_controls(self):
+        chromosome = HyperparameterChromosome(
+            genes=(
+                HyperparameterGene(
+                    name="learning_rate",
+                    value_type=GeneValueType.REAL,
+                    value=0.01,
+                    min_value=1e-6,
+                    max_value=1.0,
+                    default=0.001,
+                    evolvable=True,
+                    mutation_scale=0.0,
+                    mutation_probability=0.0,
+                    mutation_strategy=MutationMode.MULTIPLICATIVE,
+                ),
+            )
+        )
+        with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=0.001):
+            mutated = mutate_chromosome(
+                chromosome,
+                mutation_rate=1.0,
+                mutation_scale=0.1,
+                mutation_mode=MutationMode.GAUSSIAN,
+            )
+        self.assertAlmostEqual(mutated.get_value("learning_rate"), 0.011)
+
+    def test_fixed_genes_remain_unchanged_even_with_full_global_mutation(self):
+        chromosome = default_hyperparameter_chromosome()
+        with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=1000.0):
+            mutated = mutate_chromosome(
+                chromosome,
+                mutation_rate=1.0,
+                mutation_scale=1.0,
+                mutation_mode=MutationMode.GAUSSIAN,
+            )
+        self.assertEqual(mutated.get_value("epsilon_decay"), chromosome.get_value("epsilon_decay"))
+        self.assertEqual(mutated.get_value("memory_size"), chromosome.get_value("memory_size"))
 
     def test_apply_chromosome_to_learning_config(self):
         decision = DecisionConfig(learning_rate=0.02, epsilon_decay=0.98, memory_size=5000)
