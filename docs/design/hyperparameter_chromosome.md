@@ -257,3 +257,16 @@ They are parallel tracks today; a future unification step can compose both into 
 - log-scale encoding requires strictly positive gene bounds; genes with `min_value ≤ 0` must use `GeneEncodingScale.LINEAR`
 
 These are deliberate for a small, verifiable first increment.
+
+## Evolution experiment outputs
+
+`farm/runners/evolution_experiment.py` persists two machine-readable artifacts when `output_dir` is set:
+
+- `evolution_generation_summaries.json`
+  - per-generation fitness aggregates (`best_fitness`, `mean_fitness`, `min_fitness`)
+  - per-gene statistics (`mean`, `median`, `std`, `min`, `max`)
+  - best candidate chromosome values for that generation
+- `evolution_lineage.json`
+  - one row per evaluated candidate with lineage (`parent_ids`) and fitness metadata
+
+Use `scripts/plot_hyperparameter_evolution.py` to produce a convergence chart from the summaries JSON.
