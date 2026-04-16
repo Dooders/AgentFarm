@@ -725,16 +725,28 @@ class AgentCore:
             self.environment.add_agent(offspring, flush_immediately=True)
         except Exception:
             should_refund = bool(resource_comp and resource_deducted)
+            rollback_attempted = False
+            rollback_ok = False
             if should_refund and offspring_id and self._is_agent_present_in_environment(offspring_id):
+                rollback_attempted = True
                 rollback_ok = self._rollback_offspring_from_environment(offspring_id)
                 if not rollback_ok:
-                    should_refund = False
                     logger.exception(
                         "agent_reproduction_partial_offspring_rollback_failed",
                         agent_id=self.agent_id,
                         generation=self.generation,
                         offspring_id=offspring_id,
                     )
+                    # Refund unless we still have strong evidence that offspring
+                    # may remain active (to avoid double-crediting parent resources).
+                    if self._is_agent_present_in_environment(offspring_id):
+                        should_refund = False
+                        logger.exception(
+                            "agent_reproduction_refund_suppressed_unresolved_offspring_state",
+                            agent_id=self.agent_id,
+                            generation=self.generation,
+                            offspring_id=offspring_id,
+                        )
             if should_refund and resource_comp:
                 try:
                     resource_comp.add(offspring_cost)
@@ -745,6 +757,8 @@ class AgentCore:
                         generation=self.generation,
                         offspring_cost=offspring_cost,
                         offspring_id=offspring_id,
+                        rollback_attempted=rollback_attempted,
+                        rollback_ok=rollback_ok,
                     )
             logger.exception(
                 "agent_reproduction_failed",

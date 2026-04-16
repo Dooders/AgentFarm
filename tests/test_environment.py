@@ -206,7 +206,7 @@ class TestEnvironment(unittest.TestCase):
         agent_ids = [agent.agent_id for agent in self.env.agent_objects]
         self.assertEqual(len(agent_ids), len(set(agent_ids)))
 
-    def test_rollback_partial_agent_add_rolls_back_state_metrics_and_db_marker(self):
+    def test_rollback_partial_agent_add_rolls_back_state_metrics_and_db_row(self):
         """Rollback hook should clean partial inserts and compensate side effects."""
         agent_id = "rollback_test_agent"
         self.env.time = 5
@@ -231,11 +231,8 @@ class TestEnvironment(unittest.TestCase):
         self.assertNotIn(agent_id, self.env._agent_objects)
         self.assertNotIn(agent_id, self.env.agents)
         self.assertEqual(self.env.metrics_tracker.step_metrics.births, 1)
-        self.env.db.update_agent_death.assert_called_once_with(
-            agent_id=agent_id,
-            death_time=5,
-            cause="rollback_partial_add",
-        )
+        self.env.db._execute_in_transaction.assert_called_once()
+        self.env.db.update_agent_death.assert_not_called()
 
     def test_resource_initialization(self):
         """Test that resources are properly initialized"""
