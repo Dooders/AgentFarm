@@ -1302,12 +1302,30 @@ class Environment(AECEnv):
             if (
                 hasattr(self, "db")
                 and self.db is not None
+            ):
+                # Compensate pending logger buffers first so the rolled-back
+                # agent cannot be inserted on a later flush.
+                logger_obj = getattr(self.db, "logger", None)
+                drop_pending = getattr(logger_obj, "discard_pending_agents", None)
+                if callable(drop_pending):
+                    drop_pending([agent_id])
+
+            if (
+                hasattr(self, "db")
+                and self.db is not None
                 and hasattr(self.db, "_execute_in_transaction")
             ):
                 from farm.database.models import AgentModel
 
                 def _delete_agent_row(session):
-                    row = session.query(AgentModel).filter(AgentModel.agent_id == agent_id).first()
+                    row = (
+                        session.query(AgentModel)
+                        .filter(
+                            AgentModel.simulation_id == self.simulation_id,
+                            AgentModel.agent_id == agent_id,
+                        )
+                        .first()
+                    )
                     if row is None:
                         return False
                     session.delete(row)
