@@ -334,7 +334,11 @@ class EvolutionExperiment:
             config=candidate_config,
             path=run_dir,
             save_config=False,
-            seed=(self.config.seed + generation + member_index) if self.config.seed is not None else None,
+            seed=(
+                (self.config.seed + generation * self.config.population_size + member_index)
+                if self.config.seed is not None
+                else None
+            ),
         )
         fitness, metadata = self._fitness_from_environment(env)
         metadata["chromosome"] = candidate.chromosome
