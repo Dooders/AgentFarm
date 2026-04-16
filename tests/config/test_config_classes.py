@@ -8,7 +8,9 @@ This module tests the core configuration dataclasses including:
 """
 
 import unittest
+from types import SimpleNamespace
 from farm.config import VisualizationConfig, RedisMemoryConfig
+from farm.core.agent.config.component_configs import AgentComponentConfig
 
 
 class TestVisualizationConfig(unittest.TestCase):
@@ -217,6 +219,55 @@ class TestRedisMemoryConfig(unittest.TestCase):
         config_dict = config.to_dict()
 
         self.assertIsNone(config_dict["password"])
+
+
+class TestAgentComponentConfig(unittest.TestCase):
+    """Tests for simulation->agent component config projection."""
+
+    def test_from_simulation_config_projects_learning_to_decision(self):
+        simulation_config = type(
+            "ConfigStub",
+            (),
+            {
+                "agent_behavior": type(
+                    "AgentBehavior",
+                    (),
+                    {
+                        "base_consumption_rate": 0.2,
+                        "starvation_threshold": 8,
+                        "offspring_cost": 4.0,
+                        "offspring_initial_resources": 6.0,
+                        "starting_health": 90.0,
+                        "base_attack_strength": 3.0,
+                        "base_defense_strength": 2.0,
+                    },
+                )(),
+                "learning": SimpleNamespace(
+                    learning_rate=0.02,
+                    gamma=0.9,
+                    epsilon_start=0.8,
+                    epsilon_min=0.05,
+                    epsilon_decay=0.98,
+                    memory_size=1234,
+                    batch_size=16,
+                    training_frequency=3,
+                    dqn_hidden_size=32,
+                    tau=0.02,
+                ),
+            },
+        )()
+
+        component_config = AgentComponentConfig.from_simulation_config(simulation_config)
+        self.assertEqual(component_config.decision.learning_rate, 0.02)
+        self.assertEqual(component_config.decision.gamma, 0.9)
+        self.assertEqual(component_config.decision.epsilon_start, 0.8)
+        self.assertEqual(component_config.decision.epsilon_min, 0.05)
+        self.assertEqual(component_config.decision.epsilon_decay, 0.98)
+        self.assertEqual(component_config.decision.memory_size, 1234)
+        self.assertEqual(component_config.decision.batch_size, 16)
+        self.assertEqual(component_config.decision.rl_train_freq, 3)
+        self.assertEqual(component_config.decision.dqn_hidden_size, 32)
+        self.assertEqual(component_config.decision.tau, 0.02)
 
 
 if __name__ == '__main__':

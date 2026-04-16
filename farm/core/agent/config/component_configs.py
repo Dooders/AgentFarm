@@ -253,6 +253,7 @@ class AgentComponentConfig:
         """
         # Extract values from simulation config with fallbacks
         agent_behavior = getattr(sim_config, 'agent_behavior', None)
+        learning = getattr(sim_config, "learning", None)
         
         if agent_behavior:
             # Use values from agent_behavior config
@@ -275,6 +276,24 @@ class AgentComponentConfig:
             base_attack_strength = 10.0
             base_defense_strength = 5.0
         
+        decision_kwargs = {}
+        if learning:
+            learning_to_decision_fields = (
+                ("learning_rate", "learning_rate"),
+                ("gamma", "gamma"),
+                ("epsilon_start", "epsilon_start"),
+                ("epsilon_min", "epsilon_min"),
+                ("epsilon_decay", "epsilon_decay"),
+                ("memory_size", "memory_size"),
+                ("batch_size", "batch_size"),
+                ("training_frequency", "rl_train_freq"),
+                ("dqn_hidden_size", "dqn_hidden_size"),
+                ("tau", "tau"),
+            )
+            for learning_field, decision_field in learning_to_decision_fields:
+                if hasattr(learning, learning_field):
+                    decision_kwargs[decision_field] = getattr(learning, learning_field)
+
         return cls(
             resource=ResourceConfig(
                 base_consumption_rate=base_consumption_rate,
@@ -291,4 +310,5 @@ class AgentComponentConfig:
                 offspring_cost=offspring_cost,
                 offspring_initial_resources=offspring_initial_resources,
             ),
+            decision=DecisionConfig(**decision_kwargs),
         )

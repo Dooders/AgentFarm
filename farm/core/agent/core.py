@@ -782,13 +782,25 @@ class AgentCore:
     def _rollback_offspring_from_environment(self, agent_id: str) -> bool:
         """Best-effort rollback for a partially inserted offspring.
 
-        Removes the offspring from environment tracking structures without
-        triggering lifecycle events (death recording, DB writes, metrics skew)
-        that ``Environment.remove_agent`` would cause for an agent that was
-        never fully born.
+        Prefers an environment-provided compensation hook that can roll back
+        in-memory structures plus persistence/metrics side effects; falls back
+        to local in-memory cleanup for test doubles and legacy environments.
         """
         if not self.environment:
             return True
+
+        rollback_hook = getattr(self.environment, "rollback_partial_agent_add", None)
+        if callable(rollback_hook):
+            try:
+                return bool(rollback_hook(agent_id))
+            except Exception:
+                logger.exception(
+                    "agent_reproduction_partial_offspring_environment_rollback_failed",
+                    agent_id=self.agent_id,
+                    generation=self.generation,
+                    offspring_id=agent_id,
+                )
+                return False
 
         if not self._is_agent_present_in_environment(agent_id):
             return True
