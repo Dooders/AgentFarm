@@ -532,7 +532,7 @@ def mutate_chromosome(
     for gene in chromosome.genes:
         resolved_probability = mutation_rate if mutation_rate is not None else gene.mutation_probability
         resolved_scale = mutation_scale if mutation_scale is not None else gene.mutation_scale
-        resolved_mode = resolved_mode_override or gene.mutation_strategy
+        resolved_mode = resolved_mode_override if resolved_mode_override is not None else gene.mutation_strategy
         if not gene.evolvable or resolved_rng.random() >= resolved_probability:
             updated_genes.append(gene)
             continue
