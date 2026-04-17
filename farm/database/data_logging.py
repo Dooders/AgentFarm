@@ -282,6 +282,31 @@ class DataLogger(DataLoggerProtocol):
 
         self.db._execute_in_transaction(_flush)
 
+    def discard_pending_agents(self, agent_ids: List[str]) -> int:
+        """Drop pending buffered records that reference the provided agent IDs.
+
+        Returns the number of buffered records removed across all in-memory
+        buffers. This is used by compensation paths when an agent add fails
+        after partial side effects.
+        """
+        if not agent_ids:
+            return 0
+
+        target_ids = set(agent_ids)
+        removed = 0
+
+        def _drop_from_buffer(buffer: List[Dict], key: str) -> int:
+            if not buffer:
+                return 0
+            original_len = len(buffer)
+            buffer[:] = [item for item in buffer if item.get(key) not in target_ids]
+            return original_len - len(buffer)
+
+        removed += _drop_from_buffer(self._action_buffer, "agent_id")
+        removed += _drop_from_buffer(self._health_incident_buffer, "agent_id")
+        # step_buffer stores step metrics only; there is no per-agent payload.
+        return removed
+
     def log_agent(
         self,
         agent_id: str,

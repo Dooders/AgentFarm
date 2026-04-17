@@ -215,7 +215,7 @@ class EnvironmentalFactorsConfig:
     tolerance_width: float = 0.3
 
     def __post_init__(self) -> None:
-        """Clamp normalized factors to [0, 1] and validate tolerance settings."""
+        """Validate normalized factors and tolerance settings."""
         normalized_fields = (
             "temperature",
             "moisture",
@@ -228,7 +228,10 @@ class EnvironmentalFactorsConfig:
         )
         for field_name in normalized_fields:
             value = getattr(self, field_name)
-            setattr(self, field_name, max(0.0, min(1.0, value)))
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(
+                    f"{field_name} must be within [0.0, 1.0], got {value!r}."
+                )
 
         if self.tolerance_width <= 0:
             raise ValueError("tolerance_width must be greater than 0")

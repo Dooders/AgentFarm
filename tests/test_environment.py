@@ -206,6 +206,73 @@ class TestEnvironment(unittest.TestCase):
         agent_ids = [agent.agent_id for agent in self.env.agent_objects]
         self.assertEqual(len(agent_ids), len(set(agent_ids)))
 
+    def test_rollback_partial_agent_add_rolls_back_state_metrics_and_db_row(self):
+        """Rollback hook should clean partial inserts and compensate side effects."""
+        agent_id = "rollback_test_agent"
+        self.env.time = 5
+        self.env.metrics_tracker.step_metrics.births = 2
+        self.env.db = Mock()
+        self.env.db.logger = Mock()
+
+        ghost_agent = Mock()
+        ghost_agent.agent_id = agent_id
+        self.env._agent_objects[agent_id] = ghost_agent
+        self.env.agents.append(agent_id)
+        self.env.rewards[agent_id] = 0
+        self.env._cumulative_rewards[agent_id] = 0
+        self.env.terminations[agent_id] = False
+        self.env.truncations[agent_id] = False
+        self.env.infos[agent_id] = {}
+        self.env.observations[agent_id] = np.zeros(self.env._observation_space.shape, dtype=np.float32)
+        self.env.agent_observations[agent_id] = Mock()
+
+        rolled_back = self.env.rollback_partial_agent_add(agent_id)
+
+        self.assertTrue(rolled_back)
+        self.assertNotIn(agent_id, self.env._agent_objects)
+        self.assertNotIn(agent_id, self.env.agents)
+        self.assertEqual(self.env.metrics_tracker.step_metrics.births, 1)
+        self.env.db._execute_in_transaction.assert_called_once()
+        self.env.db.logger.discard_pending_agents.assert_called_once_with([agent_id])
+        self.env.db.update_agent_death.assert_not_called()
+
+    def test_rollback_partial_agent_add_deletes_db_row_for_current_simulation_only(self):
+        """DB compensation must scope deletes by simulation_id and agent_id."""
+        agent_id = "rollback_scoped_agent"
+        self.env.time = 5
+        self.env.db = Mock()
+        self.env.db.logger = Mock()
+
+        captured_filters = []
+
+        class _FakeQuery:
+            def filter(self, *args):
+                captured_filters.extend(args)
+                return self
+
+            def first(self):
+                return Mock()
+
+        class _FakeSession:
+            def query(self, _model):
+                return _FakeQuery()
+
+            def delete(self, _row):
+                return None
+
+        def _run_tx(callback):
+            return callback(_FakeSession())
+
+        self.env.db._execute_in_transaction.side_effect = _run_tx
+
+        rolled_back = self.env.rollback_partial_agent_add(agent_id)
+
+        self.assertTrue(rolled_back)
+        self.assertEqual(len(captured_filters), 2)
+        rendered_filters = [str(clause) for clause in captured_filters]
+        self.assertTrue(any("simulation_id" in clause for clause in rendered_filters))
+        self.assertTrue(any("agent_id" in clause for clause in rendered_filters))
+
     def test_resource_initialization(self):
         """Test that resources are properly initialized"""
         # Resource count should match the amount specified in resource_distribution

@@ -6,6 +6,7 @@ Most capabilities are provided by components, but it contains some agent-specifi
 logic for reward calculation, lifecycle management, and orchestration.
 """
 
+from copy import deepcopy
 from typing import TYPE_CHECKING, Dict, Optional
 
 import torch
@@ -16,6 +17,11 @@ from farm.core.agent.components.base import AgentComponent
 from farm.core.agent.config.component_configs import AgentComponentConfig
 from farm.core.agent.services import AgentServices
 from farm.core.device_utils import create_device_from_config
+from farm.core.hyperparameter_chromosome import (
+    apply_chromosome_to_learning_config,
+    chromosome_from_learning_config,
+    mutate_chromosome,
+)
 from farm.core.state import AgentState, AgentStateManager
 from farm.utils.logging import get_logger
 
@@ -24,6 +30,7 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+DEFAULT_HYPERPARAMETER_MUTATION_RATE = 0.1
 
 
 class AgentCore:
@@ -131,6 +138,43 @@ class AgentCore:
         if movement_comp:
             movement_comp.position = position
             self.state.update_position(position)
+
+        # Maintain a typed hyperparameter track in parallel with action/module genome data.
+        self._validate_decision_config_for_hyperparameters()
+        try:
+            self.hyperparameter_chromosome = chromosome_from_learning_config(self.config.decision)
+        except ValueError as exc:
+            raise ValueError(
+                "Invalid config.decision values for hyperparameter chromosome initialization: "
+                f"{exc}"
+            ) from exc
+
+    def _validate_decision_config_for_hyperparameters(self) -> None:
+        """Validate decision-config values that must satisfy chromosome bounds.
+
+        Keeps failures explicit and easier to diagnose during agent construction
+        instead of relying on lower-level chromosome conversion to raise a less
+        contextual error.
+
+        This serves as an additional guard for plain (non-Pydantic) config
+        objects that lack field validators, and for configs that may have been
+        mutated after initial validation, providing a consistent safety net
+        regardless of config type.
+        """
+        decision_config = self.config.decision
+
+        validations = (
+            ("learning_rate", "must be > 0"),
+            ("memory_size", "must be > 0"),
+        )
+
+        for field_name, requirement in validations:
+            if hasattr(decision_config, field_name):
+                value = getattr(decision_config, field_name)
+                if value is not None and value <= 0:
+                    raise ValueError(
+                        f"config.decision.{field_name}={value!r} is invalid; {requirement}."
+                    )
 
     def _customize_action_weights(
         self, base_actions: list[Action], agent_type: str, environment: Optional["Environment"]
@@ -612,11 +656,17 @@ class AgentCore:
         # Store initial resources for logging
         initial_resources = self.resource_level
 
+        resource_comp = self.get_component("resource")
+        offspring_cost = repro_comp.config.offspring_cost
+        resource_deducted = False
+        offspring_id: Optional[str] = None
+
         try:
             # Deduct reproduction cost
-            resource_comp = self.get_component("resource")
             if resource_comp:
-                resource_comp.remove(repro_comp.config.offspring_cost)
+                if not resource_comp.remove(offspring_cost):
+                    return False
+                resource_deducted = True
 
             # Get offspring initial resources from reproduction component config
             # This uses offspring_initial_resources (not initial_resource_level which is for initial population)
@@ -635,18 +685,38 @@ class AgentCore:
             # Generate new agent ID
             offspring_id = self.environment.get_next_agent_id()
 
+            # Build child config from a mutated hyperparameter chromosome (for evolvable loci).
+            # Prefer the stored chromosome so reproduction uses a single authoritative
+            # representation of inheritable hyperparameters. If it is missing, derive it
+            # from the current learning config and synchronize the instance state.
+            parent_chromosome = getattr(self, "hyperparameter_chromosome", None)
+            if parent_chromosome is None:
+                parent_chromosome = chromosome_from_learning_config(self.config.decision)
+                self.hyperparameter_chromosome = deepcopy(parent_chromosome)
+
+            child_chromosome = mutate_chromosome(
+                deepcopy(parent_chromosome),
+                mutation_rate=DEFAULT_HYPERPARAMETER_MUTATION_RATE,
+            )
+            child_config = deepcopy(self.config)
+            child_config.decision = apply_chromosome_to_learning_config(
+                child_config.decision,
+                child_chromosome,
+            )
+
             # Create offspring at same position as parent - use create_learning_agent to match initial agents
             offspring = factory.create_learning_agent(
                 agent_id=offspring_id,
                 position=self.position,
                 initial_resources=offspring_resources,
-                config=self.config,
+                config=child_config,
                 environment=self.environment,
                 agent_type=self.agent_type,
             )
 
             # Set offspring generation
             offspring.generation = self.generation + 1
+            offspring.hyperparameter_chromosome = child_chromosome
 
             # Set offspring parent IDs (genome_id will be generated in add_agent() using parent info)
             offspring.state._state = offspring.state._state.model_copy(update={"parent_ids": [self.agent_id]})
@@ -654,14 +724,168 @@ class AgentCore:
             # Add offspring to environment with immediate flush to ensure it's in database
             # Genome ID will be generated in add_agent() using parent info
             self.environment.add_agent(offspring, flush_immediately=True)
+        except Exception:
+            should_refund = bool(resource_comp and resource_deducted)
+            rollback_attempted = False
+            rollback_ok = False
+            if offspring_id and self._is_agent_present_in_environment(offspring_id):
+                rollback_attempted = True
+                rollback_ok = self._rollback_offspring_from_environment(offspring_id)
+                if not rollback_ok:
+                    logger.exception(
+                        "agent_reproduction_partial_offspring_rollback_failed",
+                        agent_id=self.agent_id,
+                        generation=self.generation,
+                        offspring_id=offspring_id,
+                    )
+                    # Refund unless we still have strong evidence that offspring
+                    # may remain active (to avoid double-crediting parent resources).
+                    if should_refund and self._is_agent_present_in_environment(offspring_id):
+                        should_refund = False
+                        logger.warning(
+                            "agent_reproduction_refund_suppressed_unresolved_offspring_state",
+                            agent_id=self.agent_id,
+                            generation=self.generation,
+                            offspring_id=offspring_id,
+                            rollback_attempted=True,
+                            rollback_ok=False,
+                            suppression_reason="offspring_still_present_after_rollback_attempt",
+                        )
+            if should_refund and resource_comp:
+                try:
+                    resource_comp.add(offspring_cost)
+                except Exception:
+                    logger.exception(
+                        "agent_reproduction_resource_refund_failed",
+                        agent_id=self.agent_id,
+                        generation=self.generation,
+                        offspring_cost=offspring_cost,
+                        offspring_id=offspring_id,
+                        rollback_attempted=rollback_attempted,
+                        rollback_ok=rollback_ok,
+                    )
+            logger.exception(
+                "agent_reproduction_failed",
+                agent_id=self.agent_id,
+                generation=self.generation,
+                initial_resources=initial_resources,
+                offspring_id=offspring_id,
+            )
+            return False
 
-            # Update reproduction component tracking
+        # Offspring insertion succeeded: reproduction is successful. Any bookkeeping
+        # errors below should not convert the operation into a failed reproduction.
+        try:
             repro_comp.offspring_created += 1
+        except Exception:
+            logger.exception(
+                "agent_reproduction_post_add_bookkeeping_failed",
+                agent_id=self.agent_id,
+                generation=self.generation,
+                offspring_id=offspring_id,
+            )
+        return True
 
+    def _is_agent_present_in_environment(self, agent_id: str) -> bool:
+        """Return whether an agent ID appears in environment tracking structures."""
+        if not self.environment:
+            return False
+
+        agent_objects = getattr(self.environment, "_agent_objects", None)
+        in_objects = bool(isinstance(agent_objects, dict) and agent_id in agent_objects)
+        agent_ids = getattr(self.environment, "agents", None)
+        in_ids = bool(isinstance(agent_ids, list) and agent_id in agent_ids)
+        return in_objects or in_ids
+
+    def _rollback_offspring_from_environment(self, agent_id: str) -> bool:
+        """Best-effort rollback for a partially inserted offspring.
+
+        Prefers an environment-provided compensation hook that can roll back
+        in-memory structures plus persistence/metrics side effects; falls back
+        to local in-memory cleanup for test doubles and legacy environments.
+        """
+        if not self.environment:
             return True
 
-        except Exception as e:
+        rollback_hook = getattr(self.environment, "rollback_partial_agent_add", None)
+        if callable(rollback_hook):
+            try:
+                return bool(rollback_hook(agent_id))
+            except Exception:
+                logger.exception(
+                    "agent_reproduction_partial_offspring_environment_rollback_failed",
+                    agent_id=self.agent_id,
+                    generation=self.generation,
+                    offspring_id=agent_id,
+                )
+                return False
+
+        if not self._is_agent_present_in_environment(agent_id):
+            return True
+
+        # Directly clean up tracking structures, bypassing remove_agent so that
+        # no death events, DB writes, or metrics updates occur for an agent that
+        # was never fully inserted.
+        try:
+            if (
+                hasattr(self.environment, "_agent_objects")
+                and isinstance(self.environment._agent_objects, dict)
+            ):
+                self.environment._agent_objects.pop(agent_id, None)
+            if (
+                hasattr(self.environment, "agents")
+                and isinstance(self.environment.agents, list)
+                and agent_id in self.environment.agents
+            ):
+                self.environment.agents.remove(agent_id)
+            for mapping_name in (
+                "rewards",
+                "_cumulative_rewards",
+                "terminations",
+                "truncations",
+                "infos",
+                "observations",
+                "agent_observations",
+            ):
+                mapping = getattr(self.environment, mapping_name, None)
+                if hasattr(mapping, "pop"):
+                    mapping.pop(agent_id, None)
+        except Exception:
+            logger.exception(
+                "agent_reproduction_partial_offspring_cleanup_failed",
+                agent_id=self.agent_id,
+                generation=self.generation,
+                offspring_id=agent_id,
+            )
             return False
+
+        # Refresh the spatial index so the removed offspring is no longer
+        # visible in KD-tree queries.  mark_positions_dirty() alone only flags
+        # the index as stale but does not evict the object reference from
+        # SpatialIndex._agents; set_references() must be called with the
+        # current agent list to fully remove the ghost entry.
+        if hasattr(self.environment, "spatial_index"):
+            try:
+                spatial_index = self.environment.spatial_index
+                if hasattr(spatial_index, "set_references"):
+                    agents = (
+                        list(self.environment._agent_objects.values())
+                        if hasattr(self.environment, "_agent_objects")
+                        and isinstance(self.environment._agent_objects, dict)
+                        else []
+                    )
+                    resources = getattr(self.environment, "resources", [])
+                    spatial_index.set_references(agents, resources)
+                else:
+                    spatial_index.mark_positions_dirty()
+            except Exception:
+                logger.exception(
+                    "agent_reproduction_partial_offspring_spatial_cleanup_failed",
+                    agent_id=self.agent_id,
+                    generation=self.generation,
+                    offspring_id=agent_id,
+                )
+        return not self._is_agent_present_in_environment(agent_id)
 
     def take_damage(self, damage: float) -> float:
         """

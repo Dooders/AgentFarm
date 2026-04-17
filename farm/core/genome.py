@@ -1,6 +1,7 @@
 import json
 import random
-from typing import TYPE_CHECKING, Optional, Union
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, List, Optional, Sequence, TypeVar, Union
 
 from farm.core.action import (
     Action,
@@ -16,6 +17,38 @@ from farm.core.action import (
 if TYPE_CHECKING:
     from farm.core.agent import AgentCore
     from farm.core.environment import Environment
+
+TChromosome = TypeVar("TChromosome")
+
+
+@dataclass(frozen=True)
+class TournamentSelectionConfig:
+    """Configuration for tournament-based parent selection."""
+
+    num_selected: int = 2
+    tournament_size: int = 3
+    seed: Optional[int] = None
+    return_indices: bool = False
+
+    def __post_init__(self) -> None:
+        if self.num_selected <= 0:
+            raise ValueError("num_selected must be positive.")
+        if self.tournament_size <= 0:
+            raise ValueError("tournament_size must be positive.")
+
+
+@dataclass(frozen=True)
+class RouletteSelectionConfig:
+    """Configuration for roulette-wheel parent selection."""
+
+    num_selected: int = 2
+    seed: Optional[int] = None
+    return_indices: bool = False
+    shift_negative_fitness: bool = False
+
+    def __post_init__(self) -> None:
+        if self.num_selected <= 0:
+            raise ValueError("num_selected must be positive.")
 
 
 # Action registry for secure function resolution
@@ -310,3 +343,110 @@ class Genome:
             json_str is not None
         ), "Genome.save() should return a string when no path is provided"
         return Genome.load(json_str)
+
+    @staticmethod
+    def tournament_selection(
+        population: Sequence[TChromosome],
+        fitnesses: Sequence[float],
+        config: Optional[TournamentSelectionConfig] = None,
+    ) -> Union[List[int], List[TChromosome]]:
+        """Select individuals via tournament selection.
+
+        Args:
+            population: Sequence of chromosome-like representations.
+            fitnesses: Non-empty sequence of fitness values aligned with ``population``.
+            config: Selection options. If ``None``, defaults are used.
+
+        Returns:
+            A list of selected indices when ``return_indices=True``;
+            otherwise a list of selected population items.
+
+        Notes:
+            - Selection is with replacement across tournaments.
+            - With a single individual, that individual is selected each time.
+            - Tournament size is capped to population size.
+        """
+        resolved_config = config or TournamentSelectionConfig()
+        Genome._validate_population_and_fitnesses(population, fitnesses)
+
+        rng = random.Random(resolved_config.seed)
+        candidate_count = len(population)
+        tournament_size = min(resolved_config.tournament_size, candidate_count)
+        selected_indices: List[int] = []
+
+        for _ in range(resolved_config.num_selected):
+            competitors = rng.sample(range(candidate_count), k=tournament_size)
+            best_idx = max(competitors, key=lambda idx: fitnesses[idx])
+            selected_indices.append(best_idx)
+
+        if resolved_config.return_indices:
+            return selected_indices
+        return [population[idx] for idx in selected_indices]
+
+    @staticmethod
+    def roulette_selection(
+        population: Sequence[TChromosome],
+        fitnesses: Sequence[float],
+        config: Optional[RouletteSelectionConfig] = None,
+    ) -> Union[List[int], List[TChromosome]]:
+        """Select individuals using roulette-wheel (fitness-proportionate) sampling.
+
+        Args:
+            population: Sequence of chromosome-like representations.
+            fitnesses: Fitness values aligned with ``population``.
+            config: Selection options. If ``None``, defaults are used.
+
+        Returns:
+            A list of selected indices when ``return_indices=True``;
+            otherwise a list of selected population items.
+
+        Notes:
+            - Roulette selection assumes non-negative fitness values.
+            - When ``shift_negative_fitness=True``, fitnesses are shifted by
+              ``-min_fitness`` so the smallest value becomes ``0``.
+            - If all resulting fitnesses are ``0`` (uniform/degenerate case),
+              selection falls back to uniform random choice.
+            - With a single individual, that individual is selected each time.
+        """
+        resolved_config = config or RouletteSelectionConfig()
+        Genome._validate_population_and_fitnesses(population, fitnesses)
+
+        adjusted_fitnesses = [float(fitness) for fitness in fitnesses]
+        min_fitness = min(adjusted_fitnesses)
+        if min_fitness < 0.0:
+            if not resolved_config.shift_negative_fitness:
+                raise ValueError(
+                    "roulette_selection requires non-negative fitnesses unless "
+                    "shift_negative_fitness=True."
+                )
+            shift = -min_fitness
+            adjusted_fitnesses = [fitness + shift for fitness in adjusted_fitnesses]
+
+        total_fitness = sum(adjusted_fitnesses)
+        candidate_indices = list(range(len(population)))
+        rng = random.Random(resolved_config.seed)
+
+        if total_fitness == 0.0:
+            selected_indices = [
+                rng.choice(candidate_indices) for _ in range(resolved_config.num_selected)
+            ]
+        else:
+            selected_indices = rng.choices(
+                candidate_indices,
+                weights=adjusted_fitnesses,
+                k=resolved_config.num_selected,
+            )
+
+        if resolved_config.return_indices:
+            return selected_indices
+        return [population[idx] for idx in selected_indices]
+
+    @staticmethod
+    def _validate_population_and_fitnesses(
+        population: Sequence[Any],
+        fitnesses: Sequence[float],
+    ) -> None:
+        if not population:
+            raise ValueError("population must not be empty.")
+        if len(population) != len(fitnesses):
+            raise ValueError("population and fitnesses must have the same length.")

@@ -431,13 +431,14 @@ def _crossover(
     alpha: float,
     seed: Optional[int],
     output_dir: str,
+    allow_unsafe_unpickle: bool = False,
 ) -> Tuple[str, StudentQNetwork]:
     """Crossover two quantized students and save the float32 child snapshot."""
     print(f"\n[Stage 4] Crossover  (mode={mode!r}, alpha={alpha})")
 
-    # Use initialize_child_from_crossover which handles PTQ sidecar JSON
-    # and dequantizes packed weights automatically.  The PTQ checkpoints are
-    # trusted artefacts written by this pipeline, so unsafe unpickling is safe.
+    # Use initialize_child_from_crossover which handles PTQ sidecar JSON and
+    # dequantizes packed weights automatically. Unsafe checkpoint unpickling is
+    # disabled by default and must be explicitly enabled via CLI.
     arch = ChildArchitectureSpec(
         input_dim=_INPUT_DIM,
         output_dim=_OUTPUT_DIM,
@@ -449,7 +450,7 @@ def _crossover(
         student_b_int8_ckpt,
         strategy=mode,
         rng=seed,
-        allow_unsafe_unpickle=True,
+        allow_unsafe_unpickle=allow_unsafe_unpickle,
         architecture=arch,
         network_class=StudentQNetwork,
         alpha=alpha,
@@ -865,6 +866,7 @@ def _write_pipeline_report(
             "finetune_lr": args.finetune_lr,
             "finetune_temperature": args.finetune_temperature,
             "finetune_teacher_weight_a": args.finetune_teacher_weight_a,
+            "allow_unsafe_unpickle": args.allow_unsafe_unpickle,
         },
         "artifacts": artifact_paths,
         "stages": stage_metrics,
@@ -929,6 +931,11 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--crossover-mode", choices=list(CROSSOVER_MODES), default="weighted")
     p.add_argument("--crossover-alpha", type=float, default=0.5)
     p.add_argument("--crossover-seed", type=int, default=None)
+    p.add_argument(
+        "--allow-unsafe-unpickle",
+        action="store_true",
+        help="Allow unsafe checkpoint unpickling for trusted artifacts only.",
+    )
 
     # Dual-teacher fine-tuning
     p.add_argument("--finetune-epochs", type=int, default=10)
@@ -1082,6 +1089,7 @@ def main() -> None:  # noqa: C901  (intentionally linear pipeline)
         args.crossover_alpha,
         args.crossover_seed,
         out,
+        allow_unsafe_unpickle=args.allow_unsafe_unpickle,
     )
     artifacts["child_crossover"] = child_crossover_ckpt
 

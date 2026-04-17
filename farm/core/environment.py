@@ -1234,6 +1234,113 @@ class Environment(AECEnv):
                     self._logged_population_milestones.add(milestone)
                     break
 
+    def rollback_partial_agent_add(self, agent_id: str) -> bool:
+        """Best-effort rollback for an agent add that failed mid-flight.
+
+        This compensates for failures that happen after internal structures,
+        metrics, or database state may have been updated, but before the add
+        operation is considered successful by the caller.
+        """
+        try:
+            if agent_id in self._agent_objects:
+                del self._agent_objects[agent_id]
+            if agent_id in self.agents:
+                self.agents.remove(agent_id)
+
+            for mapping_name in (
+                "rewards",
+                "_cumulative_rewards",
+                "terminations",
+                "truncations",
+                "infos",
+                "observations",
+                "agent_observations",
+            ):
+                mapping = getattr(self, mapping_name, None)
+                if hasattr(mapping, "pop"):
+                    mapping.pop(agent_id, None)
+        except Exception:
+            logger.exception(
+                "environment_partial_agent_add_cleanup_failed",
+                agent_id=agent_id,
+                step=self.time,
+            )
+            return False
+
+        # Rebuild spatial references so removed agents are not query-visible.
+        try:
+            if hasattr(self, "spatial_index") and self.spatial_index is not None:
+                self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
+        except Exception:
+            logger.exception(
+                "environment_partial_agent_add_spatial_cleanup_failed",
+                agent_id=agent_id,
+                step=self.time,
+            )
+            return False
+
+        # Undo birth metric increment when it was recorded in this step.
+        try:
+            if (
+                self.time > 0
+                and hasattr(self, "metrics_tracker")
+                and self.metrics_tracker is not None
+                and hasattr(self.metrics_tracker, "step_metrics")
+                and getattr(self.metrics_tracker.step_metrics, "births", 0) > 0
+            ):
+                self.metrics_tracker.step_metrics.births -= 1
+        except Exception:
+            logger.exception(
+                "environment_partial_agent_add_metric_rollback_failed",
+                agent_id=agent_id,
+                step=self.time,
+            )
+
+        # If a DB row for this agent was persisted, remove it as compensation.
+        # This avoids polluting death analytics with rollback-only artifacts.
+        try:
+            if (
+                hasattr(self, "db")
+                and self.db is not None
+            ):
+                # Compensate pending logger buffers first so the rolled-back
+                # agent cannot be inserted on a later flush.
+                logger_obj = getattr(self.db, "logger", None)
+                drop_pending = getattr(logger_obj, "discard_pending_agents", None)
+                if callable(drop_pending):
+                    drop_pending([agent_id])
+
+            if (
+                hasattr(self, "db")
+                and self.db is not None
+                and hasattr(self.db, "_execute_in_transaction")
+            ):
+                from farm.database.models import AgentModel
+
+                def _delete_agent_row(session):
+                    row = (
+                        session.query(AgentModel)
+                        .filter(
+                            AgentModel.simulation_id == self.simulation_id,
+                            AgentModel.agent_id == agent_id,
+                        )
+                        .first()
+                    )
+                    if row is None:
+                        return False
+                    session.delete(row)
+                    return True
+
+                self.db._execute_in_transaction(_delete_agent_row)
+        except Exception:
+            logger.exception(
+                "environment_partial_agent_add_db_rollback_failed",
+                agent_id=agent_id,
+                step=self.time,
+            )
+
+        return agent_id not in self._agent_objects and agent_id not in self.agents
+
     def cleanup(self) -> None:
         """Clean up environment resources.
 

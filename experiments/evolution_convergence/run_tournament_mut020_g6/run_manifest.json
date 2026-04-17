@@ -1,0 +1,12 @@
+{
+  "script": "scripts/run_evolution_experiment.py",
+  "generations": 6,
+  "population_size": 8,
+  "steps_per_candidate": 40,
+  "selection_method": "tournament",
+  "mutation_rate": 0.2,
+  "mutation_scale": 0.2,
+  "fitness_metric": "final_population",
+  "seed": 42,
+  "output_dir": "experiments/evolution_convergence/run_tournament_mut020_g6"
+}
