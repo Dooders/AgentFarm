@@ -235,7 +235,16 @@ For detailed documentation and advanced usage:
 - [Benchmarking & Profiling Report](benchmarks/reports/0.1.0/benchmark_profiling_summary_report.md)
 - [Core Architecture](docs/core_architecture.md)
 - [Hyperparameter Chromosome Design](docs/design/hyperparameter_chromosome.md)
+- [Devlog](docs/devlog/index.md)
+- [Latest Devlog: DNA-Style Hyperparameter Evolution Results](docs/devlog/2026-04-17-dna-hyperparameter-evolution.md)
 - [Full Documentation Index](docs/README.md)
+
+### GitHub Pages
+
+This repository includes a GitHub Pages workflow that publishes content from `docs/`.
+
+- Docs home: `https://dooders.github.io/AgentFarm/`
+- Devlog index: `https://dooders.github.io/AgentFarm/devlog/`
 
 ## Contributing
 

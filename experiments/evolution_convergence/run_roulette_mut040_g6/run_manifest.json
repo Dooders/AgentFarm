@@ -1,0 +1,12 @@
+{
+  "script": "scripts/run_evolution_experiment.py",
+  "generations": 6,
+  "population_size": 8,
+  "steps_per_candidate": 40,
+  "selection_method": "roulette",
+  "mutation_rate": 0.4,
+  "mutation_scale": 0.35,
+  "fitness_metric": "final_population",
+  "seed": 99,
+  "output_dir": "experiments/evolution_convergence/run_roulette_mut040_g6"
+}
