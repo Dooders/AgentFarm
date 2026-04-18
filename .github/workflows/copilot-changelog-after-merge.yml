@@ -1,8 +1,30 @@
+# After each push to `main` that touches non-changelog files, opens an issue
+# with a merge summary and assigns GitHub Copilot cloud agent so it can open
+# a changelog PR.
+#
+# Prerequisites:
+# - Copilot cloud agent enabled for this repository (see GitHub Copilot settings).
+# - Repository secret `COPILOT_ASSIGNMENT_TOKEN`: a fine-grained or classic PAT
+#   belonging to a user who may assign issues to Copilot. The default
+#   `GITHUB_TOKEN` cannot assign the Copilot agent. See:
+#   https://docs.github.com/en/copilot/using-github-copilot/coding-agent/using-copilot-to-work-on-an-issue
+#
+# Skips:
+# - Missing `COPILOT_ASSIGNMENT_TOKEN` secret.
+# - Actor is `copilot-swe-agent[bot]` or `dependabot[bot]` (loop prevention).
+# - Any commit in the push range contains `[skip-changelog]` in its message.
+# - Push only touched `CHANGELOG.md` or `docs/devlog/**` (loop prevention).
+# - `paths-ignore` at the trigger level also skips changelog/devlog-only pushes
+#   before the runner even starts.
+
 name: Copilot changelog task after merge
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - CHANGELOG.md
+      - docs/devlog/**
 
 permissions:
   contents: read
@@ -35,12 +57,8 @@ jobs:
             echo "Skipping: actor is ${ACTOR}."
           fi
 
-          MSG=$(git log -1 --pretty=%B 2>/dev/null || true)
-          if echo "$MSG" | grep -qiF '[skip-changelog]'; then
-            SKIP=true
-            echo "Skipping: [skip-changelog] in commit message."
-          fi
-
+          # Resolve the comparison base before checking commit messages so we
+          # can scan the full range for [skip-changelog].
           BASE="$BEFORE"
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
@@ -50,15 +68,47 @@ jobs:
             fi
           fi
 
-          CHANGED=$(git diff --name-only "$BASE..$SHA" || true)
-          if [ -z "$CHANGED" ]; then
+          # Check every commit in the push range, not just the latest.
+          if git log --pretty=%B "$BASE..$SHA" 2>/dev/null | grep -qiF '[skip-changelog]'; then
+            SKIP=true
+            echo "Skipping: [skip-changelog] found in commit range $BASE..$SHA."
+          fi
+
+          # Validate that BASE is actually available locally; fetch or fall back
+          # if not (e.g. after a force-push that rewrote history).
+          if ! git cat-file -e "$BASE^{commit}" >/dev/null 2>&1; then
+            echo "::warning::Base commit $BASE is not available locally; attempting to fetch it."
+            if git fetch --no-tags origin "$BASE" >/dev/null 2>&1; then
+              echo "::notice::Fetched base commit $BASE successfully."
+            else
+              echo "::warning::Fetch of base commit $BASE failed; will attempt fallback."
+            fi
+          fi
+
+          if ! git cat-file -e "$BASE^{commit}" >/dev/null 2>&1; then
+            echo "::warning::Base commit $BASE is still unavailable; falling back to a local comparison base."
+            if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+              BASE=$(git rev-parse HEAD~1)
+            else
+              BASE="$SHA"
+            fi
+          fi
+
+          if ! CHANGED=$(git diff --name-only "$BASE..$SHA" 2>/dev/null); then
+            SKIP=true
+            CHANGED=""
+            echo "::warning::Unable to determine changed files for range $BASE..$SHA; skipping."
+          elif [ -z "$CHANGED" ]; then
             SKIP=true
             echo "Skipping: no changed files in push range."
           fi
 
           # Avoid loops from changelog-only updates.
+          # Guard on non-empty CHANGED so we don't emit a misleading "only
+          # touched changelog/devlog" message when CHANGED is empty because the
+          # diff itself failed.
           NON_CHANGELOG=$(echo "$CHANGED" | grep -Ev '^(CHANGELOG.md|docs/devlog/.*)$' || true)
-          if [ -z "$NON_CHANGELOG" ]; then
+          if [ -n "$CHANGED" ] && [ -z "$NON_CHANGELOG" ]; then
             SKIP=true
             echo "Skipping: push only touched changelog/devlog files."
           fi
