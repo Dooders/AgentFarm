@@ -62,8 +62,6 @@ class EvolutionExperimentConfig:
     tournament_size: int = 3
     elitism_count: int = 1
     fitness_metric: EvolutionFitnessMetric = EvolutionFitnessMetric.FINAL_POPULATION
-    boundary_mode: BoundaryMode = BoundaryMode.CLAMP
-    boundary_penalty: BoundaryPenaltyConfig = field(default_factory=BoundaryPenaltyConfig)
     seed: Optional[int] = None
     output_dir: Optional[str] = None
 

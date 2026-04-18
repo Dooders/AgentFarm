@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from dataclasses import fields
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -16,6 +17,11 @@ from farm.runners.evolution_experiment import (
 
 
 class TestEvolutionExperimentConfig(unittest.TestCase):
+    def test_config_fields_define_boundary_settings_once(self):
+        field_names = [item.name for item in fields(EvolutionExperimentConfig)]
+        self.assertEqual(field_names.count("boundary_mode"), 1)
+        self.assertEqual(field_names.count("boundary_penalty"), 1)
+
     def test_rejects_invalid_population_size(self):
         with self.assertRaises(ValueError):
             EvolutionExperimentConfig(population_size=1)
