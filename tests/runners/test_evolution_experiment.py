@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from farm.config import SimulationConfig
 from farm.core.hyperparameter_chromosome import BoundaryMode, BoundaryPenaltyConfig
+from farm.runners.adaptive_mutation import AdaptiveMutationConfig
 from farm.runners.evolution_experiment import (
     EvolutionExperiment,
     EvolutionExperimentConfig,
@@ -235,6 +236,239 @@ class TestEvolutionExperiment(unittest.TestCase):
         self.assertTrue(
             all(call.kwargs.get("boundary_mode") == BoundaryMode.REFLECT for call in mutate_mock.call_args_list)
         )
+
+
+class TestEvolutionExperimentAdaptiveMutation(unittest.TestCase):
+    def test_summary_telemetry_describes_what_produced_each_generation(self):
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=2,
+            population_size=4,
+            num_steps_per_candidate=1,
+            mutation_rate=0.25,
+            mutation_scale=0.2,
+            seed=5,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                float(member + generation),
+                {"member": member},
+            )
+        )
+        # Generation 0 is seeded by `_initialize_population`, not by the
+        # adaptive controller, so its mutation telemetry is None and the
+        # event is the special `initial_seeding` tag.
+        gen0 = result.generation_summaries[0]
+        self.assertIsNone(gen0.mutation_rate_used)
+        self.assertIsNone(gen0.mutation_scale_used)
+        self.assertIsNone(gen0.mutation_rate_multiplier)
+        self.assertIsNone(gen0.mutation_scale_multiplier)
+        self.assertEqual(gen0.adaptive_event, "initial_seeding")
+        # Diversity is always measured on the current generation.
+        self.assertIsNotNone(gen0.diversity)
+        self.assertGreaterEqual(gen0.diversity, 0.0)
+
+        # Subsequent generations were produced by the controller (in this
+        # case "disabled" because adaptive_mutation defaults to off).
+        gen1 = result.generation_summaries[1]
+        self.assertAlmostEqual(gen1.mutation_rate_used, 0.25)
+        self.assertAlmostEqual(gen1.mutation_scale_used, 0.2)
+        self.assertAlmostEqual(gen1.mutation_rate_multiplier, 1.0)
+        self.assertAlmostEqual(gen1.mutation_scale_multiplier, 1.0)
+        self.assertEqual(gen1.adaptive_event, "disabled")
+
+    @patch("farm.runners.evolution_experiment.mutate_chromosome")
+    def test_adaptive_stall_boosts_effective_mutation_for_next_generation(self, mutate_mock):
+        mutate_mock.side_effect = lambda chromosome, **kwargs: chromosome
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=3,
+            population_size=3,
+            num_steps_per_candidate=1,
+            mutation_rate=0.2,
+            mutation_scale=0.1,
+            adaptive_mutation=AdaptiveMutationConfig(
+                enabled=True,
+                use_fitness_adaptation=True,
+                use_diversity_adaptation=False,
+                stall_window=1,
+                stall_multiplier=2.0,
+                improvement_threshold=1e-6,
+                max_rate_multiplier=4.0,
+                max_scale_multiplier=4.0,
+            ),
+            seed=42,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        # Flat fitness => every generation after the first is a stall.
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (1.0, {"member": member})
+        )
+        gen0, gen1, gen2 = result.generation_summaries
+        # Gen 0 is seeded; gen 1 was produced before any stall observation
+        # had taken effect, so its multiplier is still 1.0.  Gen 2 reflects
+        # the post-gen-1 stall.
+        self.assertIsNone(gen0.mutation_rate_multiplier)
+        self.assertAlmostEqual(gen1.mutation_rate_multiplier, 1.0)
+        self.assertGreater(gen2.mutation_rate_multiplier, gen1.mutation_rate_multiplier)
+        self.assertAlmostEqual(gen2.mutation_rate_used, 0.2 * gen2.mutation_rate_multiplier)
+        self.assertIn("stalled", gen2.adaptive_event)
+
+    @patch("farm.runners.evolution_experiment.mutate_chromosome")
+    def test_adaptive_improving_tightens_effective_mutation(self, mutate_mock):
+        mutate_mock.side_effect = lambda chromosome, **kwargs: chromosome
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=3,
+            population_size=3,
+            num_steps_per_candidate=1,
+            mutation_rate=0.4,
+            mutation_scale=0.2,
+            adaptive_mutation=AdaptiveMutationConfig(
+                enabled=True,
+                use_fitness_adaptation=True,
+                use_diversity_adaptation=False,
+                stall_window=1,
+                improve_multiplier=0.5,
+                min_rate_multiplier=0.01,
+                min_scale_multiplier=0.01,
+            ),
+            seed=99,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        fitness_by_generation = {0: 1.0, 1: 2.0, 2: 3.0}
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                fitness_by_generation[generation],
+                {"member": member},
+            )
+        )
+        gen0, gen1, gen2 = result.generation_summaries
+        self.assertIsNone(gen0.mutation_rate_multiplier)
+        # Gen 1 was produced before any observe() had been called, so the
+        # multiplier is still 1.0.  Gen 2 reflects the gen-1 improvement.
+        self.assertAlmostEqual(gen1.mutation_rate_multiplier, 1.0)
+        self.assertLess(gen2.mutation_rate_multiplier, gen1.mutation_rate_multiplier)
+        self.assertIn("improving", gen2.adaptive_event)
+
+    @patch("farm.runners.evolution_experiment.mutate_chromosome")
+    def test_per_gene_multipliers_forwarded_to_mutate(self, mutate_mock):
+        mutate_mock.side_effect = lambda chromosome, **kwargs: chromosome
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=2,
+            population_size=3,
+            num_steps_per_candidate=1,
+            adaptive_mutation=AdaptiveMutationConfig(
+                enabled=True,
+                use_fitness_adaptation=False,
+                use_diversity_adaptation=False,
+                per_gene_rate_multipliers={"learning_rate": 2.0},
+                per_gene_scale_multipliers={"learning_rate": 0.5},
+            ),
+            seed=8,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                float(member),
+                {"member": member},
+            )
+        )
+        self.assertTrue(mutate_mock.called)
+        # Child generations call mutate_chromosome with per-gene multiplier dicts.
+        # The initial population seeding uses mutation_rate=1.0 with no
+        # adaptive per-gene multipliers, so filter those out.
+        child_calls = [
+            call for call in mutate_mock.call_args_list
+            if call.kwargs.get("per_gene_rate_multipliers") is not None
+        ]
+        self.assertGreater(len(child_calls), 0)
+        for call in child_calls:
+            self.assertEqual(call.kwargs.get("per_gene_rate_multipliers"), {"learning_rate": 2.0})
+            self.assertEqual(call.kwargs.get("per_gene_scale_multipliers"), {"learning_rate": 0.5})
+
+    def test_adaptive_telemetry_persisted_to_generation_summaries(self):
+        base_config = SimulationConfig()
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = EvolutionExperimentConfig(
+                num_generations=2,
+                population_size=3,
+                num_steps_per_candidate=1,
+                mutation_rate=0.2,
+                mutation_scale=0.1,
+                adaptive_mutation=AdaptiveMutationConfig(
+                    enabled=True,
+                    use_fitness_adaptation=True,
+                    use_diversity_adaptation=False,
+                    stall_window=1,
+                    stall_multiplier=2.0,
+                ),
+                output_dir=output_dir,
+                seed=1,
+            )
+            experiment = EvolutionExperiment(base_config, config)
+            experiment.run(
+                fitness_evaluator=lambda candidate, cfg, generation, member: (
+                    1.0,
+                    {"member": member},
+                )
+            )
+            with open(
+                f"{output_dir}/evolution_generation_summaries.json",
+                encoding="utf-8",
+            ) as summaries_file:
+                summaries = json.load(summaries_file)
+            self.assertEqual(len(summaries), 2)
+            for summary in summaries:
+                self.assertIn("mutation_rate_used", summary)
+                self.assertIn("mutation_scale_used", summary)
+                self.assertIn("mutation_rate_multiplier", summary)
+                self.assertIn("mutation_scale_multiplier", summary)
+                self.assertIn("diversity", summary)
+                self.assertIn("adaptive_event", summary)
+            # Generation 0 was seeded, so its mutation telemetry is null.
+            self.assertIsNone(summaries[0]["mutation_rate_used"])
+            self.assertEqual(summaries[0]["adaptive_event"], "initial_seeding")
+            # Generation 1 was produced before any controller observation
+            # took effect, so multiplier is unity but event reflects the
+            # very first observation made on gen 0.
+            self.assertEqual(summaries[1]["mutation_rate_multiplier"], 1.0)
+
+    def test_none_diversity_persists_as_json_null_and_skips_diversity_rule(self):
+        base_config = SimulationConfig()
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = EvolutionExperimentConfig(
+                num_generations=2,
+                population_size=3,
+                num_steps_per_candidate=1,
+                adaptive_mutation=AdaptiveMutationConfig(
+                    enabled=True,
+                    use_fitness_adaptation=False,
+                    use_diversity_adaptation=True,
+                    diversity_threshold=0.99,  # would always fire if diversity were measured
+                ),
+                output_dir=output_dir,
+                seed=1,
+            )
+            experiment = EvolutionExperiment(base_config, config)
+            with patch.object(EvolutionExperiment, "_compute_diversity", return_value=None):
+                experiment.run(
+                    fitness_evaluator=lambda candidate, cfg, generation, member: (
+                        1.0,
+                        {"member": member},
+                    )
+                )
+            with open(
+                f"{output_dir}/evolution_generation_summaries.json",
+                encoding="utf-8",
+            ) as summaries_file:
+                summaries = json.load(summaries_file)
+            for summary in summaries:
+                self.assertIsNone(summary["diversity"])
+            # No diversity_collapse fired because diversity was None.
+            self.assertNotIn("diversity_collapse", summaries[1]["adaptive_event"])
 
 
 if __name__ == "__main__":
