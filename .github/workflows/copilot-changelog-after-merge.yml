@@ -1,0 +1,198 @@
+# After each push to `main` that touches non-changelog files, opens an issue
+# with a merge summary and assigns GitHub Copilot cloud agent so it can open
+# a changelog PR.
+#
+# Prerequisites:
+# - Copilot cloud agent enabled for this repository (see GitHub Copilot settings).
+# - Repository secret `COPILOT_ASSIGNMENT_TOKEN`: a fine-grained or classic PAT
+#   belonging to a user who may assign issues to Copilot. The default
+#   `GITHUB_TOKEN` cannot assign the Copilot agent. See:
+#   https://docs.github.com/en/copilot/using-github-copilot/coding-agent/using-copilot-to-work-on-an-issue
+#
+# Skips:
+# - Missing `COPILOT_ASSIGNMENT_TOKEN` secret.
+# - Actor is `copilot-swe-agent[bot]` or `dependabot[bot]` (loop prevention).
+# - Any commit in the push range contains `[skip-changelog]` in its message.
+# - Push only touched `CHANGELOG.md` or `docs/devlog/**` (loop prevention).
+# - `paths-ignore` at the trigger level also skips changelog/devlog-only pushes
+#   before the runner even starts.
+
+name: Copilot changelog task after merge
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - CHANGELOG.md
+      - docs/devlog/**
+
+permissions:
+  contents: read
+
+jobs:
+  assign-changelog-task:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether to run
+        id: meta
+        env:
+          ACTOR: ${{ github.actor }}
+          HAS_TOKEN: ${{ secrets.COPILOT_ASSIGNMENT_TOKEN != '' }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          SKIP=false
+
+          if [ "$HAS_TOKEN" != "true" ]; then
+            SKIP=true
+            echo "::notice::COPILOT_ASSIGNMENT_TOKEN is not set; skipping."
+          fi
+
+          if [ "$ACTOR" = "copilot-swe-agent[bot]" ] || [ "$ACTOR" = "dependabot[bot]" ]; then
+            SKIP=true
+            echo "Skipping: actor is ${ACTOR}."
+          fi
+
+          # Resolve the comparison base before checking commit messages so we
+          # can scan the full range for [skip-changelog].
+          BASE="$BEFORE"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+              BASE=$(git rev-parse HEAD~1)
+            else
+              BASE="$SHA"
+            fi
+          fi
+
+          # Check every commit in the push range, not just the latest.
+          if git log --pretty=%B "$BASE..$SHA" 2>/dev/null | grep -qiF '[skip-changelog]'; then
+            SKIP=true
+            echo "Skipping: [skip-changelog] found in commit range $BASE..$SHA."
+          fi
+
+          # Validate that BASE is actually available locally; fetch or fall back
+          # if not (e.g. after a force-push that rewrote history).
+          if ! git cat-file -e "$BASE^{commit}" >/dev/null 2>&1; then
+            echo "::warning::Base commit $BASE is not available locally; attempting to fetch it."
+            if git fetch --no-tags origin "$BASE" >/dev/null 2>&1; then
+              echo "::notice::Fetched base commit $BASE successfully."
+            else
+              echo "::warning::Fetch of base commit $BASE failed; will attempt fallback."
+            fi
+          fi
+
+          if ! git cat-file -e "$BASE^{commit}" >/dev/null 2>&1; then
+            echo "::warning::Base commit $BASE is still unavailable; falling back to a local comparison base."
+            if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+              BASE=$(git rev-parse HEAD~1)
+            else
+              BASE="$SHA"
+            fi
+          fi
+
+          if ! CHANGED=$(git diff --name-only "$BASE..$SHA" 2>/dev/null); then
+            SKIP=true
+            CHANGED=""
+            echo "::warning::Unable to determine changed files for range $BASE..$SHA; skipping."
+          elif [ -z "$CHANGED" ]; then
+            SKIP=true
+            echo "Skipping: no changed files in push range."
+          fi
+
+          # Avoid loops from changelog-only updates.
+          # Guard on non-empty CHANGED so we don't emit a misleading "only
+          # touched changelog/devlog" message when CHANGED is empty because the
+          # diff itself failed.
+          NON_CHANGELOG=$(echo "$CHANGED" | grep -Ev '^(CHANGELOG.md|docs/devlog/.*)$' || true)
+          if [ -n "$CHANGED" ] && [ -z "$NON_CHANGELOG" ]; then
+            SKIP=true
+            echo "Skipping: push only touched changelog/devlog files."
+          fi
+
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+
+      - name: Build changelog task summary
+        id: summary
+        if: steps.meta.outputs.skip != 'true'
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          BASE: ${{ steps.meta.outputs.base }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          NAMES=$(git diff --name-only "$BASE..$SHA" || true)
+          STAT=$(git diff --stat "$BASE..$SHA" || true)
+          COMMITS=$(git log --no-merges --pretty='- %h %s (%an)' "$BASE..$SHA" || true)
+
+          {
+            echo "## Changelog request (autogenerated)"
+            echo
+            echo "**Range:** [\`${BASE:0:7}\`](${SERVER}/${REPO}/commit/${BASE}) -> [\`${SHA:0:7}\`](${SERVER}/${REPO}/commit/${SHA})"
+            echo
+            echo "### Commits in range"
+            echo '```'
+            echo "$COMMITS"
+            echo '```'
+            echo
+            echo "### Files touched"
+            echo '```'
+            echo "$NAMES"
+            echo '```'
+            echo
+            echo "### Diff stat"
+            echo '```'
+            echo "$STAT"
+            echo '```'
+            echo
+            echo "### Request"
+            echo "Update \`CHANGELOG.md\` with a new dated entry summarizing these changes."
+            echo "Write in clear release-note style with:"
+            echo "- what changed"
+            echo "- why it matters"
+            echo "- any user/developer impact"
+            echo
+            echo "If appropriate, group changes by Added/Changed/Fixed/Docs/Performance."
+            echo
+            echo "Open a PR against \`main\`. Use commit message suffix \`[skip-changelog]\` to avoid workflow recursion."
+          } > "$RUNNER_TEMP/changelog-issue-body.md"
+
+          echo "path=$RUNNER_TEMP/changelog-issue-body.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create issue and assign Copilot
+        if: steps.meta.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_ASSIGNMENT_TOKEN }}
+          REPO_FULL: ${{ github.repository }}
+          SHA_SHORT: ${{ github.sha }}
+        run: |
+          TITLE="Changelog sync after merge ${SHA_SHORT:0:7}"
+          BODY=$(cat "${{ steps.summary.outputs.path }}")
+          CUSTOM="Update only CHANGELOG.md for this merge range. Keep wording concise and explanatory. Open a PR to main. Include [skip-changelog] in commit message."
+
+          jq -n \
+            --arg title "$TITLE" \
+            --arg body "$BODY" \
+            --arg repo "$REPO_FULL" \
+            --arg instructions "$CUSTOM" \
+            '{
+              title: $title,
+              body: $body,
+              assignees: ["copilot-swe-agent[bot]"],
+              agent_assignment: {
+                target_repo: $repo,
+                base_branch: "main",
+                custom_instructions: $instructions,
+                custom_agent: "",
+                model: ""
+              }
+            }' | gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${REPO_FULL}/issues" \
+              --input -

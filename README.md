@@ -226,6 +226,7 @@ python run_tests.py
 ## Documentation
 
 For detailed documentation and advanced usage:
+- [Changelog](CHANGELOG.md)
 - [Agent Loop Design](docs/design/agent_loop.md)
 - [Agent Design](docs/design/Agent.md)
 - [User Guide](docs/user-guide.md)
