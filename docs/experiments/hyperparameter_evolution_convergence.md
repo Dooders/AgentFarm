@@ -49,6 +49,92 @@ The chart contains:
 - best fitness per generation
 - per-gene mean and `+-1 std` trend over generations
 
+## Adaptive Mutation
+
+Static mutation rates have a trade-off between boundary collapse (too
+exploitative) and stagnation (too exploratory). The runner supports an
+opt-in adaptive mutation schedule driven by
+``AdaptiveMutationConfig``.  See ``farm/runners/adaptive_mutation.py`` for
+the controller implementation.
+
+When ``--adaptive-mutation`` is passed, each generation's best fitness and
+population diversity are observed and used to adjust the effective mutation
+rate and scale that will produce the next generation:
+
+- **Fitness adaptation** (``use_fitness_adaptation``): if best fitness did
+  not improve over the trailing ``stall_window`` generations by more than
+  ``improvement_threshold``, the rate/scale multipliers are grown by
+  ``stall_multiplier``.  When fitness improves clearly, the multipliers are
+  shrunk by ``improve_multiplier``.
+- **Diversity adaptation** (``use_diversity_adaptation``): if the mean
+  normalized gene standard deviation falls at or below
+  ``diversity_threshold``, the rate/scale multipliers are boosted by
+  ``diversity_multiplier`` to escape a collapsed population.
+- **Per-gene multipliers** (``per_gene_rate_multipliers`` /
+  ``per_gene_scale_multipliers``): constant weights applied to specific
+  loci to give individual genes stronger or weaker mutation pressure.
+
+Multipliers are always clamped to ``[min_*_multiplier, max_*_multiplier]``,
+and the effective rate is clamped to ``[0, 1]``.
+
+### Telemetry
+
+Every entry in ``evolution_generation_summaries.json`` records the effective
+mutation values used for that generation's child population, along with the
+currently active multipliers, the measured diversity, and a short string
+describing which adaptation rules fired:
+
+```json
+{
+  "generation": 2,
+  "best_fitness": 72.0,
+  "effective_mutation_rate": 0.30,
+  "effective_mutation_scale": 0.18,
+  "mutation_rate_multiplier": 1.5,
+  "mutation_scale_multiplier": 1.5,
+  "diversity": 0.034,
+  "adaptive_event": "stalled+diversity_collapse"
+}
+```
+
+### Example
+
+```bash
+source venv/bin/activate
+python scripts/run_evolution_experiment.py \
+  --generations 12 \
+  --population-size 10 \
+  --steps-per-candidate 80 \
+  --selection-method tournament \
+  --mutation-rate 0.2 \
+  --mutation-scale 0.15 \
+  --adaptive-mutation \
+  --adaptive-stall-window 3 \
+  --adaptive-stall-multiplier 1.5 \
+  --adaptive-improve-multiplier 0.8 \
+  --adaptive-diversity-threshold 0.05 \
+  --adaptive-diversity-multiplier 1.5 \
+  --fitness-metric final_population \
+  --output-dir experiments/evolution_adaptive
+```
+
+### Tuning guidance
+
+- Start with **fitness adaptation only** (``--adaptive-disable-diversity``)
+  on short runs to confirm the stall/improve rules fire as expected in your
+  fitness regime.
+- Keep ``stall_multiplier`` close to ``1.5`` and ``improve_multiplier``
+  close to ``0.8``: larger values can cause oscillation between exploit
+  and explore regimes.
+- ``stall_window`` should be **at least 2** but smaller than the number of
+  generations; a value of ``3`` is a good default for 8-20 generation runs.
+- Set ``diversity_threshold`` after inspecting the diversity values logged
+  by a non-adaptive baseline run.  Typical collapsing populations report
+  ``diversity < 0.05`` on normalized gene ranges.
+- Use ``per_gene_rate_multipliers`` to mute mutation on genes that are
+  known to be sensitive (e.g., halve the rate for ``learning_rate``) while
+  letting coarser knobs keep exploring.
+
 ## Interpreting Results
 
 When reviewing `learning_rate` convergence:

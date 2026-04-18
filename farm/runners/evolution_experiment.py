@@ -8,7 +8,7 @@ import random
 import statistics
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from farm.config import SimulationConfig
 from farm.core.genome import Genome, RouletteSelectionConfig, TournamentSelectionConfig
@@ -25,6 +25,11 @@ from farm.core.hyperparameter_chromosome import (
     mutate_chromosome,
 )
 from farm.core.simulation import run_simulation
+from farm.runners.adaptive_mutation import (
+    AdaptiveMutationConfig,
+    AdaptiveMutationController,
+    compute_normalized_diversity,
+)
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -62,6 +67,7 @@ class EvolutionExperimentConfig:
     tournament_size: int = 3
     elitism_count: int = 1
     fitness_metric: EvolutionFitnessMetric = EvolutionFitnessMetric.FINAL_POPULATION
+    adaptive_mutation: AdaptiveMutationConfig = field(default_factory=AdaptiveMutationConfig)
     seed: Optional[int] = None
     output_dir: Optional[str] = None
 
@@ -119,6 +125,12 @@ class EvolutionGenerationSummary:
     best_candidate_id: str
     gene_statistics: Dict[str, Dict[str, float]]
     best_chromosome: Dict[str, float]
+    effective_mutation_rate: float = 0.0
+    effective_mutation_scale: float = 0.0
+    mutation_rate_multiplier: float = 1.0
+    mutation_scale_multiplier: float = 1.0
+    diversity: Optional[float] = None
+    adaptive_event: str = "baseline"
 
 
 @dataclass
@@ -152,6 +164,7 @@ class EvolutionExperiment:
         self._selection_call_count = 0
         self._run_rng = random.Random(self.config.seed) if self.config.seed is not None else random.Random()
         evaluator = fitness_evaluator or self._default_fitness_evaluator
+        controller = AdaptiveMutationController(self.config.adaptive_mutation)
         population = self._initialize_population()
         generation_summaries: List[EvolutionGenerationSummary] = []
         evaluations: List[EvolutionCandidateEvaluation] = []
@@ -159,8 +172,44 @@ class EvolutionExperiment:
         for generation in range(self.config.num_generations):
             generation_evals = self._evaluate_generation(generation, population, evaluator)
             evaluations.extend(generation_evals)
-            generation_summaries.append(self._build_generation_summary(generation, generation_evals))
-            population = self._next_generation(generation, generation_evals)
+            gene_statistics = self._build_gene_statistics(generation_evals)
+            diversity = self._compute_diversity(gene_statistics)
+            best_fitness = max(evaluation.fitness for evaluation in generation_evals)
+            controller.observe(best_fitness=best_fitness, diversity=diversity)
+            effective_rate = controller.effective_rate(self.config.mutation_rate)
+            effective_scale = controller.effective_scale(self.config.mutation_scale)
+            summary = self._build_generation_summary(
+                generation,
+                generation_evals,
+                gene_statistics=gene_statistics,
+                effective_rate=effective_rate,
+                effective_scale=effective_scale,
+                rate_multiplier=controller.rate_multiplier,
+                scale_multiplier=controller.scale_multiplier,
+                diversity=diversity,
+                adaptive_event=controller.last_event,
+            )
+            generation_summaries.append(summary)
+            logger.info(
+                "evolution_generation_completed",
+                generation=generation,
+                best_fitness=summary.best_fitness,
+                mean_fitness=summary.mean_fitness,
+                effective_mutation_rate=effective_rate,
+                effective_mutation_scale=effective_scale,
+                mutation_rate_multiplier=controller.rate_multiplier,
+                mutation_scale_multiplier=controller.scale_multiplier,
+                diversity=diversity,
+                adaptive_event=controller.last_event,
+            )
+            population = self._next_generation(
+                generation,
+                generation_evals,
+                effective_rate=effective_rate,
+                effective_scale=effective_scale,
+                per_gene_rate_multipliers=controller.per_gene_rate_multipliers(),
+                per_gene_scale_multipliers=controller.per_gene_scale_multipliers(),
+            )
 
         best_candidate = max(evaluations, key=lambda item: item.fitness)
         result = EvolutionExperimentResult(
@@ -229,6 +278,11 @@ class EvolutionExperiment:
         self,
         generation: int,
         generation_evals: List[EvolutionCandidateEvaluation],
+        *,
+        effective_rate: Optional[float] = None,
+        effective_scale: Optional[float] = None,
+        per_gene_rate_multipliers: Optional[Mapping[str, float]] = None,
+        per_gene_scale_multipliers: Optional[Mapping[str, float]] = None,
     ) -> List[EvolutionCandidate]:
         ranked = sorted(generation_evals, key=lambda item: item.fitness, reverse=True)
         next_population: List[EvolutionCandidate] = []
@@ -244,6 +298,9 @@ class EvolutionExperiment:
                 )
             )
 
+        resolved_rate = effective_rate if effective_rate is not None else self.config.mutation_rate
+        resolved_scale = effective_scale if effective_scale is not None else self.config.mutation_scale
+
         while len(next_population) < self.config.population_size:
             parent_a, parent_b = self._select_parents(generation_evals)
             child_chromosome = crossover_chromosomes(
@@ -255,10 +312,12 @@ class EvolutionExperiment:
             )
             child_chromosome = mutate_chromosome(
                 child_chromosome,
-                mutation_rate=self.config.mutation_rate,
-                mutation_scale=self.config.mutation_scale,
+                mutation_rate=resolved_rate,
+                mutation_scale=resolved_scale,
                 mutation_mode=self.config.mutation_mode,
                 boundary_mode=self.config.boundary_mode,
+                per_gene_rate_multipliers=per_gene_rate_multipliers,
+                per_gene_scale_multipliers=per_gene_scale_multipliers,
                 rng=self._run_rng,
             )
             child_idx = len(next_population)
@@ -313,11 +372,23 @@ class EvolutionExperiment:
         return population[parent_indices[0]], population[parent_indices[1]]
 
     def _build_generation_summary(
-        self, generation: int, generation_evals: List[EvolutionCandidateEvaluation]
+        self,
+        generation: int,
+        generation_evals: List[EvolutionCandidateEvaluation],
+        *,
+        gene_statistics: Optional[Dict[str, Dict[str, float]]] = None,
+        effective_rate: float = 0.0,
+        effective_scale: float = 0.0,
+        rate_multiplier: float = 1.0,
+        scale_multiplier: float = 1.0,
+        diversity: Optional[float] = None,
+        adaptive_event: str = "baseline",
     ) -> EvolutionGenerationSummary:
         best = max(generation_evals, key=lambda item: item.fitness)
         fitness_values = [evaluation.fitness for evaluation in generation_evals]
-        gene_statistics = self._build_gene_statistics(generation_evals)
+        resolved_gene_statistics = (
+            gene_statistics if gene_statistics is not None else self._build_gene_statistics(generation_evals)
+        )
         best_chromosome = {
             gene.name: gene.value
             for gene in best.metadata["chromosome"].genes
@@ -328,9 +399,34 @@ class EvolutionExperiment:
             mean_fitness=statistics.mean(fitness_values),
             min_fitness=min(fitness_values),
             best_candidate_id=best.candidate_id,
-            gene_statistics=gene_statistics,
+            gene_statistics=resolved_gene_statistics,
             best_chromosome=best_chromosome,
+            effective_mutation_rate=effective_rate,
+            effective_mutation_scale=effective_scale,
+            mutation_rate_multiplier=rate_multiplier,
+            mutation_scale_multiplier=scale_multiplier,
+            diversity=diversity,
+            adaptive_event=adaptive_event,
         )
+
+    def _compute_diversity(
+        self,
+        gene_statistics: Dict[str, Dict[str, float]],
+    ) -> Optional[float]:
+        """Compute mean normalized gene-std diversity over evolvable genes.
+
+        Returns ``None`` when no evolvable gene has a non-zero span, so
+        callers can decide whether to record the measure in telemetry.
+        """
+        evolvable_names: List[str] = []
+        gene_bounds: Dict[str, Tuple[float, float]] = {}
+        for gene in self._initial_chromosome.genes:
+            if gene.evolvable and gene.max_value > gene.min_value:
+                evolvable_names.append(gene.name)
+                gene_bounds[gene.name] = (gene.min_value, gene.max_value)
+        if not evolvable_names:
+            return None
+        return compute_normalized_diversity(gene_statistics, evolvable_names, gene_bounds)
 
     def _build_gene_statistics(
         self,

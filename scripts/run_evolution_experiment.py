@@ -16,6 +16,7 @@ if _repo_root not in sys.path:
 
 from farm.config import SimulationConfig  # noqa: E402
 from farm.runners import (  # noqa: E402
+    AdaptiveMutationConfig,
     EvolutionExperiment,
     EvolutionExperimentConfig,
     EvolutionFitnessMetric,
@@ -107,6 +108,57 @@ def _parse_args() -> argparse.Namespace:
         help="Near-boundary zone width as fraction of gene range (0, 0.5].",
     )
     parser.add_argument("--elitism-count", type=int, default=1, help="Top candidates copied to next generation.")
+    parser.add_argument(
+        "--adaptive-mutation",
+        action="store_true",
+        help="Enable adaptive mutation rate/scale based on fitness progress and diversity.",
+    )
+    parser.add_argument(
+        "--adaptive-stall-window",
+        type=int,
+        default=3,
+        help="Generations to look back when detecting a fitness stall.",
+    )
+    parser.add_argument(
+        "--adaptive-improvement-threshold",
+        type=float,
+        default=1e-6,
+        help="Minimum best-fitness improvement over the window that counts as progress.",
+    )
+    parser.add_argument(
+        "--adaptive-stall-multiplier",
+        type=float,
+        default=1.5,
+        help="Multiplier applied to mutation rate/scale when the search stalls.",
+    )
+    parser.add_argument(
+        "--adaptive-improve-multiplier",
+        type=float,
+        default=0.8,
+        help="Multiplier applied to mutation rate/scale when fitness is improving.",
+    )
+    parser.add_argument(
+        "--adaptive-diversity-threshold",
+        type=float,
+        default=0.05,
+        help="Normalized diversity at or below which mutation is boosted.",
+    )
+    parser.add_argument(
+        "--adaptive-diversity-multiplier",
+        type=float,
+        default=1.5,
+        help="Multiplier applied to mutation rate/scale when diversity collapses.",
+    )
+    parser.add_argument(
+        "--adaptive-disable-fitness",
+        action="store_true",
+        help="When --adaptive-mutation is set, skip the fitness-progress adaptation rule.",
+    )
+    parser.add_argument(
+        "--adaptive-disable-diversity",
+        action="store_true",
+        help="When --adaptive-mutation is set, skip the diversity-collapse adaptation rule.",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Global deterministic seed.")
     parser.add_argument(
         "--output-dir",
@@ -144,6 +196,7 @@ def main() -> int:
         boundary_penalty_enabled=args.boundary_penalty_enabled,
         boundary_penalty_strength=args.boundary_penalty_strength,
         boundary_penalty_threshold=args.boundary_penalty_threshold,
+        adaptive_mutation=args.adaptive_mutation,
         output_dir=args.output_dir,
     )
 
@@ -164,6 +217,17 @@ def main() -> int:
                 enabled=args.boundary_penalty_enabled,
                 penalty_strength=args.boundary_penalty_strength,
                 near_boundary_threshold=args.boundary_penalty_threshold,
+            ),
+            adaptive_mutation=AdaptiveMutationConfig(
+                enabled=args.adaptive_mutation,
+                use_fitness_adaptation=not args.adaptive_disable_fitness,
+                use_diversity_adaptation=not args.adaptive_disable_diversity,
+                stall_window=args.adaptive_stall_window,
+                improvement_threshold=args.adaptive_improvement_threshold,
+                stall_multiplier=args.adaptive_stall_multiplier,
+                improve_multiplier=args.adaptive_improve_multiplier,
+                diversity_threshold=args.adaptive_diversity_threshold,
+                diversity_multiplier=args.adaptive_diversity_multiplier,
             ),
             selection_method=EvolutionSelectionMethod(args.selection_method),
             tournament_size=args.tournament_size,
