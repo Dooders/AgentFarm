@@ -217,6 +217,10 @@ class TestEvolutionExperiment(unittest.TestCase):
     def test_boundary_penalty_adjusts_candidate_fitness(self):
         base_config = SimulationConfig()
         base_config.learning.learning_rate = 1e-6
+        # Move all other evolvable genes well inside bounds so only learning_rate
+        # (at its min boundary) incurs a penalty, keeping the expected values simple.
+        base_config.learning.gamma = 0.5
+        base_config.learning.epsilon_decay = 0.5
         config = EvolutionExperimentConfig(
             num_generations=1,
             population_size=3,
