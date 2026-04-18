@@ -186,11 +186,15 @@ class TestEvolutionExperiment(unittest.TestCase):
             self.assertEqual(lineage[-1]["generation"], 1)
             self.assertIn("gene_statistics", summaries[0])
             self.assertIn("learning_rate", summaries[0]["gene_statistics"])
+            self.assertIn("gamma", summaries[0]["gene_statistics"])
+            self.assertIn("epsilon_decay", summaries[0]["gene_statistics"])
             self.assertIn("mean", summaries[0]["gene_statistics"]["learning_rate"])
             self.assertIn("median", summaries[0]["gene_statistics"]["learning_rate"])
             self.assertIn("std", summaries[0]["gene_statistics"]["learning_rate"])
             self.assertIn("best_chromosome", summaries[0])
             self.assertIn("learning_rate", summaries[0]["best_chromosome"])
+            self.assertIn("gamma", summaries[0]["best_chromosome"])
+            self.assertIn("epsilon_decay", summaries[0]["best_chromosome"])
 
     def test_repeated_run_on_same_instance_is_deterministic_with_seed(self):
         base_config = SimulationConfig()

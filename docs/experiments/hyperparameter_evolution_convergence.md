@@ -163,6 +163,43 @@ When reviewing `learning_rate` convergence:
 - unstable or growing spread suggests mutation pressure dominates selection
 - rising best fitness with shrinking spread usually indicates useful convergence
 
+## Artifact Refresh for Multi-Gene Reporting (2026-04-18)
+
+To close the multi-gene acceptance criteria, all checked-in convergence artifacts
+under `experiments/evolution_convergence` were regenerated from the current
+chromosome schema and runner wiring.
+
+What changed in persisted outputs:
+
+- every `evolution_generation_summaries.json` now includes per-gene stats for
+  all loci in the active schema: `learning_rate`, `gamma`, `epsilon_decay`,
+  and `memory_size`
+- every `best_chromosome` snapshot now includes `gamma` and `epsilon_decay`
+  alongside `learning_rate`
+- `evolution_lineage.json` remains intentionally compact and still stores
+  top-level `learning_rate` + metadata (full per-gene stats live in summaries)
+
+Current final-generation snapshots from regenerated runs:
+
+- `run_clamp_baseline_g6`: final best fitness `76.0`; best chromosome
+  (`learning_rate=1e-06`, `gamma=1.0`, `epsilon_decay=0.7241990478892087`)
+- `run_clamp_penalty_g6`: final best fitness `66.99`; best chromosome
+  (`learning_rate=0.20027491749951848`, `gamma=1.0`, `epsilon_decay=0.7592339511733013`)
+- `run_clamp_penalty002_g6`: final best fitness `76.98`; best chromosome
+  (`learning_rate=1e-06`, `gamma=0.95`, `epsilon_decay=0.9320406841297989`)
+- `run_clamp_penalty005_g6`: final best fitness `68.95`; best chromosome
+  (`learning_rate=1e-06`, `gamma=0.8369660526170754`, `epsilon_decay=0.8288524477063025`)
+- `run_clamp_penalty010_g6`: final best fitness `72.9`; best chromosome
+  (`learning_rate=1e-06`, `gamma=0.8618623974764232`, `epsilon_decay=0.5743829534957358`)
+- `run_reflect_g6`: final best fitness `78.0`; best chromosome
+  (`learning_rate=0.19271257710715683`, `gamma=0.9751036551406521`, `epsilon_decay=0.8970057808457064`)
+- `run_roulette_mut040_g6`: final best fitness `76.0`; best chromosome
+  (`learning_rate=1e-06`, `gamma=1.0`, `epsilon_decay=1.0`)
+- `run_tournament_mut020_g6`: final best fitness `71.0`; best chromosome
+  (`learning_rate=0.03602658902654344`, `gamma=0.9751036551406521`, `epsilon_decay=0.9688639803415231`)
+- `run_tournament_mut025`: final best fitness `71.0`; best chromosome
+  (`learning_rate=0.2269703882742677`, `gamma=1.0`, `epsilon_decay=1.0`)
+
 ## Findings From Current Smoke Run
 
 Using the checked-in artifacts in `experiments/evolution_smoke`:
