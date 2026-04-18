@@ -71,8 +71,11 @@ def test_reproduce_mutates_learning_rate_and_passes_child_config():
     child_config = kwargs["config"]
     assert child_config is not parent.config
     assert child_config.decision.learning_rate == 0.012
-    # Placeholder genes remain fixed by default registry.
-    assert child_config.decision.epsilon_decay == 0.995
+    # epsilon_decay and gamma are now evolvable; gauss patched to 0.002 shifts both.
+    # span ≈ 1.0, mutation_scale (default) = 0.2 → sigma = 0.2 → delta = 0.002
+    assert child_config.decision.epsilon_decay == pytest.approx(0.997, abs=1e-9)
+    assert child_config.decision.gamma == pytest.approx(0.992, abs=1e-9)
+    # memory_size is fixed (evolvable=False) and stays at the parent value.
     assert child_config.decision.memory_size == 2000
     assert offspring.hyperparameter_chromosome.get_value("learning_rate") == 0.012
 

@@ -56,14 +56,17 @@ The chromosome model is intentionally narrow and strict:
 The default registry is defined in `DEFAULT_HYPERPARAMETER_GENES`:
 
 - `learning_rate` (evolvable) — range `[1e-6, 1.0]`, encoded with **log-scale 8-bit quantization** by default so that equal bucket steps map to multiplicative LR changes
-- `epsilon_decay` (fixed placeholder)
-- `memory_size` (fixed placeholder)
+- `gamma` (evolvable) — discount factor, range `[0.0, 1.0]`, default `0.99`, encoded with **linear 8-bit quantization**
+- `epsilon_decay` (evolvable) — exploration decay rate, range `(0, 1.0]`, default `0.995`, encoded with **linear 8-bit quantization**
+- `memory_size` (fixed placeholder) — integer-rounding concerns are kept separate from the continuous-gene evolution phase
 
 Default encoding policies per gene name are stored in `DEFAULT_GENE_ENCODINGS`:
 
 ```python
 DEFAULT_GENE_ENCODINGS = {
     "learning_rate": GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8),
+    "epsilon_decay": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "gamma": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
 }
 ```
 
@@ -254,12 +257,12 @@ from farm.core.hyperparameter_chromosome import (
 
 chrom = default_hyperparameter_chromosome()
 
-# Round-trip via dict
-encoded = encode_chromosome(chrom)          # {"learning_rate": 102}
+# Round-trip via dict (three evolvable genes: learning_rate, gamma, epsilon_decay)
+encoded = encode_chromosome(chrom)          # {"learning_rate": 102, "gamma": 252, "epsilon_decay": 253}
 restored = decode_chromosome(encoded, template=chrom)
 
-# Round-trip via vector (preserves gene order)
-vec = encode_chromosome_vector(chrom)       # (102,)
+# Round-trip via vector (preserves gene order, length == number of evolvable genes)
+vec = encode_chromosome_vector(chrom)       # (102, 252, 253)
 restored_vec = decode_chromosome_vector(vec, template=chrom)
 ```
 
@@ -372,7 +375,18 @@ They are parallel tracks today; a future unification step can compose both into 
 - mutation rate is currently a constant in `AgentCore` (`DEFAULT_HYPERPARAMETER_MUTATION_RATE`)
 - log-scale encoding requires strictly positive gene bounds; genes with `min_value ≤ 0` must use `GeneEncodingScale.LINEAR`
 
-These are deliberate for a small, verifiable first increment.
+The schema now supports three continuously evolvable genes (`learning_rate`, `gamma`, `epsilon_decay`).  `memory_size` remains fixed pending integer-gene support.
+
+## Discrete-gene roadmap
+
+`memory_size` and other integer/discrete parameters require rounding during config projection (`int(round(gene.value))`).  The planned migration path is:
+
+1. **Integer rounding guard** — validate that after rounding, the projected integer falls within the gene's declared bounds.  This can be added to `apply_chromosome_to_learning_config` without schema changes.
+2. **Dedicated `GeneValueType.INTEGER` variant** — extend the `GeneValueType` enum and add a validation branch in `HyperparameterGene.__post_init__` that enforces integer-valued `min_value`, `max_value`, `default`, and `value`.  Encode/decode methods already round when `bit_width` is set, so no encoding changes are needed.
+3. **Enable `memory_size`** — once the integer guard is in place, flip `evolvable=True` for `memory_size` and add coverage to the chromosome and evolution-experiment test suites.
+4. **Binary/categorical genes** — implement `GeneValueType.BINARY` or `GeneValueType.CATEGORICAL` when needed; keep separate from the real/integer path to preserve existing validation.
+
+Until step 1 is validated in integration tests, `memory_size` stays fixed to avoid undetected rounding drift.
 
 ## Evolution experiment outputs
 

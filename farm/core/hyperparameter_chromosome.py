@@ -357,8 +357,12 @@ class HyperparameterChromosome:
 # Default encoding policy by gene name.
 # learning_rate uses log-space 8-bit quantization so equal bucket changes map to
 # multiplicative LR changes, which is typically more meaningful than linear shifts.
+# epsilon_decay and gamma use linear 8-bit quantization; their ranges are bounded
+# and do not span multiple orders of magnitude in a way that requires log space.
 DEFAULT_GENE_ENCODINGS: Dict[str, GeneEncodingSpec] = {
     "learning_rate": GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8),
+    "epsilon_decay": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "gamma": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
 }
 
 # Smallest positive IEEE-754 binary64; mirrors DecisionConfig allowing any (0, 1].
@@ -366,8 +370,9 @@ _EPSILON_DECAY_GENE_MIN = math.ldexp(1.0, -1074)
 
 
 # Default hyperparameter loci.
-# learning_rate is enabled for evolution now; others are placeholders that
-# document the extension path while remaining fixed in global config.
+# learning_rate, gamma, and epsilon_decay are enabled for evolution; memory_size
+# remains a fixed placeholder documenting the extension path while keeping integer
+# rounding concerns separate from the continuous-gene evolution phase.
 DEFAULT_HYPERPARAMETER_GENES: Tuple[HyperparameterGene, ...] = (
     HyperparameterGene(
         name="learning_rate",
@@ -379,13 +384,22 @@ DEFAULT_HYPERPARAMETER_GENES: Tuple[HyperparameterGene, ...] = (
         evolvable=True,
     ),
     HyperparameterGene(
+        name="gamma",
+        value_type=GeneValueType.REAL,
+        value=0.99,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.99,
+        evolvable=True,
+    ),
+    HyperparameterGene(
         name="epsilon_decay",
         value_type=GeneValueType.REAL,
         value=0.995,
         min_value=_EPSILON_DECAY_GENE_MIN,
         max_value=1.0,
         default=0.995,
-        evolvable=False,
+        evolvable=True,
     ),
     HyperparameterGene(
         name="memory_size",
