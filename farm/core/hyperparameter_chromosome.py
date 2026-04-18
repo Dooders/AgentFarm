@@ -589,6 +589,7 @@ def _apply_boundary(raw_value: float, min_value: float, max_value: float, mode: 
 
 def mutate_chromosome(
     chromosome: HyperparameterChromosome,
+    *,
     mutation_rate: Optional[float] = None,
     mutation_scale: Optional[float] = None,
     mutation_mode: Optional[Union[MutationMode, str]] = None,

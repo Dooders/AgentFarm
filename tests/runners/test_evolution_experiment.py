@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from farm.config import SimulationConfig
+from farm.core.hyperparameter_chromosome import BoundaryMode, BoundaryPenaltyConfig
 from farm.runners.evolution_experiment import (
     EvolutionExperiment,
     EvolutionExperimentConfig,
@@ -22,6 +23,23 @@ class TestEvolutionExperimentConfig(unittest.TestCase):
     def test_rejects_invalid_generation_count(self):
         with self.assertRaises(ValueError):
             EvolutionExperimentConfig(num_generations=0)
+
+    def test_default_boundary_mode_is_clamp(self):
+        config = EvolutionExperimentConfig()
+        self.assertEqual(config.boundary_mode, BoundaryMode.CLAMP)
+
+    def test_accepts_reflect_boundary_mode(self):
+        config = EvolutionExperimentConfig(boundary_mode=BoundaryMode.REFLECT)
+        self.assertEqual(config.boundary_mode, BoundaryMode.REFLECT)
+
+    def test_default_boundary_penalty_config_is_none(self):
+        config = EvolutionExperimentConfig()
+        self.assertIsNone(config.boundary_penalty_config)
+
+    def test_accepts_boundary_penalty_config(self):
+        penalty_cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05)
+        config = EvolutionExperimentConfig(boundary_penalty_config=penalty_cfg)
+        self.assertTrue(config.boundary_penalty_config.enabled)
 
 
 class TestEvolutionExperiment(unittest.TestCase):
@@ -155,6 +173,49 @@ class TestEvolutionExperiment(unittest.TestCase):
         lineage_b = [(ev.candidate_id, ev.parent_ids, ev.fitness) for ev in result_b.evaluations]
         self.assertEqual(lineage_a, lineage_b)
         self.assertEqual(result_a.best_candidate.candidate_id, result_b.best_candidate.candidate_id)
+
+    def test_boundary_penalty_reduces_fitness_when_enabled(self):
+        base_config = SimulationConfig()
+        penalty_cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=1000.0, near_boundary_threshold=0.5)
+        config_with_penalty = EvolutionExperimentConfig(
+            num_generations=1,
+            population_size=2,
+            seed=42,
+            boundary_penalty_config=penalty_cfg,
+        )
+        config_without_penalty = EvolutionExperimentConfig(
+            num_generations=1,
+            population_size=2,
+            seed=42,
+        )
+
+        raw_fitness = 10.0
+
+        def evaluator(candidate, candidate_config, generation, member_index):
+            return raw_fitness, {}
+
+        result_with = EvolutionExperiment(base_config, config_with_penalty).run(fitness_evaluator=evaluator)
+        result_without = EvolutionExperiment(base_config, config_without_penalty).run(fitness_evaluator=evaluator)
+
+        for eval_with, eval_without in zip(result_with.evaluations, result_without.evaluations):
+            self.assertLessEqual(eval_with.fitness, eval_without.fitness)
+
+    def test_boundary_penalty_metadata_recorded_when_nonzero(self):
+        base_config = SimulationConfig()
+        penalty_cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=1000.0, near_boundary_threshold=0.5)
+        config = EvolutionExperimentConfig(
+            num_generations=1,
+            population_size=2,
+            seed=5,
+            boundary_penalty_config=penalty_cfg,
+        )
+
+        def evaluator(candidate, candidate_config, generation, member_index):
+            return 50.0, {}
+
+        result = EvolutionExperiment(base_config, config).run(fitness_evaluator=evaluator)
+        penalized = [ev for ev in result.evaluations if "boundary_penalty" in ev.metadata]
+        self.assertTrue(len(penalized) > 0)
 
 
 if __name__ == "__main__":

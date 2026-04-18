@@ -13,6 +13,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from farm.config import SimulationConfig
 from farm.core.genome import Genome, RouletteSelectionConfig, TournamentSelectionConfig
 from farm.core.hyperparameter_chromosome import (
+    BoundaryMode,
+    BoundaryPenaltyConfig,
+    compute_boundary_penalty,
     CrossoverMode,
     HyperparameterChromosome,
     MutationMode,
@@ -57,6 +60,8 @@ class EvolutionExperimentConfig:
     tournament_size: int = 3
     elitism_count: int = 1
     fitness_metric: EvolutionFitnessMetric = EvolutionFitnessMetric.FINAL_POPULATION
+    boundary_mode: BoundaryMode = BoundaryMode.CLAMP
+    boundary_penalty_config: Optional[BoundaryPenaltyConfig] = None
     seed: Optional[int] = None
     output_dir: Optional[str] = None
 
@@ -174,6 +179,7 @@ class EvolutionExperiment:
                     mutation_rate=1.0,
                     mutation_scale=self.config.mutation_scale,
                     mutation_mode=self.config.mutation_mode,
+                    boundary_mode=self.config.boundary_mode,
                     rng=self._run_rng,
                 )
             population.append(
@@ -196,13 +202,17 @@ class EvolutionExperiment:
         for idx, candidate in enumerate(population):
             candidate_config = self._config_for_chromosome(candidate.chromosome)
             fitness, metadata = evaluator(candidate, candidate_config, generation, idx)
+            penalty = compute_boundary_penalty(candidate.chromosome, self.config.boundary_penalty_config)
+            adjusted_fitness = float(fitness) - penalty
             metadata_with_lineage = dict(metadata)
             metadata_with_lineage["chromosome"] = candidate.chromosome
+            if penalty > 0.0:
+                metadata_with_lineage["boundary_penalty"] = penalty
             generation_evals.append(
                 EvolutionCandidateEvaluation(
                     candidate_id=candidate.candidate_id,
                     generation=generation,
-                    fitness=float(fitness),
+                    fitness=adjusted_fitness,
                     learning_rate=candidate.chromosome.get_value("learning_rate"),
                     parent_ids=candidate.parent_ids,
                     metadata=metadata_with_lineage,
@@ -243,6 +253,7 @@ class EvolutionExperiment:
                 mutation_rate=self.config.mutation_rate,
                 mutation_scale=self.config.mutation_scale,
                 mutation_mode=self.config.mutation_mode,
+                boundary_mode=self.config.boundary_mode,
                 rng=self._run_rng,
             )
             child_idx = len(next_population)
