@@ -445,6 +445,192 @@ class TestHyperparameterCrossover(unittest.TestCase):
         self.assertGreaterEqual(learning_rate, 1e-6)
         self.assertLessEqual(learning_rate, 1.0)
 
+    # --- Blend (BLX-α) crossover ---
+
+    def test_blend_crossover_value_within_gene_bounds(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.01})
+        parent_b = chromosome_from_values({"learning_rate": 0.5})
+        for seed in range(20):
+            child = crossover_chromosomes(
+                parent_a,
+                parent_b,
+                mode=CrossoverMode.BLEND,
+                blend_alpha=0.5,
+                rng=random.Random(seed),
+            )
+            lr = child.get_value("learning_rate")
+            self.assertGreaterEqual(lr, 1e-6)
+            self.assertLessEqual(lr, 1.0)
+
+    def test_blend_crossover_zero_alpha_stays_between_parents(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.1})
+        parent_b = chromosome_from_values({"learning_rate": 0.9})
+        for seed in range(20):
+            child = crossover_chromosomes(
+                parent_a,
+                parent_b,
+                mode=CrossoverMode.BLEND,
+                blend_alpha=0.0,
+                rng=random.Random(seed),
+            )
+            lr = child.get_value("learning_rate")
+            self.assertGreaterEqual(lr, 0.1)
+            self.assertLessEqual(lr, 0.9)
+
+    def test_blend_crossover_deterministic_with_seed(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.01})
+        parent_b = chromosome_from_values({"learning_rate": 0.5})
+        child1 = crossover_chromosomes(
+            parent_a, parent_b, mode=CrossoverMode.BLEND, rng=random.Random(42)
+        )
+        child2 = crossover_chromosomes(
+            parent_a, parent_b, mode=CrossoverMode.BLEND, rng=random.Random(42)
+        )
+        self.assertEqual(child1.get_value("learning_rate"), child2.get_value("learning_rate"))
+
+    def test_blend_crossover_rejects_negative_alpha(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.01})
+        parent_b = chromosome_from_values({"learning_rate": 0.5})
+        with self.assertRaises(ValueError):
+            crossover_chromosomes(
+                parent_a, parent_b, mode=CrossoverMode.BLEND, blend_alpha=-0.1
+            )
+
+    def test_blend_crossover_string_mode(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.1})
+        parent_b = chromosome_from_values({"learning_rate": 0.5})
+        child = crossover_chromosomes(
+            parent_a, parent_b, mode="blend", rng=random.Random(7)
+        )
+        lr = child.get_value("learning_rate")
+        self.assertGreaterEqual(lr, 1e-6)
+        self.assertLessEqual(lr, 1.0)
+
+    def test_blend_crossover_equal_parents_returns_same_value(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.3})
+        parent_b = chromosome_from_values({"learning_rate": 0.3})
+        child = crossover_chromosomes(
+            parent_a, parent_b, mode=CrossoverMode.BLEND, blend_alpha=0.5, rng=random.Random(1)
+        )
+        # span is 0, so uniform(0, 0) → exact value
+        self.assertAlmostEqual(child.get_value("learning_rate"), 0.3)
+
+    # --- Multi-point crossover ---
+
+    def test_multi_point_crossover_values_from_parents(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.01, "epsilon_decay": 0.8})
+        parent_b = chromosome_from_values({"learning_rate": 0.5, "epsilon_decay": 0.9})
+        child = crossover_chromosomes(
+            parent_a,
+            parent_b,
+            mode=CrossoverMode.MULTI_POINT,
+            include_fixed=True,
+            num_crossover_points=2,
+            rng=random.Random(5),
+        )
+        self.assertIn(child.get_value("learning_rate"), (0.01, 0.5))
+        self.assertIn(child.get_value("epsilon_decay"), (0.8, 0.9))
+
+    def test_multi_point_crossover_deterministic_with_seed(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.01, "epsilon_decay": 0.8})
+        parent_b = chromosome_from_values({"learning_rate": 0.5, "epsilon_decay": 0.9})
+        child1 = crossover_chromosomes(
+            parent_a, parent_b, mode=CrossoverMode.MULTI_POINT,
+            include_fixed=True, num_crossover_points=1, rng=random.Random(99)
+        )
+        child2 = crossover_chromosomes(
+            parent_a, parent_b, mode=CrossoverMode.MULTI_POINT,
+            include_fixed=True, num_crossover_points=1, rng=random.Random(99)
+        )
+        self.assertEqual(
+            [g.value for g in child1.genes],
+            [g.value for g in child2.genes],
+        )
+
+    def test_multi_point_crossover_alternates_segments_across_many_genes(self):
+        parent_a = default_hyperparameter_chromosome()
+        parent_b = HyperparameterChromosome(
+            genes=tuple(
+                gene.with_value(gene.max_value if gene.value != gene.max_value else gene.min_value)
+                for gene in parent_a.genes
+            )
+        )
+        seed = 123
+        num_points = 3
+        child = crossover_chromosomes(
+            parent_a,
+            parent_b,
+            mode=CrossoverMode.MULTI_POINT,
+            include_fixed=True,
+            num_crossover_points=num_points,
+            rng=random.Random(seed),
+        )
+
+        selected_indices = list(range(len(parent_a.genes)))
+        n = len(selected_indices)
+        effective_points = min(num_points, n - 1) if n > 1 else 0
+        expected_genes = list(parent_a.genes)
+        if effective_points == 0:
+            selected_parent = parent_b if random.Random(seed).random() < 0.5 else parent_a
+            expected_genes[selected_indices[0]] = selected_parent.genes[selected_indices[0]]
+        else:
+            pivot_positions = sorted(random.Random(seed).sample(range(1, n), effective_points))
+            segment = 0
+            for selected_position, gene_idx in enumerate(selected_indices):
+                if segment < len(pivot_positions) and selected_position >= pivot_positions[segment]:
+                    segment += 1
+                source = parent_a if segment % 2 == 0 else parent_b
+                expected_genes[gene_idx] = source.genes[gene_idx]
+
+        self.assertEqual(
+            [gene.value for gene in child.genes],
+            [gene.value for gene in expected_genes],
+        )
+
+    def test_multi_point_crossover_single_gene_still_works(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.01})
+        parent_b = chromosome_from_values({"learning_rate": 0.5})
+        child = crossover_chromosomes(
+            parent_a,
+            parent_b,
+            mode=CrossoverMode.MULTI_POINT,
+            num_crossover_points=5,
+            rng=random.Random(0),
+        )
+        self.assertIn(child.get_value("learning_rate"), (0.01, 0.5))
+
+    def test_multi_point_crossover_rejects_zero_points(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.01})
+        parent_b = chromosome_from_values({"learning_rate": 0.5})
+        with self.assertRaises(ValueError):
+            crossover_chromosomes(
+                parent_a, parent_b, mode=CrossoverMode.MULTI_POINT, num_crossover_points=0
+            )
+
+    def test_multi_point_crossover_string_mode(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.01, "epsilon_decay": 0.8})
+        parent_b = chromosome_from_values({"learning_rate": 0.5, "epsilon_decay": 0.9})
+        child = crossover_chromosomes(
+            parent_a, parent_b, mode="multi_point",
+            include_fixed=True, rng=random.Random(3)
+        )
+        self.assertIn(child.get_value("learning_rate"), (0.01, 0.5))
+
+    def test_blend_then_mutation_keeps_offspring_in_range(self):
+        parent_a = chromosome_from_values({"learning_rate": 1e-6})
+        parent_b = chromosome_from_values({"learning_rate": 1.0})
+        child = crossover_chromosomes(
+            parent_a, parent_b, mode=CrossoverMode.BLEND,
+            blend_alpha=0.5, rng=random.Random(7)
+        )
+        mutated = mutate_chromosome(
+            child, mutation_rate=1.0, mutation_scale=1.0,
+            mutation_mode=MutationMode.GAUSSIAN, rng=random.Random(13)
+        )
+        lr = mutated.get_value("learning_rate")
+        self.assertGreaterEqual(lr, 1e-6)
+        self.assertLessEqual(lr, 1.0)
+
 
 class TestBoundaryMode(unittest.TestCase):
     """Tests for reflective (bounce) mutation boundary handling."""

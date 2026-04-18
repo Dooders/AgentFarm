@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from farm.config import SimulationConfig
-from farm.core.hyperparameter_chromosome import BoundaryMode, BoundaryPenaltyConfig
+from farm.core.hyperparameter_chromosome import BoundaryMode, BoundaryPenaltyConfig, CrossoverMode
 from farm.runners.adaptive_mutation import AdaptiveMutationConfig
 from farm.runners.evolution_experiment import (
     EvolutionExperiment,
@@ -52,6 +52,34 @@ class TestEvolutionExperimentConfig(unittest.TestCase):
         penalty_cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05)
         config = EvolutionExperimentConfig(boundary_penalty=penalty_cfg)
         self.assertTrue(config.boundary_penalty.enabled)
+
+    def test_blend_mode_rejects_negative_blend_alpha(self):
+        with self.assertRaises(ValueError):
+            EvolutionExperimentConfig(
+                crossover_mode=CrossoverMode.BLEND,
+                blend_alpha=-0.1,
+            )
+
+    def test_non_blend_mode_rejects_negative_blend_alpha(self):
+        with self.assertRaises(ValueError):
+            EvolutionExperimentConfig(
+                crossover_mode=CrossoverMode.UNIFORM,
+                blend_alpha=-0.1,
+            )
+
+    def test_multi_point_mode_rejects_zero_crossover_points(self):
+        with self.assertRaises(ValueError):
+            EvolutionExperimentConfig(
+                crossover_mode=CrossoverMode.MULTI_POINT,
+                num_crossover_points=0,
+            )
+
+    def test_non_multi_point_mode_rejects_zero_crossover_points(self):
+        with self.assertRaises(ValueError):
+            EvolutionExperimentConfig(
+                crossover_mode=CrossoverMode.UNIFORM,
+                num_crossover_points=0,
+            )
 
 
 class TestEvolutionExperiment(unittest.TestCase):
@@ -236,6 +264,35 @@ class TestEvolutionExperiment(unittest.TestCase):
         self.assertTrue(
             all(call.kwargs.get("boundary_mode") == BoundaryMode.REFLECT for call in mutate_mock.call_args_list)
         )
+
+    @patch("farm.runners.evolution_experiment.mutate_chromosome")
+    @patch("farm.runners.evolution_experiment.crossover_chromosomes")
+    def test_crossover_mode_parameters_are_forwarded(self, crossover_mock, mutate_mock):
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=2,
+            population_size=4,
+            num_steps_per_candidate=1,
+            crossover_mode=CrossoverMode.MULTI_POINT,
+            blend_alpha=0.7,
+            num_crossover_points=3,
+            seed=37,
+        )
+        crossover_mock.side_effect = lambda parent_a, parent_b, **kwargs: parent_a
+        mutate_mock.side_effect = lambda chromosome, **kwargs: chromosome
+        experiment = EvolutionExperiment(base_config, config)
+        experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                float(member + generation),
+                {"member": member},
+            )
+        )
+
+        self.assertTrue(crossover_mock.called)
+        for call in crossover_mock.call_args_list:
+            self.assertEqual(call.kwargs.get("mode"), CrossoverMode.MULTI_POINT)
+            self.assertAlmostEqual(call.kwargs.get("blend_alpha"), 0.7)
+            self.assertEqual(call.kwargs.get("num_crossover_points"), 3)
 
 
 class TestEvolutionExperimentAdaptiveMutation(unittest.TestCase):

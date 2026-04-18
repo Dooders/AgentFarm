@@ -63,6 +63,8 @@ class EvolutionExperimentConfig:
     boundary_mode: BoundaryMode = BoundaryMode.CLAMP
     boundary_penalty: BoundaryPenaltyConfig = field(default_factory=BoundaryPenaltyConfig)
     crossover_mode: CrossoverMode = CrossoverMode.UNIFORM
+    blend_alpha: float = 0.5
+    num_crossover_points: int = 2
     selection_method: EvolutionSelectionMethod = EvolutionSelectionMethod.TOURNAMENT
     tournament_size: int = 3
     elitism_count: int = 1
@@ -84,6 +86,11 @@ class EvolutionExperimentConfig:
             raise ValueError("mutation_scale must be non-negative.")
         # Validate enum coercion for string-friendly construction.
         BoundaryMode(self.boundary_mode)
+        CrossoverMode(self.crossover_mode)
+        if self.blend_alpha < 0.0:
+            raise ValueError("blend_alpha must be non-negative.")
+        if self.num_crossover_points < 1:
+            raise ValueError("num_crossover_points must be at least 1.")
         if self.tournament_size < 1:
             raise ValueError("tournament_size must be at least 1.")
         if self.elitism_count < 0:
@@ -351,6 +358,8 @@ class EvolutionExperiment:
                 parent_b.metadata["chromosome"],
                 mode=self.config.crossover_mode,
                 include_fixed=False,
+                blend_alpha=self.config.blend_alpha,
+                num_crossover_points=self.config.num_crossover_points,
                 rng=self._run_rng,
             )
             child_chromosome = mutate_chromosome(

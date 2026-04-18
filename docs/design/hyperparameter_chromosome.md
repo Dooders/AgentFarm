@@ -319,7 +319,25 @@ At minimum add tests in `tests/test_hyperparameter_chromosome.py` for:
 If runtime flow changes, add or update integration tests similar to:
 - `tests/test_agent_reproduction_hyperparameters.py`
 
-## How to adapt mutation strategy
+## Crossover strategies
+
+`crossover_chromosomes(parent_a, parent_b, *, mode, ...)` supports four operators selectable via `CrossoverMode`:
+
+| Mode | String key | Description |
+|------|-----------|-------------|
+| `SINGLE_POINT` | `"single_point"` | One random pivot; genes before the pivot from parent A, the rest from parent B. |
+| `UNIFORM` | `"uniform"` | Each gene independently drawn from parent B with probability `uniform_parent_b_probability` (default 0.5). |
+| `BLEND` | `"blend"` | BLX-α: each gene value is sampled uniformly from `[lo − α·span, hi + α·span]` and clamped to gene bounds. Controls recombination range beyond the parents' interval. Set `blend_alpha=0.0` for a convex combination. |
+| `MULTI_POINT` | `"multi_point"` | `num_crossover_points` random pivots divide the gene vector into alternating segments from each parent. Useful for longer gene vectors. |
+
+`EvolutionExperimentConfig` exposes:
+- `crossover_mode` — selects the operator (default `CrossoverMode.UNIFORM`)
+- `blend_alpha` — BLX-α extent (default `0.5`; must be ≥ 0)
+- `num_crossover_points` — pivot count for multi-point (default `2`; must be ≥ 1)
+
+All modes are deterministic when an explicit `rng=random.Random(seed)` is passed.
+
+
 
 The current mutation strategy is simple and intentionally local.
 
@@ -368,3 +386,30 @@ These are deliberate for a small, verifiable first increment.
   - one row per evaluated candidate with lineage (`parent_ids`) and fitness metadata
 
 Use `scripts/plot_hyperparameter_evolution.py` to produce a convergence chart from the summaries JSON.
+
+## Crossover strategy comparison runs
+
+To compare crossover operators directly, run:
+
+```bash
+python scripts/compare_evolution_crossover_strategies.py \
+  --environment testing \
+  --generations 3 \
+  --population-size 6 \
+  --steps-per-candidate 50 \
+  --crossover-modes uniform,blend,multi_point,single_point \
+  --seeds 42,43,44 \
+  --output-json experiments/evolution/crossover_strategy_comparison.json
+```
+
+The report contains:
+
+- `mode_summaries`
+  - per-mode aggregate stats for `final_best_fitness`, `final_mean_fitness`, and `final_diversity`
+  - summary fields include `mean`, `stdev`, `min`, and `max`
+- `runs`
+  - one row per `(mode, seed)` with raw final-generation fitness and diversity values
+- `config`
+  - full run configuration for reproducibility
+
+Use this artifact to compare crossover strategy impact on convergence quality (fitness) and population spread (diversity) across repeated seeds.

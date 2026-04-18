@@ -25,6 +25,7 @@ from farm.runners import (  # noqa: E402
 from farm.core.hyperparameter_chromosome import (  # noqa: E402
     BoundaryMode,
     BoundaryPenaltyConfig,
+    CrossoverMode,
 )
 from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
@@ -137,6 +138,25 @@ def _parse_args() -> argparse.Namespace:
         default=0.05,
         help="Near-boundary zone width as fraction of gene range (0, 0.5].",
     )
+    parser.add_argument(
+        "--crossover-mode",
+        type=str,
+        default=CrossoverMode.UNIFORM.value,
+        choices=[mode.value for mode in CrossoverMode],
+        help="Crossover operator used to create offspring chromosomes.",
+    )
+    parser.add_argument(
+        "--blend-alpha",
+        type=float,
+        default=0.5,
+        help="BLX-alpha extent used when --crossover-mode=blend.",
+    )
+    parser.add_argument(
+        "--num-crossover-points",
+        type=int,
+        default=2,
+        help="Pivot count used when --crossover-mode=multi_point.",
+    )
     parser.add_argument("--elitism-count", type=int, default=1, help="Top candidates copied to next generation.")
     parser.add_argument(
         "--adaptive-mutation",
@@ -244,6 +264,9 @@ def main() -> int:
         boundary_penalty_enabled=args.boundary_penalty_enabled,
         boundary_penalty_strength=args.boundary_penalty_strength,
         boundary_penalty_threshold=args.boundary_penalty_threshold,
+        crossover_mode=args.crossover_mode,
+        blend_alpha=args.blend_alpha,
+        num_crossover_points=args.num_crossover_points,
         adaptive_mutation=args.adaptive_mutation,
         output_dir=args.output_dir,
     )
@@ -266,6 +289,9 @@ def main() -> int:
                 penalty_strength=args.boundary_penalty_strength,
                 near_boundary_threshold=args.boundary_penalty_threshold,
             ),
+            crossover_mode=CrossoverMode(args.crossover_mode),
+            blend_alpha=args.blend_alpha,
+            num_crossover_points=args.num_crossover_points,
             adaptive_mutation=AdaptiveMutationConfig(
                 enabled=args.adaptive_mutation,
                 use_fitness_adaptation=not args.adaptive_disable_fitness,
@@ -308,6 +334,9 @@ def main() -> int:
             "boundary_penalty_enabled": args.boundary_penalty_enabled,
             "boundary_penalty_strength": args.boundary_penalty_strength,
             "boundary_penalty_threshold": args.boundary_penalty_threshold,
+            "crossover_mode": args.crossover_mode,
+            "blend_alpha": args.blend_alpha,
+            "num_crossover_points": args.num_crossover_points,
             "adaptive_mutation_enabled": args.adaptive_mutation,
             "final_mutation_rate_multiplier": (
                 last_summary.mutation_rate_multiplier if last_summary else None

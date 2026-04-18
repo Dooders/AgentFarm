@@ -49,10 +49,21 @@ class GeneEncodingScale(str, Enum):
 
 
 class CrossoverMode(str, Enum):
-    """Supported crossover operators for chromosome vectors."""
+    """Supported crossover operators for chromosome vectors.
+
+    - ``SINGLE_POINT``: one random pivot splits the gene vector between parents.
+    - ``UNIFORM``: each gene is independently drawn from either parent.
+    - ``BLEND``: each evolvable gene is interpolated between parent values using a
+      random blend factor drawn from ``[−blend_alpha, 1 + blend_alpha]`` (BLX-α).
+      Values are clamped to gene bounds after blending.
+    - ``MULTI_POINT``: ``num_crossover_points`` random pivots divide the gene vector
+      into alternating segments inherited from each parent.
+    """
 
     SINGLE_POINT = "single_point"
     UNIFORM = "uniform"
+    BLEND = "blend"
+    MULTI_POINT = "multi_point"
 
 
 class MutationMode(str, Enum):
@@ -746,9 +757,35 @@ def crossover_chromosomes(
     mode: Union[CrossoverMode, str] = CrossoverMode.SINGLE_POINT,
     include_fixed: bool = False,
     uniform_parent_b_probability: float = 0.5,
+    blend_alpha: float = 0.5,
+    num_crossover_points: int = 2,
     rng: Optional[random.Random] = None,
 ) -> HyperparameterChromosome:
     """Create a child chromosome by crossing two parent gene vectors.
+
+    Args:
+        parent_a: First parent chromosome.
+        parent_b: Second parent chromosome (must be schema-compatible with *parent_a*).
+        mode: Crossover operator to apply.  One of :class:`CrossoverMode`.
+        include_fixed: When ``True``, non-evolvable genes participate in crossover
+            alongside evolvable ones.
+        uniform_parent_b_probability: Probability of inheriting each gene from
+            *parent_b* under ``UNIFORM`` mode.  Must be in ``[0, 1]``.
+        blend_alpha: Extent parameter for ``BLEND`` (BLX-α) crossover.  The random
+            blend factor is drawn uniformly from ``[−blend_alpha, 1 + blend_alpha]``,
+            allowing offspring to explore slightly beyond the interval spanned by the
+            parents.  ``0.0`` restricts the child strictly between the two parent
+            values; ``0.5`` is a common heuristic.  Must be non-negative.
+        num_crossover_points: Number of pivot points used by ``MULTI_POINT``
+            crossover.  Must be at least 1.  Values larger than the number of
+            selected genes minus 1 are clamped automatically.
+        rng: Optional seeded :class:`random.Random` instance for reproducible
+            results.  Falls back to the module-level ``random`` singleton when
+            ``None``.
+
+    Returns:
+        A new :class:`HyperparameterChromosome` whose genes are derived from the
+        selected crossover strategy.
 
     Notes:
         This operator intentionally lives outside ``Genome`` to keep action-set
@@ -759,6 +796,10 @@ def crossover_chromosomes(
 
     _validate_compatible_chromosomes(parent_a, parent_b)
     resolved_mode = CrossoverMode(mode)
+    if resolved_mode is CrossoverMode.BLEND and blend_alpha < 0.0:
+        raise ValueError("blend_alpha must be non-negative.")
+    if resolved_mode is CrossoverMode.MULTI_POINT and num_crossover_points < 1:
+        raise ValueError("num_crossover_points must be at least 1.")
     resolved_rng = rng or random
 
     selected_indices = [
@@ -778,6 +819,37 @@ def crossover_chromosomes(
             pivot = resolved_rng.randint(1, len(selected_indices) - 1)
             for selected_position, gene_idx in enumerate(selected_indices):
                 source = parent_a if selected_position < pivot else parent_b
+                child_genes[gene_idx] = source.genes[gene_idx]
+    elif resolved_mode is CrossoverMode.BLEND:
+        for gene_idx in selected_indices:
+            gene_a = parent_a.genes[gene_idx]
+            gene_b = parent_b.genes[gene_idx]
+            lo = min(gene_a.value, gene_b.value)
+            hi = max(gene_a.value, gene_b.value)
+            span = hi - lo
+            lower_bound = lo - blend_alpha * span
+            upper_bound = hi + blend_alpha * span
+            raw_value = resolved_rng.uniform(lower_bound, upper_bound)
+            clamped = max(gene_a.min_value, min(gene_a.max_value, raw_value))
+            child_genes[gene_idx] = gene_a.with_value(clamped)
+    elif resolved_mode is CrossoverMode.MULTI_POINT:
+        n = len(selected_indices)
+        effective_points = min(num_crossover_points, n - 1) if n > 1 else 0
+        if effective_points == 0:
+            # Only one gene is selected; no pivot is possible, so pick randomly
+            # between parents (mirroring SINGLE_POINT behaviour for n=1).
+            selected_parent = parent_b if resolved_rng.random() < 0.5 else parent_a
+            child_genes[selected_indices[0]] = selected_parent.genes[selected_indices[0]]
+        else:
+            pivot_positions = sorted(
+                resolved_rng.sample(range(1, n), effective_points)
+            )
+            # Alternate segments: even-indexed segments from parent_a, odd from parent_b
+            segment = 0
+            for selected_position, gene_idx in enumerate(selected_indices):
+                if segment < len(pivot_positions) and selected_position >= pivot_positions[segment]:
+                    segment += 1
+                source = parent_a if segment % 2 == 0 else parent_b
                 child_genes[gene_idx] = source.genes[gene_idx]
     else:
         for gene_idx in selected_indices:
