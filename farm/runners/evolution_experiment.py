@@ -86,16 +86,11 @@ class EvolutionExperimentConfig:
             raise ValueError("mutation_scale must be non-negative.")
         # Validate enum coercion for string-friendly construction.
         BoundaryMode(self.boundary_mode)
-        resolved_crossover_mode = CrossoverMode(self.crossover_mode)
-        if resolved_crossover_mode is CrossoverMode.BLEND and self.blend_alpha < 0.0:
-            raise ValueError("blend_alpha must be non-negative when crossover_mode is 'blend'.")
-        if (
-            resolved_crossover_mode is CrossoverMode.MULTI_POINT
-            and self.num_crossover_points < 1
-        ):
-            raise ValueError(
-                "num_crossover_points must be at least 1 when crossover_mode is 'multi_point'."
-            )
+        CrossoverMode(self.crossover_mode)
+        if self.blend_alpha < 0.0:
+            raise ValueError("blend_alpha must be non-negative.")
+        if self.num_crossover_points < 1:
+            raise ValueError("num_crossover_points must be at least 1.")
         if self.tournament_size < 1:
             raise ValueError("tournament_size must be at least 1.")
         if self.elitism_count < 0:

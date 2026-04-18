@@ -60,12 +60,12 @@ class TestEvolutionExperimentConfig(unittest.TestCase):
                 blend_alpha=-0.1,
             )
 
-    def test_non_blend_mode_allows_negative_blend_alpha(self):
-        config = EvolutionExperimentConfig(
-            crossover_mode=CrossoverMode.UNIFORM,
-            blend_alpha=-0.1,
-        )
-        self.assertEqual(config.crossover_mode, CrossoverMode.UNIFORM)
+    def test_non_blend_mode_rejects_negative_blend_alpha(self):
+        with self.assertRaises(ValueError):
+            EvolutionExperimentConfig(
+                crossover_mode=CrossoverMode.UNIFORM,
+                blend_alpha=-0.1,
+            )
 
     def test_multi_point_mode_rejects_zero_crossover_points(self):
         with self.assertRaises(ValueError):
@@ -74,12 +74,12 @@ class TestEvolutionExperimentConfig(unittest.TestCase):
                 num_crossover_points=0,
             )
 
-    def test_non_multi_point_mode_allows_zero_crossover_points(self):
-        config = EvolutionExperimentConfig(
-            crossover_mode=CrossoverMode.UNIFORM,
-            num_crossover_points=0,
-        )
-        self.assertEqual(config.crossover_mode, CrossoverMode.UNIFORM)
+    def test_non_multi_point_mode_rejects_zero_crossover_points(self):
+        with self.assertRaises(ValueError):
+            EvolutionExperimentConfig(
+                crossover_mode=CrossoverMode.UNIFORM,
+                num_crossover_points=0,
+            )
 
 
 class TestEvolutionExperiment(unittest.TestCase):
