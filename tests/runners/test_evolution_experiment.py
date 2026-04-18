@@ -239,7 +239,7 @@ class TestEvolutionExperiment(unittest.TestCase):
 
 
 class TestEvolutionExperimentAdaptiveMutation(unittest.TestCase):
-    def test_summary_includes_effective_mutation_telemetry(self):
+    def test_summary_telemetry_describes_what_produced_each_generation(self):
         base_config = SimulationConfig()
         config = EvolutionExperimentConfig(
             num_generations=2,
@@ -256,17 +256,27 @@ class TestEvolutionExperimentAdaptiveMutation(unittest.TestCase):
                 {"member": member},
             )
         )
-        for summary in result.generation_summaries:
-            # Without adaptive mutation, telemetry still reports base values and
-            # unity multipliers for every generation.
-            self.assertAlmostEqual(summary.effective_mutation_rate, 0.25)
-            self.assertAlmostEqual(summary.effective_mutation_scale, 0.2)
-            self.assertAlmostEqual(summary.mutation_rate_multiplier, 1.0)
-            self.assertAlmostEqual(summary.mutation_scale_multiplier, 1.0)
-            # Diversity is computed from the evaluated generation.
-            self.assertIsNotNone(summary.diversity)
-            self.assertGreaterEqual(summary.diversity, 0.0)
-            self.assertEqual(summary.adaptive_event, "disabled")
+        # Generation 0 is seeded by `_initialize_population`, not by the
+        # adaptive controller, so its mutation telemetry is None and the
+        # event is the special `initial_seeding` tag.
+        gen0 = result.generation_summaries[0]
+        self.assertIsNone(gen0.mutation_rate_used)
+        self.assertIsNone(gen0.mutation_scale_used)
+        self.assertIsNone(gen0.mutation_rate_multiplier)
+        self.assertIsNone(gen0.mutation_scale_multiplier)
+        self.assertEqual(gen0.adaptive_event, "initial_seeding")
+        # Diversity is always measured on the current generation.
+        self.assertIsNotNone(gen0.diversity)
+        self.assertGreaterEqual(gen0.diversity, 0.0)
+
+        # Subsequent generations were produced by the controller (in this
+        # case "disabled" because adaptive_mutation defaults to off).
+        gen1 = result.generation_summaries[1]
+        self.assertAlmostEqual(gen1.mutation_rate_used, 0.25)
+        self.assertAlmostEqual(gen1.mutation_scale_used, 0.2)
+        self.assertAlmostEqual(gen1.mutation_rate_multiplier, 1.0)
+        self.assertAlmostEqual(gen1.mutation_scale_multiplier, 1.0)
+        self.assertEqual(gen1.adaptive_event, "disabled")
 
     @patch("farm.runners.evolution_experiment.mutate_chromosome")
     def test_adaptive_stall_boosts_effective_mutation_for_next_generation(self, mutate_mock):
@@ -296,12 +306,14 @@ class TestEvolutionExperimentAdaptiveMutation(unittest.TestCase):
             fitness_evaluator=lambda candidate, cfg, generation, member: (1.0, {"member": member})
         )
         gen0, gen1, gen2 = result.generation_summaries
-        self.assertAlmostEqual(gen0.mutation_rate_multiplier, 1.0)
-        # Second generation's effective rate is boosted relative to the first.
-        self.assertGreater(gen1.mutation_rate_multiplier, gen0.mutation_rate_multiplier)
+        # Gen 0 is seeded; gen 1 was produced before any stall observation
+        # had taken effect, so its multiplier is still 1.0.  Gen 2 reflects
+        # the post-gen-1 stall.
+        self.assertIsNone(gen0.mutation_rate_multiplier)
+        self.assertAlmostEqual(gen1.mutation_rate_multiplier, 1.0)
         self.assertGreater(gen2.mutation_rate_multiplier, gen1.mutation_rate_multiplier)
-        self.assertAlmostEqual(gen1.effective_mutation_rate, 0.2 * gen1.mutation_rate_multiplier)
-        self.assertIn("stalled", gen1.adaptive_event)
+        self.assertAlmostEqual(gen2.mutation_rate_used, 0.2 * gen2.mutation_rate_multiplier)
+        self.assertIn("stalled", gen2.adaptive_event)
 
     @patch("farm.runners.evolution_experiment.mutate_chromosome")
     def test_adaptive_improving_tightens_effective_mutation(self, mutate_mock):
@@ -332,12 +344,13 @@ class TestEvolutionExperimentAdaptiveMutation(unittest.TestCase):
                 {"member": member},
             )
         )
-        self.assertAlmostEqual(result.generation_summaries[0].mutation_rate_multiplier, 1.0)
-        self.assertLess(
-            result.generation_summaries[1].mutation_rate_multiplier,
-            result.generation_summaries[0].mutation_rate_multiplier,
-        )
-        self.assertIn("improving", result.generation_summaries[1].adaptive_event)
+        gen0, gen1, gen2 = result.generation_summaries
+        self.assertIsNone(gen0.mutation_rate_multiplier)
+        # Gen 1 was produced before any observe() had been called, so the
+        # multiplier is still 1.0.  Gen 2 reflects the gen-1 improvement.
+        self.assertAlmostEqual(gen1.mutation_rate_multiplier, 1.0)
+        self.assertLess(gen2.mutation_rate_multiplier, gen1.mutation_rate_multiplier)
+        self.assertIn("improving", gen2.adaptive_event)
 
     @patch("farm.runners.evolution_experiment.mutate_chromosome")
     def test_per_gene_multipliers_forwarded_to_mutate(self, mutate_mock):
@@ -409,12 +422,53 @@ class TestEvolutionExperimentAdaptiveMutation(unittest.TestCase):
                 summaries = json.load(summaries_file)
             self.assertEqual(len(summaries), 2)
             for summary in summaries:
-                self.assertIn("effective_mutation_rate", summary)
-                self.assertIn("effective_mutation_scale", summary)
+                self.assertIn("mutation_rate_used", summary)
+                self.assertIn("mutation_scale_used", summary)
                 self.assertIn("mutation_rate_multiplier", summary)
                 self.assertIn("mutation_scale_multiplier", summary)
                 self.assertIn("diversity", summary)
                 self.assertIn("adaptive_event", summary)
+            # Generation 0 was seeded, so its mutation telemetry is null.
+            self.assertIsNone(summaries[0]["mutation_rate_used"])
+            self.assertEqual(summaries[0]["adaptive_event"], "initial_seeding")
+            # Generation 1 was produced before any controller observation
+            # took effect, so multiplier is unity but event reflects the
+            # very first observation made on gen 0.
+            self.assertEqual(summaries[1]["mutation_rate_multiplier"], 1.0)
+
+    def test_none_diversity_persists_as_json_null_and_skips_diversity_rule(self):
+        base_config = SimulationConfig()
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = EvolutionExperimentConfig(
+                num_generations=2,
+                population_size=3,
+                num_steps_per_candidate=1,
+                adaptive_mutation=AdaptiveMutationConfig(
+                    enabled=True,
+                    use_fitness_adaptation=False,
+                    use_diversity_adaptation=True,
+                    diversity_threshold=0.99,  # would always fire if diversity were measured
+                ),
+                output_dir=output_dir,
+                seed=1,
+            )
+            experiment = EvolutionExperiment(base_config, config)
+            with patch.object(EvolutionExperiment, "_compute_diversity", return_value=None):
+                experiment.run(
+                    fitness_evaluator=lambda candidate, cfg, generation, member: (
+                        1.0,
+                        {"member": member},
+                    )
+                )
+            with open(
+                f"{output_dir}/evolution_generation_summaries.json",
+                encoding="utf-8",
+            ) as summaries_file:
+                summaries = json.load(summaries_file)
+            for summary in summaries:
+                self.assertIsNone(summary["diversity"])
+            # No diversity_collapse fired because diversity was None.
+            self.assertNotIn("diversity_collapse", summaries[1]["adaptive_event"])
 
 
 if __name__ == "__main__":

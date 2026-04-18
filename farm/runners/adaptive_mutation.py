@@ -19,7 +19,10 @@ derive effective mutation parameters before each child population is produced.
 
 Design notes:
     - All multipliers are clamped to configurable ``[min, max]`` envelopes
-      to prevent runaway adaptation.
+      to prevent runaway adaptation.  When a clamp actually changes the
+      value, the controller emits a ``rate_clamped``/``scale_clamped`` tag
+      in :attr:`AdaptiveMutationController.last_event` so analysts can see
+      when the bounds bite.
     - Diversity is computed as the mean, across evolvable genes, of the
       per-gene population standard deviation normalized by the gene's bounded
       range.  A value of ``0.0`` means the population has collapsed on every
@@ -35,7 +38,15 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass, field
-from typing import List, Mapping, Optional, Sequence
+from types import MappingProxyType
+from typing import List, Mapping, Optional, Sequence, Tuple
+
+from farm.core.hyperparameter_chromosome import validate_non_negative_mapping
+
+
+def _freeze_mapping(mapping: Mapping[str, float]) -> Mapping[str, float]:
+    """Return an immutable view of ``mapping`` so frozen dataclasses stay frozen."""
+    return MappingProxyType(dict(mapping))
 
 
 @dataclass(frozen=True)
@@ -127,31 +138,22 @@ class AdaptiveMutationConfig:
         if self.min_rate_multiplier <= 0.0:
             raise ValueError("min_rate_multiplier must be positive.")
         if self.max_rate_multiplier < self.min_rate_multiplier:
-            raise ValueError(
-                "max_rate_multiplier must be >= min_rate_multiplier."
-            )
+            raise ValueError("max_rate_multiplier must be >= min_rate_multiplier.")
         if self.min_scale_multiplier <= 0.0:
             raise ValueError("min_scale_multiplier must be positive.")
         if self.max_scale_multiplier < self.min_scale_multiplier:
-            raise ValueError(
-                "max_scale_multiplier must be >= min_scale_multiplier."
-            )
-        for name, value in self.per_gene_rate_multipliers.items():
-            if value < 0.0:
-                raise ValueError(
-                    f"per_gene_rate_multipliers['{name}'] must be non-negative."
-                )
-        for name, value in self.per_gene_scale_multipliers.items():
-            if value < 0.0:
-                raise ValueError(
-                    f"per_gene_scale_multipliers['{name}'] must be non-negative."
-                )
+            raise ValueError("max_scale_multiplier must be >= min_scale_multiplier.")
+        validate_non_negative_mapping("per_gene_rate_multipliers", self.per_gene_rate_multipliers)
+        validate_non_negative_mapping("per_gene_scale_multipliers", self.per_gene_scale_multipliers)
+        # Re-bind to immutable views so the frozen dataclass is actually immutable.
+        object.__setattr__(self, "per_gene_rate_multipliers", _freeze_mapping(self.per_gene_rate_multipliers))
+        object.__setattr__(self, "per_gene_scale_multipliers", _freeze_mapping(self.per_gene_scale_multipliers))
 
 
 def compute_normalized_diversity(
     gene_statistics: Mapping[str, Mapping[str, float]],
     evolvable_gene_names: Sequence[str],
-    gene_bounds: Mapping[str, tuple],
+    gene_bounds: Mapping[str, Tuple[float, float]],
 ) -> float:
     """Compute mean normalized standard deviation across evolvable genes.
 
@@ -277,14 +279,24 @@ class AdaptiveMutationController:
             self._scale_multiplier *= self._config.diversity_multiplier
             events.append("diversity_collapse")
 
-        self._rate_multiplier = min(
+        # Clamp multipliers and tag whenever the clamp actually moved the
+        # value, so analysts can spot saturation in `evolution_generation_summaries.json`.
+        clamped_rate = min(
             self._config.max_rate_multiplier,
             max(self._config.min_rate_multiplier, self._rate_multiplier),
         )
-        self._scale_multiplier = min(
+        if clamped_rate != self._rate_multiplier:
+            events.append("rate_clamped")
+        self._rate_multiplier = clamped_rate
+
+        clamped_scale = min(
             self._config.max_scale_multiplier,
             max(self._config.min_scale_multiplier, self._scale_multiplier),
         )
+        if clamped_scale != self._scale_multiplier:
+            events.append("scale_clamped")
+        self._scale_multiplier = clamped_scale
+
         self._last_event = "+".join(events) if events else "baseline"
 
     def effective_rate(self, base_rate: float) -> float:

@@ -116,7 +116,17 @@ class EvolutionCandidateEvaluation:
 
 @dataclass(frozen=True)
 class EvolutionGenerationSummary:
-    """Aggregate stats for one evolved generation."""
+    """Aggregate stats for one evolved generation.
+
+    The ``mutation_rate_used`` / ``mutation_scale_used`` /
+    ``mutation_*_multiplier`` / ``adaptive_event`` fields describe the
+    mutation parameters that **produced this generation's children**.  For
+    generation 0 these are ``None`` because the initial population is seeded
+    via :meth:`EvolutionExperiment._initialize_population` (which uses
+    ``mutation_rate=1.0`` to spread seed candidates) rather than via the
+    adaptive controller.  ``diversity`` is measured **on this generation**
+    and therefore is recorded for every generation.
+    """
 
     generation: int
     best_fitness: float
@@ -125,12 +135,12 @@ class EvolutionGenerationSummary:
     best_candidate_id: str
     gene_statistics: Dict[str, Dict[str, float]]
     best_chromosome: Dict[str, float]
-    effective_mutation_rate: float = 0.0
-    effective_mutation_scale: float = 0.0
-    mutation_rate_multiplier: float = 1.0
-    mutation_scale_multiplier: float = 1.0
+    mutation_rate_used: Optional[float] = None
+    mutation_scale_used: Optional[float] = None
+    mutation_rate_multiplier: Optional[float] = None
+    mutation_scale_multiplier: Optional[float] = None
     diversity: Optional[float] = None
-    adaptive_event: str = "baseline"
+    adaptive_event: str = "initial_seeding"
 
 
 @dataclass
@@ -146,6 +156,27 @@ FitnessEvaluator = Callable[
     [EvolutionCandidate, SimulationConfig, int, int],
     Tuple[float, Dict[str, Any]],
 ]
+
+
+@dataclass(frozen=True)
+class _ProducedWith:
+    """Mutation parameters that produced a generation's population.
+
+    All four numeric fields are ``None`` for the initial population because
+    seeding bypasses the adaptive controller.  ``event`` is a short tag
+    matching :attr:`AdaptiveMutationController.last_event` from the
+    observation that yielded these parameters.
+    """
+
+    rate: Optional[float]
+    scale: Optional[float]
+    rate_multiplier: Optional[float]
+    scale_multiplier: Optional[float]
+    event: str
+
+    @classmethod
+    def initial(cls) -> "_ProducedWith":
+        return cls(rate=None, scale=None, rate_multiplier=None, scale_multiplier=None, event="initial_seeding")
 
 
 class EvolutionExperiment:
@@ -169,25 +200,24 @@ class EvolutionExperiment:
         generation_summaries: List[EvolutionGenerationSummary] = []
         evaluations: List[EvolutionCandidateEvaluation] = []
 
+        # Tracks the mutation parameters that produced the *current* population.
+        # `None` for generation 0 since the initial population is seeded by
+        # `_initialize_population`, not by the adaptive controller.
+        produced_with: _ProducedWith = _ProducedWith.initial()
+
         for generation in range(self.config.num_generations):
             generation_evals = self._evaluate_generation(generation, population, evaluator)
             evaluations.extend(generation_evals)
             gene_statistics = self._build_gene_statistics(generation_evals)
             diversity = self._compute_diversity(gene_statistics)
             best_fitness = max(evaluation.fitness for evaluation in generation_evals)
-            controller.observe(best_fitness=best_fitness, diversity=diversity)
-            effective_rate = controller.effective_rate(self.config.mutation_rate)
-            effective_scale = controller.effective_scale(self.config.mutation_scale)
+
             summary = self._build_generation_summary(
                 generation,
                 generation_evals,
                 gene_statistics=gene_statistics,
-                effective_rate=effective_rate,
-                effective_scale=effective_scale,
-                rate_multiplier=controller.rate_multiplier,
-                scale_multiplier=controller.scale_multiplier,
                 diversity=diversity,
-                adaptive_event=controller.last_event,
+                produced_with=produced_with,
             )
             generation_summaries.append(summary)
             logger.info(
@@ -195,20 +225,33 @@ class EvolutionExperiment:
                 generation=generation,
                 best_fitness=summary.best_fitness,
                 mean_fitness=summary.mean_fitness,
-                effective_mutation_rate=effective_rate,
-                effective_mutation_scale=effective_scale,
-                mutation_rate_multiplier=controller.rate_multiplier,
-                mutation_scale_multiplier=controller.scale_multiplier,
+                mutation_rate_used=produced_with.rate,
+                mutation_scale_used=produced_with.scale,
+                mutation_rate_multiplier=produced_with.rate_multiplier,
+                mutation_scale_multiplier=produced_with.scale_multiplier,
                 diversity=diversity,
-                adaptive_event=controller.last_event,
+                adaptive_event=produced_with.event,
             )
+
+            controller.observe(best_fitness=best_fitness, diversity=diversity)
+            next_rate = controller.effective_rate(self.config.mutation_rate)
+            next_scale = controller.effective_scale(self.config.mutation_scale)
             population = self._next_generation(
                 generation,
                 generation_evals,
-                effective_rate=effective_rate,
-                effective_scale=effective_scale,
+                effective_rate=next_rate,
+                effective_scale=next_scale,
                 per_gene_rate_multipliers=controller.per_gene_rate_multipliers(),
                 per_gene_scale_multipliers=controller.per_gene_scale_multipliers(),
+            )
+            # Carry forward into next iteration: these are the params that
+            # produced the population we just generated.
+            produced_with = _ProducedWith(
+                rate=next_rate,
+                scale=next_scale,
+                rate_multiplier=controller.rate_multiplier,
+                scale_multiplier=controller.scale_multiplier,
+                event=controller.last_event,
             )
 
         best_candidate = max(evaluations, key=lambda item: item.fitness)
@@ -377,12 +420,8 @@ class EvolutionExperiment:
         generation_evals: List[EvolutionCandidateEvaluation],
         *,
         gene_statistics: Optional[Dict[str, Dict[str, float]]] = None,
-        effective_rate: float = 0.0,
-        effective_scale: float = 0.0,
-        rate_multiplier: float = 1.0,
-        scale_multiplier: float = 1.0,
         diversity: Optional[float] = None,
-        adaptive_event: str = "baseline",
+        produced_with: Optional[_ProducedWith] = None,
     ) -> EvolutionGenerationSummary:
         best = max(generation_evals, key=lambda item: item.fitness)
         fitness_values = [evaluation.fitness for evaluation in generation_evals]
@@ -393,6 +432,7 @@ class EvolutionExperiment:
             gene.name: gene.value
             for gene in best.metadata["chromosome"].genes
         }
+        produced = produced_with or _ProducedWith.initial()
         return EvolutionGenerationSummary(
             generation=generation,
             best_fitness=max(fitness_values),
@@ -401,12 +441,12 @@ class EvolutionExperiment:
             best_candidate_id=best.candidate_id,
             gene_statistics=resolved_gene_statistics,
             best_chromosome=best_chromosome,
-            effective_mutation_rate=effective_rate,
-            effective_mutation_scale=effective_scale,
-            mutation_rate_multiplier=rate_multiplier,
-            mutation_scale_multiplier=scale_multiplier,
+            mutation_rate_used=produced.rate,
+            mutation_scale_used=produced.scale,
+            mutation_rate_multiplier=produced.rate_multiplier,
+            mutation_scale_multiplier=produced.scale_multiplier,
             diversity=diversity,
-            adaptive_event=adaptive_event,
+            adaptive_event=produced.event,
         )
 
     def _compute_diversity(

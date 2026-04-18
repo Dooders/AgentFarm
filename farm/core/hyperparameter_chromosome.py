@@ -18,6 +18,18 @@ from enum import Enum
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 
+def validate_non_negative_mapping(label: str, mapping: Mapping[str, float]) -> None:
+    """Raise ``ValueError`` if any value in ``mapping`` is negative or NaN.
+
+    Shared between ``mutate_chromosome``'s per-gene multiplier kwargs and
+    :class:`farm.runners.adaptive_mutation.AdaptiveMutationConfig` so both
+    code paths reject the same set of inputs with the same message format.
+    """
+    for name, value in mapping.items():
+        if value < 0.0 or math.isnan(value):
+            raise ValueError(f"{label}['{name}'] must be a non-negative finite number.")
+
+
 class GeneValueType(Enum):
     """Supported gene value kinds.
 
@@ -638,17 +650,9 @@ def mutate_chromosome(
     if mutation_scale is not None and mutation_scale < 0.0:
         raise ValueError("mutation_scale must be non-negative.")
     if per_gene_rate_multipliers:
-        for gene_name, multiplier in per_gene_rate_multipliers.items():
-            if multiplier < 0.0:
-                raise ValueError(
-                    f"per_gene_rate_multipliers['{gene_name}'] must be non-negative."
-                )
+        validate_non_negative_mapping("per_gene_rate_multipliers", per_gene_rate_multipliers)
     if per_gene_scale_multipliers:
-        for gene_name, multiplier in per_gene_scale_multipliers.items():
-            if multiplier < 0.0:
-                raise ValueError(
-                    f"per_gene_scale_multipliers['{gene_name}'] must be non-negative."
-                )
+        validate_non_negative_mapping("per_gene_scale_multipliers", per_gene_scale_multipliers)
     resolved_mode_override = MutationMode(mutation_mode) if mutation_mode is not None else None
     resolved_boundary_mode = BoundaryMode(boundary_mode)
     resolved_rng = rng or random

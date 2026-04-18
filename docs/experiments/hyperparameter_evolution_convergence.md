@@ -58,8 +58,8 @@ opt-in adaptive mutation schedule driven by
 the controller implementation.
 
 When ``--adaptive-mutation`` is passed, each generation's best fitness and
-population diversity are observed and used to adjust the effective mutation
-rate and scale that will produce the next generation:
+population diversity are observed and used to adjust the mutation rate and
+scale that will produce the **next** generation:
 
 - **Fitness adaptation** (``use_fitness_adaptation``): if best fitness did
   not improve over the trailing ``stall_window`` generations by more than
@@ -71,31 +71,43 @@ rate and scale that will produce the next generation:
   ``diversity_threshold``, the rate/scale multipliers are boosted by
   ``diversity_multiplier`` to escape a collapsed population.
 - **Per-gene multipliers** (``per_gene_rate_multipliers`` /
-  ``per_gene_scale_multipliers``): constant weights applied to specific
-  loci to give individual genes stronger or weaker mutation pressure.
+  ``per_gene_scale_multipliers``, also exposed as
+  ``--adaptive-per-gene-rate`` / ``--adaptive-per-gene-scale``): constant
+  weights applied to specific loci to give individual genes stronger or
+  weaker mutation pressure.
 
 Multipliers are always clamped to ``[min_*_multiplier, max_*_multiplier]``,
-and the effective rate is clamped to ``[0, 1]``.
+and the effective rate is clamped to ``[0, 1]``.  When a clamp actually
+moves a value, the controller adds a ``rate_clamped`` or ``scale_clamped``
+tag to ``adaptive_event`` so saturation is visible in telemetry.
 
 ### Telemetry
 
-Every entry in ``evolution_generation_summaries.json`` records the effective
-mutation values used for that generation's child population, along with the
-currently active multipliers, the measured diversity, and a short string
-describing which adaptation rules fired:
+Every entry in ``evolution_generation_summaries.json`` records the mutation
+parameters that **produced this generation's population** (not the ones
+that will produce the next), along with the multipliers in force, the
+measured diversity of this generation, and a short string describing which
+adaptation rules fired:
 
 ```json
 {
   "generation": 2,
   "best_fitness": 72.0,
-  "effective_mutation_rate": 0.30,
-  "effective_mutation_scale": 0.18,
+  "mutation_rate_used": 0.30,
+  "mutation_scale_used": 0.18,
   "mutation_rate_multiplier": 1.5,
   "mutation_scale_multiplier": 1.5,
   "diversity": 0.034,
   "adaptive_event": "stalled+diversity_collapse"
 }
 ```
+
+Because generation 0 is seeded by ``EvolutionExperiment._initialize_population``
+(which uses ``mutation_rate=1.0`` to spread seed candidates) rather than by
+the adaptive controller, its ``mutation_rate_used`` /
+``mutation_scale_used`` / ``mutation_*_multiplier`` fields are ``null`` and
+its ``adaptive_event`` is ``"initial_seeding"``.  ``diversity`` is still
+recorded for every generation since it describes the evaluated population.
 
 ### Example
 
@@ -112,8 +124,10 @@ python scripts/run_evolution_experiment.py \
   --adaptive-stall-window 3 \
   --adaptive-stall-multiplier 1.5 \
   --adaptive-improve-multiplier 0.8 \
+  --adaptive-improve-threshold 1e-6 \
   --adaptive-diversity-threshold 0.05 \
   --adaptive-diversity-multiplier 1.5 \
+  --adaptive-per-gene-rate learning_rate=0.5 \
   --fitness-metric final_population \
   --output-dir experiments/evolution_adaptive
 ```
@@ -131,9 +145,15 @@ python scripts/run_evolution_experiment.py \
 - Set ``diversity_threshold`` after inspecting the diversity values logged
   by a non-adaptive baseline run.  Typical collapsing populations report
   ``diversity < 0.05`` on normalized gene ranges.
-- Use ``per_gene_rate_multipliers`` to mute mutation on genes that are
-  known to be sensitive (e.g., halve the rate for ``learning_rate``) while
-  letting coarser knobs keep exploring.
+- Use ``per_gene_rate_multipliers`` (or
+  ``--adaptive-per-gene-rate learning_rate=0.5``) to mute mutation on genes
+  that are known to be sensitive while letting coarser knobs keep exploring.
+- Watch for ``rate_clamped`` / ``scale_clamped`` in ``adaptive_event``: if
+  these appear repeatedly the multiplier is saturating against
+  ``max_*_multiplier``.  Either widen the bound or rebalance
+  ``stall_multiplier`` and ``improve_multiplier`` so their geometric mean
+  is close to ``1`` (defaults of ``1.5`` and ``0.8`` net-grow over equal
+  numbers of stalls and improvements).
 
 ## Interpreting Results
 

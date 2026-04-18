@@ -172,6 +172,65 @@ class TestAdaptiveMutationController(unittest.TestCase):
         self.assertLessEqual(controller.effective_rate(0.5), 1.0)
         self.assertGreaterEqual(controller.effective_scale(0.1), 0.0)
 
+    def test_combined_stall_and_diversity_collapse_event_tag(self):
+        config = AdaptiveMutationConfig(
+            enabled=True,
+            use_fitness_adaptation=True,
+            use_diversity_adaptation=True,
+            stall_window=1,
+            stall_multiplier=1.5,
+            improvement_threshold=1e-6,
+            diversity_threshold=0.1,
+            diversity_multiplier=1.5,
+        )
+        controller = AdaptiveMutationController(config)
+        controller.observe(best_fitness=1.0, diversity=0.05)
+        # First observation only records baseline (fitness adaptation needs >=2 points).
+        # Diversity collapse can still fire on the first observation.
+        self.assertIn("diversity_collapse", controller.last_event)
+
+        controller.observe(best_fitness=1.0, diversity=0.05)
+        # Now both stalled and diversity_collapse should fire together.
+        self.assertIn("stalled", controller.last_event)
+        self.assertIn("diversity_collapse", controller.last_event)
+        # And multipliers compounded: 1.5 (initial diversity) * 1.5 (stall) * 1.5 (diversity).
+        self.assertAlmostEqual(controller.rate_multiplier, 1.5 * 1.5 * 1.5)
+
+    def test_clamp_emits_saturation_event_tag(self):
+        config = AdaptiveMutationConfig(
+            enabled=True,
+            use_fitness_adaptation=True,
+            use_diversity_adaptation=False,
+            stall_window=1,
+            stall_multiplier=10.0,
+            max_rate_multiplier=2.0,
+            max_scale_multiplier=2.0,
+        )
+        controller = AdaptiveMutationController(config)
+        controller.observe(best_fitness=0.0, diversity=None)
+        controller.observe(best_fitness=0.0, diversity=None)
+        self.assertEqual(controller.rate_multiplier, 2.0)
+        self.assertEqual(controller.scale_multiplier, 2.0)
+        self.assertIn("rate_clamped", controller.last_event)
+        self.assertIn("scale_clamped", controller.last_event)
+
+    def test_per_gene_mapping_is_immutable_after_construction(self):
+        original = {"learning_rate": 2.0}
+        config = AdaptiveMutationConfig(
+            enabled=True,
+            per_gene_rate_multipliers=original,
+        )
+        # Frozen via MappingProxyType: write attempts raise TypeError.
+        with self.assertRaises(TypeError):
+            config.per_gene_rate_multipliers["learning_rate"] = 9.9  # type: ignore[index]
+        # Mutating the original dict does not bleed through into the config.
+        original["learning_rate"] = 9.9
+        self.assertEqual(config.per_gene_rate_multipliers["learning_rate"], 2.0)
+
+    def test_rejects_nan_per_gene_multiplier(self):
+        with self.assertRaises(ValueError):
+            AdaptiveMutationConfig(per_gene_scale_multipliers={"learning_rate": float("nan")})
+
     def test_per_gene_multipliers_only_active_when_enabled(self):
         config_disabled = AdaptiveMutationConfig(
             enabled=False,
