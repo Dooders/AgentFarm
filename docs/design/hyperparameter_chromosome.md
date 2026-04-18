@@ -386,3 +386,30 @@ These are deliberate for a small, verifiable first increment.
   - one row per evaluated candidate with lineage (`parent_ids`) and fitness metadata
 
 Use `scripts/plot_hyperparameter_evolution.py` to produce a convergence chart from the summaries JSON.
+
+## Crossover strategy comparison runs
+
+To compare crossover operators directly, run:
+
+```bash
+python scripts/compare_evolution_crossover_strategies.py \
+  --environment testing \
+  --generations 3 \
+  --population-size 6 \
+  --steps-per-candidate 50 \
+  --crossover-modes uniform,blend,multi_point,single_point \
+  --seeds 42,43,44 \
+  --output-json experiments/evolution/crossover_strategy_comparison.json
+```
+
+The report contains:
+
+- `mode_summaries`
+  - per-mode aggregate stats for `final_best_fitness`, `final_mean_fitness`, and `final_diversity`
+  - summary fields include `mean`, `stdev`, `min`, and `max`
+- `runs`
+  - one row per `(mode, seed)` with raw final-generation fitness and diversity values
+- `config`
+  - full run configuration for reproducibility
+
+Use this artifact to compare crossover strategy impact on convergence quality (fitness) and population spread (diversity) across repeated seeds.

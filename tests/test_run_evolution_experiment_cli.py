@@ -87,6 +87,25 @@ class TestAdaptiveCliFlags(unittest.TestCase):
         self.assertEqual(args.adaptive_per_gene_rate, "learning_rate=0.5,gamma=2.0")
         self.assertEqual(args.adaptive_per_gene_scale, "learning_rate=0.25")
 
+    def test_crossover_flags_round_trip_into_namespace(self):
+        argv = sys.argv[:]
+        try:
+            sys.argv = [
+                "run_evolution_experiment.py",
+                "--generations", "1",
+                "--population-size", "2",
+                "--steps-per-candidate", "1",
+                "--crossover-mode", "multi_point",
+                "--blend-alpha", "0.9",
+                "--num-crossover-points", "4",
+            ]
+            args = run_evolution_experiment._parse_args()
+        finally:
+            sys.argv = argv
+        self.assertEqual(args.crossover_mode, "multi_point")
+        self.assertAlmostEqual(args.blend_alpha, 0.9)
+        self.assertEqual(args.num_crossover_points, 4)
+
 
 if __name__ == "__main__":
     unittest.main()

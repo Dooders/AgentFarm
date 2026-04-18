@@ -28,6 +28,7 @@ Suggested grouping:
 
 - **Reflective boundary mutation** (`BoundaryMode.REFLECT`) for `mutate_chromosome` — mutated gene values that overshoot a bound now bounce back instead of sticking at the wall, preventing boundary collapse and preserving population diversity. ([#708](https://github.com/Dooders/AgentFarm/pull/708), [#709](https://github.com/Dooders/AgentFarm/pull/709))
 - **Soft boundary penalties** (`BoundaryPenaltyConfig` + `compute_boundary_penalty`) — an opt-in, linearly-ramped fitness penalty that discourages genes from crowding near their min/max limits without hard constraints. Subtract the result from raw fitness to apply. ([#708](https://github.com/Dooders/AgentFarm/pull/708))
+- **Crossover strategy comparison runner** (`scripts/compare_evolution_crossover_strategies.py`) — executes repeated evolution runs across crossover modes and writes `crossover_strategy_comparison.json` with per-mode fitness/diversity aggregates and per-seed raw results.
 
 #### Changed
 

@@ -1,0 +1,217 @@
+{
+  "config": {
+    "blend_alpha": 0.5,
+    "boundary_mode": "clamp",
+    "crossover_modes": [
+      "uniform",
+      "blend",
+      "multi_point",
+      "single_point"
+    ],
+    "environment": "testing",
+    "generations": 3,
+    "mutation_rate": 0.25,
+    "mutation_scale": 0.2,
+    "num_crossover_points": 2,
+    "population_size": 6,
+    "profile": null,
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "steps_per_candidate": 50
+  },
+  "mode_summaries": [
+    {
+      "final_best_fitness": {
+        "max": 40.0,
+        "mean": 40.0,
+        "min": 40.0,
+        "stdev": 0.0
+      },
+      "final_diversity": {
+        "max": 0.16984631597145983,
+        "mean": 0.07036066578944744,
+        "min": 0.011956927713676076,
+        "stdev": 0.08659132380228969
+      },
+      "final_mean_fitness": {
+        "max": 32.166666666666664,
+        "mean": 31.5,
+        "min": 30.833333333333332,
+        "stdev": 0.6666666666666661
+      },
+      "mode": "uniform",
+      "num_runs": 3,
+      "num_runs_with_diversity": 3
+    },
+    {
+      "final_best_fitness": {
+        "max": 40.0,
+        "mean": 40.0,
+        "min": 40.0,
+        "stdev": 0.0
+      },
+      "final_diversity": {
+        "max": 0.10560071846446625,
+        "mean": 0.06617077770330294,
+        "min": 0.02981265173277942,
+        "stdev": 0.037987297868006475
+      },
+      "final_mean_fitness": {
+        "max": 32.166666666666664,
+        "mean": 31.5,
+        "min": 30.833333333333332,
+        "stdev": 0.6666666666666661
+      },
+      "mode": "blend",
+      "num_runs": 3,
+      "num_runs_with_diversity": 3
+    },
+    {
+      "final_best_fitness": {
+        "max": 40.0,
+        "mean": 40.0,
+        "min": 40.0,
+        "stdev": 0.0
+      },
+      "final_diversity": {
+        "max": 0.16984631597145983,
+        "mean": 0.07036066578944744,
+        "min": 0.011956927713676076,
+        "stdev": 0.08659132380228969
+      },
+      "final_mean_fitness": {
+        "max": 32.166666666666664,
+        "mean": 31.5,
+        "min": 30.833333333333332,
+        "stdev": 0.6666666666666661
+      },
+      "mode": "multi_point",
+      "num_runs": 3,
+      "num_runs_with_diversity": 3
+    },
+    {
+      "final_best_fitness": {
+        "max": 40.0,
+        "mean": 40.0,
+        "min": 40.0,
+        "stdev": 0.0
+      },
+      "final_diversity": {
+        "max": 0.16984631597145983,
+        "mean": 0.07036066578944744,
+        "min": 0.011956927713676076,
+        "stdev": 0.08659132380228969
+      },
+      "final_mean_fitness": {
+        "max": 32.166666666666664,
+        "mean": 31.5,
+        "min": 30.833333333333332,
+        "stdev": 0.6666666666666661
+      },
+      "mode": "single_point",
+      "num_runs": 3,
+      "num_runs_with_diversity": 3
+    }
+  ],
+  "runs": [
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.011956927713676076,
+      "final_mean_fitness": 32.166666666666664,
+      "mode": "uniform",
+      "seed": 42
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.029278753683206406,
+      "final_mean_fitness": 31.5,
+      "mode": "uniform",
+      "seed": 43
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.16984631597145983,
+      "final_mean_fitness": 30.833333333333332,
+      "mode": "uniform",
+      "seed": 44
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.06309896291266315,
+      "final_mean_fitness": 32.166666666666664,
+      "mode": "blend",
+      "seed": 42
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.02981265173277942,
+      "final_mean_fitness": 31.5,
+      "mode": "blend",
+      "seed": 43
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.10560071846446625,
+      "final_mean_fitness": 30.833333333333332,
+      "mode": "blend",
+      "seed": 44
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.011956927713676076,
+      "final_mean_fitness": 32.166666666666664,
+      "mode": "multi_point",
+      "seed": 42
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.029278753683206406,
+      "final_mean_fitness": 31.5,
+      "mode": "multi_point",
+      "seed": 43
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.16984631597145983,
+      "final_mean_fitness": 30.833333333333332,
+      "mode": "multi_point",
+      "seed": 44
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.011956927713676076,
+      "final_mean_fitness": 32.166666666666664,
+      "mode": "single_point",
+      "seed": 42
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.029278753683206406,
+      "final_mean_fitness": 31.5,
+      "mode": "single_point",
+      "seed": 43
+    },
+    {
+      "best_candidate_fitness": 41.0,
+      "final_best_fitness": 40.0,
+      "final_diversity": 0.16984631597145983,
+      "final_mean_fitness": 30.833333333333332,
+      "mode": "single_point",
+      "seed": 44
+    }
+  ]
+}
