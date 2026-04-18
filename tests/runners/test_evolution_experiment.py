@@ -32,14 +32,19 @@ class TestEvolutionExperimentConfig(unittest.TestCase):
         config = EvolutionExperimentConfig(boundary_mode=BoundaryMode.REFLECT)
         self.assertEqual(config.boundary_mode, BoundaryMode.REFLECT)
 
-    def test_default_boundary_penalty_config_is_none(self):
+    def test_rejects_invalid_boundary_mode(self):
+        with self.assertRaises(ValueError):
+            EvolutionExperimentConfig(boundary_mode="not-a-mode")
+
+    def test_default_boundary_penalty_config_uses_defaults(self):
         config = EvolutionExperimentConfig()
-        self.assertIsNone(config.boundary_penalty_config)
+        self.assertFalse(config.boundary_penalty.enabled)
+        self.assertEqual(config.boundary_penalty.penalty_strength, 0.01)
 
     def test_accepts_boundary_penalty_config(self):
         penalty_cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05)
-        config = EvolutionExperimentConfig(boundary_penalty_config=penalty_cfg)
-        self.assertTrue(config.boundary_penalty_config.enabled)
+        config = EvolutionExperimentConfig(boundary_penalty=penalty_cfg)
+        self.assertTrue(config.boundary_penalty.enabled)
 
 
 class TestEvolutionExperiment(unittest.TestCase):
@@ -174,53 +179,56 @@ class TestEvolutionExperiment(unittest.TestCase):
         self.assertEqual(lineage_a, lineage_b)
         self.assertEqual(result_a.best_candidate.candidate_id, result_b.best_candidate.candidate_id)
 
-    def test_boundary_penalty_reduces_fitness_when_enabled(self):
+    def test_boundary_penalty_adjusts_candidate_fitness(self):
         base_config = SimulationConfig()
-        penalty_cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=1000.0, near_boundary_threshold=0.5)
-        config_with_penalty = EvolutionExperimentConfig(
-            num_generations=1,
-            population_size=2,
-            seed=42,
-            boundary_penalty_config=penalty_cfg,
-        )
-        config_without_penalty = EvolutionExperimentConfig(
-            num_generations=1,
-            population_size=2,
-            seed=42,
-        )
-
-        raw_fitness = 10.0
-
-        def evaluator(candidate, candidate_config, generation, member_index):
-            return raw_fitness, {}
-
-        result_with = EvolutionExperiment(base_config, config_with_penalty).run(fitness_evaluator=evaluator)
-        result_without = EvolutionExperiment(base_config, config_without_penalty).run(fitness_evaluator=evaluator)
-
-        for eval_with, eval_without in zip(result_with.evaluations, result_without.evaluations):
-            self.assertLessEqual(eval_with.fitness, eval_without.fitness)
-
-    def test_boundary_penalty_metadata_recorded_when_nonzero(self):
-        base_config = SimulationConfig()
-        penalty_cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=1000.0, near_boundary_threshold=0.5)
+        base_config.learning.learning_rate = 1e-6
         config = EvolutionExperimentConfig(
             num_generations=1,
-            population_size=2,
-            seed=5,
-            boundary_penalty_config=penalty_cfg,
+            population_size=3,
+            num_steps_per_candidate=1,
+            mutation_scale=0.0,
+            boundary_penalty=BoundaryPenaltyConfig(
+                enabled=True,
+                penalty_strength=0.2,
+                near_boundary_threshold=0.05,
+            ),
+            seed=23,
         )
-        raw_fitness = 50.0
+        experiment = EvolutionExperiment(base_config, config)
 
         def evaluator(candidate, candidate_config, generation, member_index):
-            return raw_fitness, {}
+            return 1.0, {"member": member_index}
 
-        result = EvolutionExperiment(base_config, config).run(fitness_evaluator=evaluator)
-        penalized = [ev for ev in result.evaluations if "boundary_penalty" in ev.metadata]
-        self.assertTrue(len(penalized) > 0)
-        for ev in penalized:
-            penalty = ev.metadata["boundary_penalty"]
-            self.assertGreater(penalty, 0.0)
-            self.assertAlmostEqual(ev.fitness, raw_fitness - penalty)
+        result = experiment.run(fitness_evaluator=evaluator)
+        self.assertEqual(len(result.evaluations), 3)
+        for evaluation in result.evaluations:
+            self.assertAlmostEqual(evaluation.metadata["raw_fitness"], 1.0)
+            self.assertAlmostEqual(evaluation.metadata["boundary_penalty"], 0.2)
+            self.assertAlmostEqual(evaluation.fitness, 0.8)
+
+    @patch("farm.runners.evolution_experiment.mutate_chromosome")
+    def test_boundary_mode_is_forwarded_to_mutation_calls(self, mutate_mock):
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=2,
+            population_size=4,
+            num_steps_per_candidate=1,
+            boundary_mode=BoundaryMode.REFLECT,
+            seed=31,
+        )
+        mutate_mock.side_effect = lambda chromosome, **kwargs: chromosome
+        experiment = EvolutionExperiment(base_config, config)
+        experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                float(member + generation),
+                {"member": member},
+            )
+        )
+
+        self.assertTrue(mutate_mock.called)
+        self.assertTrue(
+            all(call.kwargs.get("boundary_mode") == BoundaryMode.REFLECT for call in mutate_mock.call_args_list)
+        )
 
 
 if __name__ == "__main__":

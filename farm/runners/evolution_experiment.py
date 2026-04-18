@@ -6,7 +6,7 @@ import json
 import os
 import random
 import statistics
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -15,12 +15,12 @@ from farm.core.genome import Genome, RouletteSelectionConfig, TournamentSelectio
 from farm.core.hyperparameter_chromosome import (
     BoundaryMode,
     BoundaryPenaltyConfig,
-    compute_boundary_penalty,
     CrossoverMode,
     HyperparameterChromosome,
     MutationMode,
     apply_chromosome_to_learning_config,
     chromosome_from_learning_config,
+    compute_boundary_penalty,
     crossover_chromosomes,
     mutate_chromosome,
 )
@@ -55,13 +55,15 @@ class EvolutionExperimentConfig:
     mutation_rate: float = 0.25
     mutation_scale: float = 0.2
     mutation_mode: MutationMode = MutationMode.GAUSSIAN
+    boundary_mode: BoundaryMode = BoundaryMode.CLAMP
+    boundary_penalty: BoundaryPenaltyConfig = field(default_factory=BoundaryPenaltyConfig)
     crossover_mode: CrossoverMode = CrossoverMode.UNIFORM
     selection_method: EvolutionSelectionMethod = EvolutionSelectionMethod.TOURNAMENT
     tournament_size: int = 3
     elitism_count: int = 1
     fitness_metric: EvolutionFitnessMetric = EvolutionFitnessMetric.FINAL_POPULATION
     boundary_mode: BoundaryMode = BoundaryMode.CLAMP
-    boundary_penalty_config: Optional[BoundaryPenaltyConfig] = None
+    boundary_penalty: BoundaryPenaltyConfig = field(default_factory=BoundaryPenaltyConfig)
     seed: Optional[int] = None
     output_dir: Optional[str] = None
 
@@ -76,6 +78,8 @@ class EvolutionExperimentConfig:
             raise ValueError("mutation_rate must be between 0 and 1.")
         if self.mutation_scale < 0.0:
             raise ValueError("mutation_scale must be non-negative.")
+        # Validate enum coercion for string-friendly construction.
+        BoundaryMode(self.boundary_mode)
         if self.tournament_size < 1:
             raise ValueError("tournament_size must be at least 1.")
         if self.elitism_count < 0:
@@ -201,17 +205,16 @@ class EvolutionExperiment:
         generation_evals: List[EvolutionCandidateEvaluation] = []
         for idx, candidate in enumerate(population):
             candidate_config = self._config_for_chromosome(candidate.chromosome)
-            fitness, metadata = evaluator(candidate, candidate_config, generation, idx)
-            penalty_cfg = self.config.boundary_penalty_config
-            if penalty_cfg is not None and penalty_cfg.enabled:
-                penalty = compute_boundary_penalty(candidate.chromosome, penalty_cfg)
-            else:
-                penalty = 0.0
-            adjusted_fitness = float(fitness) - penalty
+            raw_fitness, metadata = evaluator(candidate, candidate_config, generation, idx)
+            boundary_penalty = compute_boundary_penalty(
+                candidate.chromosome,
+                self.config.boundary_penalty,
+            )
+            adjusted_fitness = float(raw_fitness) - boundary_penalty
             metadata_with_lineage = dict(metadata)
+            metadata_with_lineage["raw_fitness"] = float(raw_fitness)
+            metadata_with_lineage["boundary_penalty"] = boundary_penalty
             metadata_with_lineage["chromosome"] = candidate.chromosome
-            if penalty > 0.0:
-                metadata_with_lineage["boundary_penalty"] = penalty
             generation_evals.append(
                 EvolutionCandidateEvaluation(
                     candidate_id=candidate.candidate_id,

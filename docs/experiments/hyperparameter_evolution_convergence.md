@@ -11,6 +11,11 @@ This note documents how to capture and interpret learning-rate convergence from 
   - parent selection: tournament or roulette
   - mutation rate: `--mutation-rate` (default `0.25`)
   - mutation scale: `--mutation-scale` (default `0.2`)
+  - boundary mode: `--boundary-mode` (`clamp` or `reflect`, default `clamp`)
+  - optional soft boundary penalty:
+    - `--boundary-penalty-enabled`
+    - `--boundary-penalty-strength` (default `0.01`)
+    - `--boundary-penalty-threshold` (default `0.05`)
   - fitness metric: `final_population`, `total_births`, or `final_resources`
 
 Example:
@@ -24,6 +29,7 @@ python scripts/run_evolution_experiment.py \
   --selection-method tournament \
   --mutation-rate 0.25 \
   --mutation-scale 0.2 \
+  --boundary-mode clamp \
   --fitness-metric final_population \
   --output-dir experiments/evolution_convergence
 ```
@@ -138,3 +144,127 @@ For issue closure write-ups, include:
 - selected mutation/selection settings
 - one generated convergence figure
 - a short narrative of whether convergence, oscillation, or collapse occurred
+
+## Boundary-Handling Comparison Plan
+
+To specifically evaluate boundary-collapse risk, keep all settings identical and
+toggle only boundary handling. Suggested A/B matrix:
+
+1. clamp baseline
+2. reflect mutation
+3. clamp + soft boundary penalty
+
+Use a shared seed and identical generation/population settings:
+
+```bash
+source venv/bin/activate
+
+# A) Clamp baseline
+python scripts/run_evolution_experiment.py \
+  --generations 6 --population-size 8 --steps-per-candidate 40 \
+  --selection-method tournament --mutation-rate 0.20 --mutation-scale 0.2 \
+  --boundary-mode clamp \
+  --fitness-metric final_population --seed 42 \
+  --output-dir experiments/evolution_convergence/run_clamp_baseline_g6
+
+# B) Reflective mutation
+python scripts/run_evolution_experiment.py \
+  --generations 6 --population-size 8 --steps-per-candidate 40 \
+  --selection-method tournament --mutation-rate 0.20 --mutation-scale 0.2 \
+  --boundary-mode reflect \
+  --fitness-metric final_population --seed 42 \
+  --output-dir experiments/evolution_convergence/run_reflect_g6
+
+# C) Clamp + soft boundary penalty
+python scripts/run_evolution_experiment.py \
+  --generations 6 --population-size 8 --steps-per-candidate 40 \
+  --selection-method tournament --mutation-rate 0.20 --mutation-scale 0.2 \
+  --boundary-mode clamp \
+  --boundary-penalty-enabled \
+  --boundary-penalty-strength 0.01 \
+  --boundary-penalty-threshold 0.05 \
+  --fitness-metric final_population --seed 42 \
+  --output-dir experiments/evolution_convergence/run_clamp_penalty_g6
+```
+
+Compare each run's `evolution_generation_summaries.json` and lineage outputs for:
+
+- best-candidate learning-rate trajectory (especially boundary hits)
+- learning-rate min/max and standard deviation trends
+- fitness gains relative to boundary occupancy
+
+## Boundary-Handling Comparison Results (Completed)
+
+Executed on 2026-04-18 with the exact commands above and shared seed (`42`).
+Outputs were written to:
+
+- `experiments/evolution_convergence/run_clamp_baseline_g6`
+- `experiments/evolution_convergence/run_reflect_g6`
+- `experiments/evolution_convergence/run_clamp_penalty_g6`
+
+Observed outcomes from persisted summaries + lineage:
+
+- Clamp baseline (`run_clamp_baseline_g6`)
+  - best fitness: `72.0 -> 69.0`
+  - best-candidate learning rate: `0.001 -> 1e-06`
+  - learning-rate std: `0.0612 -> 0.1372`
+  - exact min-boundary occupancy by generation: `[2, 3, 3, 5, 8, 7]` (out of 8 candidates)
+- Reflect (`run_reflect_g6`)
+  - best fitness: `74.0 -> 75.0`
+  - best-candidate learning rate: `0.3771 -> 0.3771`
+  - learning-rate std: `0.1143 -> 0.1638`
+  - exact min-boundary occupancy by generation: `[0, 0, 0, 0, 0, 0]`
+- Clamp + penalty (`run_clamp_penalty_g6`)
+  - adjusted best fitness: `75.99 -> 73.99`
+  - raw best fitness (metadata): `76.0` (max over lineage)
+  - best-candidate learning rate: `1e-06 -> 1e-06`
+  - exact min-boundary occupancy by generation: `[2, 4, 5, 6, 8, 7]`
+  - mean boundary penalty across candidates: `0.00764` (max `0.01`)
+
+Interpretation:
+
+- Reflective mutation clearly reduced boundary-collapse risk in this comparison:
+  no candidates landed exactly at the lower bound, while clamp variants showed
+  repeated and increasing lower-bound occupancy.
+- Reflect also preserved/improved optimization signal (best fitness reached
+  `75.0`) without relying on boundary-hugging winners.
+- The small soft-penalty setting (`0.01`, threshold `0.05`) was not strong
+  enough to dislodge clamp dynamics in this setup; it reduced adjusted fitness
+  but did not prevent lower-bound collapse. Increasing penalty strength and/or
+  threshold is the next tuning step if clamp must be retained.
+
+## Penalty Strength Sensitivity (Completed)
+
+A follow-up sweep kept clamp mode fixed and varied only
+`boundary_penalty_strength` (`threshold=0.05`, same seed/settings):
+
+- `experiments/evolution_convergence/run_clamp_penalty002_g6`
+- `experiments/evolution_convergence/run_clamp_penalty005_g6`
+- `experiments/evolution_convergence/run_clamp_penalty010_g6`
+
+Observed outcomes:
+
+- `strength=0.02` (`run_clamp_penalty002_g6`)
+  - adjusted best fitness: `70.0 -> 79.0`
+  - best-candidate learning rate: `0.1594 -> 0.1594`
+  - min-boundary hits by generation: `[2, 3, 2, 2, 1, 0]`
+  - mean penalty: `0.00530` (max `0.02`)
+- `strength=0.05` (`run_clamp_penalty005_g6`)
+  - adjusted best fitness: `68.951 -> 67.95`
+  - best-candidate learning rate: `0.001 -> 1e-06`
+  - min-boundary hits by generation: `[2, 3, 0, 1, 7, 7]`
+  - mean penalty: `0.03262` (max `0.05`)
+- `strength=0.10` (`run_clamp_penalty010_g6`)
+  - adjusted best fitness: `74.902 -> 73.0`
+  - best-candidate learning rate: `0.001 -> 0.1594`
+  - min-boundary hits by generation: `[2, 3, 2, 4, 2, 2]`
+  - mean penalty: `0.04303` (max `0.10`)
+
+Sensitivity takeaway:
+
+- Penalty impact is non-monotonic in this stochastic setting.
+- `0.02` and `0.10` reduced lower-bound collapse relative to prior clamp runs,
+  while `0.05` still collapsed late.
+- A higher penalty (`0.10`) prevented the final winner from collapsing to
+  `1e-06`, but reflective mutation remains the most consistent anti-collapse
+  strategy in this set of experiments.
