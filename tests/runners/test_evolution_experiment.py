@@ -209,13 +209,18 @@ class TestEvolutionExperiment(unittest.TestCase):
             seed=5,
             boundary_penalty_config=penalty_cfg,
         )
+        raw_fitness = 50.0
 
         def evaluator(candidate, candidate_config, generation, member_index):
-            return 50.0, {}
+            return raw_fitness, {}
 
         result = EvolutionExperiment(base_config, config).run(fitness_evaluator=evaluator)
         penalized = [ev for ev in result.evaluations if "boundary_penalty" in ev.metadata]
         self.assertTrue(len(penalized) > 0)
+        for ev in penalized:
+            penalty = ev.metadata["boundary_penalty"]
+            self.assertGreater(penalty, 0.0)
+            self.assertAlmostEqual(ev.fitness, raw_fitness - penalty)
 
 
 if __name__ == "__main__":

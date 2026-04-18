@@ -202,7 +202,11 @@ class EvolutionExperiment:
         for idx, candidate in enumerate(population):
             candidate_config = self._config_for_chromosome(candidate.chromosome)
             fitness, metadata = evaluator(candidate, candidate_config, generation, idx)
-            penalty = compute_boundary_penalty(candidate.chromosome, self.config.boundary_penalty_config)
+            penalty_cfg = self.config.boundary_penalty_config
+            if penalty_cfg is not None and penalty_cfg.enabled:
+                penalty = compute_boundary_penalty(candidate.chromosome, penalty_cfg)
+            else:
+                penalty = 0.0
             adjusted_fitness = float(fitness) - penalty
             metadata_with_lineage = dict(metadata)
             metadata_with_lineage["chromosome"] = candidate.chromosome
