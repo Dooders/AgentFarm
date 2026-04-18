@@ -878,9 +878,12 @@
 			if (typeof source !== 'object' || Array.isArray(source)) return source
 			if (typeof target !== 'object' || target == null || Array.isArray(target)) target = {}
 			Object.keys(source).forEach((k) => {
+				if (k === '__proto__' || k === 'constructor' || k === 'prototype') return
 				const sv = source[k]
 				if (sv && typeof sv === 'object' && !Array.isArray(sv)) {
-					target[k] = this.deepMerge(target[k], sv)
+					const hasOwn = Object.prototype.hasOwnProperty.call(target, k)
+					const nextTarget = hasOwn ? target[k] : {}
+					target[k] = this.deepMerge(nextTarget, sv)
 				} else {
 					target[k] = Array.isArray(sv) ? this.deepClone(sv) : sv
 				}
@@ -893,7 +896,10 @@
 			if (Array.isArray(value)) return value.map((v) => this.deepClone(v))
 			if (typeof value === 'object') {
 				const out = {}
-				Object.keys(value).forEach((k) => { out[k] = this.deepClone(value[k]) })
+				Object.keys(value).forEach((k) => {
+					if (k === '__proto__' || k === 'constructor' || k === 'prototype') return
+					out[k] = this.deepClone(value[k])
+				})
 				return out
 			}
 			return value
