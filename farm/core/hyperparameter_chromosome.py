@@ -19,14 +19,14 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 
 def validate_non_negative_mapping(label: str, mapping: Mapping[str, float]) -> None:
-    """Raise ``ValueError`` if any value in ``mapping`` is negative or NaN.
+    """Raise ``ValueError`` if any value in ``mapping`` is negative, NaN, or infinite.
 
     Shared between ``mutate_chromosome``'s per-gene multiplier kwargs and
     :class:`farm.runners.adaptive_mutation.AdaptiveMutationConfig` so both
     code paths reject the same set of inputs with the same message format.
     """
     for name, value in mapping.items():
-        if value < 0.0 or math.isnan(value):
+        if value < 0.0 or math.isnan(value) or math.isinf(value):
             raise ValueError(f"{label}['{name}'] must be a non-negative finite number.")
 
 
