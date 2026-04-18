@@ -1,0 +1,308 @@
+"""Adaptive mutation rate/scale controller for hyperparameter evolution.
+
+This module implements adaptive mutation schedules that respond to search
+state during generation-based hyperparameter evolution:
+
+- **Generation-level adaptation** based on recent best-fitness improvement.
+  Mutation pressure is reduced when fitness is improving and increased when
+  search has stalled.
+- **Diversity-aware adaptation** based on population spread.  When the
+  normalized gene diversity collapses below a configured threshold, the
+  mutation rate and scale are boosted to encourage exploration.
+- **Per-gene adaptation** via user-supplied multipliers that scale the
+  resolved mutation probability and scale for individual loci.
+
+The controller is intentionally stateless apart from the bounded multipliers
+it updates each generation.  It is composed into
+:class:`farm.runners.evolution_experiment.EvolutionExperiment` and used to
+derive effective mutation parameters before each child population is produced.
+
+Design notes:
+    - All multipliers are clamped to configurable ``[min, max]`` envelopes
+      to prevent runaway adaptation.
+    - Diversity is computed as the mean, across evolvable genes, of the
+      per-gene population standard deviation normalized by the gene's bounded
+      range.  A value of ``0.0`` means the population has collapsed on every
+      evolvable gene; ``~0.29`` is the normalized std of a uniform
+      distribution on ``[0, 1]`` and represents a highly diverse population.
+    - Fitness improvement is measured over a trailing window as the
+      difference between the most recent ``best_fitness`` and the maximum
+      ``best_fitness`` observed in the ``stall_window`` generations
+      immediately preceding it.
+"""
+
+from __future__ import annotations
+
+import statistics
+from dataclasses import dataclass, field
+from typing import List, Mapping, Optional, Sequence
+
+
+@dataclass(frozen=True)
+class AdaptiveMutationConfig:
+    """Configuration for adaptive mutation rate/scale schedules.
+
+    When ``enabled`` is ``False`` (default), the experiment behaves exactly as
+    before: ``mutation_rate`` and ``mutation_scale`` are used verbatim and no
+    per-gene multipliers are applied.  This keeps the feature opt-in and
+    existing runs reproducible.
+
+    Attributes:
+        enabled: Master switch for adaptive mutation behavior.
+        use_fitness_adaptation: If ``True`` and ``enabled`` is ``True``,
+            multiply mutation rate/scale by ``stall_multiplier`` when no
+            meaningful improvement is observed over the trailing
+            ``stall_window`` generations, and by ``improve_multiplier``
+            when best fitness improves by more than
+            ``improvement_threshold``.
+        use_diversity_adaptation: If ``True`` and ``enabled`` is ``True``,
+            multiply mutation rate/scale by ``diversity_multiplier`` whenever
+            the mean normalized gene diversity falls below
+            ``diversity_threshold``.
+        stall_window: Number of generations to look back for improvement.
+            Must be >= 1.
+        improvement_threshold: Minimum absolute increase in best fitness over
+            the window that counts as "improving".  Increases smaller than
+            (or equal to) this value are treated as a stall.  Must be >= 0.
+        stall_multiplier: Multiplier applied to the current rate/scale
+            multipliers when the search stalls.  Values > 1 encourage
+            exploration.  Must be > 0.
+        improve_multiplier: Multiplier applied to the current rate/scale
+            multipliers when the search is clearly improving.  Values < 1
+            encourage exploitation.  Must be > 0.
+        diversity_threshold: Normalized diversity value at or below which the
+            population is considered to be collapsing.  Must be in
+            ``[0.0, 1.0]``.
+        diversity_multiplier: Multiplier applied to the current rate/scale
+            multipliers when diversity collapses.  Values > 1 broaden the
+            search.  Must be > 0.
+        min_rate_multiplier: Lower bound on the accumulated rate multiplier.
+            Must be > 0.
+        max_rate_multiplier: Upper bound on the accumulated rate multiplier.
+            Must be >= ``min_rate_multiplier``.
+        min_scale_multiplier: Lower bound on the accumulated scale
+            multiplier.  Must be > 0.
+        max_scale_multiplier: Upper bound on the accumulated scale multiplier.
+            Must be >= ``min_scale_multiplier``.
+        per_gene_rate_multipliers: Optional mapping of gene name to a
+            non-negative multiplier applied to that gene's mutation
+            probability at mutation time.  Missing genes keep their resolved
+            probability unchanged.  Always applied when ``enabled`` is
+            ``True``, regardless of fitness/diversity adaptation flags.
+        per_gene_scale_multipliers: Optional mapping of gene name to a
+            non-negative multiplier applied to that gene's mutation scale at
+            mutation time.  Missing genes keep their resolved scale
+            unchanged.
+    """
+
+    enabled: bool = False
+    use_fitness_adaptation: bool = True
+    use_diversity_adaptation: bool = True
+    stall_window: int = 3
+    improvement_threshold: float = 1e-6
+    stall_multiplier: float = 1.5
+    improve_multiplier: float = 0.8
+    diversity_threshold: float = 0.05
+    diversity_multiplier: float = 1.5
+    min_rate_multiplier: float = 0.1
+    max_rate_multiplier: float = 5.0
+    min_scale_multiplier: float = 0.1
+    max_scale_multiplier: float = 5.0
+    per_gene_rate_multipliers: Mapping[str, float] = field(default_factory=dict)
+    per_gene_scale_multipliers: Mapping[str, float] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.stall_window < 1:
+            raise ValueError("stall_window must be at least 1.")
+        if self.improvement_threshold < 0.0:
+            raise ValueError("improvement_threshold must be non-negative.")
+        if self.stall_multiplier <= 0.0:
+            raise ValueError("stall_multiplier must be positive.")
+        if self.improve_multiplier <= 0.0:
+            raise ValueError("improve_multiplier must be positive.")
+        if not 0.0 <= self.diversity_threshold <= 1.0:
+            raise ValueError("diversity_threshold must be in [0.0, 1.0].")
+        if self.diversity_multiplier <= 0.0:
+            raise ValueError("diversity_multiplier must be positive.")
+        if self.min_rate_multiplier <= 0.0:
+            raise ValueError("min_rate_multiplier must be positive.")
+        if self.max_rate_multiplier < self.min_rate_multiplier:
+            raise ValueError(
+                "max_rate_multiplier must be >= min_rate_multiplier."
+            )
+        if self.min_scale_multiplier <= 0.0:
+            raise ValueError("min_scale_multiplier must be positive.")
+        if self.max_scale_multiplier < self.min_scale_multiplier:
+            raise ValueError(
+                "max_scale_multiplier must be >= min_scale_multiplier."
+            )
+        for name, value in self.per_gene_rate_multipliers.items():
+            if value < 0.0:
+                raise ValueError(
+                    f"per_gene_rate_multipliers['{name}'] must be non-negative."
+                )
+        for name, value in self.per_gene_scale_multipliers.items():
+            if value < 0.0:
+                raise ValueError(
+                    f"per_gene_scale_multipliers['{name}'] must be non-negative."
+                )
+
+
+def compute_normalized_diversity(
+    gene_statistics: Mapping[str, Mapping[str, float]],
+    evolvable_gene_names: Sequence[str],
+    gene_bounds: Mapping[str, tuple],
+) -> float:
+    """Compute mean normalized standard deviation across evolvable genes.
+
+    For each evolvable gene, divides the gene's population standard deviation
+    by its ``(max_value - min_value)`` range.  Genes with a zero span are
+    skipped.  Returns ``0.0`` when no evolvable gene contributes (e.g., empty
+    population or all spans zero).
+
+    Args:
+        gene_statistics: Mapping from gene name to per-gene stats dict as
+            produced by ``EvolutionExperiment._build_gene_statistics``.  Must
+            contain a ``"std"`` key for each included gene.
+        evolvable_gene_names: Names of genes that should contribute to the
+            diversity measure.
+        gene_bounds: Mapping from gene name to a ``(min_value, max_value)``
+            tuple describing the allowable range.
+
+    Returns:
+        A non-negative float, typically in ``[0, ~0.29]``.
+    """
+    normalized_values: List[float] = []
+    for gene_name in evolvable_gene_names:
+        stats = gene_statistics.get(gene_name)
+        if stats is None:
+            continue
+        bounds = gene_bounds.get(gene_name)
+        if bounds is None:
+            continue
+        min_value, max_value = bounds
+        span = max_value - min_value
+        if span <= 0.0:
+            continue
+        std = stats.get("std", 0.0)
+        normalized_values.append(max(0.0, std) / span)
+    if not normalized_values:
+        return 0.0
+    return statistics.mean(normalized_values)
+
+
+class AdaptiveMutationController:
+    """Stateful controller that updates mutation multipliers per generation.
+
+    The controller maintains accumulated ``rate_multiplier`` and
+    ``scale_multiplier`` values.  Call :meth:`observe` once per evaluated
+    generation (after fitness has been computed) to update those multipliers
+    based on best-fitness history and population diversity.  Use
+    :meth:`effective_rate` and :meth:`effective_scale` to derive the
+    mutation parameters that should be passed to
+    :func:`farm.core.hyperparameter_chromosome.mutate_chromosome` when
+    producing the next generation.
+
+    The controller always applies its bounds to keep adaptation stable across
+    many generations, even when the ``enabled`` flag is ``False`` (in which
+    case multipliers stay pinned at ``1.0``).
+    """
+
+    def __init__(self, config: AdaptiveMutationConfig):
+        self._config = config
+        self._best_fitness_history: List[float] = []
+        self._rate_multiplier = 1.0
+        self._scale_multiplier = 1.0
+        self._last_diversity: Optional[float] = None
+        self._last_event: str = "baseline"
+
+    @property
+    def config(self) -> AdaptiveMutationConfig:
+        return self._config
+
+    @property
+    def rate_multiplier(self) -> float:
+        return self._rate_multiplier
+
+    @property
+    def scale_multiplier(self) -> float:
+        return self._scale_multiplier
+
+    @property
+    def last_diversity(self) -> Optional[float]:
+        return self._last_diversity
+
+    @property
+    def last_event(self) -> str:
+        """Human-readable tag describing the most recent adaptation action."""
+        return self._last_event
+
+    def observe(self, *, best_fitness: float, diversity: Optional[float]) -> None:
+        """Update state based on a newly completed generation.
+
+        Args:
+            best_fitness: Best (adjusted) fitness observed in the generation.
+            diversity: Normalized diversity measure for the generation (see
+                :func:`compute_normalized_diversity`).  May be ``None`` when
+                diversity cannot be computed (e.g., all genes fixed).
+        """
+        self._best_fitness_history.append(float(best_fitness))
+        self._last_diversity = diversity
+        events: List[str] = []
+
+        if not self._config.enabled:
+            self._last_event = "disabled"
+            return
+
+        if self._config.use_fitness_adaptation and len(self._best_fitness_history) >= 2:
+            window = self._best_fitness_history[-(self._config.stall_window + 1):]
+            prior_best = max(window[:-1])
+            latest_best = window[-1]
+            improvement = latest_best - prior_best
+            if improvement > self._config.improvement_threshold:
+                self._rate_multiplier *= self._config.improve_multiplier
+                self._scale_multiplier *= self._config.improve_multiplier
+                events.append("improving")
+            else:
+                self._rate_multiplier *= self._config.stall_multiplier
+                self._scale_multiplier *= self._config.stall_multiplier
+                events.append("stalled")
+
+        if (
+            self._config.use_diversity_adaptation
+            and diversity is not None
+            and diversity <= self._config.diversity_threshold
+        ):
+            self._rate_multiplier *= self._config.diversity_multiplier
+            self._scale_multiplier *= self._config.diversity_multiplier
+            events.append("diversity_collapse")
+
+        self._rate_multiplier = min(
+            self._config.max_rate_multiplier,
+            max(self._config.min_rate_multiplier, self._rate_multiplier),
+        )
+        self._scale_multiplier = min(
+            self._config.max_scale_multiplier,
+            max(self._config.min_scale_multiplier, self._scale_multiplier),
+        )
+        self._last_event = "+".join(events) if events else "baseline"
+
+    def effective_rate(self, base_rate: float) -> float:
+        """Return the current effective mutation rate, clamped to ``[0, 1]``."""
+        return max(0.0, min(1.0, base_rate * self._rate_multiplier))
+
+    def effective_scale(self, base_scale: float) -> float:
+        """Return the current effective mutation scale, clamped to ``>= 0``."""
+        return max(0.0, base_scale * self._scale_multiplier)
+
+    def per_gene_rate_multipliers(self) -> Mapping[str, float]:
+        """Return the configured per-gene rate multipliers (empty if disabled)."""
+        if not self._config.enabled:
+            return {}
+        return self._config.per_gene_rate_multipliers
+
+    def per_gene_scale_multipliers(self) -> Mapping[str, float]:
+        """Return the configured per-gene scale multipliers (empty if disabled)."""
+        if not self._config.enabled:
+            return {}
+        return self._config.per_gene_scale_multipliers

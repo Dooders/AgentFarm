@@ -594,6 +594,8 @@ def mutate_chromosome(
     mutation_scale: Optional[float] = None,
     mutation_mode: Optional[Union[MutationMode, str]] = None,
     boundary_mode: Union[BoundaryMode, str] = BoundaryMode.CLAMP,
+    per_gene_rate_multipliers: Optional[Mapping[str, float]] = None,
+    per_gene_scale_multipliers: Optional[Mapping[str, float]] = None,
     rng: Optional[random.Random] = None,
 ) -> HyperparameterChromosome:
     """Mutate evolvable genes using bounded real-valued perturbations.
@@ -612,6 +614,15 @@ def mutate_chromosome(
             mutation.  ``"clamp"`` (default) reproduces the original behavior;
             ``"reflect"`` bounces the value back off the boundary so edge states
             are not absorbing.  See :class:`BoundaryMode`.
+        per_gene_rate_multipliers: Optional mapping of gene name to a
+            non-negative multiplier applied to the resolved per-gene mutation
+            probability.  After multiplication, the probability is clamped to
+            ``[0, 1]``.  Genes absent from the mapping keep their resolved
+            probability unchanged.  Supports per-gene adaptive mutation.
+        per_gene_scale_multipliers: Optional mapping of gene name to a
+            non-negative multiplier applied to the resolved per-gene mutation
+            scale.  Genes absent from the mapping keep their resolved scale
+            unchanged.  Supports per-gene adaptive mutation.
         rng: Optional :class:`random.Random` instance for deterministic tests.
 
     Notes:
@@ -626,6 +637,18 @@ def mutate_chromosome(
         raise ValueError("mutation_rate must be between 0 and 1.")
     if mutation_scale is not None and mutation_scale < 0.0:
         raise ValueError("mutation_scale must be non-negative.")
+    if per_gene_rate_multipliers:
+        for gene_name, multiplier in per_gene_rate_multipliers.items():
+            if multiplier < 0.0:
+                raise ValueError(
+                    f"per_gene_rate_multipliers['{gene_name}'] must be non-negative."
+                )
+    if per_gene_scale_multipliers:
+        for gene_name, multiplier in per_gene_scale_multipliers.items():
+            if multiplier < 0.0:
+                raise ValueError(
+                    f"per_gene_scale_multipliers['{gene_name}'] must be non-negative."
+                )
     resolved_mode_override = MutationMode(mutation_mode) if mutation_mode is not None else None
     resolved_boundary_mode = BoundaryMode(boundary_mode)
     resolved_rng = rng or random
@@ -634,6 +657,13 @@ def mutate_chromosome(
         resolved_probability = mutation_rate if mutation_rate is not None else gene.mutation_probability
         resolved_scale = mutation_scale if mutation_scale is not None else gene.mutation_scale
         resolved_mode = resolved_mode_override if resolved_mode_override is not None else gene.mutation_strategy
+        if per_gene_rate_multipliers and gene.name in per_gene_rate_multipliers:
+            resolved_probability = max(
+                0.0,
+                min(1.0, resolved_probability * per_gene_rate_multipliers[gene.name]),
+            )
+        if per_gene_scale_multipliers and gene.name in per_gene_scale_multipliers:
+            resolved_scale = max(0.0, resolved_scale * per_gene_scale_multipliers[gene.name])
         if not gene.evolvable or resolved_rng.random() >= resolved_probability:
             updated_genes.append(gene)
             continue

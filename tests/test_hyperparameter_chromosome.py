@@ -210,6 +210,79 @@ class TestHyperparameterChromosome(unittest.TestCase):
             )
         self.assertAlmostEqual(mutated.get_value("learning_rate"), 0.011)
 
+    def test_per_gene_rate_multiplier_can_suppress_mutation(self):
+        chromosome = HyperparameterChromosome(
+            genes=(
+                HyperparameterGene(
+                    name="learning_rate",
+                    value_type=GeneValueType.REAL,
+                    value=0.01,
+                    min_value=1e-6,
+                    max_value=1.0,
+                    default=0.001,
+                    evolvable=True,
+                    mutation_scale=0.1,
+                    mutation_probability=0.5,
+                    mutation_strategy=MutationMode.GAUSSIAN,
+                ),
+            )
+        )
+        # Rate multiplier of 0.0 suppresses mutation for this gene even when
+        # the global rate override is 1.0.
+        mutated = mutate_chromosome(
+            chromosome,
+            mutation_rate=1.0,
+            mutation_scale=0.1,
+            per_gene_rate_multipliers={"learning_rate": 0.0},
+        )
+        self.assertEqual(mutated.get_value("learning_rate"), 0.01)
+
+    def test_per_gene_scale_multiplier_scales_perturbation(self):
+        chromosome = HyperparameterChromosome(
+            genes=(
+                HyperparameterGene(
+                    name="learning_rate",
+                    value_type=GeneValueType.REAL,
+                    value=0.5,
+                    min_value=0.0,
+                    max_value=1.0,
+                    default=0.5,
+                    evolvable=True,
+                    mutation_scale=0.1,
+                    mutation_probability=1.0,
+                    mutation_strategy=MutationMode.GAUSSIAN,
+                ),
+            )
+        )
+        # Force a deterministic Gaussian perturbation of sigma-magnitude by
+        # returning the sigma value from random.gauss.
+        with patch(
+            "farm.core.hyperparameter_chromosome.random.gauss",
+            side_effect=lambda mu, sigma: sigma,
+        ):
+            mutated_base = mutate_chromosome(chromosome, mutation_rate=1.0)
+            mutated_scaled = mutate_chromosome(
+                chromosome,
+                mutation_rate=1.0,
+                per_gene_scale_multipliers={"learning_rate": 2.0},
+            )
+        delta_base = mutated_base.get_value("learning_rate") - 0.5
+        delta_scaled = mutated_scaled.get_value("learning_rate") - 0.5
+        self.assertAlmostEqual(delta_scaled, delta_base * 2.0)
+
+    def test_per_gene_multiplier_rejects_negative_values(self):
+        chromosome = default_hyperparameter_chromosome()
+        with self.assertRaises(ValueError):
+            mutate_chromosome(
+                chromosome,
+                per_gene_rate_multipliers={"learning_rate": -0.1},
+            )
+        with self.assertRaises(ValueError):
+            mutate_chromosome(
+                chromosome,
+                per_gene_scale_multipliers={"learning_rate": -0.1},
+            )
+
     def test_fixed_genes_remain_unchanged_even_with_full_global_mutation(self):
         chromosome = default_hyperparameter_chromosome()
         with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=1000.0):
