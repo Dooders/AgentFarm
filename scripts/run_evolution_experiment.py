@@ -21,6 +21,10 @@ from farm.runners import (  # noqa: E402
     EvolutionFitnessMetric,
     EvolutionSelectionMethod,
 )
+from farm.core.hyperparameter_chromosome import (  # noqa: E402
+    BoundaryMode,
+    BoundaryPenaltyConfig,
+)
 from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
 
@@ -78,6 +82,30 @@ def _parse_args() -> argparse.Namespace:
         default=3,
         help="Tournament bracket size when tournament selection is used.",
     )
+    parser.add_argument(
+        "--boundary-mode",
+        type=str,
+        default=BoundaryMode.CLAMP.value,
+        choices=[mode.value for mode in BoundaryMode],
+        help="Boundary strategy after mutation overshoots gene bounds.",
+    )
+    parser.add_argument(
+        "--boundary-penalty-enabled",
+        action="store_true",
+        help="Enable soft near-boundary fitness penalty.",
+    )
+    parser.add_argument(
+        "--boundary-penalty-strength",
+        type=float,
+        default=0.01,
+        help="Max per-gene penalty at exact boundary when penalty is enabled.",
+    )
+    parser.add_argument(
+        "--boundary-penalty-threshold",
+        type=float,
+        default=0.05,
+        help="Near-boundary zone width as fraction of gene range (0, 0.5].",
+    )
     parser.add_argument("--elitism-count", type=int, default=1, help="Top candidates copied to next generation.")
     parser.add_argument("--seed", type=int, default=42, help="Global deterministic seed.")
     parser.add_argument(
@@ -112,6 +140,10 @@ def main() -> int:
         steps_per_candidate=args.steps_per_candidate,
         fitness_metric=args.fitness_metric,
         selection_method=args.selection_method,
+        boundary_mode=args.boundary_mode,
+        boundary_penalty_enabled=args.boundary_penalty_enabled,
+        boundary_penalty_strength=args.boundary_penalty_strength,
+        boundary_penalty_threshold=args.boundary_penalty_threshold,
         output_dir=args.output_dir,
     )
 
@@ -127,6 +159,12 @@ def main() -> int:
             num_steps_per_candidate=args.steps_per_candidate,
             mutation_rate=args.mutation_rate,
             mutation_scale=args.mutation_scale,
+            boundary_mode=BoundaryMode(args.boundary_mode),
+            boundary_penalty=BoundaryPenaltyConfig(
+                enabled=args.boundary_penalty_enabled,
+                penalty_strength=args.boundary_penalty_strength,
+                near_boundary_threshold=args.boundary_penalty_threshold,
+            ),
             selection_method=EvolutionSelectionMethod(args.selection_method),
             tournament_size=args.tournament_size,
             elitism_count=args.elitism_count,
@@ -147,6 +185,10 @@ def main() -> int:
             "best_fitness": result.best_candidate.fitness,
             "best_learning_rate": result.best_candidate.learning_rate,
             "best_parent_ids": list(result.best_candidate.parent_ids),
+            "boundary_mode": args.boundary_mode,
+            "boundary_penalty_enabled": args.boundary_penalty_enabled,
+            "boundary_penalty_strength": args.boundary_penalty_strength,
+            "boundary_penalty_threshold": args.boundary_penalty_threshold,
             "output_dir": args.output_dir,
         }
         print(json.dumps(summary, indent=2))

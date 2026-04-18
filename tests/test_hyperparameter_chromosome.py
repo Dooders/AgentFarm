@@ -6,6 +6,9 @@ import random
 from unittest.mock import patch
 
 from farm.core.hyperparameter_chromosome import (
+    BoundaryMode,
+    BoundaryPenaltyConfig,
+    compute_boundary_penalty,
     CrossoverMode,
     MutationMode,
     apply_chromosome_to_learning_config,
@@ -368,6 +371,222 @@ class TestHyperparameterCrossover(unittest.TestCase):
         learning_rate = mutated.get_value("learning_rate")
         self.assertGreaterEqual(learning_rate, 1e-6)
         self.assertLessEqual(learning_rate, 1.0)
+
+
+class TestBoundaryMode(unittest.TestCase):
+    """Tests for reflective (bounce) mutation boundary handling."""
+
+    def test_reflect_simple_overshoot_above_max(self):
+        # Gene [0, 1], value 0.9, mutation pushes to 1.2 → reflects to 0.8
+        chromosome = chromosome_from_values({"learning_rate": 0.9})
+        # Gaussian perturbation: sigma = (1.0 - 1e-6) * 1.0 ≈ 1.0
+        # gauss returns 0.3 → raw = 0.9 + 0.3 = 1.2; span ≈ 1.0 → reflect to 0.8
+        with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=0.3):
+            mutated = mutate_chromosome(
+                chromosome,
+                mutation_rate=1.0,
+                mutation_scale=1.0,
+                boundary_mode=BoundaryMode.REFLECT,
+            )
+        lr = mutated.get_value("learning_rate")
+        self.assertGreaterEqual(lr, 1e-6)
+        self.assertLessEqual(lr, 1.0)
+        # Should NOT be at the max boundary (was reflected back in)
+        self.assertLess(lr, 1.0)
+
+    def test_reflect_simple_overshoot_below_min(self):
+        # Gene [1e-6, 1], value at min + small amount, mutation pushes below min
+        chromosome = chromosome_from_values({"learning_rate": 0.001})
+        # gauss returns large negative: raw = 0.001 - 5.0 << min
+        with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=-5.0):
+            mutated = mutate_chromosome(
+                chromosome,
+                mutation_rate=1.0,
+                mutation_scale=1.0,
+                boundary_mode=BoundaryMode.REFLECT,
+            )
+        lr = mutated.get_value("learning_rate")
+        self.assertGreaterEqual(lr, 1e-6)
+        self.assertLessEqual(lr, 1.0)
+
+    def test_clamp_stays_at_boundary_on_large_overshoot(self):
+        chromosome = chromosome_from_values({"learning_rate": 0.999})
+        with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=5.0):
+            mutated = mutate_chromosome(
+                chromosome,
+                mutation_rate=1.0,
+                mutation_scale=1.0,
+                boundary_mode=BoundaryMode.CLAMP,
+            )
+        self.assertEqual(mutated.get_value("learning_rate"), 1.0)
+
+    def test_reflect_does_not_stick_at_boundary_on_overshoot(self):
+        chromosome = chromosome_from_values({"learning_rate": 0.999})
+        with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=0.5):
+            mutated = mutate_chromosome(
+                chromosome,
+                mutation_rate=1.0,
+                mutation_scale=1.0,
+                boundary_mode=BoundaryMode.REFLECT,
+            )
+        # With reflect, value should not be exactly at max (1.0)
+        self.assertLess(mutated.get_value("learning_rate"), 1.0)
+
+    def test_reflect_value_stays_in_bounds_for_many_mutations(self):
+        rng = random.Random(42)
+        chromosome = chromosome_from_values({"learning_rate": 0.5})
+        for _ in range(200):
+            chromosome = mutate_chromosome(
+                chromosome,
+                mutation_rate=1.0,
+                mutation_scale=2.0,
+                boundary_mode=BoundaryMode.REFLECT,
+                rng=rng,
+            )
+            lr = chromosome.get_value("learning_rate")
+            self.assertGreaterEqual(lr, 1e-6, msg=f"Fell below min: {lr}")
+            self.assertLessEqual(lr, 1.0, msg=f"Exceeded max: {lr}")
+
+    def test_clamp_default_backward_compatible(self):
+        """mutate_chromosome without boundary_mode still clamps (backward compat)."""
+        chromosome = chromosome_from_values({"learning_rate": 0.999})
+        with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=5.0):
+            mutated = mutate_chromosome(chromosome, mutation_rate=1.0, mutation_scale=1.0)
+        self.assertEqual(mutated.get_value("learning_rate"), 1.0)
+
+    def test_reflect_string_alias_accepted(self):
+        chromosome = chromosome_from_values({"learning_rate": 0.5})
+        with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=0.0):
+            mutated = mutate_chromosome(
+                chromosome,
+                mutation_rate=1.0,
+                mutation_scale=0.1,
+                boundary_mode="reflect",
+            )
+        lr = mutated.get_value("learning_rate")
+        self.assertGreaterEqual(lr, 1e-6)
+        self.assertLessEqual(lr, 1.0)
+
+    def test_clamp_string_alias_accepted(self):
+        chromosome = chromosome_from_values({"learning_rate": 0.5})
+        with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=0.0):
+            mutated = mutate_chromosome(
+                chromosome,
+                mutation_rate=1.0,
+                mutation_scale=0.1,
+                boundary_mode="clamp",
+            )
+        lr = mutated.get_value("learning_rate")
+        self.assertGreaterEqual(lr, 1e-6)
+        self.assertLessEqual(lr, 1.0)
+
+
+class TestBoundaryPenaltyConfig(unittest.TestCase):
+    """Tests for BoundaryPenaltyConfig validation."""
+
+    def test_default_config_is_disabled(self):
+        cfg = BoundaryPenaltyConfig()
+        self.assertFalse(cfg.enabled)
+
+    def test_rejects_negative_penalty_strength(self):
+        with self.assertRaises(ValueError):
+            BoundaryPenaltyConfig(enabled=True, penalty_strength=-0.01)
+
+    def test_rejects_zero_near_boundary_threshold(self):
+        with self.assertRaises(ValueError):
+            BoundaryPenaltyConfig(enabled=True, near_boundary_threshold=0.0)
+
+    def test_rejects_threshold_above_half(self):
+        with self.assertRaises(ValueError):
+            BoundaryPenaltyConfig(enabled=True, near_boundary_threshold=0.6)
+
+    def test_accepts_threshold_at_half(self):
+        cfg = BoundaryPenaltyConfig(enabled=True, near_boundary_threshold=0.5)
+        self.assertEqual(cfg.near_boundary_threshold, 0.5)
+
+
+class TestComputeBoundaryPenalty(unittest.TestCase):
+    """Tests for compute_boundary_penalty()."""
+
+    def test_returns_zero_when_disabled(self):
+        chromosome = chromosome_from_values({"learning_rate": 1.0})
+        self.assertEqual(compute_boundary_penalty(chromosome), 0.0)
+
+    def test_returns_zero_when_config_disabled_explicitly(self):
+        chromosome = chromosome_from_values({"learning_rate": 1.0})
+        cfg = BoundaryPenaltyConfig(enabled=False)
+        self.assertEqual(compute_boundary_penalty(chromosome, cfg), 0.0)
+
+    def test_full_penalty_at_max_boundary(self):
+        chromosome = chromosome_from_values({"learning_rate": 1.0})
+        cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05, near_boundary_threshold=0.1)
+        penalty = compute_boundary_penalty(chromosome, cfg)
+        self.assertAlmostEqual(penalty, 0.05)
+
+    def test_full_penalty_at_min_boundary(self):
+        chromosome = chromosome_from_values({"learning_rate": 1e-6})
+        cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05, near_boundary_threshold=0.1)
+        penalty = compute_boundary_penalty(chromosome, cfg)
+        self.assertAlmostEqual(penalty, 0.05)
+
+    def test_zero_penalty_well_inside_bounds(self):
+        chromosome = chromosome_from_values({"learning_rate": 0.5})
+        cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.1, near_boundary_threshold=0.05)
+        penalty = compute_boundary_penalty(chromosome, cfg)
+        self.assertEqual(penalty, 0.0)
+
+    def test_penalty_ramps_linearly(self):
+        """Penalty at half the threshold distance should be ~50% of strength."""
+        gene = HyperparameterGene(
+            name="learning_rate",
+            value_type=GeneValueType.REAL,
+            value=0.05,  # normalized = 0.05 in [0, 1] range
+            min_value=0.0,
+            max_value=1.0,
+            default=0.5,
+        )
+        chromosome = HyperparameterChromosome(genes=(gene,))
+        cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.10, near_boundary_threshold=0.10)
+        penalty = compute_boundary_penalty(chromosome, cfg)
+        # distance = 0.05, threshold = 0.10 → fraction = 1 - 0.05/0.10 = 0.5
+        self.assertAlmostEqual(penalty, 0.05)
+
+    def test_no_penalty_for_fixed_genes(self):
+        chromosome = default_hyperparameter_chromosome()
+        # epsilon_decay and memory_size are fixed (evolvable=False)
+        # Only learning_rate is evolvable; at its default of 0.001 it is very
+        # close to min (1e-6) on a linear scale → may receive a penalty.
+        # Override learning_rate to midpoint to guarantee zero penalty.
+        chromosome = chromosome.with_overrides({"learning_rate": 0.5})
+        cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.1, near_boundary_threshold=0.05)
+        # Even though epsilon_decay is near its min, it is fixed → no penalty
+        penalty = compute_boundary_penalty(chromosome, cfg)
+        self.assertEqual(penalty, 0.0)
+
+    def test_penalty_sums_over_multiple_evolvable_genes(self):
+        gene_a = HyperparameterGene(
+            name="a",
+            value_type=GeneValueType.REAL,
+            value=0.0,
+            min_value=0.0,
+            max_value=1.0,
+            default=0.5,
+            evolvable=True,
+        )
+        gene_b = HyperparameterGene(
+            name="b",
+            value_type=GeneValueType.REAL,
+            value=1.0,
+            min_value=0.0,
+            max_value=1.0,
+            default=0.5,
+            evolvable=True,
+        )
+        chromosome = HyperparameterChromosome(genes=(gene_a, gene_b))
+        cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.10, near_boundary_threshold=0.05)
+        penalty = compute_boundary_penalty(chromosome, cfg)
+        # Both genes exactly on a boundary → 2 × 0.10 = 0.20
+        self.assertAlmostEqual(penalty, 0.20)
 
 
 if __name__ == "__main__":

@@ -50,6 +50,53 @@ class MutationMode(str, Enum):
     MULTIPLICATIVE = "multiplicative"
 
 
+class BoundaryMode(str, Enum):
+    """Strategies for handling out-of-bound values after mutation.
+
+    - ``CLAMP`` (default): hard-clamp the mutated value to ``[min_value, max_value]``.
+      Simple and safe, but can cause boundary collapse when many mutations push
+      genes against a wall and they stay there.
+    - ``REFLECT``: bounce the mutated value back from the boundary.  If the raw
+      value overshoots by *d*, the reflected result is *d* inside the boundary.
+      This preserves the bounded invariant while avoiding absorbing edge states.
+    """
+
+    CLAMP = "clamp"
+    REFLECT = "reflect"
+
+
+@dataclass(frozen=True)
+class BoundaryPenaltyConfig:
+    """Configuration for soft fitness penalties applied near gene boundaries.
+
+    When ``enabled`` is ``True``, :func:`compute_boundary_penalty` returns a
+    positive float that the caller **subtracts** from the raw fitness score.
+    This discourages prolonged occupation of boundary values without completely
+    forbidding them.
+
+    Attributes:
+        enabled: Whether soft boundary penalties are active.  Default ``False``
+            so existing code is unaffected.
+        penalty_strength: Maximum penalty applied to a single gene sitting
+            exactly on a boundary.  Summed over all evolvable genes.  Default
+            ``0.01``.
+        near_boundary_threshold: Fraction of the gene's range within which the
+            penalty ramps linearly from zero (at the inner edge) to
+            ``penalty_strength`` (at the boundary itself).  Must be in
+            ``(0, 0.5]``.  Default ``0.05`` (5 % of range on each side).
+    """
+
+    enabled: bool = False
+    penalty_strength: float = 0.01
+    near_boundary_threshold: float = 0.05
+
+    def __post_init__(self) -> None:
+        if self.penalty_strength < 0.0:
+            raise ValueError("penalty_strength must be non-negative.")
+        if not 0.0 < self.near_boundary_threshold <= 0.5:
+            raise ValueError("near_boundary_threshold must be in (0, 0.5].")
+
+
 @dataclass(frozen=True)
 class GeneEncodingSpec:
     """Encoding settings for converting gene values to stored representations."""
@@ -509,27 +556,78 @@ def chromosome_from_learning_config(learning_config: Any) -> HyperparameterChrom
     return chromosome_from_values(overrides)
 
 
+def _apply_boundary(raw_value: float, min_value: float, max_value: float, mode: BoundaryMode) -> float:
+    """Apply a boundary strategy to a raw (possibly out-of-range) gene value.
+
+    Args:
+        raw_value: The value produced by a mutation operator before bounding.
+        min_value: Gene's lower bound (inclusive).
+        max_value: Gene's upper bound (inclusive).
+        mode: The :class:`BoundaryMode` strategy to apply.
+
+    Returns:
+        A float guaranteed to lie within ``[min_value, max_value]``.
+    """
+    if mode is BoundaryMode.CLAMP:
+        return max(min_value, min(max_value, raw_value))
+
+    # REFLECT: bounce the value back from each boundary.
+    # The folded space has period = 2 * span; the first half maps straight,
+    # the second half maps in reverse (the "bounce").
+    span = max_value - min_value
+    if span == 0.0:
+        return min_value
+    period = 2.0 * span
+    offset = raw_value - min_value
+    # Python's % operator always returns a non-negative result when the divisor
+    # is positive, so no negative-remainder correction is needed.
+    mod = offset % period
+    if mod <= span:
+        return min_value + mod
+    return max_value - (mod - span)
+
+
 def mutate_chromosome(
     chromosome: HyperparameterChromosome,
+    *,
     mutation_rate: Optional[float] = None,
     mutation_scale: Optional[float] = None,
     mutation_mode: Optional[Union[MutationMode, str]] = None,
+    boundary_mode: Union[BoundaryMode, str] = BoundaryMode.CLAMP,
     rng: Optional[random.Random] = None,
 ) -> HyperparameterChromosome:
     """Mutate evolvable genes using bounded real-valued perturbations.
+
+    Args:
+        chromosome: Source chromosome to mutate.
+        mutation_rate: Probability of mutating each evolvable gene.  Overrides
+            per-gene ``mutation_probability`` when provided.  Must be in
+            ``[0, 1]``.
+        mutation_scale: Perturbation scale.  Overrides per-gene
+            ``mutation_scale`` when provided.  Must be non-negative.
+        mutation_mode: Perturbation operator to use (``gaussian`` or
+            ``multiplicative``).  Overrides per-gene ``mutation_strategy``
+            when provided.
+        boundary_mode: How to handle raw values that exceed gene bounds after
+            mutation.  ``"clamp"`` (default) reproduces the original behavior;
+            ``"reflect"`` bounces the value back off the boundary so edge states
+            are not absorbing.  See :class:`BoundaryMode`.
+        rng: Optional :class:`random.Random` instance for deterministic tests.
 
     Notes:
         - ``gaussian``: additive Gaussian perturbation where sigma is
           ``mutation_scale * (max_value - min_value)``.
         - ``multiplicative``: legacy multiplicative perturbation using a
           uniform delta in ``[-mutation_scale, mutation_scale]``.
-        - All mutations are clamped to each gene's bounds.
+        - Boundary handling is controlled by ``boundary_mode`` (default:
+          ``BoundaryMode.CLAMP``).
     """
     if mutation_rate is not None and not 0.0 <= mutation_rate <= 1.0:
         raise ValueError("mutation_rate must be between 0 and 1.")
     if mutation_scale is not None and mutation_scale < 0.0:
         raise ValueError("mutation_scale must be non-negative.")
     resolved_mode_override = MutationMode(mutation_mode) if mutation_mode is not None else None
+    resolved_boundary_mode = BoundaryMode(boundary_mode)
     resolved_rng = rng or random
     updated_genes: List[HyperparameterGene] = []
     for gene in chromosome.genes:
@@ -548,10 +646,63 @@ def mutate_chromosome(
             delta = resolved_rng.uniform(-resolved_scale, resolved_scale)
             raw_value = gene.value * (1.0 + delta)
 
-        bounded_value = max(gene.min_value, min(gene.max_value, raw_value))
+        bounded_value = _apply_boundary(raw_value, gene.min_value, gene.max_value, resolved_boundary_mode)
         updated_genes.append(gene.with_value(bounded_value))
 
     return HyperparameterChromosome(genes=tuple(updated_genes))
+
+
+def compute_boundary_penalty(
+    chromosome: HyperparameterChromosome,
+    config: Optional[BoundaryPenaltyConfig] = None,
+) -> float:
+    """Compute a soft fitness penalty for genes sitting near their bounds.
+
+    The returned value is intended to be **subtracted** from the caller's raw
+    fitness score.  A gene resting exactly on a boundary incurs the full
+    ``config.penalty_strength``; a gene at the inner edge of the threshold zone
+    (distance from boundary == ``near_boundary_threshold``) incurs zero penalty.
+    The ramp is linear between those two points.  The total penalty is the sum
+    over all evolvable genes.
+
+    When ``config.enabled`` is ``False`` (the default), this function returns
+    ``0.0`` immediately so callers can include the call unconditionally.
+
+    Args:
+        chromosome: The chromosome to evaluate.
+        config: Penalty settings.  Defaults to :class:`BoundaryPenaltyConfig`
+            with ``enabled=False``.
+
+    Returns:
+        Non-negative float representing the total penalty (0.0 when disabled).
+
+    Example::
+
+        cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.02)
+        penalty = compute_boundary_penalty(chromosome, cfg)
+        adjusted_fitness = raw_fitness - penalty
+    """
+    resolved_config = config if config is not None else BoundaryPenaltyConfig()
+    if not resolved_config.enabled:
+        return 0.0
+
+    total_penalty = 0.0
+    threshold = resolved_config.near_boundary_threshold
+    strength = resolved_config.penalty_strength
+
+    for gene in chromosome.genes:
+        if not gene.evolvable:
+            continue
+        span = gene.max_value - gene.min_value
+        if span == 0.0:
+            continue
+        normalized = (gene.value - gene.min_value) / span
+        distance_from_boundary = min(normalized, 1.0 - normalized)
+        if distance_from_boundary < threshold:
+            fraction = 1.0 - distance_from_boundary / threshold
+            total_penalty += strength * fraction
+
+    return total_penalty
 
 
 def crossover_chromosomes(
