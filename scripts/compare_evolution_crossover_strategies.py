@@ -5,13 +5,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
 from statistics import mean, stdev
 from typing import Any, Dict, Iterable, List
 
-from farm.config import SimulationConfig
-from farm.core.hyperparameter_chromosome import BoundaryMode, CrossoverMode
-from farm.runners import EvolutionExperiment, EvolutionExperimentConfig
+# Allow running directly from repo root without installing the package
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+from farm.config import SimulationConfig  # noqa: E402
+from farm.core.hyperparameter_chromosome import BoundaryMode, CrossoverMode  # noqa: E402
+from farm.runners import EvolutionExperiment, EvolutionExperimentConfig  # noqa: E402
 
 
 def _parse_csv_ints(raw: str) -> List[int]:

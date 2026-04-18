@@ -793,13 +793,13 @@ def crossover_chromosomes(
     """
     if not 0.0 <= uniform_parent_b_probability <= 1.0:
         raise ValueError("uniform_parent_b_probability must be between 0 and 1.")
-    if blend_alpha < 0.0:
-        raise ValueError("blend_alpha must be non-negative.")
-    if num_crossover_points < 1:
-        raise ValueError("num_crossover_points must be at least 1.")
 
     _validate_compatible_chromosomes(parent_a, parent_b)
     resolved_mode = CrossoverMode(mode)
+    if resolved_mode is CrossoverMode.BLEND and blend_alpha < 0.0:
+        raise ValueError("blend_alpha must be non-negative.")
+    if resolved_mode is CrossoverMode.MULTI_POINT and num_crossover_points < 1:
+        raise ValueError("num_crossover_points must be at least 1.")
     resolved_rng = rng or random
 
     selected_indices = [
