@@ -547,6 +547,46 @@ class TestHyperparameterCrossover(unittest.TestCase):
             [g.value for g in child2.genes],
         )
 
+    def test_multi_point_crossover_alternates_segments_across_many_genes(self):
+        parent_a = default_hyperparameter_chromosome()
+        parent_b = HyperparameterChromosome(
+            genes=tuple(
+                gene.with_value(gene.max_value if gene.value != gene.max_value else gene.min_value)
+                for gene in parent_a.genes
+            )
+        )
+        seed = 123
+        num_points = 3
+        child = crossover_chromosomes(
+            parent_a,
+            parent_b,
+            mode=CrossoverMode.MULTI_POINT,
+            include_fixed=True,
+            num_crossover_points=num_points,
+            rng=random.Random(seed),
+        )
+
+        selected_indices = list(range(len(parent_a.genes)))
+        n = len(selected_indices)
+        effective_points = min(num_points, n - 1) if n > 1 else 0
+        expected_genes = list(parent_a.genes)
+        if effective_points == 0:
+            selected_parent = parent_b if random.Random(seed).random() < 0.5 else parent_a
+            expected_genes[selected_indices[0]] = selected_parent.genes[selected_indices[0]]
+        else:
+            pivot_positions = sorted(random.Random(seed).sample(range(1, n), effective_points))
+            segment = 0
+            for selected_position, gene_idx in enumerate(selected_indices):
+                if segment < len(pivot_positions) and selected_position >= pivot_positions[segment]:
+                    segment += 1
+                source = parent_a if segment % 2 == 0 else parent_b
+                expected_genes[gene_idx] = source.genes[gene_idx]
+
+        self.assertEqual(
+            [gene.value for gene in child.genes],
+            [gene.value for gene in expected_genes],
+        )
+
     def test_multi_point_crossover_single_gene_still_works(self):
         parent_a = chromosome_from_values({"learning_rate": 0.01})
         parent_b = chromosome_from_values({"learning_rate": 0.5})
