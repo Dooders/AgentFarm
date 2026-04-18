@@ -258,11 +258,11 @@ from farm.core.hyperparameter_chromosome import (
 chrom = default_hyperparameter_chromosome()
 
 # Round-trip via dict (three evolvable genes: learning_rate, gamma, epsilon_decay)
-encoded = encode_chromosome(chrom)          # {"learning_rate": 102, "gamma": 252, "epsilon_decay": 253}
+encoded = encode_chromosome(chrom)          # {"learning_rate": 128, "gamma": 252, "epsilon_decay": 254}
 restored = decode_chromosome(encoded, template=chrom)
 
 # Round-trip via vector (preserves gene order, length == number of evolvable genes)
-vec = encode_chromosome_vector(chrom)       # (102, 252, 253)
+vec = encode_chromosome_vector(chrom)       # (128, 252, 254)
 restored_vec = decode_chromosome_vector(vec, template=chrom)
 ```
 
