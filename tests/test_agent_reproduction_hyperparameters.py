@@ -72,7 +72,8 @@ def test_reproduce_mutates_learning_rate_and_passes_child_config():
     assert child_config is not parent.config
     assert child_config.decision.learning_rate == 0.012
     # epsilon_decay and gamma are now evolvable; gauss patched to 0.002 shifts both.
-    # span ≈ 1.0, mutation_scale (default) = 0.2 → sigma = 0.2 → delta = 0.002
+    # gamma: span = 1.0, mutation_scale (default) = 0.2 → sigma = 0.2 → delta = 0.002
+    # epsilon_decay: span ≈ 1.0, mutation_scale = 0.2 → sigma ≈ 0.2 → delta = 0.002
     assert child_config.decision.epsilon_decay == pytest.approx(0.997, abs=1e-9)
     assert child_config.decision.gamma == pytest.approx(0.992, abs=1e-9)
     # memory_size is fixed (evolvable=False) and stays at the parent value.

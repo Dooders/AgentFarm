@@ -465,13 +465,14 @@ class TestAdditionalContinuousGenes(unittest.TestCase):
 
     def test_epsilon_decay_mutation_stays_in_bounds(self):
         chromosome = chromosome_from_values({"epsilon_decay": 0.5})
+        ed_min = chromosome.get_gene("epsilon_decay").min_value
         rng = random.Random(13)
         for _ in range(50):
             chromosome = mutate_chromosome(
                 chromosome, mutation_rate=1.0, mutation_scale=1.0, rng=rng
             )
             ed = chromosome.get_value("epsilon_decay")
-            self.assertGreater(ed, 0.0)
+            self.assertGreaterEqual(ed, ed_min)
             self.assertLessEqual(ed, 1.0)
 
     # --- crossover: all evolvable genes participate ---
@@ -491,6 +492,7 @@ class TestAdditionalContinuousGenes(unittest.TestCase):
     def test_crossover_then_mutation_keeps_all_evolvable_in_bounds(self):
         parent_a = chromosome_from_values({"learning_rate": 1e-6, "gamma": 0.0, "epsilon_decay": 0.9})
         parent_b = chromosome_from_values({"learning_rate": 1.0, "gamma": 1.0, "epsilon_decay": 1.0})
+        ed_min = parent_a.get_gene("epsilon_decay").min_value
         child = crossover_chromosomes(
             parent_a, parent_b, mode=CrossoverMode.BLEND, blend_alpha=0.5, rng=random.Random(9)
         )
@@ -499,7 +501,7 @@ class TestAdditionalContinuousGenes(unittest.TestCase):
         self.assertLessEqual(mutated.get_value("learning_rate"), 1.0)
         self.assertGreaterEqual(mutated.get_value("gamma"), 0.0)
         self.assertLessEqual(mutated.get_value("gamma"), 1.0)
-        self.assertGreater(mutated.get_value("epsilon_decay"), 0.0)
+        self.assertGreaterEqual(mutated.get_value("epsilon_decay"), ed_min)
         self.assertLessEqual(mutated.get_value("epsilon_decay"), 1.0)
 
     # --- config projection ---
@@ -531,6 +533,7 @@ class TestAdditionalContinuousGenes(unittest.TestCase):
         self.assertAlmostEqual(chromosome.get_value("memory_size"), 2000.0)
 
 
+class TestHyperparameterEncoding(unittest.TestCase):
     def test_learning_rate_quantized_encoding_uses_8bit_bounds(self):
         chromosome = default_hyperparameter_chromosome()
         learning_rate_gene = chromosome.get_gene("learning_rate")
