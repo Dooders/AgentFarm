@@ -289,14 +289,10 @@ class AdaptiveMutationController:
 
     def effective_rate(self, base_rate: float) -> float:
         """Return the current effective mutation rate, clamped to ``[0, 1]``."""
-        if base_rate is None:
-            return base_rate  # type: ignore[return-value]
         return max(0.0, min(1.0, base_rate * self._rate_multiplier))
 
     def effective_scale(self, base_scale: float) -> float:
         """Return the current effective mutation scale, clamped to ``>= 0``."""
-        if base_scale is None:
-            return base_scale  # type: ignore[return-value]
         return max(0.0, base_scale * self._scale_multiplier)
 
     def per_gene_rate_multipliers(self) -> Mapping[str, float]:
