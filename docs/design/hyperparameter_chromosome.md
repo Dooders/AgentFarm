@@ -109,7 +109,7 @@ This keeps:
 
 ## Mutation behavior
 
-`mutate_chromosome(chromosome, mutation_rate=None, mutation_scale=None, mutation_mode=None)`:
+`mutate_chromosome(chromosome, mutation_rate=None, mutation_scale=None, mutation_mode=None, boundary_mode="clamp")`:
 
 - only mutates genes where `evolvable=True`
 - resolves mutation settings per gene by default:
@@ -122,7 +122,81 @@ This keeps:
     - `new_value = old_value + Normal(0, mutation_scale * (max_value - min_value))`
   - `multiplicative` (legacy mode):
     - `new_value = old_value * (1 + uniform(-scale, scale))`
-- clamps to `[min_value, max_value]`
+- boundary handling is controlled by `boundary_mode` (see below)
+
+## Boundary handling
+
+When a mutation produces a raw value outside `[min_value, max_value]`, the
+`boundary_mode` argument to `mutate_chromosome` determines what happens.
+
+### `BoundaryMode.CLAMP` (default)
+
+The raw value is hard-clamped:
+
+```python
+bounded = max(min_value, min(max_value, raw_value))
+```
+
+Simple and safe, but can cause **boundary collapse**: repeated mutations push a
+gene to a wall and it becomes "absorbed" there, eliminating diversity.
+
+### `BoundaryMode.REFLECT`
+
+The raw value is folded back from the boundary like a billiard ball:
+
+- overshoot by *d* above `max_value` → result is `max_value − d` (bounced back)
+- works symmetrically for `min_value`
+- multiple reflections handled correctly via modular arithmetic
+
+This avoids absorbing edge states while still keeping the gene inside
+`[min_value, max_value]`.
+
+```python
+mutated = mutate_chromosome(chromosome, mutation_rate=0.1, boundary_mode="reflect")
+```
+
+**Recommended default**: `CLAMP` for stability in early experiments;
+`REFLECT` when you observe boundary collapse (genes sticking at min/max).
+
+### Soft boundary penalties
+
+`compute_boundary_penalty(chromosome, config)` returns a non-negative float
+that should be **subtracted** from the raw fitness score.
+
+```python
+from farm.core.hyperparameter_chromosome import BoundaryPenaltyConfig, compute_boundary_penalty
+
+cfg = BoundaryPenaltyConfig(
+    enabled=True,
+    penalty_strength=0.01,       # max penalty per gene
+    near_boundary_threshold=0.05, # 5% of range on each side
+)
+adjusted_fitness = raw_fitness - compute_boundary_penalty(chromosome, cfg)
+```
+
+Penalty ramps linearly:
+
+| Gene position (normalized) | Penalty fraction |
+|---|---|
+| exactly on boundary (0.0 or 1.0) | 1.0 × `penalty_strength` |
+| `near_boundary_threshold` inside boundary | 0.0 |
+
+The total penalty is summed over all `evolvable=True` genes.  Fixed genes never
+contribute.  The function returns `0.0` immediately when `enabled=False`
+(default) so callers can include the call unconditionally.
+
+**`BoundaryPenaltyConfig` parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `bool` | `False` | Whether to compute a penalty at all |
+| `penalty_strength` | `float` | `0.01` | Maximum per-gene penalty |
+| `near_boundary_threshold` | `float` | `0.05` | Fraction of gene range to consider "near boundary" |
+
+**Recommended defaults**: start with `penalty_strength=0.01` and
+`near_boundary_threshold=0.05`.  Increase `penalty_strength` if boundary
+collapse persists; widen `near_boundary_threshold` to push genes further from
+the walls.
 
 ## Gene encoding and decoding
 
@@ -256,6 +330,8 @@ To adapt:
 - add per-gene mutation scales
 - add schedule-based mutation rate by generation
 - support crossover across two parent chromosomes
+- switch `boundary_mode` to `"reflect"` to avoid boundary collapse
+- enable `BoundaryPenaltyConfig` to add a soft fitness signal near walls
 
 Recommended approach:
 - keep `HyperparameterGene` and `HyperparameterChromosome` validation unchanged
