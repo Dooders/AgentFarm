@@ -924,8 +924,8 @@ class ResourceManager:
         self.resources.clear()
         self.next_resource_id = 0
         self.regeneration_step = 0
-        self.total_resources_consumed = 0
-        self.total_resources_regenerated = 0
+        self.total_resources_consumed = 0.0
+        self.total_resources_regenerated = 0.0
         self.regeneration_events = 0
         self.depletion_events = 0
         self._step_resources_consumed = 0.0
