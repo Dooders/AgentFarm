@@ -1040,7 +1040,7 @@ class Environment(AECEnv):
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
-    def add_agent(self, agent: Any, flush_immediately: bool = False) -> None:
+    def add_agent(self, agent: Any, flush_immediately: bool = False, defer_spatial_update: bool = False) -> None:
         """Add an agent to the environment with efficient database logging.
 
         Registers a new agent in the environment, adding it to internal tracking
@@ -1058,6 +1058,12 @@ class Environment(AECEnv):
             the agent is committed before any actions are processed. This is useful
             for agents created during simulation (e.g., through reproduction) to
             prevent foreign key constraint violations. Default is False.
+        defer_spatial_update : bool, optional
+            If True, skip calling ``set_references`` on the spatial index for this
+            individual addition.  The spatial index is still marked dirty so it
+            will rebuild on the next query.  Pass ``True`` when adding many agents
+            in a batch and call ``spatial_index.set_references`` once after the
+            batch is complete to avoid O(N²) overhead.  Default is False.
 
         Notes
         -----
@@ -1175,8 +1181,11 @@ class Environment(AECEnv):
         # Mark positions as dirty when new agent is added
         self.spatial_index.mark_positions_dirty()
 
-        # Update spatial index references to include the new agent
-        self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
+        # Update spatial index references to include the new agent.
+        # Skip when defer_spatial_update=True to allow callers to batch many
+        # additions and call set_references once at the end.
+        if not defer_spatial_update:
+            self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
 
         # Batch log to database using SQLAlchemy
         if self.db is not None:
