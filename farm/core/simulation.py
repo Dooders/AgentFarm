@@ -486,7 +486,7 @@ def run_simulation(
             step_start_time = time.time()
 
             # Process agents in batches
-            alive_agents = [agent for agent in environment.agent_objects if agent.alive]
+            alive_agents = environment.alive_agent_objects
 
             # Stop if no agents are alive
             if len(alive_agents) < 1:
