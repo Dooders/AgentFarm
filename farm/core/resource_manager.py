@@ -2,6 +2,7 @@ import math
 import os
 import random
 import tempfile
+import hashlib
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -489,6 +490,49 @@ class ResourceManager:
         self.next_resource_id += 1
         return resource
 
+    @staticmethod
+    def _splitmix64_to_unit(values: np.ndarray) -> np.ndarray:
+        """Map uint64 values to deterministic [0, 1) float values via SplitMix64."""
+        z = (values + np.uint64(0x9E3779B97F4A7C15)).astype(np.uint64, copy=False)
+        z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+        z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+        z = z ^ (z >> np.uint64(31))
+        # Use the top 53 bits so conversion to float64 is exact and the result
+        # is guaranteed to stay within [0, 1).
+        return (z >> np.uint64(11)).astype(np.float64) * (2.0**-53)
+
+    def _seeded_regen_mask(self, time_step: int, regen_rate: float) -> np.ndarray:
+        """Return deterministic per-resource regeneration mask for seeded runs."""
+        resource_count = len(self.resources)
+        if resource_count == 0:
+            return np.array([], dtype=bool)
+
+        base_seed = self.seed_value or 0
+
+        # Build a stable per-resource seed from resource identity and step, then
+        # transform it to a uniform [0, 1) value with vectorized uint64 mixing.
+        hashed_values = np.fromiter(
+            (
+                int.from_bytes(
+                    hashlib.blake2b(
+                        (
+                            f"{base_seed}|{time_step}|{resource.resource_id}|"
+                            f"{resource.position[0]:.12f}|{resource.position[1]:.12f}"
+                        ).encode("utf-8"),
+                        digest_size=8,
+                        person=b"regen-v1",
+                    ).digest(),
+                    "little",
+                    signed=False,
+                )
+                for resource in self.resources
+            ),
+            dtype=np.uint64,
+            count=resource_count,
+        )
+        random_values = self._splitmix64_to_unit(hashed_values)
+        return random_values < regen_rate
+
     def update_resources(self, time_step: int) -> Dict:
         """
         Update all resources for the current time step using the same logic as the original Environment.
@@ -513,51 +557,34 @@ class ResourceManager:
         }
 
         if self.seed_value is not None:
-            # Create deterministic RNG based on seed and current time (same as original)
-            rng = random.Random(self.seed_value + time_step)
-
-            # Deterministically decide which resources regenerate (same as original)
-            for resource in self.resources:
-                # Use resource ID and position as additional entropy sources (same as original)
-                decision_seed = hash(
-                    (
-                        resource.resource_id,
-                        resource.position[0],
-                        resource.position[1],
-                        time_step,
-                    )
+            regen_rate = (
+                getattr(
+                    getattr(self.config, "resources", None),
+                    "resource_regen_rate",
+                    0.1,
                 )
-                # Mix with simulation seed (same as original)
-                combined_seed = (self.seed_value * 100000) + decision_seed
-                # Create a deterministic random generator for this resource (same as original)
-                resource_rng = random.Random(combined_seed)
-
-                # Check if this resource should regenerate (same as original)
-                regen_rate = (
-                    getattr(
-                        getattr(self.config, "resources", None),
-                        "resource_regen_rate",
-                        0.1,
-                    )
-                    if self.config
-                    else 0.1
+                if self.config
+                else 0.1
+            )
+            max_resource = (
+                self.config.resources.max_resource_amount if self.config else None
+            )
+            regen_amount = (
+                getattr(
+                    getattr(self.config, "resources", None),
+                    "resource_regen_amount",
+                    2,
                 )
-                max_resource = (
-                    self.config.resources.max_resource_amount if self.config else None
-                )
+                if self.config
+                else 2
+            )
 
-                if resource_rng.random() < regen_rate and (
+            rng_mask = self._seeded_regen_mask(time_step=time_step, regen_rate=regen_rate)
+
+            for resource, should_regen in zip(self.resources, rng_mask):
+                if should_regen and (
                     max_resource is None or resource.amount < max_resource
                 ):
-                    regen_amount = (
-                        getattr(
-                            getattr(self.config, "resources", None),
-                            "resource_regen_amount",
-                            2,
-                        )
-                        if self.config
-                        else 2
-                    )
                     old_amount = resource.amount
                     resource.amount = min(
                         resource.amount + regen_amount,
@@ -617,31 +644,21 @@ class ResourceManager:
 
     def _update_resources_deterministic(self, time_step: int, stats: Dict):
         """Update resources using deterministic regeneration logic."""
-        for resource in self.resources:
-            # Create deterministic decision seed
-            decision_seed = hash(
-                (
-                    resource.resource_id,
-                    resource.position[0],
-                    resource.position[1],
-                    time_step,
-                )
-            )
+        regen_rate = (
+            getattr(getattr(self.config, "resources", None), "resource_regen_rate", 0.1)
+            if self.config
+            else 0.1
+        )
+        regen_amount = (
+            getattr(getattr(self.config, "resources", None), "resource_regen_amount", 2)
+            if self.config
+            else 2
+        )
 
-            # Mix with simulation seed
-            combined_seed = ((self.seed_value or 0) * 100000) + decision_seed
-            resource_rng = random.Random(combined_seed)
+        rng_mask = self._seeded_regen_mask(time_step=time_step, regen_rate=regen_rate)
 
-            # Check if resource should regenerate
-            regen_rate = self.config.resource_regen_rate if self.config else 0.1
-
-            if (
-                resource_rng.random() < regen_rate
-                and resource.amount < resource.max_amount
-            ):
-
-                regen_amount = self.config.resource_regen_amount if self.config else 2
-
+        for resource, should_regen in zip(self.resources, rng_mask):
+            if should_regen and resource.amount < resource.max_amount:
                 old_amount = resource.amount
                 resource.regenerate(regen_amount)
                 regenerated = resource.amount - old_amount
