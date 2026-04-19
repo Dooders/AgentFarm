@@ -416,6 +416,29 @@ class TestTianshouWrapperTraining(unittest.TestCase):
         self.assertIsInstance(metrics, dict)
         # Should have some metrics (may be empty dict if training fails gracefully)
 
+    def test_train_on_batch_includes_importance_weights(self):
+        """Training batch should include per-sample weights for PER-compatible policies."""
+        for _ in range(self.wrapper.batch_size):
+            state = np.random.randn(*self.observation_shape).astype(np.float32)
+            self.wrapper.store_experience(state, 0, 0.5, state, False)
+            self.wrapper.update_step_count()
+
+        captured = {}
+
+        def fake_learn(batch, batch_size, repeat):
+            captured["batch"] = batch
+            return {"loss": 0.0}
+
+        self.wrapper.policy.learn = fake_learn  # type: ignore[method-assign]
+        metrics = self.wrapper.train_on_batch({})
+
+        self.assertIn("batch", captured)
+        self.assertIn("weight", captured["batch"])
+        weights = captured["batch"]["weight"].detach().cpu().numpy()
+        self.assertEqual(weights.shape[0], self.wrapper.batch_size)
+        self.assertTrue(np.allclose(weights, np.ones_like(weights)))
+        self.assertIn("replay_is_weight_mean", metrics)
+
     def test_train_on_batch_insufficient_data(self):
         """Test training when buffer has insufficient data."""
         # Don't fill buffer

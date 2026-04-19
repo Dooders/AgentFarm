@@ -436,12 +436,24 @@ class PrioritizedReplayBuffer(ExperienceReplayBuffer):
             indices: 1-D integer array of buffer indices (from the ``"indices"``
                 key returned by :meth:`sample`).
             td_errors: 1-D array of absolute TD errors for the corresponding
-                transitions.  Any shape that broadcasts against ``indices`` is
-                accepted.
+                transitions. Scalar values and shapes that broadcast against
+                ``indices`` are accepted.
         """
-        td_errors = np.asarray(td_errors, dtype=np.float64)
-        new_priorities = (np.abs(td_errors) + self.epsilon)
-        for idx, priority in zip(indices, new_priorities):
+        indices_arr = np.asarray(indices, dtype=np.int64).reshape(-1)
+        if indices_arr.size == 0:
+            return
+
+        td_errors_arr = np.asarray(td_errors, dtype=np.float64)
+        try:
+            td_errors_arr = np.broadcast_to(td_errors_arr, indices_arr.shape)
+        except ValueError as exc:
+            raise ValueError(
+                f"td_errors shape {td_errors_arr.shape} is not broadcastable to "
+                f"indices shape {indices_arr.shape}"
+            ) from exc
+
+        new_priorities = np.abs(td_errors_arr) + self.epsilon
+        for idx, priority in zip(indices_arr, new_priorities):
             self.priorities[idx] = float(priority)
 
     def update_beta(self) -> float:

@@ -1111,6 +1111,9 @@ class TianshouWrapper(RLAlgorithm):
                     "rew": rewards,
                     "obs_next": next_states,
                     "done": dones,
+                    # Tianshou policies that support PER consume this key to
+                    # importance-weight per-sample losses.
+                    "weight": torch.tensor(is_weights, dtype=torch.float32),
                     "terminated": dones,  # Required by RolloutBatchProtocol
                     "truncated": torch.zeros_like(
                         dones

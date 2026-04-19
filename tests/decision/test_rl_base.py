@@ -570,6 +570,22 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
         buf.update_priorities(np.array([0]), np.array([-3.0]))
         self.assertAlmostEqual(buf.priorities[0], 3.0 + buf.epsilon, places=10)
 
+    def test_update_priorities_scalar_broadcast(self):
+        """Scalar TD error should broadcast across all provided indices."""
+        buf = self._make_buffer()
+        self._fill(buf, 4)
+        indices = np.array([0, 2, 3])
+        buf.update_priorities(indices, np.array(1.25))
+        for idx in indices:
+            self.assertAlmostEqual(buf.priorities[idx], 1.25 + buf.epsilon, places=10)
+
+    def test_update_priorities_mismatched_shape_raises(self):
+        """Non-broadcastable TD error shapes should raise a clear error."""
+        buf = self._make_buffer()
+        self._fill(buf, 4)
+        with self.assertRaises(ValueError):
+            buf.update_priorities(np.array([0, 1, 2]), np.array([0.1, 0.2]))
+
     # ------------------------------------------------------------------
     # Beta annealing
     # ------------------------------------------------------------------
