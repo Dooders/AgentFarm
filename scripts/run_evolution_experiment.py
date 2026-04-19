@@ -17,6 +17,7 @@ if _repo_root not in sys.path:
 from farm.config import SimulationConfig  # noqa: E402
 from farm.runners import (  # noqa: E402
     AdaptiveMutationConfig,
+    ConvergenceCriteria,
     EvolutionExperiment,
     EvolutionExperimentConfig,
     EvolutionFitnessMetric,
@@ -299,6 +300,64 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Structured logging level.",
     )
+    # ------------------------------------------------------------------
+    # Convergence criteria
+    # ------------------------------------------------------------------
+    parser.add_argument(
+        "--convergence-enabled",
+        action="store_true",
+        help=(
+            "Enable convergence checking.  When set, the run will detect "
+            "fitness plateau and diversity collapse and optionally stop early."
+        ),
+    )
+    parser.add_argument(
+        "--convergence-fitness-window",
+        type=int,
+        default=5,
+        help=(
+            "Number of trailing generations over which best-fitness improvement "
+            "is measured for the plateau criterion."
+        ),
+    )
+    parser.add_argument(
+        "--convergence-fitness-threshold",
+        type=float,
+        default=1e-4,
+        help=(
+            "Minimum absolute improvement in best fitness over the window "
+            "required to avoid a plateau declaration."
+        ),
+    )
+    parser.add_argument(
+        "--convergence-diversity-window",
+        type=int,
+        default=3,
+        help=(
+            "Number of consecutive generations with diversity below the threshold "
+            "required to trigger a diversity-collapse declaration."
+        ),
+    )
+    parser.add_argument(
+        "--convergence-diversity-threshold",
+        type=float,
+        default=0.01,
+        help="Normalized diversity at or below which diversity-collapse is considered.",
+    )
+    parser.add_argument(
+        "--convergence-min-generations",
+        type=int,
+        default=1,
+        help="Minimum number of completed generations before convergence checks begin.",
+    )
+    parser.add_argument(
+        "--convergence-no-early-stop",
+        action="store_true",
+        help=(
+            "When --convergence-enabled is set, annotate the result with convergence "
+            "metadata but do not halt the run early."
+        ),
+    )
     return parser
 
 
@@ -384,6 +443,15 @@ def main() -> int:
                     args.adaptive_per_gene_scale, label="--adaptive-per-gene-scale"
                 ),
             ),
+            convergence_criteria=ConvergenceCriteria(
+                enabled=args.convergence_enabled,
+                fitness_window=args.convergence_fitness_window,
+                fitness_threshold=args.convergence_fitness_threshold,
+                diversity_window=args.convergence_diversity_window,
+                diversity_threshold=args.convergence_diversity_threshold,
+                min_generations=args.convergence_min_generations,
+                early_stop=not args.convergence_no_early_stop,
+            ),
             selection_method=EvolutionSelectionMethod(args.selection_method),
             tournament_size=args.tournament_size,
             elitism_count=args.elitism_count,
@@ -416,6 +484,13 @@ def main() -> int:
             "num_crossover_points": args.num_crossover_points,
             "elitism_count": args.elitism_count,
             "adaptive_mutation": args.adaptive_mutation,
+            "convergence_enabled": args.convergence_enabled,
+            "convergence_fitness_window": args.convergence_fitness_window,
+            "convergence_fitness_threshold": args.convergence_fitness_threshold,
+            "convergence_diversity_window": args.convergence_diversity_window,
+            "convergence_diversity_threshold": args.convergence_diversity_threshold,
+            "convergence_min_generations": args.convergence_min_generations,
+            "convergence_early_stop": not args.convergence_no_early_stop,
             "seed": args.seed,
             "output_dir": args.output_dir,
         }
@@ -452,6 +527,9 @@ def main() -> int:
                 last_summary.mutation_scale_multiplier if last_summary else None
             ),
             "final_adaptive_event": last_summary.adaptive_event if last_summary else None,
+            "converged": result.converged,
+            "convergence_reason": result.convergence_reason,
+            "generation_of_convergence": result.generation_of_convergence,
             "output_dir": args.output_dir,
         }
         print(json.dumps(summary, indent=2))

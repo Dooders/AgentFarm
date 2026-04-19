@@ -217,6 +217,9 @@ class TestRunManifest(unittest.TestCase):
                 fake_result.best_candidate.fitness = 1.0
                 fake_result.best_candidate.learning_rate = 0.001
                 fake_result.best_candidate.parent_ids = []
+                fake_result.converged = False
+                fake_result.convergence_reason = None
+                fake_result.generation_of_convergence = None
 
                 with patch.object(
                     run_evolution_experiment.EvolutionExperiment,
@@ -261,6 +264,9 @@ class TestRunManifest(unittest.TestCase):
                 fake_result.best_candidate.fitness = 1.0
                 fake_result.best_candidate.learning_rate = 0.001
                 fake_result.best_candidate.parent_ids = []
+                fake_result.converged = False
+                fake_result.convergence_reason = None
+                fake_result.generation_of_convergence = None
 
                 with patch.object(
                     run_evolution_experiment.EvolutionExperiment,

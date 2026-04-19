@@ -569,5 +569,452 @@ class TestEvolutionExperimentAdaptiveMutation(unittest.TestCase):
             self.assertNotIn("diversity_collapse", summaries[1]["adaptive_event"])
 
 
+class TestConvergenceCriteria(unittest.TestCase):
+    def test_defaults_are_disabled(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        criteria = ConvergenceCriteria()
+        self.assertFalse(criteria.enabled)
+
+    def test_rejects_zero_fitness_window(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        with self.assertRaises(ValueError):
+            ConvergenceCriteria(fitness_window=0)
+
+    def test_rejects_negative_fitness_threshold(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        with self.assertRaises(ValueError):
+            ConvergenceCriteria(fitness_threshold=-0.1)
+
+    def test_rejects_zero_diversity_window(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        with self.assertRaises(ValueError):
+            ConvergenceCriteria(diversity_window=0)
+
+    def test_rejects_negative_diversity_threshold(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        with self.assertRaises(ValueError):
+            ConvergenceCriteria(diversity_threshold=-0.1)
+
+    def test_rejects_negative_min_generations(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        with self.assertRaises(ValueError):
+            ConvergenceCriteria(min_generations=-1)
+
+    def test_accepts_valid_config(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        criteria = ConvergenceCriteria(
+            enabled=True,
+            fitness_window=3,
+            fitness_threshold=0.01,
+            diversity_window=2,
+            diversity_threshold=0.05,
+            min_generations=2,
+            early_stop=False,
+        )
+        self.assertTrue(criteria.enabled)
+        self.assertEqual(criteria.fitness_window, 3)
+        self.assertEqual(criteria.min_generations, 2)
+        self.assertFalse(criteria.early_stop)
+
+    def test_zero_threshold_is_accepted(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        # threshold=0 means any improvement (strictly > 0) avoids plateau.
+        criteria = ConvergenceCriteria(fitness_threshold=0.0, diversity_threshold=0.0)
+        self.assertEqual(criteria.fitness_threshold, 0.0)
+
+
+class TestConvergenceDisabledRegressionMode(unittest.TestCase):
+    """Regression: with convergence disabled all generations always run."""
+
+    def test_disabled_convergence_runs_all_generations(self):
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=4,
+            population_size=3,
+            num_steps_per_candidate=1,
+            seed=99,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
+        )
+        self.assertEqual(len(result.generation_summaries), 4)
+        self.assertFalse(result.converged)
+        self.assertIsNone(result.convergence_reason)
+        self.assertIsNone(result.generation_of_convergence)
+
+    def test_disabled_convergence_persists_no_metadata_fields(self):
+        base_config = SimulationConfig()
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = EvolutionExperimentConfig(
+                num_generations=2,
+                population_size=3,
+                num_steps_per_candidate=1,
+                output_dir=output_dir,
+                seed=77,
+            )
+            experiment = EvolutionExperiment(base_config, config)
+            result = experiment.run(
+                fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
+            )
+            import os as _os
+            metadata_path = _os.path.join(output_dir, "evolution_metadata.json")
+            with open(metadata_path, encoding="utf-8") as mf:
+                metadata = json.load(mf)
+            self.assertFalse(metadata["converged"])
+            self.assertIsNone(metadata["convergence_reason"])
+            self.assertIsNone(metadata["generation_of_convergence"])
+            self.assertEqual(metadata["num_generations_completed"], 2)
+            # Regression: existing summaries file is still an array.
+            summaries_path = _os.path.join(output_dir, "evolution_generation_summaries.json")
+            with open(summaries_path, encoding="utf-8") as sf:
+                summaries = json.load(sf)
+            self.assertIsInstance(summaries, list)
+
+
+class TestConvergenceFitnessPlateau(unittest.TestCase):
+    def test_plateau_triggers_convergence_when_no_improvement(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=10,
+            population_size=3,
+            num_steps_per_candidate=1,
+            convergence_criteria=ConvergenceCriteria(
+                enabled=True,
+                fitness_window=2,
+                fitness_threshold=0.0,
+                min_generations=0,
+                early_stop=True,
+            ),
+            seed=1,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (5.0, {"member": member})
+        )
+        self.assertTrue(result.converged)
+        self.assertEqual(result.convergence_reason, "fitness_plateau")
+        # With window=2 and min_generations=0, plateau fires when we have >=3 entries
+        # with no improvement: generation 2 (0-indexed) at the earliest.
+        self.assertIsNotNone(result.generation_of_convergence)
+        self.assertLess(result.generation_of_convergence, 10)
+        # Early stop: fewer than all 10 generations should have run.
+        self.assertLess(len(result.generation_summaries), 10)
+
+    def test_plateau_not_triggered_while_fitness_improves(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=5,
+            population_size=3,
+            num_steps_per_candidate=1,
+            convergence_criteria=ConvergenceCriteria(
+                enabled=True,
+                fitness_window=2,
+                fitness_threshold=0.5,
+                min_generations=0,
+                early_stop=True,
+            ),
+            seed=2,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        # Fitness strictly increases by 2 each generation: well above threshold=0.5.
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (
+                float(gen * 2 + 1),
+                {"member": member},
+            )
+        )
+        self.assertFalse(result.converged)
+        self.assertEqual(result.convergence_reason, "budget_exhausted")
+        self.assertEqual(len(result.generation_summaries), 5)
+
+    def test_plateau_respects_min_generations(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=10,
+            population_size=3,
+            num_steps_per_candidate=1,
+            convergence_criteria=ConvergenceCriteria(
+                enabled=True,
+                fitness_window=1,
+                fitness_threshold=0.0,
+                min_generations=5,
+                early_stop=True,
+            ),
+            seed=3,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
+        )
+        self.assertTrue(result.converged)
+        # Plateau cannot fire before generation 5 (min_generations=5).
+        self.assertGreaterEqual(result.generation_of_convergence, 5)
+
+
+class TestConvergenceDiversityCollapse(unittest.TestCase):
+    def test_diversity_collapse_triggers_convergence(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=10,
+            population_size=3,
+            num_steps_per_candidate=1,
+            convergence_criteria=ConvergenceCriteria(
+                enabled=True,
+                # Set an unreachably high fitness threshold so plateau never fires.
+                fitness_window=100,
+                fitness_threshold=1e9,
+                diversity_window=2,
+                diversity_threshold=1.0,  # always satisfied
+                min_generations=0,
+                early_stop=True,
+            ),
+            seed=4,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (
+                float(gen),
+                {"member": member},
+            )
+        )
+        self.assertTrue(result.converged)
+        self.assertEqual(result.convergence_reason, "diversity_collapse")
+        self.assertLess(len(result.generation_summaries), 10)
+
+    def test_diversity_collapse_skipped_when_diversity_is_none(self):
+        """Diversity collapse must not fire when _compute_diversity returns None."""
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+        from unittest.mock import patch
+
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=5,
+            population_size=3,
+            num_steps_per_candidate=1,
+            convergence_criteria=ConvergenceCriteria(
+                enabled=True,
+                fitness_window=100,
+                fitness_threshold=1e9,
+                diversity_window=2,
+                diversity_threshold=1.0,  # would always fire if diversity were not None
+                min_generations=0,
+                early_stop=True,
+            ),
+            seed=5,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        with patch.object(EvolutionExperiment, "_compute_diversity", return_value=None):
+            result = experiment.run(
+                fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
+            )
+        # Diversity is always None so collapse never triggers; budget exhausted instead.
+        self.assertFalse(result.converged)
+        self.assertEqual(result.convergence_reason, "budget_exhausted")
+
+
+class TestConvergenceEarlyStop(unittest.TestCase):
+    def test_early_stop_true_halts_run(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=20,
+            population_size=3,
+            num_steps_per_candidate=1,
+            convergence_criteria=ConvergenceCriteria(
+                enabled=True,
+                fitness_window=1,
+                fitness_threshold=0.0,
+                min_generations=0,
+                early_stop=True,
+            ),
+            seed=6,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
+        )
+        self.assertTrue(result.converged)
+        # Run must have stopped before all 20 generations completed.
+        self.assertLess(len(result.generation_summaries), 20)
+
+    def test_early_stop_false_annotates_without_halting(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=6,
+            population_size=3,
+            num_steps_per_candidate=1,
+            convergence_criteria=ConvergenceCriteria(
+                enabled=True,
+                fitness_window=1,
+                fitness_threshold=0.0,
+                min_generations=0,
+                early_stop=False,  # annotate only, don't stop
+            ),
+            seed=7,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
+        )
+        # Converged is True (criterion met) but all 6 generations ran.
+        self.assertTrue(result.converged)
+        self.assertEqual(result.convergence_reason, "fitness_plateau")
+        self.assertEqual(len(result.generation_summaries), 6)
+
+    def test_early_stop_records_first_convergence_generation(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=10,
+            population_size=3,
+            num_steps_per_candidate=1,
+            convergence_criteria=ConvergenceCriteria(
+                enabled=True,
+                fitness_window=2,
+                fitness_threshold=0.0,
+                min_generations=0,
+                early_stop=False,
+            ),
+            seed=8,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
+        )
+        first_detection = result.generation_of_convergence
+        self.assertIsNotNone(first_detection)
+        # The detection generation must be within the completed window.
+        self.assertLess(first_detection, len(result.generation_summaries))
+
+
+class TestConvergenceBudgetExhausted(unittest.TestCase):
+    def test_budget_exhausted_annotated_when_no_criterion_met(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=3,
+            population_size=3,
+            num_steps_per_candidate=1,
+            convergence_criteria=ConvergenceCriteria(
+                enabled=True,
+                # Extremely high threshold so plateau never fires.
+                fitness_window=100,
+                fitness_threshold=1e9,
+                # Extremely low threshold so diversity collapse never fires.
+                diversity_window=100,
+                diversity_threshold=0.0,
+                min_generations=0,
+            ),
+            seed=9,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (
+                float(gen * 100),
+                {"member": member},
+            )
+        )
+        self.assertFalse(result.converged)
+        self.assertEqual(result.convergence_reason, "budget_exhausted")
+        self.assertEqual(result.generation_of_convergence, 2)  # last generation index
+        self.assertEqual(len(result.generation_summaries), 3)
+
+
+class TestConvergenceMetadataPersisted(unittest.TestCase):
+    def test_convergence_metadata_written_to_file(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+        import os as _os
+
+        base_config = SimulationConfig()
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = EvolutionExperimentConfig(
+                num_generations=10,
+                population_size=3,
+                num_steps_per_candidate=1,
+                convergence_criteria=ConvergenceCriteria(
+                    enabled=True,
+                    fitness_window=1,
+                    fitness_threshold=0.0,
+                    min_generations=0,
+                    early_stop=True,
+                ),
+                output_dir=output_dir,
+                seed=10,
+            )
+            experiment = EvolutionExperiment(base_config, config)
+            result = experiment.run(
+                fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
+            )
+            metadata_path = _os.path.join(output_dir, "evolution_metadata.json")
+            self.assertTrue(_os.path.exists(metadata_path))
+            with open(metadata_path, encoding="utf-8") as mf:
+                metadata = json.load(mf)
+            self.assertIn("converged", metadata)
+            self.assertIn("convergence_reason", metadata)
+            self.assertIn("generation_of_convergence", metadata)
+            self.assertIn("num_generations_completed", metadata)
+            self.assertTrue(metadata["converged"])
+            self.assertEqual(metadata["convergence_reason"], result.convergence_reason)
+            self.assertEqual(metadata["generation_of_convergence"], result.generation_of_convergence)
+            self.assertEqual(metadata["num_generations_completed"], len(result.generation_summaries))
+
+    def test_convergence_reason_enum_values_are_strings_in_json(self):
+        from farm.runners.evolution_experiment import ConvergenceCriteria
+        import os as _os
+
+        base_config = SimulationConfig()
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = EvolutionExperimentConfig(
+                num_generations=5,
+                population_size=3,
+                num_steps_per_candidate=1,
+                convergence_criteria=ConvergenceCriteria(
+                    enabled=True,
+                    fitness_window=100,
+                    fitness_threshold=1e9,
+                    diversity_window=100,
+                    diversity_threshold=0.0,
+                    min_generations=0,
+                ),
+                output_dir=output_dir,
+                seed=11,
+            )
+            experiment = EvolutionExperiment(base_config, config)
+            experiment.run(
+                fitness_evaluator=lambda candidate, cfg, gen, member: (
+                    float(gen),
+                    {"member": member},
+                )
+            )
+            metadata_path = _os.path.join(output_dir, "evolution_metadata.json")
+            with open(metadata_path, encoding="utf-8") as mf:
+                metadata = json.load(mf)
+            # convergence_reason must be a plain string, not a dict or enum repr.
+            self.assertIsInstance(metadata["convergence_reason"], str)
+            self.assertEqual(metadata["convergence_reason"], "budget_exhausted")
+
+
 if __name__ == "__main__":
     unittest.main()
