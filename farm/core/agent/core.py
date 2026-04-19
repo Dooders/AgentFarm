@@ -22,6 +22,7 @@ from farm.core.hyperparameter_chromosome import (
     chromosome_from_learning_config,
     mutate_chromosome,
 )
+from farm.core.environment import _AgentList
 from farm.core.state import AgentState, AgentStateManager
 from farm.utils.logging import get_logger
 
@@ -838,7 +839,7 @@ class AgentCore:
         agent_objects = getattr(self.environment, "_agent_objects", None)
         in_objects = bool(isinstance(agent_objects, dict) and agent_id in agent_objects)
         agent_ids = getattr(self.environment, "agents", None)
-        in_ids = bool(isinstance(agent_ids, list) and agent_id in agent_ids)
+        in_ids = bool(isinstance(agent_ids, (list, _AgentList)) and agent_id in agent_ids)
         return in_objects or in_ids
 
     def _rollback_offspring_from_environment(self, agent_id: str) -> bool:
@@ -878,7 +879,7 @@ class AgentCore:
                 self.environment._agent_objects.pop(agent_id, None)
             if (
                 hasattr(self.environment, "agents")
-                and isinstance(self.environment.agents, list)
+                and isinstance(self.environment.agents, (list, _AgentList))
                 and agent_id in self.environment.agents
             ):
                 self.environment.agents.remove(agent_id)

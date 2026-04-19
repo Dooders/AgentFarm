@@ -99,6 +99,8 @@ class _AgentList:
 
     def append(self, item: str) -> None:
         """Add *item* to the end; O(1) amortised."""
+        if item in self._d:
+            return
         self._d[item] = None
         if self._list_cache is not None:
             self._list_cache.append(item)
