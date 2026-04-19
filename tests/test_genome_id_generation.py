@@ -4,7 +4,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from farm.core.agent import AgentCore, AgentServices, DefaultAgentBehavior
 from farm.core.agent.components import (
@@ -314,6 +314,61 @@ class TestGenomeIdGeneration(unittest.TestCase):
                         self.assertTrue(offspring.genome_id.startswith(f"{parent.agent_id}:"))
                         # Should have counter starting from 1
                         self.assertIn(":1", offspring.genome_id)
+
+    def test_genome_id_cache_initialized_on_startup(self):
+        """Test that the genome ID cache is initialized on environment startup."""
+        self.assertIsInstance(self.env._genome_id_cache, set)
+        self.assertTrue(self.env._genome_id_cache_loaded)
+
+    def test_genome_id_cache_populated_after_add_agent(self):
+        """Test that adding an agent populates the genome ID cache."""
+        agent = self.create_test_agent("cache_agent_1", "system", generation=0)
+        self.assertEqual(len(self.env._genome_id_cache), 0)  # Empty before adding
+
+        self.env.add_agent(agent)
+
+        # Cache must contain the newly assigned genome_id
+        self.assertIn(agent.genome_id, self.env._genome_id_cache)
+
+    def test_bulk_add_agents_no_db_query_per_agent(self):
+        """Test that bulk agent creation uses the cache and avoids per-agent DB queries."""
+        n_agents = 10
+
+        db_query_calls = []
+
+        original_execute = self.env.db._execute_in_transaction
+
+        def tracking_execute(fn, *args, **kwargs):
+            db_query_calls.append(fn)
+            return original_execute(fn, *args, **kwargs)
+
+        with patch.object(self.env.db, "_execute_in_transaction", side_effect=tracking_execute):
+            for i in range(n_agents):
+                agent = self.create_test_agent(f"bulk_agent_{i}", "system", generation=0)
+                self.env.add_agent(agent)
+
+        # The only DB operations should be the log_agents_batch writes, not existence queries.
+        # Each add_agent may trigger at most one log_agents_batch call.
+        # No call should come from check_genome_id_exists (which would be n_agents * O(counter) calls).
+        # We count only how many calls touch AgentModel for filtering (the query path).
+        query_call_count = len(db_query_calls)
+
+        # With the cache, the genome existence checker should never reach the DB
+        # for agents added in the same session.  The only DB interactions should be
+        # the batch-write calls (one per add_agent via log_agents_batch).
+        self.assertLessEqual(
+            query_call_count,
+            n_agents,
+            f"Expected at most {n_agents} DB calls (one batch-write per agent), "
+            f"got {query_call_count}. Cache may not be preventing existence queries.",
+        )
+
+        # All agents should have a genome_id in the cache
+        for i in range(n_agents):
+            agent_id = f"bulk_agent_{i}"
+            agent_obj = self.env._agent_objects.get(agent_id)
+            self.assertIsNotNone(agent_obj)
+            self.assertIn(agent_obj.genome_id, self.env._genome_id_cache)
 
 
 if __name__ == "__main__":
