@@ -2,6 +2,22 @@
 
 This note documents how to capture and interpret learning-rate convergence from the hyperparameter chromosome evolution runner.
 
+## Quick start: stable preset
+
+The recommended way to run an experiment for the first time is via the `stable_hyper_evo` named preset. It encodes the configuration found to prevent lower-bound collapse and diversity collapse in the closure runs described below:
+
+```bash
+source venv/bin/activate
+python scripts/run_evolution_experiment.py \
+  --preset stable_hyper_evo \
+  --generations 8 \
+  --population-size 10 \
+  --steps-per-candidate 80 \
+  --output-dir experiments/evolution_smoke
+```
+
+The preset sets `--selection-method tournament`, `--boundary-mode reflect`, `--mutation-rate 0.20`, `--mutation-scale 0.15`, and enables adaptive mutation. Any flag you pass explicitly overrides the preset value.
+
 ## Methodology
 
 - Runner: `scripts/run_evolution_experiment.py`
