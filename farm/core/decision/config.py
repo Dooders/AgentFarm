@@ -159,6 +159,32 @@ class DecisionConfig(BaseDQNConfig):
     rl_train_freq: int = Field(
         default=4, description="How often to train RL algorithms (every N steps)"
     )
+
+    # Prioritized Experience Replay (PER) configuration
+    replay_strategy: str = Field(
+        default="uniform",
+        description="Replay sampling strategy: 'uniform' (default) or 'prioritized'",
+    )
+    per_alpha: float = Field(
+        default=0.6,
+        description="PER exponent controlling prioritisation strength (0=uniform, 1=full)",
+    )
+    per_beta_start: float = Field(
+        default=0.4,
+        description="Initial IS-weight correction exponent for PER annealing",
+    )
+    per_beta_end: float = Field(
+        default=1.0,
+        description="Final IS-weight correction exponent (reached after per_beta_steps updates)",
+    )
+    per_beta_steps: int = Field(
+        default=100_000,
+        description="Number of update_beta() calls over which beta anneals from per_beta_start to per_beta_end",
+    )
+    per_epsilon: float = Field(
+        default=1e-6,
+        description="Small stability floor added to priorities to avoid zero-probability transitions",
+    )
     feature_engineering: List[str] = Field(
         default_factory=list, description="Optional feature engineering flags"
     )
@@ -224,6 +250,38 @@ class DecisionConfig(BaseDQNConfig):
         """Validate weights are non-negative."""
         if v < 0:
             raise ValueError("weights must be non-negative")
+        return v
+
+    @field_validator("replay_strategy")
+    @classmethod
+    def validate_replay_strategy(cls, v):
+        """Validate replay strategy is one of the supported values."""
+        if v not in ("uniform", "prioritized"):
+            raise ValueError("replay_strategy must be 'uniform' or 'prioritized'")
+        return v
+
+    @field_validator("per_alpha", "per_beta_start", "per_beta_end")
+    @classmethod
+    def validate_per_exponents(cls, v):
+        """Validate PER exponents are in [0, 1]."""
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("PER exponents must be in [0, 1]")
+        return v
+
+    @field_validator("per_epsilon")
+    @classmethod
+    def validate_per_epsilon(cls, v):
+        """Validate per_epsilon is positive."""
+        if v <= 0:
+            raise ValueError("per_epsilon must be positive")
+        return v
+
+    @field_validator("per_beta_steps")
+    @classmethod
+    def validate_per_beta_steps(cls, v):
+        """Validate per_beta_steps is positive."""
+        if v <= 0:
+            raise ValueError("per_beta_steps must be positive")
         return v
 
     @field_validator("algorithm_type")

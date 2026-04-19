@@ -8,15 +8,17 @@ from .ensemble import (
 )
 from .mlp import MLPActionSelector
 from .tianshou import A2CWrapper, DDPGWrapper, DQNWrapper, PPOWrapper, SACWrapper
-from .rl_base import RLAlgorithm, SimpleReplayBuffer
+from .rl_base import ExperienceReplayBuffer, PrioritizedReplayBuffer, RLAlgorithm, SimpleReplayBuffer
 from .svm import SVMActionSelector
 
 __all__ = [
     # Base classes
     "ActionAlgorithm",
     "AlgorithmRegistry",
+    "ExperienceReplayBuffer",
     "RLAlgorithm",
     "SimpleReplayBuffer",
+    "PrioritizedReplayBuffer",
     # Traditional ML algorithms
     "MLPActionSelector",
     "SVMActionSelector",
