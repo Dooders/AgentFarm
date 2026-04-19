@@ -59,9 +59,8 @@ def _freeze_mapping(mapping: Mapping[str, float]) -> Mapping[str, float]:
 # boundary at 1.0, making overshoots likely when the global scale is large.
 # A 0.75× scale softens those boundary hits without suppressing evolution.
 #
-# Users who call :meth:`AdaptiveMutationConfig.with_default_per_gene_multipliers`
-# or set ``use_default_per_gene_multipliers=True`` receive these mappings merged
-# with (but overridable by) their own per-gene configuration.
+# Users who set ``use_default_per_gene_multipliers=True`` receive these mappings
+# merged with (but overridable by) their own per-gene configuration.
 DEFAULT_PER_GENE_SCALE_MULTIPLIERS: Mapping[str, float] = _freeze_mapping(
     {
         "learning_rate": 0.5,
