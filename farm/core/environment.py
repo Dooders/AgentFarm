@@ -71,6 +71,103 @@ from farm.utils.spatial import bilinear_distribute_value
 logger = get_logger(__name__)
 
 
+class _AgentList:
+    """Ordered collection of agent IDs with O(1) membership testing and removal.
+
+    Replaces the plain ``list`` used for PettingZoo's ``agents`` attribute so
+    that :py:meth:`~Environment.remove_agent` and
+    :py:meth:`~Environment.rollback_partial_agent_add` can evict agents in O(1)
+    instead of O(N).  Insertion order is preserved (Python 3.7+ ``dict``
+    ordering) so that round-robin scheduling remains stable.
+
+    A lazily-rebuilt list cache makes positional access (``__getitem__``,
+    ``index``) amortised O(1) between mutations, matching the performance of a
+    plain ``list`` for the common read-heavy case.
+
+    Supports the full list-like interface expected by PettingZoo and the
+    Environment internals: ``append``, ``remove``, ``__contains__``,
+    ``__len__``, ``__bool__``, ``__iter__``, ``__getitem__``, and ``index``.
+    """
+
+    __slots__ = ("_d", "_list_cache")
+
+    def __init__(self, items=None) -> None:
+        self._d: dict = dict.fromkeys(items) if items is not None else {}
+        self._list_cache: Optional[List[str]] = None
+
+    # -- O(1) hot-path operations ------------------------------------------
+
+    def append(self, item: str) -> None:
+        """Add *item* to the end; O(1) amortised."""
+        if item in self._d:
+            return
+        self._d[item] = None
+        if self._list_cache is not None:
+            self._list_cache.append(item)
+
+    def remove(self, item: str) -> None:
+        """Remove *item* by key; O(1).  Raises ``ValueError`` if absent."""
+        try:
+            del self._d[item]
+        except KeyError:
+            raise ValueError(f"{item!r} not in _AgentList") from None
+        self._list_cache = None  # positional order changed; invalidate
+
+    def discard(self, item: str) -> None:
+        """Remove *item* if present; O(1), no error if absent."""
+        if item in self._d:
+            del self._d[item]
+            self._list_cache = None
+
+    def __contains__(self, item: object) -> bool:
+        """O(1) membership test."""
+        return item in self._d
+
+    def __len__(self) -> int:
+        return len(self._d)
+
+    def __bool__(self) -> bool:
+        return bool(self._d)
+
+    # -- Amortised-O(1) positional access (uses lazy list cache) -----------
+
+    def _ensure_cache(self) -> List[str]:
+        if self._list_cache is None:
+            self._list_cache = list(self._d)
+        return self._list_cache
+
+    def __getitem__(self, idx):
+        """Positional access; amortised O(1) between mutations."""
+        return self._ensure_cache()[idx]
+
+    def index(self, item: str) -> int:
+        """Return position of *item*; O(N) scan, but uses fast C list.index."""
+        return self._ensure_cache().index(item)
+
+    # -- Iteration ---------------------------------------------------------
+
+    def __iter__(self):
+        """Iterate in insertion order; O(N)."""
+        return iter(self._d)
+
+    def __eq__(self, other: object) -> bool:
+        """Value equality with list-like containers by ordered contents."""
+        if isinstance(other, _AgentList):
+            return self._d.keys() == other._d.keys()
+        if isinstance(other, list):
+            return self._ensure_cache() == other
+        return False
+
+    def copy(self) -> List[str]:
+        """Return a shallow list copy of the ordered agent IDs."""
+        return list(self._d)
+
+    # -- Representation ----------------------------------------------------
+
+    def __repr__(self) -> str:
+        return f"_AgentList({list(self._d)!r})"
+
+
 class Environment(AECEnv):
     """Multi-agent simulation environment for AgentFarm.
 
@@ -91,7 +188,8 @@ class Environment(AECEnv):
     Attributes:
         width (int): Environment width in grid units
         height (int): Environment height in grid units
-        agents (list): List of active agent IDs (PettingZoo requirement)
+        agents (_AgentList): Ordered set of active agent IDs (PettingZoo requirement);
+            supports O(1) membership testing and removal
         resources (list): List of resource nodes in the environment
         time (int): Current simulation time step
         simulation_id (str): Unique identifier for this simulation run
@@ -161,6 +259,10 @@ class Environment(AECEnv):
         Exception
             If database setup fails or resource initialization fails
         """
+        # Initialise the backing store for the ``agents`` property *before*
+        # calling super().__init__() so that any base-class code that reads
+        # ``self.agents`` does not trigger an AttributeError.
+        self._agents_list = _AgentList()
         super().__init__()
         # Set seed if provided
         self.seed_value = seed if seed is not None else config.seed if config and config.seed else None
@@ -301,6 +403,14 @@ class Environment(AECEnv):
         # Initialize agent observations mapping before adding any agents
         self.agent_observations = {}
 
+        # In-memory cache of genome IDs known to exist for this simulation run.
+        # Avoids per-agent DB queries during bulk population initialization.
+        # Must be initialized before the initial_agents loop so that add_agent()
+        # can reference _genome_id_cache without raising AttributeError.
+        self._genome_id_cache: set = set()
+        self._genome_id_cache_loaded: bool = False
+        self._load_genome_id_cache()
+
         # If pre-instantiated agents are provided, add them now
         if initial_agents:
             for agent in initial_agents:
@@ -313,14 +423,21 @@ class Environment(AECEnv):
 
         # Quadtree and spatial hash indices are already initialized above
 
-        # Perception profiler accumulators
-        self._perception_profile = {
+        # Zero-value template for the perception profiler dictionaries.  Using
+        # a shared template avoids coupling the reset logic to key-name patterns.
+        self._perception_profile_zeros: Dict[str, Any] = {
             "spatial_query_time_s": 0.0,
             "bilinear_time_s": 0.0,
             "nearest_time_s": 0.0,
             "bilinear_points": 0,
             "nearest_points": 0,
         }
+
+        # Perception profiler accumulators (step-level; reset each update() call)
+        self._perception_profile: Dict[str, Any] = dict(self._perception_profile_zeros)
+
+        # Cumulative perception profiler accumulators (full simulation lifetime)
+        self._perception_profile_cumulative: Dict[str, Any] = dict(self._perception_profile_zeros)
 
         # Population milestone tracking
         self._logged_population_milestones = set()
@@ -344,6 +461,28 @@ class Environment(AECEnv):
             observation_channels=getattr(self, "NUM_CHANNELS", None),
             action_count=(len(self._action_mapping) if hasattr(self, "_action_mapping") else None),
         )
+
+    # ------------------------------------------------------------------
+    # agents property – O(1) backed ordered set
+    # ------------------------------------------------------------------
+
+    @property
+    def agents(self) -> "_AgentList":
+        """Ordered collection of active agent IDs with O(1) membership and removal.
+
+        Preserves insertion order for stable round-robin scheduling while
+        providing O(1) ``append``, ``remove``, and ``in`` operations.
+        Compatible with the PettingZoo AEC iteration protocol.
+        """
+        return self._agents_list
+
+    @agents.setter
+    def agents(self, value) -> None:
+        """Replace the agent collection; accepts any iterable."""
+        if isinstance(value, _AgentList):
+            self._agents_list = value
+        else:
+            self._agents_list = _AgentList(value)
 
     def _initialize_action_mapping(self) -> None:
         """Initialize the action mapping based on configuration and available actions.
@@ -410,6 +549,39 @@ class Environment(AECEnv):
     def agent_objects(self) -> List[Any]:
         """Backward compatibility property to get all agent objects as a list."""
         return list(self._agent_objects.values())
+
+    def _load_genome_id_cache(self) -> None:
+        """Pre-populate the genome ID cache from the database.
+
+        Loads all genome IDs recorded for this simulation into the in-memory
+        set so that subsequent agent additions can be checked without
+        issuing per-agent DB queries.
+        """
+        if not hasattr(self, "db") or self.db is None:
+            # No DB – cache is empty but authoritative (nothing to load).
+            self._genome_id_cache_loaded = True
+            return
+        try:
+            from farm.database.models import AgentModel
+
+            genome_ids = self.db._execute_in_transaction(
+                lambda session: [
+                    row.genome_id
+                    for row in session.query(AgentModel.genome_id)
+                    .filter(AgentModel.simulation_id == self.simulation_id)
+                    .all()
+                ]
+            )
+            if genome_ids:
+                self._genome_id_cache.update(gid for gid in genome_ids if gid is not None)
+            # Mark cache as fully loaded so the checker can skip DB on miss.
+            self._genome_id_cache_loaded = True
+        except Exception:
+            logger.warning(
+                "genome_id_cache_preload_failed",
+                simulation_id=self.simulation_id,
+            )
+            # _genome_id_cache_loaded remains False; checker will fall back to DB.
 
     @property
     def alive_agent_objects(self) -> List[Any]:
@@ -847,16 +1019,20 @@ class Environment(AECEnv):
             spatial_stats = self.get_spatial_performance_stats()
             self.metrics_tracker.update_spatial_performance_metrics(spatial_stats)
 
-            # Update spatial index (this will process any pending batch updates)
+            # Update spatial index (flushes any pending batch updates and rebuilds indices)
             self.spatial_index.update()
-
-            # Process any remaining batch updates to ensure all position changes are applied
-            self.process_batch_spatial_updates(force=True)
 
             # Reset counters for next step
             self.resources_shared_this_step = 0
             self.combat_encounters_this_step = 0
             self.successful_attacks_this_step = 0
+
+            # Accumulate step-level perception stats into cumulative totals, then
+            # reset the step-level accumulators so each step reflects only its own
+            # perception activity.
+            for key, value in self._perception_profile.items():
+                self._perception_profile_cumulative[key] += value
+            self._reset_perception_profile_step()
 
             # Log milestone every 100 steps
             if self.time % 100 == 0 and self.time > 0:
@@ -1144,10 +1320,20 @@ class Environment(AECEnv):
         # Generate and set genome_id if not already set
         if not agent.genome_id or agent.genome_id == "":
             parent_ids = agent.state.parent_ids
-            
-            # Create database checker callback to query existing genome IDs
+
+            # Create database checker callback; checks in-memory cache first,
+            # only falls back to a DB query on a cache miss when the cache
+            # was not successfully pre-loaded from DB on startup.
             def check_genome_id_exists(genome_id: str) -> bool:
-                """Check if a genome_id exists in the database for this simulation."""
+                """Check if a genome_id exists for this simulation."""
+                # Fast path: in-memory cache avoids DB round-trips during bulk creation
+                if genome_id in self._genome_id_cache:
+                    return True
+                # If the cache was successfully pre-loaded it is authoritative:
+                # a miss means the ID is not in the DB for this simulation.
+                if self._genome_id_cache_loaded:
+                    return False
+                # Slow path: fall back to DB only when pre-load failed
                 if not hasattr(self, "db") or self.db is None:
                     return False
                 try:
@@ -1161,17 +1347,30 @@ class Environment(AECEnv):
                         .first()
                         is not None
                     )
+                    if result:
+                        # Populate cache so future checks avoid another DB hit
+                        self._genome_id_cache.add(genome_id)
+                    # False results are not cached: Identity.genome_id() exits
+                    # the checker loop on the first False, so the same absent ID
+                    # is never queried twice within a single add_agent call.
                     return result
                 except Exception:
                     # If database query fails, assume it doesn't exist
                     return False
-            
+
             genome_id = self.identity.genome_id(
                 parent_ids=parent_ids,
                 existing_genome_checker=check_genome_id_exists,
             )
             # Update genome_id in agent state
             agent.state._state = agent.state._state.model_copy(update={"genome_id": str(genome_id)})
+            # Update in-memory cache so subsequent agents don't need a DB query
+            self._genome_id_cache.add(str(genome_id))
+        else:
+            # Agent already has a genome_id; register it in the cache so that
+            # subsequent genome_id generation cannot collide with it when the
+            # cache is treated as authoritative (_genome_id_cache_loaded=True).
+            self._genome_id_cache.add(agent.genome_id)
 
         agent_data = [
             {
@@ -2285,17 +2484,52 @@ class Environment(AECEnv):
             )
             return {}
 
+    def _reset_perception_profile_step(self) -> None:
+        """Reset step-level perception profiler accumulators to zero."""
+        self._perception_profile = dict(self._perception_profile_zeros)
+
+    def reset_perception_profile(self) -> None:
+        """Reset step-level perception profiler accumulators to zero.
+
+        This is a public convenience wrapper around the internal reset used by
+        ``update()``. It is useful when callers (e.g. benchmarks) need to
+        discard any profiling data that accumulated before their measurement
+        window starts.
+        """
+        self._reset_perception_profile_step()
+
     def get_perception_profile(self, reset: bool = False) -> Dict[str, float]:
-        """Return aggregated perception profiling stats.
+        """Return step-level perception profiling stats.
+
+        These values represent activity that occurred in the **current step**
+        only.  They are reset automatically at the end of every ``update()``
+        call so that each step's numbers are independent.
 
         Args:
-            reset: If True, reset accumulators after returning.
+            reset: If True, reset the step-level accumulators after returning
+                   the current values.  This is occasionally useful for
+                   benchmarking within a single step.
+
+        Returns:
+            A copy of the step-level perception profile dict.
         """
         prof = dict(self._perception_profile)
         if reset:
-            for k in self._perception_profile.keys():
-                self._perception_profile[k] = 0 if "points" in k else 0.0
+            self._reset_perception_profile_step()
         return prof
+
+    def get_cumulative_perception_profile(self) -> Dict[str, float]:
+        """Return cumulative perception profiling stats for the full simulation.
+
+        Unlike :meth:`get_perception_profile`, these values accumulate across
+        **all** steps and are never automatically reset during normal operation.
+        They are useful for long-horizon analysis such as computing average
+        perception cost per step when divided by ``self.time``.
+
+        Returns:
+            A copy of the cumulative perception profile dict.
+        """
+        return dict(self._perception_profile_cumulative)
 
     def render(self, mode: str = "human") -> None:
         """Render the current state of the environment.

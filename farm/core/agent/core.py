@@ -22,6 +22,7 @@ from farm.core.hyperparameter_chromosome import (
     chromosome_from_learning_config,
     mutate_chromosome,
 )
+from farm.core.environment import _AgentList
 from farm.core.state import AgentState, AgentStateManager
 from farm.utils.logging import get_logger
 
@@ -117,6 +118,11 @@ class AgentCore:
 
         # Component storage
         self._components: Dict[str, AgentComponent] = {}
+
+        # Short-lived observation cache (per-step).  Invalidated at the start of
+        # each step and whenever position, health, or resource level changes.
+        self._obs_cache: Optional[torch.Tensor] = None
+        self._obs_cache_valid: bool = False
 
         # Attach all components
         for component in components:
@@ -274,6 +280,10 @@ class AgentCore:
         if not self.alive:
             return
 
+        # Invalidate observation cache so the first _create_observation() call
+        # this step always builds a fresh tensor from the current world state.
+        self._invalidate_obs_cache()
+
         # Call on_step_start on all components
         for component in self._components.values():
             try:
@@ -307,9 +317,6 @@ class AgentCore:
             except Exception:
                 pass
 
-        # Update state snapshot
-        self._update_state_snapshot()
-
     def act(self) -> None:
         """
         Alias for step() for consistency with agent lifecycle.
@@ -319,25 +326,40 @@ class AgentCore:
         """
         self.step()
 
+    def _invalidate_obs_cache(self) -> None:
+        """Invalidate the observation cache, forcing recomputation on next call."""
+        self._obs_cache_valid = False
+        self._obs_cache = None
+
     def _create_observation(self) -> torch.Tensor:
         """
         Create observation tensor for decision-making using the perception component.
 
-        This method now only uses the perception component to ensure a single,
-        consistent observation path through the agent.
+        Returns a cached tensor when the agent's position, health, and resource
+        level are unchanged since the last call (e.g. no-op/pass actions). The
+        cache is invalidated at the start of every step and whenever
+        ``_invalidate_obs_cache`` is called explicitly after a state change.
         """
+        # Return cached observation if still valid (avoids duplicate spatial
+        # query and tensor build for no-op equivalent steps).
+        if self._obs_cache_valid and self._obs_cache is not None:
+            return self._obs_cache
+
         perception_comp = self.get_component("perception")
         if perception_comp:
             try:
-                return perception_comp.get_observation_tensor(self.device)
+                result = perception_comp.get_observation_tensor(self.device)
             except Exception as e:
                 logger.error(f"Failed to get observation from perception component: {e}")
-                # Return a zero tensor as fallback
-                return torch.zeros((1, 11, 11), dtype=torch.float32, device=self.device)
+                result = torch.zeros((1, 11, 11), dtype=torch.float32, device=self.device)
+        else:
+            # If no perception component, return zero tensor
+            logger.warning("No perception component available for agent observation")
+            result = torch.zeros((1, 11, 11), dtype=torch.float32, device=self.device)
 
-        # If no perception component, return zero tensor
-        logger.warning("No perception component available for agent observation")
-        return torch.zeros((1, 11, 11), dtype=torch.float32, device=self.device)
+        self._obs_cache = result
+        self._obs_cache_valid = True
+        return result
 
     def _get_enabled_actions(self) -> Optional[list[Action]]:
         """Get list of enabled actions based on curriculum learning if configured."""
@@ -367,6 +389,16 @@ class AgentCore:
 
         # Capture resource level before action execution for accurate logging
         resources_before = pre_action_state.resource_level
+
+        # Capture component-level values before the action so we can detect
+        # action-caused changes without being confused by the deferred state-sync
+        # that _update_state_snapshot() performs after on_step_start() runs.
+        movement_comp = self.get_component("movement")
+        combat_comp = self.get_component("combat")
+        resource_comp_ref = self.get_component("resource")
+        _pre_position = movement_comp.position if movement_comp else None
+        _pre_health = combat_comp.health if combat_comp else None
+        _pre_resources = resource_comp_ref.level if resource_comp_ref else None
 
         # Execute action
         try:
@@ -422,7 +454,24 @@ class AgentCore:
                 # Log warning but don't crash on database logging failure
                 logger.warning(f"Failed to log agent action {action.name}: {e}")
 
-        # Get next state
+        # Invalidate the observation cache for any non-noop action. Many actions
+        # can change observation-relevant world state without changing this
+        # agent's own position/health/resource level (for example, attacking or
+        # gathering can change nearby entities returned by perception queries).
+        # Keep the cache only for explicit no-op/pass actions that we know leave
+        # the world unchanged.
+        _post_position = movement_comp.position if movement_comp else None
+        _post_health = combat_comp.health if combat_comp else None
+        _post_resources = resource_comp_ref.level if resource_comp_ref else None
+        _self_state_changed = (
+            _post_position != _pre_position
+            or _post_health != _pre_health
+            or _post_resources != _pre_resources
+        )
+        if action.name != "pass" or _self_state_changed:
+            self._invalidate_obs_cache()
+
+        # Get next state (uses cache when nothing changed, e.g. pass/no-op)
         next_state_tensor = self._create_observation()
 
         # Update behavior with experience
@@ -794,7 +843,7 @@ class AgentCore:
         agent_objects = getattr(self.environment, "_agent_objects", None)
         in_objects = bool(isinstance(agent_objects, dict) and agent_id in agent_objects)
         agent_ids = getattr(self.environment, "agents", None)
-        in_ids = bool(isinstance(agent_ids, list) and agent_id in agent_ids)
+        in_ids = bool(isinstance(agent_ids, (list, _AgentList)) and agent_id in agent_ids)
         return in_objects or in_ids
 
     def _rollback_offspring_from_environment(self, agent_id: str) -> bool:
@@ -834,7 +883,7 @@ class AgentCore:
                 self.environment._agent_objects.pop(agent_id, None)
             if (
                 hasattr(self.environment, "agents")
-                and isinstance(self.environment.agents, list)
+                and isinstance(self.environment.agents, (list, _AgentList))
                 and agent_id in self.environment.agents
             ):
                 self.environment.agents.remove(agent_id)
