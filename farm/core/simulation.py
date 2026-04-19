@@ -510,7 +510,11 @@ def run_simulation(
             # calling flush_all_buffers() unconditionally here was redundant
             # and caused unnecessary transaction overhead.
             if environment.db is not None:
-                environment.db.logger.flush_if_needed()
+                data_logger = environment.db.logger
+                if hasattr(data_logger, "flush_if_needed"):
+                    data_logger.flush_if_needed()
+                else:
+                    data_logger.flush_all_buffers()
             
             # Update environment once per step
             environment.update()

@@ -86,7 +86,6 @@ class DataLogger(DataLoggerProtocol):
         return bool(
             self._action_buffer
             or self._health_incident_buffer
-            or self._resource_buffer
             or self._step_buffer
         )
 
@@ -106,6 +105,8 @@ class DataLogger(DataLoggerProtocol):
         callers should use this method rather than calling
         ``flush_all_buffers()`` unconditionally.
         """
+        if not self.needs_flush:
+            return
         self._check_time_based_flush()
 
     def log_agent_action(
@@ -666,3 +667,17 @@ class ShardedDataLogger:
         for shard_id, databases in self.sharded_db.shards.items():
             for db_type, db in databases.items():
                 db.logger.flush_all_buffers()
+
+    def flush_if_needed(self):
+        """Flush shard buffers when their periodic flush criteria are met.
+
+        Falls back to ``flush_all_buffers`` for shard loggers that do not yet
+        implement ``flush_if_needed``.
+        """
+        for shard_id, databases in self.sharded_db.shards.items():
+            for db_type, db in databases.items():
+                shard_logger = db.logger
+                if hasattr(shard_logger, "flush_if_needed"):
+                    shard_logger.flush_if_needed()
+                else:
+                    shard_logger.flush_all_buffers()

@@ -201,6 +201,13 @@ class TestDataLoggerBuffering(unittest.TestCase):
         # Buffer must still have the pending item.
         self.assertTrue(self.logger.needs_flush)
 
+    def test_flush_if_needed_noop_when_no_pending_buffers(self):
+        """flush_if_needed should not touch DB when there is nothing to flush."""
+        self.db._execute_in_transaction = Mock()
+        self.logger._last_commit_time -= self.logger._commit_interval + 1
+        self.logger.flush_if_needed()
+        self.db._execute_in_transaction.assert_not_called()
+
     def test_auto_flush_on_buffer_full(self):
         """When buffer reaches buffer_size the actions should be flushed."""
         self.mock_session.bulk_insert_mappings = Mock()
@@ -341,6 +348,7 @@ class TestShardedDataLogger(unittest.TestCase):
         shard_logger.log_metrics = Mock()
         shard_logger.log_agent_action = Mock()
         shard_logger.flush_all_buffers = Mock()
+        shard_logger.flush_if_needed = Mock()
         db_shard = Mock()
         db_shard.logger = shard_logger
         return db_shard
@@ -411,6 +419,20 @@ class TestShardedDataLogger(unittest.TestCase):
         logger.flush_all_buffers()
         # With 2 shards × 4 shard types = 8 calls
         self.assertGreaterEqual(shard.logger.flush_all_buffers.call_count, 4)
+
+    def test_flush_if_needed_uses_shard_flush_if_needed_when_available(self):
+        sharded_db, shard = self._make_sharded_db()
+        logger = ShardedDataLogger(sharded_db, simulation_id="sim_001")
+        logger.flush_if_needed()
+        self.assertGreaterEqual(shard.logger.flush_if_needed.call_count, 1)
+        shard.logger.flush_all_buffers.assert_not_called()
+
+    def test_flush_if_needed_falls_back_to_flush_all_buffers(self):
+        sharded_db, shard = self._make_sharded_db()
+        del shard.logger.flush_if_needed
+        logger = ShardedDataLogger(sharded_db, simulation_id="sim_001")
+        logger.flush_if_needed()
+        self.assertGreaterEqual(shard.logger.flush_all_buffers.call_count, 1)
 
 
 if __name__ == "__main__":
