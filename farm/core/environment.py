@@ -92,7 +92,7 @@ class _AgentList:
     __slots__ = ("_d", "_list_cache")
 
     def __init__(self, items=None) -> None:
-        self._d: dict = dict.fromkeys(items) if items else {}
+        self._d: dict = dict.fromkeys(items) if items is not None else {}
         self._list_cache: Optional[List[str]] = None
 
     # -- O(1) hot-path operations ------------------------------------------
@@ -438,17 +438,18 @@ class Environment(AECEnv):
     # ------------------------------------------------------------------
 
     @property
-    def agents(self) -> _AgentList:
-        """Ordered set of active agent IDs.
+    def agents(self) -> "_AgentList":
+        """Ordered collection of active agent IDs with O(1) membership and removal.
 
-        Backed by :class:`_AgentList` for O(1) membership testing and removal
-        while preserving PettingZoo-compatible iteration order.
+        Preserves insertion order for stable round-robin scheduling while
+        providing O(1) ``append``, ``remove``, and ``in`` operations.
+        Compatible with the PettingZoo AEC iteration protocol.
         """
         return self._agents_list
 
     @agents.setter
     def agents(self, value) -> None:
-        """Replace the agent list; accepts any iterable (converted to _AgentList)."""
+        """Replace the agent collection; accepts any iterable."""
         if isinstance(value, _AgentList):
             self._agents_list = value
         else:

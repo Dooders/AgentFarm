@@ -193,7 +193,7 @@ class TestEnvironment(unittest.TestCase):
         self.assertEqual(self.env.time, 0)
         self.assertIsInstance(self.env.agent_objects, list)
         self.assertIsInstance(self.env.resources, list)
-        # agents uses a dict-backed ordered set (_AgentList) for O(1) operations;
+        # agents uses a dict-backed ordered collection for O(1) operations;
         # verify it supports the required list-like interface.
         self.assertTrue(hasattr(self.env.agents, "__iter__"))
         self.assertTrue(hasattr(self.env.agents, "__len__"))
