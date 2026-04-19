@@ -504,10 +504,13 @@ def run_simulation(
                 for agent in batch:
                     agent.act()
 
-            # Ensure all database operations are flushed before environment update
-            # This prevents timing mismatches between metrics calculation and agent database logging
+            # Flush buffered DB writes on a time-based schedule rather than
+            # every step.  Buffer-size-based flushing is already handled
+            # inside log_agent_action / log_health_incident / log_step, so
+            # calling flush_all_buffers() unconditionally here was redundant
+            # and caused unnecessary transaction overhead.
             if environment.db is not None:
-                environment.db.logger.flush_all_buffers()
+                environment.db.logger.flush_if_needed()
             
             # Update environment once per step
             environment.update()

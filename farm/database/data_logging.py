@@ -80,12 +80,33 @@ class DataLogger(DataLoggerProtocol):
         self._resource_buffer = []
         self._step_buffer = []
 
+    @property
+    def needs_flush(self) -> bool:
+        """Return True if any buffer has pending data waiting to be written."""
+        return bool(
+            self._action_buffer
+            or self._health_incident_buffer
+            or self._resource_buffer
+            or self._step_buffer
+        )
+
     def _check_time_based_flush(self):
         """Check if we should flush based on time interval."""
         current_time = time.time()
         if current_time - self._last_commit_time >= self._commit_interval:
             self.flush_all_buffers()
             self._last_commit_time = current_time
+
+    def flush_if_needed(self) -> None:
+        """Flush buffers only when the time-based commit interval has elapsed.
+
+        This is the preferred public entry point for periodic flush calls
+        (e.g., once per simulation step).  Buffer-size-based flushing is
+        already handled internally by each individual ``log_*`` method, so
+        callers should use this method rather than calling
+        ``flush_all_buffers()`` unconditionally.
+        """
+        self._check_time_based_flush()
 
     def log_agent_action(
         self,
@@ -253,7 +274,13 @@ class DataLogger(DataLoggerProtocol):
             raise
 
     def flush_all_buffers(self) -> None:
-        """Flush all data buffers to the database in a single transaction."""
+        """Flush all data buffers to the database in a single transaction.
+
+        Returns immediately without touching the database when all buffers
+        are empty, avoiding unnecessary transaction overhead.
+        """
+        if not self.needs_flush:
+            return
 
         def _flush(session):
             # Disable autoflush during bulk operations
