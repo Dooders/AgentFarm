@@ -454,17 +454,21 @@ class AgentCore:
                 # Log warning but don't crash on database logging failure
                 logger.warning(f"Failed to log agent action {action.name}: {e}")
 
-        # Invalidate the observation cache only when the action itself changed
-        # position, health, or resource level (comparing component-level values
-        # avoids false positives from the deferred state sync of on_step_start).
+        # Invalidate the observation cache for any non-noop action. Many actions
+        # can change observation-relevant world state without changing this
+        # agent's own position/health/resource level (for example, attacking or
+        # gathering can change nearby entities returned by perception queries).
+        # Keep the cache only for explicit no-op/pass actions that we know leave
+        # the world unchanged.
         _post_position = movement_comp.position if movement_comp else None
         _post_health = combat_comp.health if combat_comp else None
         _post_resources = resource_comp_ref.level if resource_comp_ref else None
-        if (
+        _self_state_changed = (
             _post_position != _pre_position
             or _post_health != _pre_health
             or _post_resources != _pre_resources
-        ):
+        )
+        if action.name != "pass" or _self_state_changed:
             self._invalidate_obs_cache()
 
         # Get next state (uses cache when nothing changed, e.g. pass/no-op)

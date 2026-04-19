@@ -391,6 +391,14 @@ class Environment(AECEnv):
         # Initialize agent observations mapping before adding any agents
         self.agent_observations = {}
 
+        # In-memory cache of genome IDs known to exist for this simulation run.
+        # Avoids per-agent DB queries during bulk population initialization.
+        # Must be initialized before the initial_agents loop so that add_agent()
+        # can reference _genome_id_cache without raising AttributeError.
+        self._genome_id_cache: set = set()
+        self._genome_id_cache_loaded: bool = False
+        self._load_genome_id_cache()
+
         # If pre-instantiated agents are provided, add them now
         if initial_agents:
             for agent in initial_agents:
@@ -421,12 +429,6 @@ class Environment(AECEnv):
 
         # Population milestone tracking
         self._logged_population_milestones = set()
-
-        # In-memory cache of genome IDs known to exist for this simulation run.
-        # Avoids per-agent DB queries during bulk population initialization.
-        self._genome_id_cache: set = set()
-        self._genome_id_cache_loaded: bool = False
-        self._load_genome_id_cache()
 
         # Resource depletion warning tracking
         self._initial_total_resources = None
@@ -1352,6 +1354,11 @@ class Environment(AECEnv):
             agent.state._state = agent.state._state.model_copy(update={"genome_id": str(genome_id)})
             # Update in-memory cache so subsequent agents don't need a DB query
             self._genome_id_cache.add(str(genome_id))
+        else:
+            # Agent already has a genome_id; register it in the cache so that
+            # subsequent genome_id generation cannot collide with it when the
+            # cache is treated as authoritative (_genome_id_cache_loaded=True).
+            self._genome_id_cache.add(agent.genome_id)
 
         agent_data = [
             {
