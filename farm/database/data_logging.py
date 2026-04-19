@@ -96,6 +96,17 @@ class DataLogger(DataLoggerProtocol):
             self.flush_all_buffers()
             self._last_commit_time = current_time
 
+    def flush_if_needed(self) -> None:
+        """Flush buffers only when the time-based commit interval has elapsed.
+
+        This is the preferred public entry point for periodic flush calls
+        (e.g., once per simulation step).  Buffer-size-based flushing is
+        already handled internally by each individual ``log_*`` method, so
+        callers should use this method rather than calling
+        ``flush_all_buffers()`` unconditionally.
+        """
+        self._check_time_based_flush()
+
     def log_agent_action(
         self,
         step_number: int,

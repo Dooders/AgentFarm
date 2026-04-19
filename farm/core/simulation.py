@@ -510,7 +510,7 @@ def run_simulation(
             # calling flush_all_buffers() unconditionally here was redundant
             # and caused unnecessary transaction overhead.
             if environment.db is not None:
-                environment.db.logger._check_time_based_flush()
+                environment.db.logger.flush_if_needed()
             
             # Update environment once per step
             environment.update()
