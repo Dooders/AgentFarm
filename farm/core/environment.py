@@ -177,6 +177,7 @@ class Environment(AECEnv):
         self.height = height
         self.agents = []
         self._agent_objects = {}  # Internal mapping: agent_id -> agent object
+        self._alive_agents: set = set()  # Set of agent_ids that are currently alive
         self.resources = []
         self.time = 0
 
@@ -409,6 +410,16 @@ class Environment(AECEnv):
     def agent_objects(self) -> List[Any]:
         """Backward compatibility property to get all agent objects as a list."""
         return list(self._agent_objects.values())
+
+    @property
+    def alive_agent_objects(self) -> List[Any]:
+        """Return a list of agent objects that are currently alive.
+
+        Uses the incrementally-maintained ``_alive_agents`` set for O(k) access
+        (where k is the number of alive agents) rather than iterating all agent
+        objects and filtering by ``agent.alive``.
+        """
+        return [self._agent_objects[aid] for aid in self._alive_agents if aid in self._agent_objects]
 
     def mark_positions_dirty(self) -> None:
         """Public method for agents to mark positions as dirty when they move."""
@@ -684,6 +695,7 @@ class Environment(AECEnv):
 
         if agent_id in self._agent_objects:
             del self._agent_objects[agent_id]
+        self._alive_agents.discard(agent_id)
         if agent_id in self.agents:
             self.agents.remove(agent_id)  # Remove from PettingZoo agents list
 
@@ -1161,6 +1173,8 @@ class Environment(AECEnv):
 
         # Add to environment
         self._agent_objects[agent.agent_id] = agent
+        if getattr(agent, "alive", True):
+            self._alive_agents.add(agent.agent_id)
         self.agents.append(agent.agent_id)  # Add to PettingZoo agents list
 
         # Initialize PettingZoo state dictionaries for the new agent
@@ -1244,6 +1258,7 @@ class Environment(AECEnv):
         try:
             if agent_id in self._agent_objects:
                 del self._agent_objects[agent_id]
+            self._alive_agents.discard(agent_id)
             if agent_id in self.agents:
                 self.agents.remove(agent_id)
 
@@ -2069,6 +2084,7 @@ class Environment(AECEnv):
         if options and isinstance(options, dict) and options.get("agents") is not None:
             # Clear existing agents and re-add provided ones
             self._agent_objects = {}
+            self._alive_agents = set()
             self.agents = []
             self.agent_observations = {}
             for agent in options.get("agents", []):
@@ -2086,8 +2102,9 @@ class Environment(AECEnv):
         self._agents_acted_this_cycle = 0
         self._cycle_complete = False
 
-        # Rebuild PettingZoo agent lists from current alive agents
-        self.agents = [a.agent_id for a in self._agent_objects.values() if a.alive]
+        # Rebuild PettingZoo agent lists and alive-agents set from current alive agents
+        self._alive_agents = {a.agent_id for a in self._agent_objects.values() if a.alive}
+        self.agents = list(self._alive_agents)
         self.agent_selection = self.agents[0] if self.agents else None
         self.rewards = {a: 0 for a in self.agents}
         self._cumulative_rewards = {a: 0 for a in self.agents}

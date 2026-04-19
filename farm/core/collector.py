@@ -12,7 +12,7 @@ class DataCollector:
         self.agent_resource_history = {}
 
     def collect(self, environment, step):
-        alive_agents = [agent for agent in environment.agent_objects if agent.alive]
+        alive_agents = environment.alive_agent_objects
 
         for agent in alive_agents:
             if agent.agent_id not in self.agent_resource_history:
@@ -53,7 +53,7 @@ class DataCollector:
         self.competitive_interactions = 0
 
     def _calculate_average_lifespan(self, environment):
-        alive_agents = [agent for agent in environment.agent_objects if agent.alive]
+        alive_agents = environment.alive_agent_objects
         return (
             sum(
                 environment.time - getattr(agent, "birth_time", 0)
