@@ -201,6 +201,22 @@ class TestEnvironment(unittest.TestCase):
         self.assertIsNotNone(self.env.observation_space)
         self.assertIsNotNone(self.env.action_space)
 
+    def test_agents_equals_list_by_ordered_value(self):
+        """agents should compare equal to a list with the same ordering."""
+        ordered_ids = [agent.agent_id for agent in self.env.agent_objects]
+        self.assertEqual(self.env.agents, ordered_ids)
+        self.assertEqual(ordered_ids, self.env.agents)
+
+    def test_agents_copy_returns_plain_list_snapshot(self):
+        """copy() should return a detached plain list snapshot."""
+        copied = self.env.agents.copy()
+        self.assertIsInstance(copied, list)
+        self.assertEqual(copied, [agent.agent_id for agent in self.env.agent_objects])
+
+        # Mutating the copy must not affect environment state.
+        copied.append("detached_only")
+        self.assertNotIn("detached_only", self.env.agents)
+
     def test_agent_creation(self):
         """Test that agents are properly created during initialization"""
         self.assertGreater(len(self.env.agent_objects), 0)

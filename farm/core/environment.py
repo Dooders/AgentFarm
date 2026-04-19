@@ -150,6 +150,18 @@ class _AgentList:
         """Iterate in insertion order; O(N)."""
         return iter(self._d)
 
+    def __eq__(self, other: object) -> bool:
+        """Value equality with list-like containers by ordered contents."""
+        if isinstance(other, _AgentList):
+            return self._d.keys() == other._d.keys()
+        if isinstance(other, list):
+            return self._ensure_cache() == other
+        return False
+
+    def copy(self) -> List[str]:
+        """Return a shallow list copy of the ordered agent IDs."""
+        return list(self._d)
+
     # -- Representation ----------------------------------------------------
 
     def __repr__(self) -> str:
