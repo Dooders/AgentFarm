@@ -1,6 +1,8 @@
 """Runner exports."""
 
 from farm.runners.adaptive_mutation import (
+    DEFAULT_PER_GENE_RATE_MULTIPLIERS,
+    DEFAULT_PER_GENE_SCALE_MULTIPLIERS,
     AdaptiveMutationConfig,
     AdaptiveMutationController,
     compute_normalized_diversity,
@@ -18,6 +20,8 @@ from farm.runners.evolution_experiment import (
 )
 
 __all__ = [
+    "DEFAULT_PER_GENE_RATE_MULTIPLIERS",
+    "DEFAULT_PER_GENE_SCALE_MULTIPLIERS",
     "AdaptiveMutationConfig",
     "AdaptiveMutationController",
     "compute_normalized_diversity",

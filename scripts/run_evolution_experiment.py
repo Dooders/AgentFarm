@@ -274,6 +274,25 @@ def _build_parser() -> argparse.ArgumentParser:
         help="When --adaptive-mutation is set, skip the diversity-collapse adaptation rule.",
     )
     parser.add_argument(
+        "--adaptive-max-step-multiplier",
+        type=float,
+        default=2.0,
+        help=(
+            "Maximum factor by which the accumulated mutation multiplier may change in a "
+            "single generation.  Bounds per-step change to [1/max_step, max_step] so large "
+            "stall/improve factors are dampened.  Must be >= 1.0.  Default: 2.0."
+        ),
+    )
+    parser.add_argument(
+        "--adaptive-default-per-gene",
+        action="store_true",
+        help=(
+            "Apply built-in per-gene scale defaults tuned for sensitivity "
+            "(learning_rate=0.5×, gamma=0.75×, epsilon_decay=0.75× scale).  "
+            "User --adaptive-per-gene-scale values override these defaults."
+        ),
+    )
+    parser.add_argument(
         "--adaptive-per-gene-rate",
         type=str,
         default=None,
@@ -441,6 +460,8 @@ def main() -> int:
                 improve_multiplier=args.adaptive_improve_multiplier,
                 diversity_threshold=args.adaptive_diversity_threshold,
                 diversity_multiplier=args.adaptive_diversity_multiplier,
+                max_step_multiplier=args.adaptive_max_step_multiplier,
+                use_default_per_gene_multipliers=args.adaptive_default_per_gene,
                 per_gene_rate_multipliers=_parse_per_gene_multipliers(
                     args.adaptive_per_gene_rate, label="--adaptive-per-gene-rate"
                 ),
