@@ -497,7 +497,9 @@ class ResourceManager:
         z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
         z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
         z = z ^ (z >> np.uint64(31))
-        return z.astype(np.float64) / float(2**64)
+        # Use the top 53 bits so conversion to float64 is exact and the result
+        # is guaranteed to stay within [0, 1).
+        return (z >> np.uint64(11)).astype(np.float64) * (2.0**-53)
 
     def _seeded_regen_mask(self, time_step: int, regen_rate: float) -> np.ndarray:
         """Return deterministic per-resource regeneration mask for seeded runs."""
