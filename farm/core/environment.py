@@ -325,6 +325,12 @@ class Environment(AECEnv):
         # Population milestone tracking
         self._logged_population_milestones = set()
 
+        # In-memory cache of genome IDs known to exist for this simulation run.
+        # Avoids per-agent DB queries during bulk population initialization.
+        self._genome_id_cache: set = set()
+        self._genome_id_cache_loaded: bool = False
+        self._load_genome_id_cache()
+
         # Resource depletion warning tracking
         self._initial_total_resources = None
         self._warned_10_percent = False
@@ -410,6 +416,39 @@ class Environment(AECEnv):
     def agent_objects(self) -> List[Any]:
         """Backward compatibility property to get all agent objects as a list."""
         return list(self._agent_objects.values())
+
+    def _load_genome_id_cache(self) -> None:
+        """Pre-populate the genome ID cache from the database.
+
+        Loads all genome IDs recorded for this simulation into the in-memory
+        set so that subsequent agent additions can be checked without
+        issuing per-agent DB queries.
+        """
+        if not hasattr(self, "db") or self.db is None:
+            # No DB – cache is empty but authoritative (nothing to load).
+            self._genome_id_cache_loaded = True
+            return
+        try:
+            from farm.database.models import AgentModel
+
+            genome_ids = self.db._execute_in_transaction(
+                lambda session: [
+                    row.genome_id
+                    for row in session.query(AgentModel.genome_id)
+                    .filter(AgentModel.simulation_id == self.simulation_id)
+                    .all()
+                ]
+            )
+            if genome_ids:
+                self._genome_id_cache.update(gid for gid in genome_ids if gid is not None)
+            # Mark cache as fully loaded so the checker can skip DB on miss.
+            self._genome_id_cache_loaded = True
+        except Exception:
+            logger.warning(
+                "genome_id_cache_preload_failed",
+                simulation_id=self.simulation_id,
+            )
+            # _genome_id_cache_loaded remains False; checker will fall back to DB.
 
     @property
     def alive_agent_objects(self) -> List[Any]:
@@ -1133,10 +1172,20 @@ class Environment(AECEnv):
         # Generate and set genome_id if not already set
         if not agent.genome_id or agent.genome_id == "":
             parent_ids = agent.state.parent_ids
-            
-            # Create database checker callback to query existing genome IDs
+
+            # Create database checker callback; checks in-memory cache first,
+            # only falls back to a DB query on a cache miss when the cache
+            # was not successfully pre-loaded from DB on startup.
             def check_genome_id_exists(genome_id: str) -> bool:
-                """Check if a genome_id exists in the database for this simulation."""
+                """Check if a genome_id exists for this simulation."""
+                # Fast path: in-memory cache avoids DB round-trips during bulk creation
+                if genome_id in self._genome_id_cache:
+                    return True
+                # If the cache was successfully pre-loaded it is authoritative:
+                # a miss means the ID is not in the DB for this simulation.
+                if self._genome_id_cache_loaded:
+                    return False
+                # Slow path: fall back to DB only when pre-load failed
                 if not hasattr(self, "db") or self.db is None:
                     return False
                 try:
@@ -1150,17 +1199,25 @@ class Environment(AECEnv):
                         .first()
                         is not None
                     )
+                    if result:
+                        # Populate cache so future checks avoid another DB hit
+                        self._genome_id_cache.add(genome_id)
+                    # False results are not cached: Identity.genome_id() exits
+                    # the checker loop on the first False, so the same absent ID
+                    # is never queried twice within a single add_agent call.
                     return result
                 except Exception:
                     # If database query fails, assume it doesn't exist
                     return False
-            
+
             genome_id = self.identity.genome_id(
                 parent_ids=parent_ids,
                 existing_genome_checker=check_genome_id_exists,
             )
             # Update genome_id in agent state
             agent.state._state = agent.state._state.model_copy(update={"genome_id": str(genome_id)})
+            # Update in-memory cache so subsequent agents don't need a DB query
+            self._genome_id_cache.add(str(genome_id))
 
         agent_data = [
             {
