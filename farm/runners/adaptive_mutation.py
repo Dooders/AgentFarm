@@ -71,7 +71,10 @@ class AdaptiveMutationConfig:
             the mean normalized gene diversity falls below
             ``diversity_threshold``.
         stall_window: Number of generations to look back for improvement.
-            Must be >= 1.
+            Must be >= 1. During startup, when fewer than
+            ``stall_window + 1`` observations exist, the controller uses the
+            available history so adaptation can begin without waiting for a
+            full window.
         improvement_threshold: Minimum absolute increase in best fitness over
             the window that counts as "improving".  Increases smaller than
             (or equal to) this value are treated as a stall.  Must be >= 0.

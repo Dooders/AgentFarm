@@ -184,6 +184,10 @@ class TestEvolutionExperiment(unittest.TestCase):
             self.assertEqual(len(lineage), 8)
             self.assertEqual(lineage[0]["generation"], 0)
             self.assertEqual(lineage[-1]["generation"], 1)
+            self.assertIn("chromosome", lineage[0])
+            self.assertIn("learning_rate", lineage[0]["chromosome"])
+            self.assertIn("gamma", lineage[0]["chromosome"])
+            self.assertIn("epsilon_decay", lineage[0]["chromosome"])
             self.assertIn("gene_statistics", summaries[0])
             self.assertIn("learning_rate", summaries[0]["gene_statistics"])
             self.assertIn("gamma", summaries[0]["gene_statistics"])
@@ -378,6 +382,35 @@ class TestEvolutionExperimentAdaptiveMutation(unittest.TestCase):
         self.assertAlmostEqual(gen1.mutation_rate_multiplier, 1.0)
         self.assertGreater(gen2.mutation_rate_multiplier, gen1.mutation_rate_multiplier)
         self.assertAlmostEqual(gen2.mutation_rate_used, 0.2 * gen2.mutation_rate_multiplier)
+        self.assertIn("stalled", gen2.adaptive_event)
+
+    def test_adaptive_warmup_uses_partial_history_before_full_stall_window(self):
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=3,
+            population_size=3,
+            num_steps_per_candidate=1,
+            mutation_rate=0.2,
+            adaptive_mutation=AdaptiveMutationConfig(
+                enabled=True,
+                use_fitness_adaptation=True,
+                use_diversity_adaptation=False,
+                stall_window=5,
+                stall_multiplier=2.0,
+                improvement_threshold=1e-6,
+            ),
+            seed=123,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        # Flat fitness should trigger stall adaptation as soon as enough history
+        # exists to compare latest-vs-prior best (without waiting for a full
+        # stall_window+1 observations).
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (1.0, {"member": member})
+        )
+        _, gen1, gen2 = result.generation_summaries
+        self.assertAlmostEqual(gen1.mutation_rate_multiplier, 1.0)
+        self.assertGreater(gen2.mutation_rate_multiplier, 1.0)
         self.assertIn("stalled", gen2.adaptive_event)
 
     @patch("farm.runners.evolution_experiment.mutate_chromosome")

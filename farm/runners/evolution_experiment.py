@@ -117,6 +117,7 @@ class EvolutionCandidateEvaluation:
     generation: int
     fitness: float
     learning_rate: float
+    chromosome_values: Dict[str, float]
     parent_ids: Tuple[str, str]
     metadata: Dict[str, Any]
 
@@ -318,6 +319,7 @@ class EvolutionExperiment:
                     generation=generation,
                     fitness=adjusted_fitness,
                     learning_rate=candidate.chromosome.get_value("learning_rate"),
+                    chromosome_values=self._serialize_chromosome_values(candidate.chromosome),
                     parent_ids=candidate.parent_ids,
                     metadata=metadata_with_lineage,
                 )
@@ -437,10 +439,7 @@ class EvolutionExperiment:
         resolved_gene_statistics = (
             gene_statistics if gene_statistics is not None else self._build_gene_statistics(generation_evals)
         )
-        best_chromosome = {
-            gene.name: gene.value
-            for gene in best.metadata["chromosome"].genes
-        }
+        best_chromosome = self._serialize_chromosome_values(best.metadata["chromosome"])
         produced = produced_with or _ProducedWith.initial()
         return EvolutionGenerationSummary(
             generation=generation,
@@ -500,6 +499,10 @@ class EvolutionExperiment:
                 "max": max(values),
             }
         return gene_statistics
+
+    def _serialize_chromosome_values(self, chromosome: HyperparameterChromosome) -> Dict[str, float]:
+        """Return a stable gene-name/value mapping for artifact serialization."""
+        return {gene.name: gene.value for gene in chromosome.genes}
 
     def _config_for_chromosome(self, chromosome: HyperparameterChromosome) -> SimulationConfig:
         config_copy = self.base_config.copy()
@@ -570,6 +573,7 @@ class EvolutionExperiment:
                 "generation": evaluation.generation,
                 "fitness": evaluation.fitness,
                 "learning_rate": evaluation.learning_rate,
+                "chromosome": evaluation.chromosome_values,
                 "parent_ids": list(evaluation.parent_ids),
                 "metadata": {
                     key: value
