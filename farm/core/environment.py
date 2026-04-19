@@ -71,6 +71,89 @@ from farm.utils.spatial import bilinear_distribute_value
 logger = get_logger(__name__)
 
 
+class _AgentList:
+    """Ordered collection of agent IDs with O(1) membership testing and removal.
+
+    Replaces the plain ``list`` used for PettingZoo's ``agents`` attribute so
+    that :py:meth:`~Environment.remove_agent` and
+    :py:meth:`~Environment.rollback_partial_agent_add` can evict agents in O(1)
+    instead of O(N).  Insertion order is preserved (Python 3.7+ ``dict``
+    ordering) so that round-robin scheduling remains stable.
+
+    A lazily-rebuilt list cache makes positional access (``__getitem__``,
+    ``index``) amortised O(1) between mutations, matching the performance of a
+    plain ``list`` for the common read-heavy case.
+
+    Supports the full list-like interface expected by PettingZoo and the
+    Environment internals: ``append``, ``remove``, ``__contains__``,
+    ``__len__``, ``__bool__``, ``__iter__``, ``__getitem__``, and ``index``.
+    """
+
+    __slots__ = ("_d", "_list_cache")
+
+    def __init__(self, items=None) -> None:
+        self._d: dict = dict.fromkeys(items) if items is not None else {}
+        self._list_cache: Optional[List[str]] = None
+
+    # -- O(1) hot-path operations ------------------------------------------
+
+    def append(self, item: str) -> None:
+        """Add *item* to the end; O(1) amortised."""
+        self._d[item] = None
+        if self._list_cache is not None:
+            self._list_cache.append(item)
+
+    def remove(self, item: str) -> None:
+        """Remove *item* by key; O(1).  Raises ``ValueError`` if absent."""
+        try:
+            del self._d[item]
+        except KeyError:
+            raise ValueError(f"{item!r} not in _AgentList") from None
+        self._list_cache = None  # positional order changed; invalidate
+
+    def discard(self, item: str) -> None:
+        """Remove *item* if present; O(1), no error if absent."""
+        if item in self._d:
+            del self._d[item]
+            self._list_cache = None
+
+    def __contains__(self, item: object) -> bool:
+        """O(1) membership test."""
+        return item in self._d
+
+    def __len__(self) -> int:
+        return len(self._d)
+
+    def __bool__(self) -> bool:
+        return bool(self._d)
+
+    # -- Amortised-O(1) positional access (uses lazy list cache) -----------
+
+    def _ensure_cache(self) -> List[str]:
+        if self._list_cache is None:
+            self._list_cache = list(self._d)
+        return self._list_cache
+
+    def __getitem__(self, idx):
+        """Positional access; amortised O(1) between mutations."""
+        return self._ensure_cache()[idx]
+
+    def index(self, item: str) -> int:
+        """Return position of *item*; O(N) scan, but uses fast C list.index."""
+        return self._ensure_cache().index(item)
+
+    # -- Iteration ---------------------------------------------------------
+
+    def __iter__(self):
+        """Iterate in insertion order; O(N)."""
+        return iter(self._d)
+
+    # -- Representation ----------------------------------------------------
+
+    def __repr__(self) -> str:
+        return f"_AgentList({list(self._d)!r})"
+
+
 class Environment(AECEnv):
     """Multi-agent simulation environment for AgentFarm.
 
@@ -91,7 +174,8 @@ class Environment(AECEnv):
     Attributes:
         width (int): Environment width in grid units
         height (int): Environment height in grid units
-        agents (list): List of active agent IDs (PettingZoo requirement)
+        agents (_AgentList): Ordered set of active agent IDs (PettingZoo requirement);
+            supports O(1) membership testing and removal
         resources (list): List of resource nodes in the environment
         time (int): Current simulation time step
         simulation_id (str): Unique identifier for this simulation run
@@ -161,6 +245,10 @@ class Environment(AECEnv):
         Exception
             If database setup fails or resource initialization fails
         """
+        # Initialise the backing store for the ``agents`` property *before*
+        # calling super().__init__() so that any base-class code that reads
+        # ``self.agents`` does not trigger an AttributeError.
+        self._agents_list = _AgentList()
         super().__init__()
         # Set seed if provided
         self.seed_value = seed if seed is not None else config.seed if config and config.seed else None
@@ -350,6 +438,28 @@ class Environment(AECEnv):
             observation_channels=getattr(self, "NUM_CHANNELS", None),
             action_count=(len(self._action_mapping) if hasattr(self, "_action_mapping") else None),
         )
+
+    # ------------------------------------------------------------------
+    # agents property – O(1) backed ordered set
+    # ------------------------------------------------------------------
+
+    @property
+    def agents(self) -> "_AgentList":
+        """Ordered collection of active agent IDs with O(1) membership and removal.
+
+        Preserves insertion order for stable round-robin scheduling while
+        providing O(1) ``append``, ``remove``, and ``in`` operations.
+        Compatible with the PettingZoo AEC iteration protocol.
+        """
+        return self._agents_list
+
+    @agents.setter
+    def agents(self, value) -> None:
+        """Replace the agent collection; accepts any iterable."""
+        if isinstance(value, _AgentList):
+            self._agents_list = value
+        else:
+            self._agents_list = _AgentList(value)
 
     def _initialize_action_mapping(self) -> None:
         """Initialize the action mapping based on configuration and available actions.
