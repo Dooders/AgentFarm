@@ -428,11 +428,26 @@ class TestShardedDataLogger(unittest.TestCase):
         shard.logger.flush_all_buffers.assert_not_called()
 
     def test_flush_if_needed_falls_back_to_flush_all_buffers(self):
-        sharded_db, shard = self._make_sharded_db()
-        del shard.logger.flush_if_needed
+        # Use spec_set so flush_if_needed is genuinely absent (Mock.__getattr__
+        # would otherwise manufacture it on demand, making hasattr always True).
+        sharded_db = Mock()
+        shard_logger_no_flush = Mock(spec_set=["flush_all_buffers", "log_agent_states",
+                                               "log_agent_actions", "log_agent_action",
+                                               "log_resource_states", "log_simulation_step"])
+        shard = Mock()
+        shard.logger = shard_logger_no_flush
+        sharded_db.shards = {
+            0: {
+                "agents": shard,
+                "resources": shard,
+                "metrics": shard,
+                "actions": shard,
+            }
+        }
+        sharded_db._get_shard_for_step = Mock(return_value=0)
         logger = ShardedDataLogger(sharded_db, simulation_id="sim_001")
         logger.flush_if_needed()
-        self.assertGreaterEqual(shard.logger.flush_all_buffers.call_count, 1)
+        self.assertGreaterEqual(shard_logger_no_flush.flush_all_buffers.call_count, 1)
 
 
 if __name__ == "__main__":

@@ -511,8 +511,9 @@ def run_simulation(
             # and caused unnecessary transaction overhead.
             if environment.db is not None:
                 data_logger = environment.db.logger
-                if hasattr(data_logger, "flush_if_needed"):
-                    data_logger.flush_if_needed()
+                flush = getattr(data_logger, "flush_if_needed", None)
+                if callable(flush):
+                    flush()
                 else:
                     data_logger.flush_all_buffers()
             

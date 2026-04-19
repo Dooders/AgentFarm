@@ -682,7 +682,8 @@ class ShardedDataLogger:
         for shard_id, databases in self.sharded_db.shards.items():
             for db_type, db in databases.items():
                 shard_logger = db.logger
-                if hasattr(shard_logger, "flush_if_needed"):
-                    shard_logger.flush_if_needed()
+                flush_if_needed = getattr(shard_logger, "flush_if_needed", None)
+                if callable(flush_if_needed):
+                    flush_if_needed()
                 else:
                     shard_logger.flush_all_buffers()
