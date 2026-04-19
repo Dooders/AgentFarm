@@ -599,6 +599,110 @@ class TestResourceManager(unittest.TestCase):
         # Should handle gracefully (empty list)
         self.assertEqual(len(resources), 0)
 
+    # ------------------------------------------------------------------
+    # Tests for incremental cached_total_resources delta accounting
+    # ------------------------------------------------------------------
+
+    def test_update_resources_stats_include_resources_consumed(self):
+        """update_resources() must include a 'resources_consumed' key in returned stats."""
+        distribution = {"type": "random", "amount": 5}
+        self.resource_manager.initialize_resources(distribution)
+
+        stats = self.resource_manager.update_resources(time_step=1)
+
+        self.assertIn("resources_consumed", stats)
+        self.assertGreaterEqual(stats["resources_consumed"], 0.0)
+
+    def test_step_resources_consumed_reset_after_update(self):
+        """_step_resources_consumed is reset to 0 after each update_resources call."""
+        resource = Resource(
+            resource_id=0,
+            position=(50.0, 50.0),
+            amount=10.0,
+            max_amount=20.0,
+            regeneration_rate=0.1,
+        )
+        self.resource_manager.resources.append(resource)
+
+        self.resource_manager.consume_resource(resource, 3.0)
+        self.assertEqual(self.resource_manager._step_resources_consumed, 3.0)
+
+        self.resource_manager.update_resources(time_step=1)
+
+        self.assertEqual(self.resource_manager._step_resources_consumed, 0.0)
+
+    def test_consume_resource_tracked_in_step_delta(self):
+        """consume_resource increments _step_resources_consumed by the actual amount."""
+        resource = Resource(
+            resource_id=0,
+            position=(50.0, 50.0),
+            amount=10.0,
+            max_amount=20.0,
+            regeneration_rate=0.1,
+        )
+        self.resource_manager.resources.append(resource)
+
+        self.resource_manager.consume_resource(resource, 4.0)
+        self.assertEqual(self.resource_manager._step_resources_consumed, 4.0)
+
+        # Partial consumption (only 6 left)
+        self.resource_manager.consume_resource(resource, 100.0)
+        self.assertEqual(self.resource_manager._step_resources_consumed, 10.0)
+
+    def test_update_resources_consumed_delta_matches_consumption(self):
+        """resources_consumed in update_resources stats matches actual consumed amount."""
+        resource = Resource(
+            resource_id=0,
+            position=(50.0, 50.0),
+            amount=10.0,
+            max_amount=20.0,
+            regeneration_rate=0.1,
+        )
+        self.resource_manager.resources.append(resource)
+
+        self.resource_manager.consume_resource(resource, 3.0)
+        stats = self.resource_manager.update_resources(time_step=1)
+
+        self.assertEqual(stats["resources_consumed"], 3.0)
+
+    def test_delta_accounting_multi_step(self):
+        """resources_consumed delta is accurate across multiple consume+update cycles."""
+        resource = Resource(
+            resource_id=0,
+            position=(50.0, 50.0),
+            amount=20.0,
+            max_amount=20.0,
+            regeneration_rate=0.1,
+        )
+        self.resource_manager.resources.append(resource)
+
+        # Step 1: consume 5
+        self.resource_manager.consume_resource(resource, 5.0)
+        stats1 = self.resource_manager.update_resources(time_step=1)
+        self.assertEqual(stats1["resources_consumed"], 5.0)
+
+        # Step 2: consume 3 (step counter must be independent of previous step)
+        self.resource_manager.consume_resource(resource, 3.0)
+        stats2 = self.resource_manager.update_resources(time_step=2)
+        self.assertEqual(stats2["resources_consumed"], 3.0)
+
+    def test_reset_clears_step_resources_consumed(self):
+        """reset() clears _step_resources_consumed."""
+        resource = Resource(
+            resource_id=0,
+            position=(50.0, 50.0),
+            amount=10.0,
+            max_amount=20.0,
+            regeneration_rate=0.1,
+        )
+        self.resource_manager.resources.append(resource)
+        self.resource_manager.consume_resource(resource, 5.0)
+        self.assertGreater(self.resource_manager._step_resources_consumed, 0.0)
+
+        self.resource_manager.reset()
+
+        self.assertEqual(self.resource_manager._step_resources_consumed, 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

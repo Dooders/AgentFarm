@@ -764,8 +764,10 @@ class Environment(AECEnv):
             # Update resources using ResourceManager
             resource_stats = self.resource_manager.update_resources(self.time)
 
-            # Update cached total resources after resource regeneration
-            self.cached_total_resources = sum(r.amount for r in self.resources)
+            # Update cached total resources incrementally using per-step deltas
+            self.cached_total_resources += (
+                resource_stats["resources_regenerated"] - resource_stats["resources_consumed"]
+            )
 
             # Log resource update statistics if needed
             if resource_stats["regeneration_events"] > 0:
