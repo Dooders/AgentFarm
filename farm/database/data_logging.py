@@ -86,6 +86,7 @@ class DataLogger(DataLoggerProtocol):
         return bool(
             self._action_buffer
             or self._health_incident_buffer
+            or self._resource_buffer
             or self._step_buffer
         )
 
@@ -297,6 +298,10 @@ class DataLogger(DataLoggerProtocol):
                 if self._health_incident_buffer:
                     session.bulk_insert_mappings(HealthIncident, self._health_incident_buffer)
                     self._health_incident_buffer.clear()
+
+                if self._resource_buffer:
+                    session.bulk_insert_mappings(ResourceModel, self._resource_buffer)
+                    self._resource_buffer.clear()
 
                 if self._step_buffer:
                     session.bulk_insert_mappings(SimulationStepModel, self._step_buffer)
