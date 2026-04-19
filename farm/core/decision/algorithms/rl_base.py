@@ -348,16 +348,19 @@ class PrioritizedReplayBuffer(ExperienceReplayBuffer):
     def sample(self, batch_size: int) -> Dict[str, Any]:
         """Sample a batch of experiences.
 
-        When ``replay_strategy`` is ``"uniform"`` this method returns the same
-        dict format as :class:`SimpleReplayBuffer`.
-
-        When ``replay_strategy`` is ``"prioritized"`` the returned dict contains
-        two additional keys:
+        Both strategies (``"prioritized"`` and ``"uniform"``) always include the
+        following extra keys in the returned batch:
 
         * ``"indices"`` – 1-D integer array of sampled buffer indices, needed
           to call :meth:`update_priorities` after computing TD errors.
         * ``"is_weights"`` – 1-D float32 array of importance-sampling weights
-          (already normalised to ``[0, 1]``), to be multiplied into the loss.
+          (normalised to ``[0, 1]``), to be multiplied into the loss.
+
+        When ``replay_strategy`` is ``"uniform"``, ``"is_weights"`` contains all
+        1.0 values (no bias correction needed).  When ``replay_strategy`` is
+        ``"prioritized"``, weights are computed as
+        ``(N * P(i))^{-beta} / max_j(w_j)`` to down-weight over-represented
+        high-priority transitions.
 
         Args:
             batch_size: Number of transitions to sample.

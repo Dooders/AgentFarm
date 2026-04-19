@@ -509,6 +509,22 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
         # Index 0 should be sampled far more than any other
         self.assertGreater(counts[0], counts[1:].max() * 5)
 
+    def test_sampling_biased_toward_high_priority_nonzero_beta(self):
+        """Sampling bias toward high-priority transitions should hold with non-zero beta."""
+        np.random.seed(0)
+        buf = self._make_buffer(max_size=100, alpha=1.0, beta_start=0.5, beta_end=1.0, beta_steps=100)
+        self._fill(buf, 10)
+        buf.update_priorities(np.arange(10), np.full(10, 0.01))
+        buf.update_priorities(np.array([0]), np.array([100.0]))
+
+        counts = np.zeros(10, dtype=int)
+        for _ in range(5000):
+            batch = buf.sample(1)
+            counts[batch["indices"][0]] += 1
+
+        # Even with non-zero beta, index 0 should be sampled far more often
+        self.assertGreater(counts[0], counts[1:].max() * 5)
+
     def test_insufficient_data_raises(self):
         buf = self._make_buffer()
         self._fill(buf, 2)
