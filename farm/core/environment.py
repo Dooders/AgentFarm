@@ -1003,11 +1003,8 @@ class Environment(AECEnv):
             spatial_stats = self.get_spatial_performance_stats()
             self.metrics_tracker.update_spatial_performance_metrics(spatial_stats)
 
-            # Update spatial index (this will process any pending batch updates)
+            # Update spatial index (flushes any pending batch updates and rebuilds indices)
             self.spatial_index.update()
-
-            # Process any remaining batch updates to ensure all position changes are applied
-            self.process_batch_spatial_updates(force=True)
 
             # Reset counters for next step
             self.resources_shared_this_step = 0
