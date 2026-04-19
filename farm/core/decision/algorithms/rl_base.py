@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Literal, Optional, Union, cast
 
 import numpy as np
 import torch
