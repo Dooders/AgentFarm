@@ -107,6 +107,38 @@ def store_experience(self, state, action, reward, next_state, done):
     self.memory.append((state, action, reward, next_state, done))
 ```
 
+### Prioritized Experience Replay (PER)
+
+The active decision RL wrappers support both uniform replay and PER through `DecisionConfig`.
+
+```python
+from farm.core.decision.config import DecisionConfig
+
+config = DecisionConfig(
+    algorithm_type="dqn",
+    replay_strategy="prioritized",   # "uniform" or "prioritized"
+    per_alpha=0.6,                   # prioritization strength
+    per_beta_start=0.4,              # initial IS correction
+    per_beta_end=1.0,                # anneal beta toward full correction
+    per_beta_steps=100_000,          # annealing horizon
+    per_epsilon=1e-6,                # numerical stability floor
+)
+```
+
+Implementation notes:
+
+- New transitions are inserted with the current max priority to guarantee early replay.
+- Sampling returns replay `indices` and normalized `is_weights` for bias correction.
+- Priorities are updated after optimizer steps from TD-error estimates.
+- Beta is annealed each training update and replay diagnostics are emitted in training metrics (`replay_beta`, `replay_priority_*`, `replay_is_weight_mean`).
+
+Tuning guidance:
+
+- Increase `per_alpha` to emphasize high-error transitions; start around `0.6`.
+- Start `per_beta_start` lower (`0.3` to `0.5`) and anneal toward `1.0`.
+- Keep `per_epsilon` small but positive to avoid zero-probability starvation.
+- Use `replay_strategy="uniform"` for ablations and baseline comparisons.
+
 ### Training Step
 
 The training process uses Double Q-Learning to reduce overestimation bias:

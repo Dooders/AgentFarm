@@ -9,6 +9,7 @@ import torch
 from farm.core.decision.algorithms.base import ActionAlgorithm
 from farm.core.decision.algorithms.rl_base import (
     ExperienceReplayBuffer,
+    PrioritizedReplayBuffer,
     RLAlgorithm,
     SimpleReplayBuffer,
 )
@@ -390,6 +391,295 @@ class TestRLIntegration(unittest.TestCase):
 
         # Training should have occurred
         self.assertGreater(len(self.algorithm.training_calls), initial_training_calls)
+
+
+class TestPrioritizedReplayBuffer(unittest.TestCase):
+    """Tests for PrioritizedReplayBuffer (PER)."""
+
+    def _make_buffer(self, **kwargs):
+        """Helper: create a small PER buffer."""
+        defaults = dict(max_size=20, alpha=0.6, beta_start=0.4, beta_end=1.0, beta_steps=10, epsilon=1e-6)
+        defaults.update(kwargs)
+        return PrioritizedReplayBuffer(**defaults)
+
+    def _fill(self, buf, n=10):
+        """Helper: add *n* dummy experiences to *buf*."""
+        for i in range(n):
+            state = np.array([float(i), float(i + 1)])
+            buf.append(state, i % 3, float(i) * 0.1, state + 0.1, i == n - 1)
+
+    # ------------------------------------------------------------------
+    # Initialisation
+    # ------------------------------------------------------------------
+
+    def test_initialization_defaults(self):
+        buf = PrioritizedReplayBuffer(max_size=100)
+        self.assertEqual(len(buf), 0)
+        self.assertEqual(buf.max_size, 100)
+        self.assertEqual(buf.position, 0)
+        self.assertEqual(buf.alpha, 0.6)
+        self.assertEqual(buf.beta_start, 0.4)
+        self.assertAlmostEqual(buf.beta, 0.4)
+        self.assertEqual(buf.replay_strategy, "prioritized")
+
+    def test_invalid_alpha_raises(self):
+        with self.assertRaises(ValueError):
+            PrioritizedReplayBuffer(alpha=1.5)
+
+    def test_invalid_beta_start_raises(self):
+        with self.assertRaises(ValueError):
+            PrioritizedReplayBuffer(beta_start=-0.1)
+
+    def test_invalid_epsilon_raises(self):
+        with self.assertRaises(ValueError):
+            PrioritizedReplayBuffer(epsilon=0.0)
+
+    def test_invalid_strategy_raises(self):
+        with self.assertRaises(ValueError):
+            PrioritizedReplayBuffer(replay_strategy="unknown")  # type: ignore
+
+    # ------------------------------------------------------------------
+    # Append & capacity
+    # ------------------------------------------------------------------
+
+    def test_append_increments_length(self):
+        buf = self._make_buffer()
+        self._fill(buf, 5)
+        self.assertEqual(len(buf), 5)
+
+    def test_append_wraps_at_capacity(self):
+        buf = self._make_buffer(max_size=5)
+        self._fill(buf, 7)
+        self.assertEqual(len(buf), 5)
+        self.assertEqual(buf.position, 2)
+
+    def test_new_transition_gets_max_priority(self):
+        buf = self._make_buffer()
+        self._fill(buf, 3)
+        # Update priorities so they differ
+        buf.update_priorities(np.array([0, 1, 2]), np.array([0.5, 2.0, 0.1]))
+        max_priority = float(buf.priorities[:3].max())
+        # Append a new transition
+        state = np.zeros(2)
+        buf.append(state, 0, 0.0, state, False)
+        self.assertAlmostEqual(buf.priorities[3], max_priority)
+
+    # ------------------------------------------------------------------
+    # Sampling — prioritized
+    # ------------------------------------------------------------------
+
+    def test_sample_returns_required_keys(self):
+        buf = self._make_buffer()
+        self._fill(buf, 10)
+        batch = buf.sample(4)
+        for key in ("state", "action", "reward", "next_state", "done", "indices", "is_weights"):
+            self.assertIn(key, batch)
+
+    def test_sample_correct_batch_size(self):
+        buf = self._make_buffer()
+        self._fill(buf, 10)
+        batch = buf.sample(4)
+        self.assertEqual(len(batch["indices"]), 4)
+        self.assertEqual(len(batch["is_weights"]), 4)
+        self.assertEqual(batch["state"].shape[0], 4)
+
+    def test_is_weights_range(self):
+        """IS weights must be in (0, 1]."""
+        buf = self._make_buffer()
+        self._fill(buf, 10)
+        batch = buf.sample(5)
+        weights = batch["is_weights"]
+        self.assertTrue(np.all(weights > 0))
+        self.assertTrue(np.all(weights <= 1.0 + 1e-6))
+
+    def test_sampling_biased_toward_high_priority(self):
+        """Transitions with higher priority should be sampled more often."""
+        np.random.seed(42)
+        buf = self._make_buffer(max_size=100, alpha=1.0, beta_start=0.0, beta_end=0.0, beta_steps=1)
+        self._fill(buf, 10)
+        # Give index 0 a very high priority
+        buf.update_priorities(np.arange(10), np.full(10, 0.01))
+        buf.update_priorities(np.array([0]), np.array([100.0]))
+
+        counts = np.zeros(10, dtype=int)
+        for _ in range(5000):
+            batch = buf.sample(1)
+            counts[batch["indices"][0]] += 1
+
+        # Index 0 should be sampled far more than any other
+        self.assertGreater(counts[0], counts[1:].max() * 5)
+
+    def test_sampling_biased_toward_high_priority_nonzero_beta(self):
+        """Sampling bias toward high-priority transitions should hold with non-zero beta."""
+        np.random.seed(0)
+        buf = self._make_buffer(max_size=100, alpha=1.0, beta_start=0.5, beta_end=1.0, beta_steps=100)
+        self._fill(buf, 10)
+        buf.update_priorities(np.arange(10), np.full(10, 0.01))
+        buf.update_priorities(np.array([0]), np.array([100.0]))
+
+        counts = np.zeros(10, dtype=int)
+        for _ in range(5000):
+            batch = buf.sample(1)
+            counts[batch["indices"][0]] += 1
+
+        # Even with non-zero beta, index 0 should be sampled far more often
+        self.assertGreater(counts[0], counts[1:].max() * 5)
+
+    def test_insufficient_data_raises(self):
+        buf = self._make_buffer()
+        self._fill(buf, 2)
+        with self.assertRaises(ValueError):
+            buf.sample(5)
+
+    # ------------------------------------------------------------------
+    # Sampling — uniform fallback
+    # ------------------------------------------------------------------
+
+    def test_uniform_strategy_no_indices_bias(self):
+        """Uniform strategy: IS weights should all be 1.0."""
+        buf = self._make_buffer(replay_strategy="uniform")
+        self._fill(buf, 10)
+        batch = buf.sample(5)
+        np.testing.assert_array_equal(batch["is_weights"], np.ones(5, dtype=np.float32))
+
+    def test_uniform_strategy_still_has_indices_key(self):
+        buf = self._make_buffer(replay_strategy="uniform")
+        self._fill(buf, 10)
+        batch = buf.sample(5)
+        self.assertIn("indices", batch)
+        self.assertEqual(len(batch["indices"]), 5)
+
+    # ------------------------------------------------------------------
+    # update_priorities
+    # ------------------------------------------------------------------
+
+    def test_update_priorities_correctness(self):
+        buf = self._make_buffer()
+        self._fill(buf, 5)
+        indices = np.array([0, 2, 4])
+        td_errors = np.array([1.0, 2.0, 0.5])
+        buf.update_priorities(indices, td_errors)
+        expected = td_errors + buf.epsilon
+        for idx, exp in zip(indices, expected):
+            self.assertAlmostEqual(buf.priorities[idx], exp, places=10)
+
+    def test_update_priorities_uses_abs(self):
+        """Negative TD errors should be treated as their absolute value."""
+        buf = self._make_buffer()
+        self._fill(buf, 3)
+        buf.update_priorities(np.array([0]), np.array([-3.0]))
+        self.assertAlmostEqual(buf.priorities[0], 3.0 + buf.epsilon, places=10)
+
+    def test_update_priorities_scalar_broadcast(self):
+        """Scalar TD error should broadcast across all provided indices."""
+        buf = self._make_buffer()
+        self._fill(buf, 4)
+        indices = np.array([0, 2, 3])
+        buf.update_priorities(indices, np.array(1.25))
+        for idx in indices:
+            self.assertAlmostEqual(buf.priorities[idx], 1.25 + buf.epsilon, places=10)
+
+    def test_update_priorities_mismatched_shape_raises(self):
+        """Non-broadcastable TD error shapes should raise a clear error."""
+        buf = self._make_buffer()
+        self._fill(buf, 4)
+        with self.assertRaises(ValueError):
+            buf.update_priorities(np.array([0, 1, 2]), np.array([0.1, 0.2]))
+
+    # ------------------------------------------------------------------
+    # Beta annealing
+    # ------------------------------------------------------------------
+
+    def test_beta_anneals_toward_beta_end(self):
+        buf = self._make_buffer(beta_start=0.4, beta_end=1.0, beta_steps=10)
+        for _ in range(10):
+            buf.update_beta()
+        self.assertAlmostEqual(buf.beta, 1.0)
+
+    def test_beta_does_not_exceed_beta_end(self):
+        buf = self._make_buffer(beta_start=0.4, beta_end=1.0, beta_steps=5)
+        for _ in range(20):  # more steps than beta_steps
+            buf.update_beta()
+        self.assertLessEqual(buf.beta, 1.0)
+
+    def test_update_beta_returns_current_beta(self):
+        buf = self._make_buffer(beta_start=0.4, beta_end=1.0, beta_steps=10)
+        returned = buf.update_beta()
+        self.assertAlmostEqual(returned, buf.beta)
+
+    # ------------------------------------------------------------------
+    # Diagnostics
+    # ------------------------------------------------------------------
+
+    def test_diagnostics_empty_buffer(self):
+        buf = self._make_buffer()
+        diag = buf.diagnostics()
+        self.assertEqual(diag["buffer_size"], 0)
+        self.assertEqual(diag["priority_max"], 0.0)
+
+    def test_diagnostics_keys(self):
+        buf = self._make_buffer()
+        self._fill(buf, 5)
+        diag = buf.diagnostics()
+        for key in ("priority_min", "priority_max", "priority_mean", "beta", "buffer_size"):
+            self.assertIn(key, diag)
+        self.assertEqual(diag["buffer_size"], 5)
+
+    # ------------------------------------------------------------------
+    # Clear
+    # ------------------------------------------------------------------
+
+    def test_clear_resets_buffer(self):
+        buf = self._make_buffer()
+        self._fill(buf, 5)
+        buf.clear()
+        self.assertEqual(len(buf), 0)
+        self.assertEqual(buf.position, 0)
+        self.assertAlmostEqual(buf.beta, buf.beta_start)
+        self.assertTrue(np.all(buf.priorities == 0.0))
+
+
+class TestDecisionConfigPER(unittest.TestCase):
+    """Tests for PER-related fields in DecisionConfig."""
+
+    def test_default_replay_strategy(self):
+        from farm.core.decision.config import DecisionConfig
+        cfg = DecisionConfig()
+        self.assertEqual(cfg.replay_strategy, "uniform")
+
+    def test_prioritized_strategy(self):
+        from farm.core.decision.config import DecisionConfig
+        cfg = DecisionConfig(replay_strategy="prioritized")
+        self.assertEqual(cfg.replay_strategy, "prioritized")
+
+    def test_invalid_strategy_raises(self):
+        from pydantic import ValidationError
+        from farm.core.decision.config import DecisionConfig
+        with self.assertRaises(ValidationError):
+            DecisionConfig(replay_strategy="bad")
+
+    def test_per_alpha_defaults(self):
+        from farm.core.decision.config import DecisionConfig
+        cfg = DecisionConfig()
+        self.assertAlmostEqual(cfg.per_alpha, 0.6)
+
+    def test_per_alpha_out_of_range_raises(self):
+        from pydantic import ValidationError
+        from farm.core.decision.config import DecisionConfig
+        with self.assertRaises(ValidationError):
+            DecisionConfig(per_alpha=1.5)
+
+    def test_per_epsilon_must_be_positive(self):
+        from pydantic import ValidationError
+        from farm.core.decision.config import DecisionConfig
+        with self.assertRaises(ValidationError):
+            DecisionConfig(per_epsilon=0.0)
+
+    def test_per_beta_steps_must_be_positive(self):
+        from pydantic import ValidationError
+        from farm.core.decision.config import DecisionConfig
+        with self.assertRaises(ValidationError):
+            DecisionConfig(per_beta_steps=0)
 
 
 if __name__ == "__main__":
