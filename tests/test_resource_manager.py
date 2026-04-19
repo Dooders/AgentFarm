@@ -211,6 +211,66 @@ class TestResourceManager(unittest.TestCase):
         self.assertGreaterEqual(stats["regeneration_events"], 0)
         self.assertGreaterEqual(stats["resources_regenerated"], 0)
 
+    def test_update_resources_determinism_reproducible(self):
+        """Same seed + step must always produce identical regeneration outcomes."""
+
+        def _run(seed, time_step, amount_overrides):
+            resource_manager = ResourceManager(
+                width=self.width,
+                height=self.height,
+                config=self.config,
+                seed=seed,
+                database_logger=self.mock_logger,
+                simulation_id="test_simulation",
+            )
+            distribution = {"type": "random", "amount": 5}
+            resource_manager.initialize_resources(distribution)
+            # Set each resource to a known starting amount so the comparison is meaningful
+            for i, resource in enumerate(resource_manager.resources):
+                resource.amount = amount_overrides[i]
+            return resource_manager.update_resources(time_step=time_step)
+
+        starting_amounts = [5, 3, 8, 2, 7]
+
+        stats1 = _run(seed=99, time_step=10, amount_overrides=starting_amounts)
+        stats2 = _run(seed=99, time_step=10, amount_overrides=starting_amounts)
+
+        self.assertEqual(stats1["regeneration_events"], stats2["regeneration_events"])
+        self.assertEqual(stats1["resources_regenerated"], stats2["resources_regenerated"])
+
+    def test_update_resources_seeded_uses_vectorized_rng(self):
+        """Seeded path must not allocate per-resource random.Random objects."""
+        import random as _random
+        import unittest.mock
+
+        resource_manager = ResourceManager(
+            width=self.width,
+            height=self.height,
+            config=self.config,
+            seed=7,
+            database_logger=self.mock_logger,
+            simulation_id="test_simulation",
+        )
+        distribution = {"type": "random", "amount": 20}
+        resource_manager.initialize_resources(distribution)
+
+        constructor_calls = []
+        original_init = _random.Random.__init__
+
+        def counting_init(self_inner, *args, **kwargs):
+            constructor_calls.append(args)
+            return original_init(self_inner, *args, **kwargs)
+
+        with unittest.mock.patch.object(_random.Random, "__init__", counting_init):
+            resource_manager.update_resources(time_step=5)
+
+        # The seeded path must NOT create one random.Random per resource
+        self.assertLess(
+            len(constructor_calls),
+            len(resource_manager.resources),
+            "Seeded path must use vectorized NumPy RNG, not per-resource random.Random",
+        )
+
     def test_consume_resource(self):
         """Test resource consumption."""
         # Create a resource
