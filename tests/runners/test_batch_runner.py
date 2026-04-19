@@ -28,6 +28,7 @@ def _make_mock_env():
     dead_agent.resource_level = 0.0
     mock_env = Mock()
     mock_env.agent_objects = [alive_agent, dead_agent]
+    mock_env.alive_agent_objects = [alive_agent]
     mock_env.resources = [Mock(amount=50.0)]
     return mock_env
 

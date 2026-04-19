@@ -7,6 +7,7 @@ from farm.core.action import (
     ActionType,
     calculate_euclidean_distance,
     check_resource_requirement,
+    gather_action,
     validate_action_result,
 )
 
@@ -54,6 +55,34 @@ class TestActionExtended(unittest.TestCase):
         self.assertEqual(ActionType.MOVE, 4)
         self.assertEqual(ActionType.DEFEND, 0)
         self.assertIsInstance(ActionType.MOVE, int)
+
+    def test_gather_action_uses_environment_consume_resource(self):
+        """Gathering should use environment consume hook when available."""
+        resource = Mock()
+        resource.amount = 10.0
+        resource.position = (2.0, 2.0)
+        resource.is_depleted.return_value = False
+        resource.consume.side_effect = AssertionError("Direct resource.consume should not be used")
+
+        environment = Mock()
+        environment.consume_resource.return_value = 4.0
+
+        agent = Mock()
+        agent.agent_id = "test_agent"
+        agent.position = (0.0, 0.0)
+        agent.resource_level = 1.0
+        agent.total_reward = 0.0
+        agent.environment = environment
+        agent.config = Mock()
+        agent.config.gathering_range = 30
+        agent.config.max_gather_amount = 5.0
+        agent.spatial_service.get_nearby.return_value = {"resources": [resource]}
+
+        result = gather_action(agent)
+
+        environment.consume_resource.assert_called_once_with(resource, 5.0)
+        self.assertTrue(result["success"])
+        self.assertEqual(agent.resource_level, 5.0)
 
 
 if __name__ == "__main__":

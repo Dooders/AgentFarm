@@ -156,14 +156,15 @@ class BatchRunner:
         environment : Environment
             Completed simulation environment
         """
+        alive_agents = environment.alive_agent_objects
+        alive_count = len(alive_agents)
         result = {
             **params,
-            "final_agents": len([a for a in environment.agent_objects if a.alive]),
+            "final_agents": alive_count,
             "total_resources": sum(r.amount for r in environment.resources),
             "average_resources_per_agent": (
-                sum(a.resource_level for a in environment.agent_objects if a.alive)
-                / len([a for a in environment.agent_objects if a.alive])
-                if any(a.alive for a in environment.agent_objects)
+                sum(a.resource_level for a in alive_agents) / alive_count
+                if alive_count > 0
                 else 0
             ),
         }

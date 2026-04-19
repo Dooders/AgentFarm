@@ -177,6 +177,7 @@ class Environment(AECEnv):
         self.height = height
         self.agents = []
         self._agent_objects = {}  # Internal mapping: agent_id -> agent object
+        self._alive_agents: set[str] = set()  # Set of agent_ids that are currently alive
         self.resources = []
         self.time = 0
 
@@ -409,6 +410,25 @@ class Environment(AECEnv):
     def agent_objects(self) -> List[Any]:
         """Backward compatibility property to get all agent objects as a list."""
         return list(self._agent_objects.values())
+
+    @property
+    def alive_agent_objects(self) -> List[Any]:
+        """Return a list of agent objects that are currently alive.
+
+        Uses the incrementally-maintained ``_alive_agents`` set for membership
+        checks while preserving deterministic iteration order from
+        ``_agent_objects``.
+
+        Iteration is performed over ``self._agent_objects.items()``, so only
+        currently registered agent objects are returned. This also implicitly
+        handles temporary out-of-sync cases where ``_alive_agents`` may still
+        reference agent IDs that are no longer present in ``_agent_objects``.
+        """
+        return [
+            agent
+            for aid, agent in self._agent_objects.items()
+            if aid in self._alive_agents and getattr(agent, "alive", True)
+        ]
 
     def mark_positions_dirty(self) -> None:
         """Public method for agents to mark positions as dirty when they move."""
@@ -684,6 +704,7 @@ class Environment(AECEnv):
 
         if agent_id in self._agent_objects:
             del self._agent_objects[agent_id]
+        self._alive_agents.discard(agent_id)
         if agent_id in self.agents:
             self.agents.remove(agent_id)  # Remove from PettingZoo agents list
 
@@ -764,8 +785,14 @@ class Environment(AECEnv):
             # Update resources using ResourceManager
             resource_stats = self.resource_manager.update_resources(self.time)
 
-            # Update cached total resources after resource regeneration
-            self.cached_total_resources = sum(r.amount for r in self.resources)
+            # Update cached total resources incrementally using per-step deltas,
+            # then clamp to zero to prevent negative drift from float arithmetic.
+            self.cached_total_resources = max(
+                0.0,
+                self.cached_total_resources
+                + resource_stats["resources_regenerated"]
+                - resource_stats["resources_consumed"],
+            )
 
             # Log resource update statistics if needed
             if resource_stats["regeneration_events"] > 0:
@@ -833,26 +860,20 @@ class Environment(AECEnv):
 
             # Log milestone every 100 steps
             if self.time % 100 == 0 and self.time > 0:
-                # Calculate agent statistics
-                agents_alive = len(self.agents)
-                # Get health from combat component to ensure proper capping
-                health_values = []
-                for a in self._agent_objects.values():
-                    combat_comp = a.get_component("combat")
-                    if combat_comp:
-                        health_values.append(combat_comp.health)
-                    else:
-                        health_values.append(0.0)
-                avg_health = np.mean(health_values) if health_values else 0
-                avg_resources = (
-                    np.mean([a.resource_level for a in self._agent_objects.values()]) if self._agent_objects else 0
-                )
-
-                # Agent type distribution
-                agent_type_counts = {}
+                # Single-pass aggregation for milestone metrics
+                agents_alive = 0
+                health_sum = 0.0
+                resource_sum = 0.0
+                agent_type_counts: Dict[str, int] = {}
                 for agent in self._agent_objects.values():
-                    agent_type = agent.__class__.__name__
-                    agent_type_counts[agent_type] = agent_type_counts.get(agent_type, 0) + 1
+                    agents_alive += 1
+                    combat_comp = agent.get_component("combat")
+                    health_sum += combat_comp.health if combat_comp else 0.0
+                    resource_sum += agent.resource_level
+                    agent_cls = agent.__class__.__name__
+                    agent_type_counts[agent_cls] = agent_type_counts.get(agent_cls, 0) + 1
+                avg_health = health_sum / agents_alive if agents_alive else 0.0
+                avg_resources = resource_sum / agents_alive if agents_alive else 0.0
 
                 logger.info(
                     "simulation_milestone",
@@ -1040,7 +1061,7 @@ class Environment(AECEnv):
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
-    def add_agent(self, agent: Any, flush_immediately: bool = False) -> None:
+    def add_agent(self, agent: Any, flush_immediately: bool = False, defer_spatial_update: bool = False) -> None:
         """Add an agent to the environment with efficient database logging.
 
         Registers a new agent in the environment, adding it to internal tracking
@@ -1058,6 +1079,14 @@ class Environment(AECEnv):
             the agent is committed before any actions are processed. This is useful
             for agents created during simulation (e.g., through reproduction) to
             prevent foreign key constraint violations. Default is False.
+        defer_spatial_update : bool, optional
+            If True, skip calling ``set_references`` on the spatial index for this
+            individual addition.  The spatial index is still marked dirty so it
+            will rebuild on the next query.  Pass ``True`` when adding many agents
+            in a batch and call ``spatial_index.set_references`` once after the
+            batch is complete to avoid O(N²) overhead. Marking positions dirty
+            alone is not sufficient because references are unchanged until
+            ``set_references`` is called. Default is False.
 
         Notes
         -----
@@ -1161,6 +1190,11 @@ class Environment(AECEnv):
 
         # Add to environment
         self._agent_objects[agent.agent_id] = agent
+        # All agents must have `alive=True` when added; `Agent.__init__` guarantees this.
+        # The getattr default (True) provides a safety fallback for test stubs that may
+        # omit the attribute.
+        if getattr(agent, "alive", True):
+            self._alive_agents.add(agent.agent_id)
         self.agents.append(agent.agent_id)  # Add to PettingZoo agents list
 
         # Initialize PettingZoo state dictionaries for the new agent
@@ -1175,8 +1209,11 @@ class Environment(AECEnv):
         # Mark positions as dirty when new agent is added
         self.spatial_index.mark_positions_dirty()
 
-        # Update spatial index references to include the new agent
-        self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
+        # Update spatial index references to include the new agent.
+        # Skip when defer_spatial_update=True to allow callers to batch many
+        # additions and call set_references once at the end.
+        if not defer_spatial_update:
+            self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
 
         # Batch log to database using SQLAlchemy
         if self.db is not None:
@@ -1244,6 +1281,7 @@ class Environment(AECEnv):
         try:
             if agent_id in self._agent_objects:
                 del self._agent_objects[agent_id]
+            self._alive_agents.discard(agent_id)
             if agent_id in self.agents:
                 self.agents.remove(agent_id)
 
@@ -2069,6 +2107,7 @@ class Environment(AECEnv):
         if options and isinstance(options, dict) and options.get("agents") is not None:
             # Clear existing agents and re-add provided ones
             self._agent_objects = {}
+            self._alive_agents = set()
             self.agents = []
             self.agent_observations = {}
             for agent in options.get("agents", []):
@@ -2086,8 +2125,9 @@ class Environment(AECEnv):
         self._agents_acted_this_cycle = 0
         self._cycle_complete = False
 
-        # Rebuild PettingZoo agent lists from current alive agents
-        self.agents = [a.agent_id for a in self._agent_objects.values() if a.alive]
+        # Rebuild PettingZoo agent lists and alive-agents set from current alive agents
+        self._alive_agents = {a.agent_id for a in self._agent_objects.values() if a.alive}
+        self.agents = [a.agent_id for a in self._agent_objects.values() if a.agent_id in self._alive_agents]
         self.agent_selection = self.agents[0] if self.agents else None
         self.rewards = {a: 0 for a in self.agents}
         self._cumulative_rewards = {a: 0 for a in self.agents}

@@ -697,6 +697,36 @@ class TestEnvironment(unittest.TestCase):
         self.assertNotIn(new_agent.agent_id, self.env.agents)
         self.assertNotIn(new_agent.agent_id, self.env.agent_observations)
 
+    def test_alive_agent_objects_filters_dead_and_preserves_order(self):
+        """alive_agent_objects should be deterministic and exclude dead/stale entries."""
+        ordered_agents = list(self.env.agent_objects)
+        self.assertGreaterEqual(len(ordered_agents), 3)
+
+        first, second, third = ordered_agents[0], ordered_agents[1], ordered_agents[2]
+        second.alive = False
+
+        self.env._alive_agents = {
+            first.agent_id,
+            second.agent_id,
+            third.agent_id,
+            "ghost_agent_id_not_present",
+        }
+
+        alive_ids = [agent.agent_id for agent in self.env.alive_agent_objects]
+        self.assertEqual(alive_ids, [first.agent_id, third.agent_id])
+
+    def test_reset_rebuilds_agent_order_deterministically(self):
+        """reset should preserve deterministic order from insertion order."""
+        provided_agents = [
+            self.create_agent("ordered_2", (22, 22), self.env, resource_level=5),
+            self.create_agent("ordered_1", (21, 21), self.env, resource_level=5),
+            self.create_agent("ordered_3", (23, 23), self.env, resource_level=5),
+        ]
+        self.env.reset(options={"agents": provided_agents})
+
+        self.assertEqual(self.env.agents, ["ordered_2", "ordered_1", "ordered_3"])
+        self.assertEqual([agent.agent_id for agent in self.env.alive_agent_objects], self.env.agents)
+
     def test_environment_state_management(self):
         """Test environment state capture and management"""
         # Test environment state capture

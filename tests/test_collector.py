@@ -26,6 +26,7 @@ def _make_mock_resource(amount=5.0):
 def _make_mock_environment(agents=None, resources=None, width=10, height=10, time=0):
     env = MagicMock()
     env.agent_objects = agents or []
+    env.alive_agent_objects = [a for a in (agents or []) if a.alive]
     env.agents = agents or []
     env.resources = resources or []
     env.width = width

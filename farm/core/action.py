@@ -728,9 +728,14 @@ def gather_action(agent: "AgentCore") -> dict:
                 },
             }
 
-        # Perform the gathering
-        # Consume from resource
-        actual_gathered = closest_resource.consume(gather_amount)
+        # Perform the gathering via environment/resource-manager when available
+        # so per-step resource consumption accounting stays consistent.
+        env = getattr(agent, "environment", None)
+        if env is not None and hasattr(env, "consume_resource"):
+            actual_gathered = env.consume_resource(closest_resource, gather_amount)
+        else:
+            # Fallback for lightweight tests/mocks that do not attach an environment.
+            actual_gathered = closest_resource.consume(gather_amount)
 
         # Add to agent's resources
         agent.resource_level += actual_gathered

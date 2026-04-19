@@ -165,7 +165,7 @@ def create_initial_agents(
             environment=environment,
             agent_type="system",
         )
-        environment.add_agent(agent, flush_immediately=True)
+        environment.add_agent(agent, flush_immediately=True, defer_spatial_update=True)
         positions.append(position)
 
     # Create independent agents with learning behavior
@@ -179,7 +179,7 @@ def create_initial_agents(
             environment=environment,
             agent_type="independent",
         )
-        environment.add_agent(agent, flush_immediately=True)
+        environment.add_agent(agent, flush_immediately=True, defer_spatial_update=True)
         positions.append(position)
 
     # Create control agents with learning behavior
@@ -193,7 +193,7 @@ def create_initial_agents(
             environment=environment,
             agent_type="control",
         )
-        environment.add_agent(agent, flush_immediately=True)
+        environment.add_agent(agent, flush_immediately=True, defer_spatial_update=True)
         positions.append(position)
 
     # Create order agents with learning behavior
@@ -207,7 +207,7 @@ def create_initial_agents(
             environment=environment,
             agent_type="order",
         )
-        environment.add_agent(agent, flush_immediately=True)
+        environment.add_agent(agent, flush_immediately=True, defer_spatial_update=True)
         positions.append(position)
 
     # Create chaos agents with learning behavior
@@ -221,8 +221,14 @@ def create_initial_agents(
             environment=environment,
             agent_type="chaos",
         )
-        environment.add_agent(agent, flush_immediately=True)
+        environment.add_agent(agent, flush_immediately=True, defer_spatial_update=True)
         positions.append(position)
+
+    # Perform a single spatial index reference update after all agents are added.
+    # This replaces the per-agent set_references calls that were deferred above.
+    environment.spatial_index.set_references(
+        list(environment._agent_objects.values()), environment.resources
+    )
 
     logger.info("initial_agents_complete", total_agents=len(environment.agents))
 
@@ -480,7 +486,7 @@ def run_simulation(
             step_start_time = time.time()
 
             # Process agents in batches
-            alive_agents = [agent for agent in environment.agent_objects if agent.alive]
+            alive_agents = environment.alive_agent_objects
 
             # Stop if no agents are alive
             if len(alive_agents) < 1:
