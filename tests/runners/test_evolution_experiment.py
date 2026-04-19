@@ -662,7 +662,7 @@ class TestConvergenceDisabledRegressionMode(unittest.TestCase):
                 seed=77,
             )
             experiment = EvolutionExperiment(base_config, config)
-            result = experiment.run(
+            experiment.run(
                 fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
             )
             import os as _os
