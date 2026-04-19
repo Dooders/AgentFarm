@@ -415,15 +415,19 @@ class Environment(AECEnv):
     def alive_agent_objects(self) -> List[Any]:
         """Return a list of agent objects that are currently alive.
 
-        Uses the incrementally-maintained ``_alive_agents`` set for O(k) access
-        (where k is the number of alive agents) rather than iterating all agent
-        objects and filtering by ``agent.alive``.
+        Uses the incrementally-maintained ``_alive_agents`` set for membership
+        checks while preserving deterministic iteration order from
+        ``_agent_objects``.
 
         The guard ``if aid in self._agent_objects`` is a safety net for the rare
         case where the two structures are temporarily out of sync (e.g. during
         a reset that clears ``_agent_objects`` before rebuilding ``_alive_agents``).
         """
-        return [self._agent_objects[aid] for aid in self._alive_agents if aid in self._agent_objects]
+        return [
+            agent
+            for aid, agent in self._agent_objects.items()
+            if aid in self._alive_agents and getattr(agent, "alive", True)
+        ]
 
     def mark_positions_dirty(self) -> None:
         """Public method for agents to mark positions as dirty when they move."""
@@ -1075,7 +1079,9 @@ class Environment(AECEnv):
             individual addition.  The spatial index is still marked dirty so it
             will rebuild on the next query.  Pass ``True`` when adding many agents
             in a batch and call ``spatial_index.set_references`` once after the
-            batch is complete to avoid O(N²) overhead.  Default is False.
+            batch is complete to avoid O(N²) overhead. Marking positions dirty
+            alone is not sufficient because references are unchanged until
+            ``set_references`` is called. Default is False.
 
         Notes
         -----
@@ -2116,7 +2122,7 @@ class Environment(AECEnv):
 
         # Rebuild PettingZoo agent lists and alive-agents set from current alive agents
         self._alive_agents = {a.agent_id for a in self._agent_objects.values() if a.alive}
-        self.agents = list(self._alive_agents)
+        self.agents = [a.agent_id for a in self._agent_objects.values() if a.agent_id in self._alive_agents]
         self.agent_selection = self.agents[0] if self.agents else None
         self.rewards = {a: 0 for a in self.agents}
         self._cumulative_rewards = {a: 0 for a in self.agents}
