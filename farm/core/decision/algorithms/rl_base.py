@@ -6,13 +6,16 @@ reinforcement learning algorithms with the AgentFarm action system.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union, cast
 
 import numpy as np
 import torch
 
 from .base import ActionAlgorithm
+
+logger = logging.getLogger(__name__)
 
 
 class RLAlgorithm(ActionAlgorithm, ABC):
@@ -231,3 +234,247 @@ class SimpleReplayBuffer(ExperienceReplayBuffer):
         """Clear all experiences."""
         self.buffer.clear()
         self.position = 0
+
+
+class PrioritizedReplayBuffer(ExperienceReplayBuffer):
+    """Experience replay buffer with Prioritized Experience Replay (PER).
+
+    Implements the proportional variant of PER from Schaul et al. (2015)
+    (https://arxiv.org/abs/1511.05952).
+
+    Transitions are sampled with probability proportional to ``priority^alpha``.
+    Importance-sampling (IS) weights are returned to correct for the introduced bias.
+    The IS exponent ``beta`` can be annealed toward 1.0 over training to remove bias
+    gradually.
+
+    When ``replay_strategy`` is ``"uniform"`` the buffer degrades gracefully to
+    uniform sampling (identical behaviour to ``SimpleReplayBuffer``) without
+    returning indices or IS weights.
+
+    Args:
+        max_size: Maximum number of experiences to store.
+        alpha: Exponent that controls how much prioritisation is used
+            (0 = uniform, 1 = full prioritisation).
+        beta_start: Initial exponent for IS weight correction (0 = no correction,
+            1 = full correction).
+        beta_end: Final value of ``beta`` reached after ``beta_steps`` updates.
+        beta_steps: Number of ``update_beta`` calls over which ``beta`` anneals
+            from ``beta_start`` to ``beta_end``.
+        epsilon: Small constant added to priorities to ensure every transition
+            has a non-zero sampling probability.
+        replay_strategy: ``"prioritized"`` (default) or ``"uniform"`` for
+            ablation / debugging.
+    """
+
+    def __init__(
+        self,
+        max_size: int = 10000,
+        alpha: float = 0.6,
+        beta_start: float = 0.4,
+        beta_end: float = 1.0,
+        beta_steps: int = 100_000,
+        epsilon: float = 1e-6,
+        replay_strategy: Literal["prioritized", "uniform"] = "prioritized",
+    ) -> None:
+        if not 0.0 <= alpha <= 1.0:
+            raise ValueError(f"alpha must be in [0, 1], got {alpha}")
+        if not 0.0 <= beta_start <= 1.0:
+            raise ValueError(f"beta_start must be in [0, 1], got {beta_start}")
+        if not 0.0 <= beta_end <= 1.0:
+            raise ValueError(f"beta_end must be in [0, 1], got {beta_end}")
+        if beta_steps <= 0:
+            raise ValueError(f"beta_steps must be positive, got {beta_steps}")
+        if epsilon <= 0:
+            raise ValueError(f"epsilon must be positive, got {epsilon}")
+        if replay_strategy not in ("prioritized", "uniform"):
+            raise ValueError(
+                f"replay_strategy must be 'prioritized' or 'uniform', got {replay_strategy!r}"
+            )
+
+        self.max_size = max_size
+        self.alpha = alpha
+        self.beta = beta_start
+        self.beta_start = beta_start
+        self.beta_end = beta_end
+        self.beta_steps = beta_steps
+        self.epsilon = epsilon
+        self.replay_strategy = replay_strategy
+
+        self.buffer: List[Dict[str, Any]] = []
+        self.priorities: np.ndarray = np.zeros(max_size, dtype=np.float64)
+        self.position = 0
+        self._beta_step_count = 0
+
+    # ------------------------------------------------------------------
+    # ExperienceReplayBuffer interface
+    # ------------------------------------------------------------------
+
+    def __len__(self) -> int:
+        return len(self.buffer)
+
+    def append(
+        self,
+        state: Union[np.ndarray, torch.Tensor],
+        action: int,
+        reward: float,
+        next_state: Union[np.ndarray, torch.Tensor],
+        done: bool,
+        **kwargs: Any,
+    ) -> None:
+        """Add an experience to the buffer.
+
+        New transitions are assigned the current maximum priority (or 1.0 if
+        the buffer is empty) so that they are sampled at least once.
+        """
+        experience = {
+            "state": state,
+            "action": action,
+            "reward": reward,
+            "next_state": next_state,
+            "done": done,
+            **kwargs,
+        }
+
+        max_priority = float(self.priorities[: len(self.buffer)].max()) if self.buffer else 1.0
+
+        if len(self.buffer) < self.max_size:
+            self.buffer.append(experience)
+        else:
+            self.buffer[self.position] = experience
+
+        self.priorities[self.position] = max_priority
+        self.position = (self.position + 1) % self.max_size
+
+    def sample(self, batch_size: int) -> Dict[str, Any]:
+        """Sample a batch of experiences.
+
+        When ``replay_strategy`` is ``"uniform"`` this method returns the same
+        dict format as :class:`SimpleReplayBuffer`.
+
+        When ``replay_strategy`` is ``"prioritized"`` the returned dict contains
+        two additional keys:
+
+        * ``"indices"`` – 1-D integer array of sampled buffer indices, needed
+          to call :meth:`update_priorities` after computing TD errors.
+        * ``"is_weights"`` – 1-D float32 array of importance-sampling weights
+          (already normalised to ``[0, 1]``), to be multiplied into the loss.
+
+        Args:
+            batch_size: Number of transitions to sample.
+
+        Returns:
+            Batch dictionary as described above.
+
+        Raises:
+            ValueError: If the buffer contains fewer experiences than
+                ``batch_size``.
+        """
+        if len(self.buffer) < batch_size:
+            raise ValueError(
+                f"Not enough experiences in buffer ({len(self.buffer)}) for batch size {batch_size}"
+            )
+
+        n = len(self.buffer)
+        if self.replay_strategy == "uniform":
+            indices = np.random.choice(n, batch_size, replace=False)
+            is_weights = np.ones(batch_size, dtype=np.float32)
+        else:
+            priorities = self.priorities[:n]
+            probs = priorities ** self.alpha
+            probs /= probs.sum()
+
+            indices = np.random.choice(n, batch_size, replace=False, p=probs)
+            # IS weights: w_i = (N * P(i))^{-beta} / max_j w_j
+            weights = (n * probs[indices]) ** (-self.beta)
+            is_weights = (weights / weights.max()).astype(np.float32)
+
+        batch: Dict[str, Any] = {key: [] for key in self.buffer[0].keys()}
+        for idx in indices:
+            for key, value in self.buffer[idx].items():
+                cast(list, batch[key]).append(value)
+
+        # Convert lists to arrays (mirrors SimpleReplayBuffer behaviour)
+        for key in list(batch.keys()):
+            if key in ("state", "next_state"):
+                batch[key] = np.array(batch[key])
+            elif key in ("action", "done"):
+                batch[key] = np.array(batch[key])
+            elif key == "reward":
+                batch[key] = np.array(batch[key], dtype=np.float32)
+            else:
+                try:
+                    batch[key] = np.array(batch[key])
+                except Exception:
+                    pass  # Keep as list if conversion fails
+
+        batch["indices"] = indices
+        batch["is_weights"] = is_weights
+        return batch
+
+    def clear(self) -> None:
+        """Clear all experiences and reset priorities."""
+        self.buffer.clear()
+        self.priorities[:] = 0.0
+        self.position = 0
+        self._beta_step_count = 0
+        self.beta = self.beta_start
+
+    # ------------------------------------------------------------------
+    # PER-specific API
+    # ------------------------------------------------------------------
+
+    def update_priorities(self, indices: np.ndarray, td_errors: np.ndarray) -> None:
+        """Update transition priorities from TD errors.
+
+        Should be called after each training step using the ``"indices"`` key
+        returned by :meth:`sample`.
+
+        Args:
+            indices: 1-D integer array of buffer indices (from the ``"indices"``
+                key returned by :meth:`sample`).
+            td_errors: 1-D array of absolute TD errors for the corresponding
+                transitions.  Any shape that broadcasts against ``indices`` is
+                accepted.
+        """
+        td_errors = np.asarray(td_errors, dtype=np.float64)
+        new_priorities = (np.abs(td_errors) + self.epsilon)
+        for idx, priority in zip(indices, new_priorities):
+            self.priorities[idx] = float(priority)
+
+    def update_beta(self) -> float:
+        """Anneal ``beta`` by one step toward ``beta_end``.
+
+        Call this once per training iteration (not per gradient step).
+
+        Returns:
+            The updated ``beta`` value.
+        """
+        self._beta_step_count += 1
+        fraction = min(1.0, self._beta_step_count / self.beta_steps)
+        self.beta = self.beta_start + fraction * (self.beta_end - self.beta_start)
+        return self.beta
+
+    def diagnostics(self) -> Dict[str, float]:
+        """Return a snapshot of internal priority statistics for logging.
+
+        Returns:
+            Dictionary with keys: ``priority_min``, ``priority_max``,
+            ``priority_mean``, ``beta``, ``buffer_size``.
+        """
+        n = len(self.buffer)
+        if n == 0:
+            return {
+                "priority_min": 0.0,
+                "priority_max": 0.0,
+                "priority_mean": 0.0,
+                "beta": self.beta,
+                "buffer_size": 0,
+            }
+        priorities = self.priorities[:n]
+        return {
+            "priority_min": float(priorities.min()),
+            "priority_max": float(priorities.max()),
+            "priority_mean": float(priorities.mean()),
+            "beta": self.beta,
+            "buffer_size": n,
+        }
