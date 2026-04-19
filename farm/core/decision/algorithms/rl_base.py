@@ -6,7 +6,6 @@ reinforcement learning algorithms with the AgentFarm action system.
 
 from __future__ import annotations
 
-import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Literal, Optional, Union, cast
 
@@ -14,8 +13,6 @@ import numpy as np
 import torch
 
 from .base import ActionAlgorithm
-
-logger = logging.getLogger(__name__)
 
 
 class RLAlgorithm(ActionAlgorithm, ABC):
@@ -248,8 +245,9 @@ class PrioritizedReplayBuffer(ExperienceReplayBuffer):
     gradually.
 
     When ``replay_strategy`` is ``"uniform"`` the buffer degrades gracefully to
-    uniform sampling (identical behaviour to ``SimpleReplayBuffer``) without
-    returning indices or IS weights.
+    uniform sampling instead of priority-based sampling while preserving the same
+    sample API as prioritized replay, including returned ``indices`` and
+    ``is_weights`` fields for consistency.
 
     Args:
         max_size: Maximum number of experiences to store.

@@ -397,7 +397,6 @@ class TestTianshouWrapperTraining(unittest.TestCase):
         for i in range(self.wrapper.batch_size):
             state = np.random.randn(*self.observation_shape).astype(np.float32)
             self.wrapper.store_experience(state, 0, 0.0, state, False)
-            self.wrapper.update_step_count()
 
         # Now should train
         self.assertTrue(self.wrapper.should_train())
@@ -408,7 +407,6 @@ class TestTianshouWrapperTraining(unittest.TestCase):
         for i in range(self.wrapper.batch_size):
             state = np.random.randn(*self.observation_shape).astype(np.float32)
             self.wrapper.store_experience(state, 0, 0.5, state, False)
-            self.wrapper.update_step_count()
 
         # Train
         metrics = self.wrapper.train_on_batch({})
@@ -421,7 +419,6 @@ class TestTianshouWrapperTraining(unittest.TestCase):
         for _ in range(self.wrapper.batch_size):
             state = np.random.randn(*self.observation_shape).astype(np.float32)
             self.wrapper.store_experience(state, 0, 0.5, state, False)
-            self.wrapper.update_step_count()
 
         captured = {}
 
@@ -460,7 +457,6 @@ class TestTianshouWrapperTraining(unittest.TestCase):
         for i in range(self.wrapper.batch_size):
             state = np.random.randn(*self.observation_shape).astype(np.float32)
             self.wrapper.store_experience(state, 0, 0.5, state, False)
-            self.wrapper.update_step_count()
 
         # Should not raise
         self.wrapper.train({})
@@ -526,7 +522,6 @@ class TestTianshouWrapperModelPersistence(unittest.TestCase):
         for i in range(5):
             state = np.random.randn(*self.observation_shape).astype(np.float32)
             self.wrapper.store_experience(state, 0, 0.5, state, False)
-            self.wrapper.update_step_count()
 
         # Save state
         saved_state = self.wrapper.get_model_state()
