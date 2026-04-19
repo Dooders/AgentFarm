@@ -77,6 +77,9 @@ class ResourceManager:
         self.total_resources_consumed = 0.0
         self.total_resources_regenerated = 0.0
 
+        # Per-step consumption delta (reset each update_resources call)
+        self._step_resources_consumed = 0.0
+
         # Performance tracking
         self.regeneration_events = 0
         self.depletion_events = 0
@@ -552,9 +555,13 @@ class ResourceManager:
         stats: Dict[str, float] = {
             "regeneration_events": 0,
             "resources_regenerated": 0.0,
+            "resources_consumed": self._step_resources_consumed,
             "depletion_events": 0,
             "total_resources": len(self.resources),
         }
+
+        # Reset per-step consumption counter
+        self._step_resources_consumed = 0.0
 
         if self.seed_value is not None:
             regen_rate = (
@@ -719,6 +726,7 @@ class ResourceManager:
         resource.consume(actual_consumption)
 
         self.total_resources_consumed += actual_consumption
+        self._step_resources_consumed += actual_consumption
 
         if resource.is_depleted():
             self.depletion_events += 1
@@ -916,7 +924,8 @@ class ResourceManager:
         self.resources.clear()
         self.next_resource_id = 0
         self.regeneration_step = 0
-        self.total_resources_consumed = 0
-        self.total_resources_regenerated = 0
+        self.total_resources_consumed = 0.0
+        self.total_resources_regenerated = 0.0
         self.regeneration_events = 0
         self.depletion_events = 0
+        self._step_resources_consumed = 0.0
