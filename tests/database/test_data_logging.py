@@ -180,7 +180,6 @@ class TestDataLoggerBuffering(unittest.TestCase):
 
     def test_flush_if_needed_triggers_on_interval(self):
         """flush_if_needed should flush when commit interval has elapsed."""
-        import time as _time
         self.logger.log_agent_action(
             step_number=0, agent_id="a1", action_type="move"
         )

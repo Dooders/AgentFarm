@@ -86,6 +86,7 @@ class DataLogger(DataLoggerProtocol):
         return bool(
             self._action_buffer
             or self._health_incident_buffer
+            or self._resource_buffer
             or self._step_buffer
         )
 
