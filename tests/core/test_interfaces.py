@@ -72,6 +72,7 @@ class _ConcreteDataLogger:
     def log_agent(self, agent_id, birth_time, agent_type, position, initial_resources, starting_health, **kwargs): pass
     def log_health_incident(self, step_number, agent_id, health_before, health_after, cause, details=None): pass
     def flush_all_buffers(self): pass
+    def flush_if_needed(self): pass
 
 
 class _ConcreteRepository:
@@ -126,7 +127,14 @@ class TestProtocolAttributes:
             assert hasattr(DatabaseProtocol, method)
 
     def test_data_logger_protocol_methods(self):
-        for method in ("log_agent_action", "log_step", "log_agent", "log_health_incident", "flush_all_buffers"):
+        for method in (
+            "log_agent_action",
+            "log_step",
+            "log_agent",
+            "log_health_incident",
+            "flush_all_buffers",
+            "flush_if_needed",
+        ):
             assert hasattr(DataLoggerProtocol, method)
 
     def test_repository_protocol_methods(self):
@@ -178,6 +186,7 @@ class TestConcreteImplementations:
         dl.log_agent("a1", 0, "system", (0, 0), 1.0, 100.0)
         dl.log_health_incident(0, "a1", 100.0, 90.0, "combat")
         dl.flush_all_buffers()
+        dl.flush_if_needed()
 
     def test_concrete_repository_callable(self):
         repo = _ConcreteRepository()

@@ -363,6 +363,10 @@ class DataLoggerProtocol(Protocol):
         """Flush all buffered data to the database."""
         ...
 
+    def flush_if_needed(self) -> None:
+        """Flush buffered data when periodic flush criteria are met."""
+        pass
+
 
 @runtime_checkable
 class RepositoryProtocol(Protocol[T]):

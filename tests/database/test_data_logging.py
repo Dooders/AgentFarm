@@ -151,6 +151,63 @@ class TestDataLoggerBuffering(unittest.TestCase):
         self.assertEqual(len(self.logger._action_buffer), 0)
         self.assertEqual(len(self.logger._health_incident_buffer), 0)
 
+    def test_needs_flush_false_when_empty(self):
+        """needs_flush should be False when all buffers are empty."""
+        self.assertFalse(self.logger.needs_flush)
+
+    def test_needs_flush_true_after_action_buffered(self):
+        """needs_flush should be True once an action is buffered."""
+        self.logger.log_agent_action(
+            step_number=0, agent_id="a1", action_type="move"
+        )
+        self.assertTrue(self.logger.needs_flush)
+
+    def test_needs_flush_false_after_flush(self):
+        """needs_flush should return False after all buffers are flushed."""
+        self.logger.log_agent_action(
+            step_number=0, agent_id="a1", action_type="move"
+        )
+        self.mock_session.bulk_insert_mappings = Mock()
+        self.mock_session.commit = Mock()
+        self.logger.flush_all_buffers()
+        self.assertFalse(self.logger.needs_flush)
+
+    def test_flush_all_buffers_noop_when_empty(self):
+        """flush_all_buffers should not touch the DB when all buffers are empty."""
+        self.db._execute_in_transaction = Mock()
+        self.logger.flush_all_buffers()
+        self.db._execute_in_transaction.assert_not_called()
+
+    def test_flush_if_needed_triggers_on_interval(self):
+        """flush_if_needed should flush when commit interval has elapsed."""
+        self.logger.log_agent_action(
+            step_number=0, agent_id="a1", action_type="move"
+        )
+        # Wind the clock back so the interval appears elapsed.
+        self.logger._last_commit_time -= self.logger._commit_interval + 1
+        self.mock_session.bulk_insert_mappings = Mock()
+        self.mock_session.commit = Mock()
+        self.logger.flush_if_needed()
+        self.assertFalse(self.logger.needs_flush)
+
+    def test_flush_if_needed_skips_before_interval(self):
+        """flush_if_needed should not flush before commit interval has elapsed."""
+        self.logger.log_agent_action(
+            step_number=0, agent_id="a1", action_type="move"
+        )
+        # Leave _last_commit_time at 'now' so interval has NOT elapsed.
+        self.logger._last_commit_time = float("inf")  # far future
+        self.logger.flush_if_needed()
+        # Buffer must still have the pending item.
+        self.assertTrue(self.logger.needs_flush)
+
+    def test_flush_if_needed_noop_when_no_pending_buffers(self):
+        """flush_if_needed should not touch DB when there is nothing to flush."""
+        self.db._execute_in_transaction = Mock()
+        self.logger._last_commit_time -= self.logger._commit_interval + 1
+        self.logger.flush_if_needed()
+        self.db._execute_in_transaction.assert_not_called()
+
     def test_auto_flush_on_buffer_full(self):
         """When buffer reaches buffer_size the actions should be flushed."""
         self.mock_session.bulk_insert_mappings = Mock()
@@ -291,6 +348,7 @@ class TestShardedDataLogger(unittest.TestCase):
         shard_logger.log_metrics = Mock()
         shard_logger.log_agent_action = Mock()
         shard_logger.flush_all_buffers = Mock()
+        shard_logger.flush_if_needed = Mock()
         db_shard = Mock()
         db_shard.logger = shard_logger
         return db_shard
@@ -361,6 +419,35 @@ class TestShardedDataLogger(unittest.TestCase):
         logger.flush_all_buffers()
         # With 2 shards × 4 shard types = 8 calls
         self.assertGreaterEqual(shard.logger.flush_all_buffers.call_count, 4)
+
+    def test_flush_if_needed_uses_shard_flush_if_needed_when_available(self):
+        sharded_db, shard = self._make_sharded_db()
+        logger = ShardedDataLogger(sharded_db, simulation_id="sim_001")
+        logger.flush_if_needed()
+        self.assertGreaterEqual(shard.logger.flush_if_needed.call_count, 1)
+        shard.logger.flush_all_buffers.assert_not_called()
+
+    def test_flush_if_needed_falls_back_to_flush_all_buffers(self):
+        # Use spec_set so flush_if_needed is genuinely absent (Mock.__getattr__
+        # would otherwise manufacture it on demand, making hasattr always True).
+        sharded_db = Mock()
+        shard_logger_no_flush = Mock(spec_set=["flush_all_buffers", "log_agent_states",
+                                               "log_agent_actions", "log_agent_action",
+                                               "log_resource_states", "log_simulation_step"])
+        shard = Mock()
+        shard.logger = shard_logger_no_flush
+        sharded_db.shards = {
+            0: {
+                "agents": shard,
+                "resources": shard,
+                "metrics": shard,
+                "actions": shard,
+            }
+        }
+        sharded_db._get_shard_for_step = Mock(return_value=0)
+        logger = ShardedDataLogger(sharded_db, simulation_id="sim_001")
+        logger.flush_if_needed()
+        self.assertGreaterEqual(shard_logger_no_flush.flush_all_buffers.call_count, 1)
 
 
 if __name__ == "__main__":
