@@ -418,6 +418,10 @@ class Environment(AECEnv):
         Uses the incrementally-maintained ``_alive_agents`` set for O(k) access
         (where k is the number of alive agents) rather than iterating all agent
         objects and filtering by ``agent.alive``.
+
+        The guard ``if aid in self._agent_objects`` is a safety net for the rare
+        case where the two structures are temporarily out of sync (e.g. during
+        a reset that clears ``_agent_objects`` before rebuilding ``_alive_agents``).
         """
         return [self._agent_objects[aid] for aid in self._alive_agents if aid in self._agent_objects]
 
@@ -1173,6 +1177,9 @@ class Environment(AECEnv):
 
         # Add to environment
         self._agent_objects[agent.agent_id] = agent
+        # All agents must have `alive=True` when added; `Agent.__init__` guarantees this.
+        # The getattr default (True) provides a safety fallback for test stubs that may
+        # omit the attribute.
         if getattr(agent, "alive", True):
             self._alive_agents.add(agent.agent_id)
         self.agents.append(agent.agent_id)  # Add to PettingZoo agents list
