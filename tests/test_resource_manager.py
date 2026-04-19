@@ -228,15 +228,21 @@ class TestResourceManager(unittest.TestCase):
             # Set each resource to a known starting amount so the comparison is meaningful
             for i, resource in enumerate(resource_manager.resources):
                 resource.amount = amount_overrides[i]
-            return resource_manager.update_resources(time_step=time_step)
+            stats = resource_manager.update_resources(time_step=time_step)
+            amounts_by_id = {
+                resource.resource_id: resource.amount
+                for resource in resource_manager.resources
+            }
+            return stats, amounts_by_id
 
         starting_amounts = [5, 3, 8, 2, 7]
 
-        stats1 = _run(seed=99, time_step=10, amount_overrides=starting_amounts)
-        stats2 = _run(seed=99, time_step=10, amount_overrides=starting_amounts)
+        stats1, amounts1 = _run(seed=99, time_step=10, amount_overrides=starting_amounts)
+        stats2, amounts2 = _run(seed=99, time_step=10, amount_overrides=starting_amounts)
 
         self.assertEqual(stats1["regeneration_events"], stats2["regeneration_events"])
         self.assertEqual(stats1["resources_regenerated"], stats2["resources_regenerated"])
+        self.assertEqual(amounts1, amounts2)
 
     def test_update_resources_seeded_uses_vectorized_rng(self):
         """Seeded path must not allocate per-resource random.Random objects."""
@@ -264,12 +270,55 @@ class TestResourceManager(unittest.TestCase):
         with unittest.mock.patch.object(_random.Random, "__init__", counting_init):
             resource_manager.update_resources(time_step=5)
 
-        # The seeded path must NOT create one random.Random per resource
-        self.assertLess(
+        self.assertEqual(
             len(constructor_calls),
-            len(resource_manager.resources),
-            "Seeded path must use vectorized NumPy RNG, not per-resource random.Random",
+            0,
+            "Seeded update path should not instantiate random.Random",
         )
+
+    def test_update_resources_determinism_stable_under_resource_order_changes(self):
+        """Seeded regeneration decisions must be stable regardless of list order."""
+
+        distribution = {"type": "random", "amount": 8}
+
+        rm1 = ResourceManager(
+            width=self.width,
+            height=self.height,
+            config=self.config,
+            seed=123,
+            database_logger=self.mock_logger,
+            simulation_id="test_simulation",
+        )
+        rm2 = ResourceManager(
+            width=self.width,
+            height=self.height,
+            config=self.config,
+            seed=123,
+            database_logger=self.mock_logger,
+            simulation_id="test_simulation",
+        )
+
+        rm1.initialize_resources(distribution)
+        rm2.initialize_resources(distribution)
+
+        # Establish a known starting amount by resource identity.
+        known_amounts = {}
+        for idx, resource in enumerate(rm1.resources):
+            known_amounts[resource.resource_id] = 2 + (idx % 5)
+        for resource in rm1.resources:
+            resource.amount = known_amounts[resource.resource_id]
+        for resource in rm2.resources:
+            resource.amount = known_amounts[resource.resource_id]
+
+        # Reorder only rm2 resources to ensure order does not affect outcomes.
+        rm2.resources = list(reversed(rm2.resources))
+
+        rm1.update_resources(time_step=9)
+        rm2.update_resources(time_step=9)
+
+        post1 = {resource.resource_id: resource.amount for resource in rm1.resources}
+        post2 = {resource.resource_id: resource.amount for resource in rm2.resources}
+        self.assertEqual(post1, post2)
 
     def test_consume_resource(self):
         """Test resource consumption."""
