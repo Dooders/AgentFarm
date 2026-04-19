@@ -311,10 +311,10 @@ def _parse_args() -> argparse.Namespace:
     """
     parser = _build_parser()
     # First pass: discover --preset without failing on unknown/remaining args.
-    prelim, _ = parser.parse_known_args()
-    if prelim.preset is not None:
+    preset_discovery_args, _ = parser.parse_known_args()
+    if preset_discovery_args.preset is not None:
         # preset is already validated by choices=, so this lookup always succeeds.
-        parser.set_defaults(**PRESETS[prelim.preset])
+        parser.set_defaults(**PRESETS[preset_discovery_args.preset])
     return parser.parse_args()
 
 
@@ -420,8 +420,8 @@ def main() -> int:
             "output_dir": args.output_dir,
         }
         manifest_path = os.path.join(args.output_dir, "run_manifest.json")
-        with open(manifest_path, "w") as _f:
-            json.dump(manifest, _f, indent=2)
+        with open(manifest_path, "w") as manifest_file:
+            json.dump(manifest, manifest_file, indent=2)
         logger.info("evolution_experiment_manifest_written", path=manifest_path)
 
         start = time.time()

@@ -176,7 +176,7 @@ class TestPresets(unittest.TestCase):
         self.assertEqual(args.selection_method, "tournament")
         self.assertTrue(args.adaptive_mutation)
 
-    def test_no_preset_leaves_standard_defaults(self):
+    def test_no_preset_uses_original_defaults(self):
         argv = sys.argv[:]
         try:
             sys.argv = [
