@@ -365,7 +365,7 @@ class DataLoggerProtocol(Protocol):
 
     def flush_if_needed(self) -> None:
         """Flush buffered data when periodic flush criteria are met."""
-        ...
+        pass
 
 
 @runtime_checkable
