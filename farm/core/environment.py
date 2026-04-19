@@ -401,14 +401,21 @@ class Environment(AECEnv):
 
         # Quadtree and spatial hash indices are already initialized above
 
-        # Perception profiler accumulators
-        self._perception_profile = {
+        # Zero-value template for the perception profiler dictionaries.  Using
+        # a shared template avoids coupling the reset logic to key-name patterns.
+        self._perception_profile_zeros: Dict[str, Any] = {
             "spatial_query_time_s": 0.0,
             "bilinear_time_s": 0.0,
             "nearest_time_s": 0.0,
             "bilinear_points": 0,
             "nearest_points": 0,
         }
+
+        # Perception profiler accumulators (step-level; reset each update() call)
+        self._perception_profile: Dict[str, Any] = dict(self._perception_profile_zeros)
+
+        # Cumulative perception profiler accumulators (full simulation lifetime)
+        self._perception_profile_cumulative: Dict[str, Any] = dict(self._perception_profile_zeros)
 
         # Population milestone tracking
         self._logged_population_milestones = set()
@@ -1006,6 +1013,13 @@ class Environment(AECEnv):
             self.resources_shared_this_step = 0
             self.combat_encounters_this_step = 0
             self.successful_attacks_this_step = 0
+
+            # Accumulate step-level perception stats into cumulative totals, then
+            # reset the step-level accumulators so each step reflects only its own
+            # perception activity.
+            for key, value in self._perception_profile.items():
+                self._perception_profile_cumulative[key] += value
+            self._reset_perception_profile_step()
 
             # Log milestone every 100 steps
             if self.time % 100 == 0 and self.time > 0:
@@ -2452,17 +2466,52 @@ class Environment(AECEnv):
             )
             return {}
 
+    def _reset_perception_profile_step(self) -> None:
+        """Reset step-level perception profiler accumulators to zero."""
+        self._perception_profile = dict(self._perception_profile_zeros)
+
+    def reset_perception_profile(self) -> None:
+        """Reset step-level perception profiler accumulators to zero.
+
+        This is a public convenience wrapper around the internal reset used by
+        ``update()``. It is useful when callers (e.g. benchmarks) need to
+        discard any profiling data that accumulated before their measurement
+        window starts.
+        """
+        self._reset_perception_profile_step()
+
     def get_perception_profile(self, reset: bool = False) -> Dict[str, float]:
-        """Return aggregated perception profiling stats.
+        """Return step-level perception profiling stats.
+
+        These values represent activity that occurred in the **current step**
+        only.  They are reset automatically at the end of every ``update()``
+        call so that each step's numbers are independent.
 
         Args:
-            reset: If True, reset accumulators after returning.
+            reset: If True, reset the step-level accumulators after returning
+                   the current values.  This is occasionally useful for
+                   benchmarking within a single step.
+
+        Returns:
+            A copy of the step-level perception profile dict.
         """
         prof = dict(self._perception_profile)
         if reset:
-            for k in self._perception_profile.keys():
-                self._perception_profile[k] = 0 if "points" in k else 0.0
+            self._reset_perception_profile_step()
         return prof
+
+    def get_cumulative_perception_profile(self) -> Dict[str, float]:
+        """Return cumulative perception profiling stats for the full simulation.
+
+        Unlike :meth:`get_perception_profile`, these values accumulate across
+        **all** steps and are never automatically reset during normal operation.
+        They are useful for long-horizon analysis such as computing average
+        perception cost per step when divided by ``self.time``.
+
+        Returns:
+            A copy of the cumulative perception profile dict.
+        """
+        return dict(self._perception_profile_cumulative)
 
     def render(self, mode: str = "human") -> None:
         """Render the current state of the environment.
