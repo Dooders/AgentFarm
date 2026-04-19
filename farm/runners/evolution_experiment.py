@@ -606,15 +606,15 @@ class EvolutionExperiment:
         """Return a :class:`ConvergenceReason` if convergence is detected.
 
         Returns ``None`` when convergence checking is disabled, when fewer
-        than ``min_generations`` have completed, or when no criterion is
-        satisfied.  The caller is responsible for appending to both history
-        lists *before* calling this method so that the current generation is
-        included in the check.
+        than ``min_generations`` completed generations are recorded in the
+        histories, or when no criterion is satisfied.  The caller is
+        responsible for appending to both history lists *before* calling this
+        method so that the current generation is included in the check.
         """
         criteria = self.config.convergence_criteria
         if not criteria.enabled:
             return None
-        if generation < criteria.min_generations:
+        if len(best_fitness_history) < criteria.min_generations:
             return None
 
         # Fitness plateau: current best has not improved over the trailing window.

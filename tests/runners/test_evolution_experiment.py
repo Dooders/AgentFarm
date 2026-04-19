@@ -762,8 +762,8 @@ class TestConvergenceFitnessPlateau(unittest.TestCase):
             fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
         )
         self.assertTrue(result.converged)
-        # Plateau cannot fire before generation 5 (min_generations=5).
-        self.assertGreaterEqual(result.generation_of_convergence, 5)
+        # Plateau cannot fire until five generations are recorded (indices 0–4).
+        self.assertGreaterEqual(result.generation_of_convergence, 4)
 
 
 class TestConvergenceDiversityCollapse(unittest.TestCase):
