@@ -301,6 +301,7 @@ class ResourceManager:
         # Clear existing resources
         self.resources.clear()
         self.next_resource_id = 0
+        self._step_resources_consumed = 0.0
 
         # Use seeded random generator for deterministic behavior
         if self.seed_value is not None:
