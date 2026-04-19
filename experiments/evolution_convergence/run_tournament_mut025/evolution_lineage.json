@@ -2,1041 +2,1201 @@
   {
     "candidate_id": "g0_c0",
     "generation": 0,
-    "fitness": 84.0,
+    "fitness": 69.0,
     "learning_rate": 0.001,
     "parent_ids": [
       "seed",
       "seed"
     ],
     "metadata": {
-      "final_population": 84
+      "final_population": 69,
+      "raw_fitness": 69.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g0_c1",
     "generation": 0,
-    "fitness": 88.0,
+    "fitness": 62.0,
     "learning_rate": 0.15942878976101,
     "parent_ids": [
       "seed",
       "seed"
     ],
     "metadata": {
-      "final_population": 88
+      "final_population": 62,
+      "raw_fitness": 62.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g0_c2",
     "generation": 0,
-    "fitness": 83.0,
-    "learning_rate": 0.02610363003699699,
+    "fitness": 65.0,
+    "learning_rate": 1e-06,
     "parent_ids": [
       "seed",
       "seed"
     ],
     "metadata": {
-      "final_population": 83
+      "final_population": 65,
+      "raw_fitness": 65.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g0_c3",
     "generation": 0,
-    "fitness": 84.0,
-    "learning_rate": 1e-06,
-    "parent_ids": [
-      "seed",
-      "seed"
-    ],
-    "metadata": {
-      "final_population": 84
-    }
-  },
-  {
-    "candidate_id": "g0_c4",
-    "generation": 0,
-    "fitness": 83.0,
-    "learning_rate": 1e-06,
-    "parent_ids": [
-      "seed",
-      "seed"
-    ],
-    "metadata": {
-      "final_population": 83
-    }
-  },
-  {
-    "candidate_id": "g0_c5",
-    "generation": 0,
-    "fitness": 77.0,
-    "learning_rate": 0.13903446179832052,
-    "parent_ids": [
-      "seed",
-      "seed"
-    ],
-    "metadata": {
-      "final_population": 77
-    }
-  },
-  {
-    "candidate_id": "g0_c6",
-    "generation": 0,
-    "fitness": 70.0,
-    "learning_rate": 0.02714925540397523,
-    "parent_ids": [
-      "seed",
-      "seed"
-    ],
-    "metadata": {
-      "final_population": 70
-    }
-  },
-  {
-    "candidate_id": "g0_c7",
-    "generation": 0,
-    "fitness": 82.0,
+    "fitness": 65.0,
     "learning_rate": 0.09255006818590938,
     "parent_ids": [
       "seed",
       "seed"
     ],
     "metadata": {
-      "final_population": 82
+      "final_population": 65,
+      "raw_fitness": 65.0,
+      "boundary_penalty": 0.0
+    }
+  },
+  {
+    "candidate_id": "g0_c4",
+    "generation": 0,
+    "fitness": 70.0,
+    "learning_rate": 1e-06,
+    "parent_ids": [
+      "seed",
+      "seed"
+    ],
+    "metadata": {
+      "final_population": 70,
+      "raw_fitness": 70.0,
+      "boundary_penalty": 0.0
+    }
+  },
+  {
+    "candidate_id": "g0_c5",
+    "generation": 0,
+    "fitness": 54.0,
+    "learning_rate": 1e-06,
+    "parent_ids": [
+      "seed",
+      "seed"
+    ],
+    "metadata": {
+      "final_population": 54,
+      "raw_fitness": 54.0,
+      "boundary_penalty": 0.0
+    }
+  },
+  {
+    "candidate_id": "g0_c6",
+    "generation": 0,
+    "fitness": 58.0,
+    "learning_rate": 1e-06,
+    "parent_ids": [
+      "seed",
+      "seed"
+    ],
+    "metadata": {
+      "final_population": 58,
+      "raw_fitness": 58.0,
+      "boundary_penalty": 0.0
+    }
+  },
+  {
+    "candidate_id": "g0_c7",
+    "generation": 0,
+    "fitness": 59.0,
+    "learning_rate": 1e-06,
+    "parent_ids": [
+      "seed",
+      "seed"
+    ],
+    "metadata": {
+      "final_population": 59,
+      "raw_fitness": 59.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g0_c8",
     "generation": 0,
-    "fitness": 82.0,
-    "learning_rate": 0.2759141269457153,
+    "fitness": 70.0,
+    "learning_rate": 0.04184612773850849,
     "parent_ids": [
       "seed",
       "seed"
     ],
     "metadata": {
-      "final_population": 82
+      "final_population": 70,
+      "raw_fitness": 70.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g0_c9",
     "generation": 0,
-    "fitness": 73.0,
+    "fitness": 63.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "seed",
       "seed"
     ],
     "metadata": {
-      "final_population": 73
+      "final_population": 63,
+      "raw_fitness": 63.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g1_elite0",
     "generation": 1,
-    "fitness": 73.0,
-    "learning_rate": 0.15942878976101,
+    "fitness": 66.0,
+    "learning_rate": 1e-06,
     "parent_ids": [
-      "g0_c1",
-      "g0_c1"
+      "g0_c4",
+      "g0_c4"
     ],
     "metadata": {
-      "final_population": 73
+      "final_population": 66,
+      "raw_fitness": 66.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g1_c1",
     "generation": 1,
-    "fitness": 88.0,
+    "fitness": 69.0,
     "learning_rate": 1e-06,
     "parent_ids": [
-      "g0_c1",
+      "g0_c4",
       "g0_c3"
     ],
     "metadata": {
-      "final_population": 88
+      "final_population": 69,
+      "raw_fitness": 69.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g1_c2",
     "generation": 1,
-    "fitness": 81.0,
-    "learning_rate": 0.001,
+    "fitness": 62.0,
+    "learning_rate": 1e-06,
     "parent_ids": [
-      "g0_c0",
+      "g0_c4",
       "g0_c1"
     ],
     "metadata": {
-      "final_population": 81
+      "final_population": 62,
+      "raw_fitness": 62.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g1_c3",
     "generation": 1,
-    "fitness": 89.0,
+    "fitness": 70.0,
     "learning_rate": 1e-06,
     "parent_ids": [
-      "g0_c1",
-      "g0_c3"
+      "g0_c8",
+      "g0_c2"
     ],
     "metadata": {
-      "final_population": 89
+      "final_population": 70,
+      "raw_fitness": 70.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g1_c4",
     "generation": 1,
-    "fitness": 72.0,
+    "fitness": 60.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "g0_c4",
-      "g0_c1"
+      "g0_c4"
     ],
     "metadata": {
-      "final_population": 72
+      "final_population": 60,
+      "raw_fitness": 60.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g1_c5",
     "generation": 1,
-    "fitness": 88.0,
-    "learning_rate": 1e-06,
+    "fitness": 59.0,
+    "learning_rate": 0.09255006818590938,
     "parent_ids": [
-      "g0_c1",
+      "g0_c0",
       "g0_c3"
     ],
     "metadata": {
-      "final_population": 88
+      "final_population": 59,
+      "raw_fitness": 59.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g1_c6",
     "generation": 1,
-    "fitness": 81.0,
-    "learning_rate": 0.15942878976101,
+    "fitness": 64.0,
+    "learning_rate": 0.04184612773850849,
     "parent_ids": [
       "g0_c1",
       "g0_c8"
     ],
     "metadata": {
-      "final_population": 81
+      "final_population": 64,
+      "raw_fitness": 64.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g1_c7",
     "generation": 1,
-    "fitness": 79.0,
-    "learning_rate": 0.02610363003699699,
+    "fitness": 61.0,
+    "learning_rate": 0.4931091356966321,
     "parent_ids": [
-      "g0_c2",
-      "g0_c4"
+      "g0_c8",
+      "g0_c8"
     ],
     "metadata": {
-      "final_population": 79
+      "final_population": 61,
+      "raw_fitness": 61.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g1_c8",
     "generation": 1,
-    "fitness": 73.0,
-    "learning_rate": 0.15942878976101,
+    "fitness": 67.0,
+    "learning_rate": 1e-06,
     "parent_ids": [
       "g0_c1",
-      "g0_c1"
+      "g0_c0"
     ],
     "metadata": {
-      "final_population": 73
+      "final_population": 67,
+      "raw_fitness": 67.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g1_c9",
     "generation": 1,
-    "fitness": 75.0,
-    "learning_rate": 1e-06,
+    "fitness": 65.0,
+    "learning_rate": 0.09255006818590938,
     "parent_ids": [
       "g0_c4",
       "g0_c3"
     ],
     "metadata": {
-      "final_population": 75
+      "final_population": 65,
+      "raw_fitness": 65.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g2_elite0",
     "generation": 2,
-    "fitness": 75.0,
+    "fitness": 76.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "g1_c3",
       "g1_c3"
     ],
     "metadata": {
-      "final_population": 75
+      "final_population": 76,
+      "raw_fitness": 76.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g2_c1",
     "generation": 2,
-    "fitness": 83.0,
+    "fitness": 70.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "g1_c3",
       "g1_c3"
     ],
     "metadata": {
-      "final_population": 83
+      "final_population": 70,
+      "raw_fitness": 70.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g2_c2",
     "generation": 2,
-    "fitness": 82.0,
-    "learning_rate": 0.02610363003699699,
+    "fitness": 63.0,
+    "learning_rate": 0.08764437573278186,
     "parent_ids": [
-      "g1_c7",
-      "g1_c5"
+      "g1_elite0",
+      "g1_elite0"
     ],
     "metadata": {
-      "final_population": 82
+      "final_population": 63,
+      "raw_fitness": 63.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g2_c3",
     "generation": 2,
-    "fitness": 89.0,
+    "fitness": 65.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "g1_c3",
-      "g1_c5"
+      "g1_c8"
     ],
     "metadata": {
-      "final_population": 89
+      "final_population": 65,
+      "raw_fitness": 65.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g2_c4",
     "generation": 2,
-    "fitness": 79.0,
-    "learning_rate": 0.23850619476563123,
+    "fitness": 57.0,
+    "learning_rate": 1e-06,
     "parent_ids": [
       "g1_c2",
-      "g1_c6"
+      "g1_c9"
     ],
     "metadata": {
-      "final_population": 79
+      "final_population": 57,
+      "raw_fitness": 57.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g2_c5",
     "generation": 2,
-    "fitness": 83.0,
+    "fitness": 56.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "g1_c3",
       "g1_c1"
     ],
     "metadata": {
-      "final_population": 83
+      "final_population": 56,
+      "raw_fitness": 56.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g2_c6",
     "generation": 2,
-    "fitness": 85.0,
-    "learning_rate": 0.15942878976101,
+    "fitness": 66.0,
+    "learning_rate": 1e-06,
     "parent_ids": [
-      "g1_c7",
-      "g1_c6"
+      "g1_c8",
+      "g1_c8"
     ],
     "metadata": {
-      "final_population": 85
+      "final_population": 66,
+      "raw_fitness": 66.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g2_c7",
     "generation": 2,
-    "fitness": 75.0,
-    "learning_rate": 1e-06,
+    "fitness": 69.0,
+    "learning_rate": 0.17939481794869772,
     "parent_ids": [
-      "g1_c5",
+      "g1_elite0",
       "g1_c3"
     ],
     "metadata": {
-      "final_population": 75
+      "final_population": 69,
+      "raw_fitness": 69.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g2_c8",
     "generation": 2,
-    "fitness": 78.0,
+    "fitness": 67.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "g1_c3",
       "g1_c3"
     ],
     "metadata": {
-      "final_population": 78
+      "final_population": 67,
+      "raw_fitness": 67.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g2_c9",
     "generation": 2,
-    "fitness": 77.0,
+    "fitness": 60.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "g1_c3",
-      "g1_c2"
+      "g1_elite0"
     ],
     "metadata": {
-      "final_population": 77
+      "final_population": 60,
+      "raw_fitness": 60.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g3_elite0",
     "generation": 3,
-    "fitness": 77.0,
+    "fitness": 59.0,
     "learning_rate": 1e-06,
     "parent_ids": [
-      "g2_c3",
-      "g2_c3"
+      "g2_elite0",
+      "g2_elite0"
     ],
     "metadata": {
-      "final_population": 77
+      "final_population": 59,
+      "raw_fitness": 59.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g3_c1",
     "generation": 3,
-    "fitness": 83.0,
-    "learning_rate": 1e-06,
+    "fitness": 66.0,
+    "learning_rate": 0.17939481794869772,
     "parent_ids": [
       "g2_c2",
-      "g2_c3"
+      "g2_c7"
     ],
     "metadata": {
-      "final_population": 83
+      "final_population": 66,
+      "raw_fitness": 66.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g3_c2",
     "generation": 3,
-    "fitness": 87.0,
+    "fitness": 62.0,
     "learning_rate": 1e-06,
     "parent_ids": [
-      "g2_c3",
-      "g2_c5"
+      "g2_c7",
+      "g2_c9"
     ],
     "metadata": {
-      "final_population": 87
+      "final_population": 62,
+      "raw_fitness": 62.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g3_c3",
     "generation": 3,
-    "fitness": 82.0,
+    "fitness": 61.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "g2_c1",
-      "g2_c3"
+      "g2_c7"
     ],
     "metadata": {
-      "final_population": 82
+      "final_population": 61,
+      "raw_fitness": 61.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g3_c4",
     "generation": 3,
-    "fitness": 87.0,
-    "learning_rate": 0.1200627406494439,
+    "fitness": 56.0,
+    "learning_rate": 0.17939481794869772,
     "parent_ids": [
-      "g2_c4",
+      "g2_c7",
       "g2_c1"
     ],
     "metadata": {
-      "final_population": 87
+      "final_population": 56,
+      "raw_fitness": 56.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g3_c5",
     "generation": 3,
-    "fitness": 84.0,
+    "fitness": 54.0,
     "learning_rate": 1e-06,
     "parent_ids": [
-      "g2_c6",
-      "g2_c3"
+      "g2_c1",
+      "g2_elite0"
     ],
     "metadata": {
-      "final_population": 84
+      "final_population": 54,
+      "raw_fitness": 54.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g3_c6",
     "generation": 3,
-    "fitness": 92.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 59.0,
+    "learning_rate": 0.17939481794869772,
     "parent_ids": [
-      "g2_c6",
-      "g2_c3"
+      "g2_c8",
+      "g2_c7"
     ],
     "metadata": {
-      "final_population": 92
+      "final_population": 59,
+      "raw_fitness": 59.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g3_c7",
     "generation": 3,
-    "fitness": 81.0,
-    "learning_rate": 1e-06,
+    "fitness": 69.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g2_c6",
-      "g2_c3"
+      "g2_c1",
+      "g2_c7"
     ],
     "metadata": {
-      "final_population": 81
+      "final_population": 69,
+      "raw_fitness": 69.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g3_c8",
     "generation": 3,
-    "fitness": 84.0,
-    "learning_rate": 0.15942878976101,
+    "fitness": 62.0,
+    "learning_rate": 0.10552005530494407,
     "parent_ids": [
-      "g2_c6",
-      "g2_c6"
+      "g2_c1",
+      "g2_c7"
     ],
     "metadata": {
-      "final_population": 84
+      "final_population": 62,
+      "raw_fitness": 62.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g3_c9",
     "generation": 3,
-    "fitness": 72.0,
+    "fitness": 65.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "g2_c1",
-      "g2_c3"
+      "g2_c6"
     ],
     "metadata": {
-      "final_population": 72
+      "final_population": 65,
+      "raw_fitness": 65.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g4_elite0",
     "generation": 4,
-    "fitness": 85.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 59.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g3_c6",
-      "g3_c6"
+      "g3_c7",
+      "g3_c7"
     ],
     "metadata": {
-      "final_population": 85
+      "final_population": 59,
+      "raw_fitness": 59.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g4_c1",
     "generation": 4,
-    "fitness": 80.0,
-    "learning_rate": 1e-06,
+    "fitness": 55.0,
+    "learning_rate": 0.14825433230230892,
     "parent_ids": [
-      "g3_c2",
-      "g3_c5"
+      "g3_c1",
+      "g3_c1"
     ],
     "metadata": {
-      "final_population": 80
+      "final_population": 55,
+      "raw_fitness": 55.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g4_c2",
     "generation": 4,
-    "fitness": 71.0,
-    "learning_rate": 1e-06,
+    "fitness": 67.0,
+    "learning_rate": 0.359561999431531,
     "parent_ids": [
-      "g3_c4",
-      "g3_c2"
+      "g3_c7",
+      "g3_c7"
     ],
     "metadata": {
-      "final_population": 71
+      "final_population": 67,
+      "raw_fitness": 67.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g4_c3",
     "generation": 4,
-    "fitness": 76.0,
-    "learning_rate": 1e-06,
+    "fitness": 70.0,
+    "learning_rate": 0.10552005530494407,
     "parent_ids": [
-      "g3_c5",
-      "g3_c4"
+      "g3_c8",
+      "g3_c2"
     ],
     "metadata": {
-      "final_population": 76
+      "final_population": 70,
+      "raw_fitness": 70.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g4_c4",
     "generation": 4,
-    "fitness": 77.0,
-    "learning_rate": 0.1200627406494439,
+    "fitness": 56.0,
+    "learning_rate": 0.17939481794869772,
     "parent_ids": [
-      "g3_c2",
-      "g3_c4"
+      "g3_c1",
+      "g3_c8"
     ],
     "metadata": {
-      "final_population": 77
+      "final_population": 56,
+      "raw_fitness": 56.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g4_c5",
     "generation": 4,
-    "fitness": 79.0,
-    "learning_rate": 1e-06,
+    "fitness": 65.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g3_c4",
-      "g3_c2"
+      "g3_c7",
+      "g3_c7"
     ],
     "metadata": {
-      "final_population": 79
+      "final_population": 65,
+      "raw_fitness": 65.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g4_c6",
     "generation": 4,
-    "fitness": 75.0,
-    "learning_rate": 1e-06,
+    "fitness": 70.0,
+    "learning_rate": 0.028747514647896488,
     "parent_ids": [
-      "g3_c8",
-      "g3_c4"
+      "g3_c1",
+      "g3_c1"
     ],
     "metadata": {
-      "final_population": 75
+      "final_population": 70,
+      "raw_fitness": 70.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g4_c7",
     "generation": 4,
-    "fitness": 70.0,
-    "learning_rate": 1e-06,
+    "fitness": 73.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g3_c6",
-      "g3_c8"
+      "g3_c7",
+      "g3_c7"
     ],
     "metadata": {
-      "final_population": 70
+      "final_population": 73,
+      "raw_fitness": 73.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g4_c8",
     "generation": 4,
-    "fitness": 81.0,
-    "learning_rate": 0.1200627406494439,
+    "fitness": 69.0,
+    "learning_rate": 1e-06,
     "parent_ids": [
-      "g3_c6",
-      "g3_c4"
+      "g3_c7",
+      "g3_c3"
     ],
     "metadata": {
-      "final_population": 81
+      "final_population": 69,
+      "raw_fitness": 69.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g4_c9",
     "generation": 4,
-    "fitness": 77.0,
-    "learning_rate": 0.1200627406494439,
+    "fitness": 65.0,
+    "learning_rate": 0.17939481794869772,
     "parent_ids": [
-      "g3_c4",
+      "g3_c3",
       "g3_c1"
     ],
     "metadata": {
-      "final_population": 77
+      "final_population": 65,
+      "raw_fitness": 65.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g5_elite0",
     "generation": 5,
-    "fitness": 73.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 68.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g4_elite0",
-      "g4_elite0"
+      "g4_c7",
+      "g4_c7"
     ],
     "metadata": {
-      "final_population": 73
+      "final_population": 68,
+      "raw_fitness": 68.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g5_c1",
     "generation": 5,
-    "fitness": 75.0,
-    "learning_rate": 1e-06,
+    "fitness": 60.0,
+    "learning_rate": 0.2942146194328662,
     "parent_ids": [
-      "g4_c1",
-      "g4_elite0"
+      "g4_c3",
+      "g4_c6"
     ],
     "metadata": {
-      "final_population": 75
+      "final_population": 60,
+      "raw_fitness": 60.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g5_c2",
     "generation": 5,
-    "fitness": 84.0,
-    "learning_rate": 1e-06,
+    "fitness": 66.0,
+    "learning_rate": 0.9038223687929717,
     "parent_ids": [
-      "g4_c5",
-      "g4_c9"
+      "g4_c7",
+      "g4_c3"
     ],
     "metadata": {
-      "final_population": 84
+      "final_population": 66,
+      "raw_fitness": 66.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g5_c3",
     "generation": 5,
-    "fitness": 78.0,
-    "learning_rate": 1e-06,
+    "fitness": 69.0,
+    "learning_rate": 0.028747514647896488,
     "parent_ids": [
-      "g4_c8",
-      "g4_c5"
+      "g4_c6",
+      "g4_c6"
     ],
     "metadata": {
-      "final_population": 78
+      "final_population": 69,
+      "raw_fitness": 69.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g5_c4",
     "generation": 5,
-    "fitness": 89.0,
-    "learning_rate": 0.1200627406494439,
+    "fitness": 68.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g4_c8",
-      "g4_c8"
+      "g4_c7",
+      "g4_c6"
     ],
     "metadata": {
-      "final_population": 89
+      "final_population": 68,
+      "raw_fitness": 68.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g5_c5",
     "generation": 5,
-    "fitness": 78.0,
-    "learning_rate": 0.1200627406494439,
+    "fitness": 69.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g4_c4",
-      "g4_c9"
+      "g4_c7",
+      "g4_c2"
     ],
     "metadata": {
-      "final_population": 78
+      "final_population": 69,
+      "raw_fitness": 69.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g5_c6",
     "generation": 5,
-    "fitness": 81.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 61.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g4_c1",
-      "g4_elite0"
+      "g4_c7",
+      "g4_c6"
     ],
     "metadata": {
-      "final_population": 81
+      "final_population": 61,
+      "raw_fitness": 61.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g5_c7",
     "generation": 5,
-    "fitness": 80.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 64.0,
+    "learning_rate": 1e-06,
     "parent_ids": [
-      "g4_elite0",
-      "g4_elite0"
+      "g4_c7",
+      "g4_c8"
     ],
     "metadata": {
-      "final_population": 80
+      "final_population": 64,
+      "raw_fitness": 64.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g5_c8",
     "generation": 5,
-    "fitness": 78.0,
-    "learning_rate": 1e-06,
+    "fitness": 60.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g4_c1",
-      "g4_c9"
+      "g4_c3",
+      "g4_c7"
     ],
     "metadata": {
-      "final_population": 78
+      "final_population": 60,
+      "raw_fitness": 60.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g5_c9",
     "generation": 5,
-    "fitness": 84.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 68.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g4_elite0",
+      "g4_c8",
       "g4_elite0"
     ],
     "metadata": {
-      "final_population": 84
+      "final_population": 68,
+      "raw_fitness": 68.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g6_elite0",
     "generation": 6,
-    "fitness": 72.0,
-    "learning_rate": 0.1200627406494439,
+    "fitness": 57.0,
+    "learning_rate": 0.028747514647896488,
     "parent_ids": [
-      "g5_c4",
-      "g5_c4"
+      "g5_c3",
+      "g5_c3"
     ],
     "metadata": {
-      "final_population": 72
+      "final_population": 57,
+      "raw_fitness": 57.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g6_c1",
     "generation": 6,
-    "fitness": 72.0,
-    "learning_rate": 0.1200627406494439,
+    "fitness": 57.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g5_c2",
-      "g5_c4"
+      "g5_c3",
+      "g5_c5"
     ],
     "metadata": {
-      "final_population": 72
+      "final_population": 57,
+      "raw_fitness": 57.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g6_c2",
     "generation": 6,
-    "fitness": 84.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 65.0,
+    "learning_rate": 0.028747514647896488,
     "parent_ids": [
-      "g5_c6",
-      "g5_c2"
+      "g5_c3",
+      "g5_elite0"
     ],
     "metadata": {
-      "final_population": 84
+      "final_population": 65,
+      "raw_fitness": 65.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g6_c3",
     "generation": 6,
-    "fitness": 81.0,
-    "learning_rate": 0.10224174522660873,
+    "fitness": 58.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
       "g5_c4",
-      "g5_c2"
+      "g5_c5"
     ],
     "metadata": {
-      "final_population": 81
+      "final_population": 58,
+      "raw_fitness": 58.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g6_c4",
     "generation": 6,
-    "fitness": 83.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 73.0,
+    "learning_rate": 0.028747514647896488,
     "parent_ids": [
-      "g5_c7",
-      "g5_c4"
+      "g5_c3",
+      "g5_c5"
     ],
     "metadata": {
-      "final_population": 83
+      "final_population": 73,
+      "raw_fitness": 73.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g6_c5",
     "generation": 6,
-    "fitness": 71.0,
+    "fitness": 63.0,
     "learning_rate": 1e-06,
     "parent_ids": [
       "g5_c2",
-      "g5_c6"
+      "g5_c7"
     ],
     "metadata": {
-      "final_population": 71
+      "final_population": 63,
+      "raw_fitness": 63.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g6_c6",
     "generation": 6,
-    "fitness": 86.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 60.0,
+    "learning_rate": 0.6330298963068575,
     "parent_ids": [
       "g5_c4",
       "g5_c7"
     ],
     "metadata": {
-      "final_population": 86
+      "final_population": 60,
+      "raw_fitness": 60.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g6_c7",
     "generation": 6,
-    "fitness": 83.0,
-    "learning_rate": 0.41835495000112605,
+    "fitness": 68.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g5_c7",
-      "g5_c2"
+      "g5_c5",
+      "g5_c5"
     ],
     "metadata": {
-      "final_population": 83
+      "final_population": 68,
+      "raw_fitness": 68.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g6_c8",
     "generation": 6,
-    "fitness": 74.0,
-    "learning_rate": 0.14274781457103763,
+    "fitness": 69.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
       "g5_c2",
       "g5_c4"
     ],
     "metadata": {
-      "final_population": 74
+      "final_population": 69,
+      "raw_fitness": 69.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g6_c9",
     "generation": 6,
-    "fitness": 78.0,
-    "learning_rate": 1e-06,
+    "fitness": 62.0,
+    "learning_rate": 0.576099366126402,
     "parent_ids": [
       "g5_c9",
-      "g5_c2"
+      "g5_elite0"
     ],
     "metadata": {
-      "final_population": 78
+      "final_population": 62,
+      "raw_fitness": 62.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g7_elite0",
     "generation": 7,
-    "fitness": 79.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 67.0,
+    "learning_rate": 0.028747514647896488,
     "parent_ids": [
-      "g6_c6",
-      "g6_c6"
+      "g6_c4",
+      "g6_c4"
     ],
     "metadata": {
-      "final_population": 79
+      "final_population": 67,
+      "raw_fitness": 67.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g7_c1",
     "generation": 7,
-    "fitness": 74.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 71.0,
+    "learning_rate": 0.2269703882742677,
     "parent_ids": [
-      "g6_c6",
-      "g6_c3"
+      "g6_c5",
+      "g6_c5"
     ],
     "metadata": {
-      "final_population": 74
+      "final_population": 71,
+      "raw_fitness": 71.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g7_c2",
     "generation": 7,
-    "fitness": 74.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 59.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g6_c6",
-      "g6_c9"
+      "g6_c5",
+      "g6_c8"
     ],
     "metadata": {
-      "final_population": 74
+      "final_population": 59,
+      "raw_fitness": 59.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g7_c3",
     "generation": 7,
-    "fitness": 79.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 56.0,
+    "learning_rate": 0.05637628627754835,
     "parent_ids": [
-      "g6_c9",
-      "g6_c6"
+      "g6_c5",
+      "g6_c7"
     ],
     "metadata": {
-      "final_population": 79
+      "final_population": 56,
+      "raw_fitness": 56.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g7_c4",
     "generation": 7,
-    "fitness": 84.0,
-    "learning_rate": 0.04288169220621041,
+    "fitness": 61.0,
+    "learning_rate": 0.576099366126402,
     "parent_ids": [
-      "g6_c6",
+      "g6_c9",
       "g6_c2"
     ],
     "metadata": {
-      "final_population": 84
+      "final_population": 61,
+      "raw_fitness": 61.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g7_c5",
     "generation": 7,
-    "fitness": 79.0,
-    "learning_rate": 0.38291595942999984,
+    "fitness": 64.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g6_c2",
-      "g6_c6"
+      "g6_c8",
+      "g6_c2"
     ],
     "metadata": {
-      "final_population": 79
+      "final_population": 64,
+      "raw_fitness": 64.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g7_c6",
     "generation": 7,
-    "fitness": 76.0,
-    "learning_rate": 0.10224174522660873,
+    "fitness": 66.0,
+    "learning_rate": 1e-06,
     "parent_ids": [
-      "g6_c3",
+      "g6_c5",
       "g6_c7"
     ],
     "metadata": {
-      "final_population": 76
+      "final_population": 66,
+      "raw_fitness": 66.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g7_c7",
     "generation": 7,
-    "fitness": 71.0,
-    "learning_rate": 0.41167896364036644,
+    "fitness": 64.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
       "g6_c2",
-      "g6_c6"
+      "g6_c8"
     ],
     "metadata": {
-      "final_population": 71
+      "final_population": 64,
+      "raw_fitness": 64.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g7_c8",
     "generation": 7,
-    "fitness": 76.0,
-    "learning_rate": 0.5977487679498238,
+    "fitness": 70.0,
+    "learning_rate": 0.576099366126402,
     "parent_ids": [
       "g6_c7",
-      "g6_c6"
+      "g6_c9"
     ],
     "metadata": {
-      "final_population": 76
+      "final_population": 70,
+      "raw_fitness": 70.0,
+      "boundary_penalty": 0.0
     }
   },
   {
     "candidate_id": "g7_c9",
     "generation": 7,
-    "fitness": 82.0,
-    "learning_rate": 0.2849218382699254,
+    "fitness": 70.0,
+    "learning_rate": 0.5039468076366348,
     "parent_ids": [
-      "g6_c3",
-      "g6_c6"
+      "g6_c8",
+      "g6_c5"
     ],
     "metadata": {
-      "final_population": 82
+      "final_population": 70,
+      "raw_fitness": 70.0,
+      "boundary_penalty": 0.0
     }
   }
 ]

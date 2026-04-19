@@ -74,7 +74,8 @@ class TestHyperparameterChromosome(unittest.TestCase):
     def test_default_registry_marks_evolvable_vs_fixed(self):
         registry = hyperparameter_evolution_registry()
         self.assertTrue(registry["learning_rate"])
-        self.assertFalse(registry["epsilon_decay"])
+        self.assertTrue(registry["gamma"])
+        self.assertTrue(registry["epsilon_decay"])
         self.assertFalse(registry["memory_size"])
 
     def test_short_registry_alias_matches_evolution_registry(self):
@@ -143,7 +144,6 @@ class TestHyperparameterChromosome(unittest.TestCase):
         with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=0.05):
             mutated = mutate_chromosome(chromosome, mutation_rate=1.0, mutation_scale=0.1)
         self.assertNotEqual(mutated.get_value("learning_rate"), chromosome.get_value("learning_rate"))
-        self.assertEqual(mutated.get_value("epsilon_decay"), chromosome.get_value("epsilon_decay"))
         self.assertEqual(mutated.get_value("memory_size"), chromosome.get_value("memory_size"))
 
     def test_gaussian_mutation_clamps_to_gene_bounds(self):
@@ -292,7 +292,6 @@ class TestHyperparameterChromosome(unittest.TestCase):
                 mutation_scale=1.0,
                 mutation_mode=MutationMode.GAUSSIAN,
             )
-        self.assertEqual(mutated.get_value("epsilon_decay"), chromosome.get_value("epsilon_decay"))
         self.assertEqual(mutated.get_value("memory_size"), chromosome.get_value("memory_size"))
 
     def test_apply_chromosome_to_learning_config(self):
@@ -316,6 +315,222 @@ class TestHyperparameterChromosome(unittest.TestCase):
         self.assertIsNot(updated, stub)
         self.assertEqual(updated.learning_rate, 0.05)
         self.assertEqual(stub.learning_rate, 0.02)
+
+
+class TestAdditionalContinuousGenes(unittest.TestCase):
+    """Tests for the two additional evolvable continuous genes: gamma and epsilon_decay."""
+
+    # --- gamma gene: bounds, defaults, serialization ---
+
+    def test_default_chromosome_contains_gamma(self):
+        chromosome = default_hyperparameter_chromosome()
+        self.assertAlmostEqual(chromosome.get_value("gamma"), 0.99)
+
+    def test_gamma_gene_bounds_valid(self):
+        chromosome = chromosome_from_values({"gamma": 0.0})
+        self.assertEqual(chromosome.get_value("gamma"), 0.0)
+        chromosome = chromosome_from_values({"gamma": 1.0})
+        self.assertEqual(chromosome.get_value("gamma"), 1.0)
+
+    def test_gamma_gene_rejects_out_of_range_value(self):
+        with self.assertRaises(ValueError):
+            chromosome_from_values({"gamma": 1.5})
+
+    def test_gamma_gene_rejects_below_min(self):
+        with self.assertRaises(ValueError):
+            chromosome_from_values({"gamma": -0.1})
+
+    # --- epsilon_decay gene: now evolvable ---
+
+    def test_epsilon_decay_is_evolvable(self):
+        chromosome = default_hyperparameter_chromosome()
+        self.assertIn("epsilon_decay", chromosome.evolvable_gene_names())
+
+    def test_gamma_is_evolvable(self):
+        chromosome = default_hyperparameter_chromosome()
+        self.assertIn("gamma", chromosome.evolvable_gene_names())
+
+    def test_memory_size_is_still_fixed(self):
+        chromosome = default_hyperparameter_chromosome()
+        self.assertIn("memory_size", chromosome.fixed_gene_names())
+        self.assertNotIn("memory_size", chromosome.evolvable_gene_names())
+
+    # --- serialization round-trips for new genes ---
+
+    def test_gamma_serialization_round_trip(self):
+        original = chromosome_from_values({"gamma": 0.75})
+        restored = HyperparameterChromosome.from_dict(original.to_dict())
+        self.assertAlmostEqual(restored.get_value("gamma"), 0.75, places=15)
+
+    def test_all_genes_serialization_round_trip(self):
+        original = chromosome_from_values({
+            "learning_rate": 0.005,
+            "gamma": 0.95,
+            "epsilon_decay": 0.99,
+            "memory_size": 5000.0,
+        })
+        restored = HyperparameterChromosome.from_dict(original.to_dict())
+        self.assertAlmostEqual(restored.get_value("learning_rate"), 0.005, places=15)
+        self.assertAlmostEqual(restored.get_value("gamma"), 0.95, places=15)
+        self.assertAlmostEqual(restored.get_value("epsilon_decay"), 0.99, places=15)
+        self.assertAlmostEqual(restored.get_value("memory_size"), 5000.0, places=15)
+
+    def test_all_genes_serialization_through_json(self):
+        original = chromosome_from_values({"learning_rate": 0.003, "gamma": 0.97, "epsilon_decay": 0.998})
+        as_json = json.dumps(original.to_dict(), sort_keys=True)
+        restored = HyperparameterChromosome.from_dict(json.loads(as_json))
+        self.assertAlmostEqual(restored.get_value("learning_rate"), 0.003, places=15)
+        self.assertAlmostEqual(restored.get_value("gamma"), 0.97, places=15)
+        self.assertAlmostEqual(restored.get_value("epsilon_decay"), 0.998, places=15)
+
+    # --- encode/decode for new genes ---
+
+    def test_gamma_encode_decode_round_trip(self):
+        chromosome = default_hyperparameter_chromosome()
+        gamma_gene = chromosome.get_gene("gamma")
+        assert gamma_gene is not None
+        for value in (0.0, 0.5, 0.9, 0.99, 1.0):
+            encoded = gamma_gene.encode(value)
+            decoded = gamma_gene.decode(encoded)
+            self.assertAlmostEqual(decoded, value, delta=0.01)
+
+    def test_gamma_encoding_uses_8bit_bounds(self):
+        chromosome = default_hyperparameter_chromosome()
+        gamma_gene = chromosome.get_gene("gamma")
+        assert gamma_gene is not None
+        self.assertEqual(gamma_gene.encode(gamma_gene.min_value), 0)
+        self.assertEqual(gamma_gene.encode(gamma_gene.max_value), 255)
+
+    def test_epsilon_decay_encode_decode_round_trip(self):
+        chromosome = default_hyperparameter_chromosome()
+        ed_gene = chromosome.get_gene("epsilon_decay")
+        assert ed_gene is not None
+        for value in (0.9, 0.95, 0.995, 1.0):
+            encoded = ed_gene.encode(value)
+            decoded = ed_gene.decode(encoded)
+            # Linear 8-bit encoding has quantization error ~1/255 of the range (~0.004)
+            self.assertAlmostEqual(decoded, value, delta=0.005)
+
+    def test_epsilon_decay_encoding_uses_8bit_bounds(self):
+        chromosome = default_hyperparameter_chromosome()
+        ed_gene = chromosome.get_gene("epsilon_decay")
+        assert ed_gene is not None
+        self.assertEqual(ed_gene.encode(ed_gene.min_value), 0)
+        self.assertEqual(ed_gene.encode(ed_gene.max_value), 255)
+
+    def test_multi_gene_chromosome_encode_decode_round_trip(self):
+        chromosome = chromosome_from_values({"learning_rate": 0.005, "gamma": 0.95, "epsilon_decay": 0.99})
+        encoded = encode_chromosome(chromosome)
+        decoded = decode_chromosome(encoded, template=chromosome)
+        self.assertAlmostEqual(decoded.get_value("learning_rate"), 0.005, delta=0.005 * 0.06)
+        self.assertAlmostEqual(decoded.get_value("gamma"), 0.95, delta=0.01)
+        self.assertAlmostEqual(decoded.get_value("epsilon_decay"), 0.99, delta=0.005)
+
+    def test_multi_gene_chromosome_vector_encode_decode_round_trip(self):
+        chromosome = chromosome_from_values({"learning_rate": 0.005, "gamma": 0.95, "epsilon_decay": 0.99})
+        vec = encode_chromosome_vector(chromosome)
+        # 3 evolvable genes → 3-element vector
+        self.assertEqual(len(vec), 3)
+        decoded = decode_chromosome_vector(vec, template=chromosome)
+        self.assertAlmostEqual(decoded.get_value("learning_rate"), 0.005, delta=0.005 * 0.06)
+        self.assertAlmostEqual(decoded.get_value("gamma"), 0.95, delta=0.01)
+        self.assertAlmostEqual(decoded.get_value("epsilon_decay"), 0.99, delta=0.005)
+
+    # --- mutation: all evolvable genes change, fixed unchanged ---
+
+    def test_multi_gene_mutation_changes_all_evolvable_genes(self):
+        chromosome = chromosome_from_values({
+            "learning_rate": 0.5,
+            "gamma": 0.5,
+            "epsilon_decay": 0.5,
+        })
+        rng = random.Random(42)
+        mutated = mutate_chromosome(chromosome, mutation_rate=1.0, mutation_scale=0.1, rng=rng)
+        # All three evolvable genes should move; memory_size stays fixed.
+        self.assertNotEqual(mutated.get_value("learning_rate"), 0.5)
+        self.assertNotEqual(mutated.get_value("gamma"), 0.5)
+        self.assertNotEqual(mutated.get_value("epsilon_decay"), 0.5)
+        self.assertEqual(mutated.get_value("memory_size"), chromosome.get_value("memory_size"))
+
+    def test_gamma_mutation_stays_in_bounds(self):
+        chromosome = chromosome_from_values({"gamma": 0.99})
+        rng = random.Random(7)
+        for _ in range(50):
+            chromosome = mutate_chromosome(
+                chromosome, mutation_rate=1.0, mutation_scale=1.0, rng=rng
+            )
+            g = chromosome.get_value("gamma")
+            self.assertGreaterEqual(g, 0.0)
+            self.assertLessEqual(g, 1.0)
+
+    def test_epsilon_decay_mutation_stays_in_bounds(self):
+        chromosome = chromosome_from_values({"epsilon_decay": 0.5})
+        ed_min = chromosome.get_gene("epsilon_decay").min_value
+        rng = random.Random(13)
+        for _ in range(50):
+            chromosome = mutate_chromosome(
+                chromosome, mutation_rate=1.0, mutation_scale=1.0, rng=rng
+            )
+            ed = chromosome.get_value("epsilon_decay")
+            self.assertGreaterEqual(ed, ed_min)
+            self.assertLessEqual(ed, 1.0)
+
+    # --- crossover: all evolvable genes participate ---
+
+    def test_crossover_mixes_all_evolvable_genes(self):
+        parent_a = chromosome_from_values({"learning_rate": 0.01, "gamma": 0.8, "epsilon_decay": 0.9})
+        parent_b = chromosome_from_values({"learning_rate": 0.5, "gamma": 0.99, "epsilon_decay": 0.999})
+        child = crossover_chromosomes(
+            parent_a, parent_b, mode=CrossoverMode.UNIFORM, uniform_parent_b_probability=0.5,
+            rng=random.Random(3),
+        )
+        # Each evolvable gene should come from one of the two parents.
+        self.assertIn(child.get_value("learning_rate"), (0.01, 0.5))
+        self.assertIn(child.get_value("gamma"), (0.8, 0.99))
+        self.assertIn(child.get_value("epsilon_decay"), (0.9, 0.999))
+
+    def test_crossover_then_mutation_keeps_all_evolvable_in_bounds(self):
+        parent_a = chromosome_from_values({"learning_rate": 1e-6, "gamma": 0.0, "epsilon_decay": 0.9})
+        parent_b = chromosome_from_values({"learning_rate": 1.0, "gamma": 1.0, "epsilon_decay": 1.0})
+        ed_min = parent_a.get_gene("epsilon_decay").min_value
+        child = crossover_chromosomes(
+            parent_a, parent_b, mode=CrossoverMode.BLEND, blend_alpha=0.5, rng=random.Random(9)
+        )
+        mutated = mutate_chromosome(child, mutation_rate=1.0, mutation_scale=1.0, rng=random.Random(17))
+        self.assertGreaterEqual(mutated.get_value("learning_rate"), 1e-6)
+        self.assertLessEqual(mutated.get_value("learning_rate"), 1.0)
+        self.assertGreaterEqual(mutated.get_value("gamma"), 0.0)
+        self.assertLessEqual(mutated.get_value("gamma"), 1.0)
+        self.assertGreaterEqual(mutated.get_value("epsilon_decay"), ed_min)
+        self.assertLessEqual(mutated.get_value("epsilon_decay"), 1.0)
+
+    # --- config projection ---
+
+    def test_apply_chromosome_projects_gamma_to_decision_config(self):
+        decision = DecisionConfig(learning_rate=0.001, gamma=0.99)
+        chromosome = chromosome_from_values({"learning_rate": 0.005, "gamma": 0.95})
+        updated = apply_chromosome_to_learning_config(decision, chromosome)
+        self.assertAlmostEqual(updated.learning_rate, 0.005)
+        self.assertAlmostEqual(updated.gamma, 0.95)
+
+    def test_apply_chromosome_projects_epsilon_decay_to_decision_config(self):
+        decision = DecisionConfig(epsilon_decay=0.995)
+        chromosome = chromosome_from_values({"epsilon_decay": 0.98})
+        updated = apply_chromosome_to_learning_config(decision, chromosome)
+        self.assertAlmostEqual(updated.epsilon_decay, 0.98)
+
+    def test_chromosome_from_learning_config_picks_up_gamma(self):
+        decision = DecisionConfig(gamma=0.95)
+        chromosome = chromosome_from_learning_config(decision)
+        self.assertAlmostEqual(chromosome.get_value("gamma"), 0.95)
+
+    def test_chromosome_from_learning_config_picks_up_all_new_evolvable_genes(self):
+        decision = DecisionConfig(learning_rate=0.005, gamma=0.97, epsilon_decay=0.992, memory_size=2000)
+        chromosome = chromosome_from_learning_config(decision)
+        self.assertAlmostEqual(chromosome.get_value("learning_rate"), 0.005)
+        self.assertAlmostEqual(chromosome.get_value("gamma"), 0.97)
+        self.assertAlmostEqual(chromosome.get_value("epsilon_decay"), 0.992)
+        self.assertAlmostEqual(chromosome.get_value("memory_size"), 2000.0)
 
 
 class TestHyperparameterEncoding(unittest.TestCase):
@@ -777,19 +992,21 @@ class TestComputeBoundaryPenalty(unittest.TestCase):
         self.assertEqual(compute_boundary_penalty(chromosome, cfg), 0.0)
 
     def test_full_penalty_at_max_boundary(self):
-        chromosome = chromosome_from_values({"learning_rate": 1.0})
+        # Set all other evolvable genes to midpoints so only learning_rate (at max) incurs a penalty.
+        chromosome = chromosome_from_values({"learning_rate": 1.0, "gamma": 0.5, "epsilon_decay": 0.5})
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05, near_boundary_threshold=0.1)
         penalty = compute_boundary_penalty(chromosome, cfg)
         self.assertAlmostEqual(penalty, 0.05)
 
     def test_full_penalty_at_min_boundary(self):
-        chromosome = chromosome_from_values({"learning_rate": 1e-6})
+        # Set all other evolvable genes to midpoints so only learning_rate (at min) incurs a penalty.
+        chromosome = chromosome_from_values({"learning_rate": 1e-6, "gamma": 0.5, "epsilon_decay": 0.5})
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05, near_boundary_threshold=0.1)
         penalty = compute_boundary_penalty(chromosome, cfg)
         self.assertAlmostEqual(penalty, 0.05)
 
     def test_zero_penalty_well_inside_bounds(self):
-        chromosome = chromosome_from_values({"learning_rate": 0.5})
+        chromosome = chromosome_from_values({"learning_rate": 0.5, "gamma": 0.5, "epsilon_decay": 0.5})
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.1, near_boundary_threshold=0.05)
         penalty = compute_boundary_penalty(chromosome, cfg)
         self.assertEqual(penalty, 0.0)
@@ -812,13 +1029,16 @@ class TestComputeBoundaryPenalty(unittest.TestCase):
 
     def test_no_penalty_for_fixed_genes(self):
         chromosome = default_hyperparameter_chromosome()
-        # epsilon_decay and memory_size are fixed (evolvable=False)
-        # Only learning_rate is evolvable; at its default of 0.001 it is very
-        # close to min (1e-6) on a linear scale → may receive a penalty.
-        # Override learning_rate to midpoint to guarantee zero penalty.
-        chromosome = chromosome.with_overrides({"learning_rate": 0.5})
+        # memory_size is the only fixed gene (evolvable=False).
+        # All evolvable genes (learning_rate, gamma, epsilon_decay) must be set
+        # well inside bounds to guarantee zero penalty.
+        chromosome = chromosome.with_overrides({
+            "learning_rate": 0.5,
+            "gamma": 0.5,
+            "epsilon_decay": 0.5,
+        })
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.1, near_boundary_threshold=0.05)
-        # Even though epsilon_decay is near its min, it is fixed → no penalty
+        # memory_size is fixed → no penalty even though its value is arbitrary
         penalty = compute_boundary_penalty(chromosome, cfg)
         self.assertEqual(penalty, 0.0)
 

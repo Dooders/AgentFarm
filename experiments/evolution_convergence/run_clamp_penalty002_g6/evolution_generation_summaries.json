@@ -1,24 +1,31 @@
 [
   {
     "generation": 0,
-    "best_fitness": 70.0,
-    "mean_fitness": 63.61521249698455,
-    "min_fitness": 54.98,
-    "best_candidate_id": "g0_c1",
+    "best_fitness": 74.9623996003996,
+    "mean_fitness": 64.09093452730899,
+    "min_fitness": 53.96,
+    "best_candidate_id": "g0_c0",
     "gene_statistics": {
       "learning_rate": {
-        "mean": 0.055658525648276516,
-        "median": 0.02662644272048611,
-        "std": 0.06118633982230562,
+        "mean": 0.03162298224336492,
+        "median": 1e-06,
+        "std": 0.05699117265327523,
         "min": 1e-06,
         "max": 0.15942878976101
       },
+      "gamma": {
+        "mean": 0.9371359275229121,
+        "median": 0.9875518275703261,
+        "std": 0.10332826581741346,
+        "min": 0.6803741749126586,
+        "max": 1.0
+      },
       "epsilon_decay": {
-        "mean": 0.995,
-        "median": 0.995,
-        "std": 0.0,
-        "min": 0.995,
-        "max": 0.995
+        "mean": 0.8724919919611355,
+        "median": 0.8921990333611127,
+        "std": 0.12471650716431597,
+        "min": 0.6866249283632477,
+        "max": 1.0
       },
       "memory_size": {
         "mean": 2000,
@@ -29,31 +36,45 @@
       }
     },
     "best_chromosome": {
-      "learning_rate": 0.15942878976101,
+      "learning_rate": 0.001,
+      "gamma": 0.95,
       "epsilon_decay": 0.995,
       "memory_size": 2000
-    }
+    },
+    "mutation_rate_used": null,
+    "mutation_scale_used": null,
+    "mutation_rate_multiplier": null,
+    "mutation_scale_multiplier": null,
+    "diversity": 0.09501200087541144,
+    "adaptive_event": "initial_seeding"
   },
   {
     "generation": 1,
-    "best_fitness": 75.0,
-    "mean_fitness": 65.2425,
-    "min_fitness": 57.0,
-    "best_candidate_id": "g1_c3",
+    "best_fitness": 74.9623996003996,
+    "mean_fitness": 65.21992934455196,
+    "min_fitness": 56.98995853794374,
+    "best_candidate_id": "g1_elite0",
     "gene_statistics": {
       "learning_rate": {
-        "mean": 0.11152986975338322,
-        "median": 0.14923162577966526,
-        "std": 0.09463761859750551,
+        "mean": 0.059866015257155826,
+        "median": 0.04677503409295469,
+        "std": 0.06813228831098388,
         "min": 1e-06,
-        "max": 0.2749151269457153
+        "max": 0.20027491749951848
+      },
+      "gamma": {
+        "mean": 0.981275913785163,
+        "median": 0.9875518275703261,
+        "std": 0.02072113877802683,
+        "min": 0.95,
+        "max": 1.0
       },
       "epsilon_decay": {
-        "mean": 0.995,
-        "median": 0.995,
-        "std": 0.0,
-        "min": 0.995,
-        "max": 0.995
+        "mean": 0.8675292709789906,
+        "median": 0.884797277696038,
+        "std": 0.12830423231691668,
+        "min": 0.6866249283632477,
+        "max": 1.0
       },
       "memory_size": {
         "mean": 2000,
@@ -64,31 +85,45 @@
       }
     },
     "best_chromosome": {
-      "learning_rate": 0.15942878976101,
+      "learning_rate": 0.001,
+      "gamma": 0.95,
       "epsilon_decay": 0.995,
       "memory_size": 2000
-    }
+    },
+    "mutation_rate_used": 0.2,
+    "mutation_scale_used": 0.2,
+    "mutation_rate_multiplier": 1.0,
+    "mutation_scale_multiplier": 1.0,
+    "diversity": 0.07238590917942794,
+    "adaptive_event": "disabled"
   },
   {
     "generation": 2,
-    "best_fitness": 69.0,
-    "mean_fitness": 63.870000000000005,
-    "min_fitness": 56.0,
-    "best_candidate_id": "g2_elite0",
+    "best_fitness": 68.98,
+    "mean_fitness": 62.464129420132025,
+    "min_fitness": 58.955118080128514,
+    "best_candidate_id": "g2_c7",
     "gene_statistics": {
       "learning_rate": {
-        "mean": 0.13400763446884564,
-        "median": 0.15942878976101,
-        "std": 0.08587902340021279,
+        "mean": 0.00025075,
+        "median": 1e-06,
+        "std": 0.0004325796891903271,
         "min": 1e-06,
-        "max": 0.2749151269457153
+        "max": 0.001
+      },
+      "gamma": {
+        "mean": 0.975,
+        "median": 0.975,
+        "std": 0.025000000000000022,
+        "min": 0.95,
+        "max": 1.0
       },
       "epsilon_decay": {
-        "mean": 0.995,
-        "median": 0.995,
-        "std": 0.0,
-        "min": 0.995,
-        "max": 0.995
+        "mean": 0.8778926084139955,
+        "median": 0.9534234094638571,
+        "std": 0.17772311869959834,
+        "min": 0.43215543415268104,
+        "max": 1.0
       },
       "memory_size": {
         "mean": 2000,
@@ -99,31 +134,45 @@
       }
     },
     "best_chromosome": {
-      "learning_rate": 0.15942878976101,
-      "epsilon_decay": 0.995,
+      "learning_rate": 1e-06,
+      "gamma": 0.95,
+      "epsilon_decay": 0.9195440588394925,
       "memory_size": 2000
-    }
+    },
+    "mutation_rate_used": 0.2,
+    "mutation_scale_used": 0.2,
+    "mutation_rate_multiplier": 1.0,
+    "mutation_scale_multiplier": 1.0,
+    "diversity": 0.0677185662737896,
+    "adaptive_event": "disabled"
   },
   {
     "generation": 3,
-    "best_fitness": 70.0,
-    "mean_fitness": 62.742997998706045,
-    "min_fitness": 58.0,
-    "best_candidate_id": "g3_c2",
+    "best_fitness": 68.98,
+    "mean_fitness": 61.5975,
+    "min_fitness": 55.96,
+    "best_candidate_id": "g3_c4",
     "gene_statistics": {
       "learning_rate": {
-        "mean": 0.09242906705414196,
-        "median": 0.12559160149461174,
-        "std": 0.07232149549279666,
+        "mean": 1e-06,
+        "median": 1e-06,
+        "std": 0.0,
         "min": 1e-06,
-        "max": 0.15942878976101
+        "max": 1e-06
+      },
+      "gamma": {
+        "mean": 0.96875,
+        "median": 0.95,
+        "std": 0.024206145913796377,
+        "min": 0.95,
+        "max": 1.0
       },
       "epsilon_decay": {
-        "mean": 0.995,
-        "median": 0.995,
-        "std": 0.0,
-        "min": 0.995,
-        "max": 0.995
+        "mean": 0.8191650251606696,
+        "median": 0.9195440588394925,
+        "std": 0.16287713564829778,
+        "min": 0.43215543415268104,
+        "max": 0.9195440588394925
       },
       "memory_size": {
         "mean": 2000,
@@ -134,31 +183,45 @@
       }
     },
     "best_chromosome": {
-      "learning_rate": 0.15942878976101,
-      "epsilon_decay": 0.995,
+      "learning_rate": 1e-06,
+      "gamma": 0.95,
+      "epsilon_decay": 0.7093955365590595,
       "memory_size": 2000
-    }
+    },
+    "mutation_rate_used": 0.2,
+    "mutation_scale_used": 0.2,
+    "mutation_rate_multiplier": 1.0,
+    "mutation_scale_multiplier": 1.0,
+    "diversity": 0.06236109385403139,
+    "adaptive_event": "disabled"
   },
   {
     "generation": 4,
-    "best_fitness": 74.0,
-    "mean_fitness": 65.6225,
-    "min_fitness": 61.0,
-    "best_candidate_id": "g4_c5",
+    "best_fitness": 66.98,
+    "mean_fitness": 60.98,
+    "min_fitness": 51.98,
+    "best_candidate_id": "g4_c7",
     "gene_statistics": {
       "learning_rate": {
-        "mean": 0.13950031604088375,
-        "median": 0.15942878976101,
-        "std": 0.05272578547254026,
+        "mean": 1e-06,
+        "median": 1e-06,
+        "std": 0.0,
         "min": 1e-06,
-        "max": 0.15942878976101
+        "max": 1e-06
+      },
+      "gamma": {
+        "mean": 0.9257561427210061,
+        "median": 0.95,
+        "std": 0.042223460800981126,
+        "min": 0.8441867442916262,
+        "max": 0.95
       },
       "epsilon_decay": {
-        "mean": 0.995,
-        "median": 0.995,
-        "std": 0.0,
-        "min": 0.995,
-        "max": 0.995
+        "mean": 0.7904088269172003,
+        "median": 0.7647251631574894,
+        "std": 0.0888599852982199,
+        "min": 0.7093955365590595,
+        "max": 0.9320406841297989
       },
       "memory_size": {
         "mean": 2000,
@@ -169,31 +232,45 @@
       }
     },
     "best_chromosome": {
-      "learning_rate": 0.15942878976101,
-      "epsilon_decay": 0.995,
+      "learning_rate": 1e-06,
+      "gamma": 0.95,
+      "epsilon_decay": 0.7154013899388254,
       "memory_size": 2000
-    }
+    },
+    "mutation_rate_used": 0.2,
+    "mutation_scale_used": 0.2,
+    "mutation_rate_multiplier": 1.0,
+    "mutation_scale_multiplier": 1.0,
+    "diversity": 0.04369448203306701,
+    "adaptive_event": "disabled"
   },
   {
     "generation": 5,
-    "best_fitness": 79.0,
-    "mean_fitness": 70.0,
-    "min_fitness": 60.0,
+    "best_fitness": 76.98,
+    "mean_fitness": 66.10680128125261,
+    "min_fitness": 58.98,
     "best_candidate_id": "g5_c3",
     "gene_statistics": {
       "learning_rate": {
-        "mean": 0.2112909899613906,
-        "median": 0.15942878976101,
-        "std": 0.13721448417485127,
-        "min": 0.15942878976101,
-        "max": 0.5743263913640548
+        "mean": 0.00450419862831793,
+        "median": 1e-06,
+        "std": 0.011914343674856429,
+        "min": 1e-06,
+        "max": 0.03602658902654344
+      },
+      "gamma": {
+        "mean": 0.9189948583003568,
+        "median": 0.95,
+        "std": 0.08203189430157445,
+        "min": 0.7019588664028542,
+        "max": 0.95
       },
       "epsilon_decay": {
-        "mean": 0.995,
-        "median": 0.995,
-        "std": 0.0,
-        "min": 0.995,
-        "max": 0.995
+        "mean": 0.7314789781507632,
+        "median": 0.7123984632489424,
+        "std": 0.10194763611059333,
+        "min": 0.5467528151453244,
+        "max": 0.9320406841297989
       },
       "memory_size": {
         "mean": 2000,
@@ -204,9 +281,16 @@
       }
     },
     "best_chromosome": {
-      "learning_rate": 0.15942878976101,
-      "epsilon_decay": 0.995,
+      "learning_rate": 1e-06,
+      "gamma": 0.95,
+      "epsilon_decay": 0.9320406841297989,
       "memory_size": 2000
-    }
+    },
+    "mutation_rate_used": 0.2,
+    "mutation_scale_used": 0.2,
+    "mutation_rate_multiplier": 1.0,
+    "mutation_scale_multiplier": 1.0,
+    "diversity": 0.06529796200045994,
+    "adaptive_event": "disabled"
   }
 ]
