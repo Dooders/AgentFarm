@@ -1112,6 +1112,99 @@ class TestEnvironment(unittest.TestCase):
         self.assertEqual(grid[2, 2].item(), 2.0)
         self.assertEqual(torch.sum(grid).item(), 2.0)
 
+    # ------------------------------------------------------------------
+    # Perception profile accumulator tests
+    # ------------------------------------------------------------------
+
+    def test_perception_profile_initial_state(self):
+        """Both step-level and cumulative dicts start at zero."""
+        expected_keys = {"spatial_query_time_s", "bilinear_time_s", "nearest_time_s", "bilinear_points", "nearest_points"}
+
+        step_prof = self.env.get_perception_profile()
+        self.assertEqual(set(step_prof.keys()), expected_keys)
+        for v in step_prof.values():
+            self.assertEqual(v, 0)
+
+        cum_prof = self.env.get_cumulative_perception_profile()
+        self.assertEqual(set(cum_prof.keys()), expected_keys)
+        for v in cum_prof.values():
+            self.assertEqual(v, 0)
+
+    def test_perception_profile_step_reset_on_update(self):
+        """Step-level accumulators must be zeroed after each update() call."""
+        # Manually inject non-zero step values to simulate perception activity
+        self.env._perception_profile["spatial_query_time_s"] = 0.05
+        self.env._perception_profile["bilinear_points"] = 8
+
+        self.env.update()
+
+        step_prof = self.env.get_perception_profile()
+        # All keys must be zeroed, not just the sampled ones
+        for key, value in step_prof.items():
+            self.assertEqual(value, 0, f"Expected {key} to be 0 after update(), got {value}")
+
+    def test_cumulative_perception_profile_accumulates_across_steps(self):
+        """Cumulative profile should sum values from every step's activity."""
+        # Inject perception data over two simulated steps
+        self.env._perception_profile["spatial_query_time_s"] = 0.01
+        self.env._perception_profile["nearest_points"] = 3
+        self.env.update()
+
+        self.env._perception_profile["spatial_query_time_s"] = 0.02
+        self.env._perception_profile["nearest_points"] = 5
+        self.env.update()
+
+        cum = self.env.get_cumulative_perception_profile()
+        self.assertAlmostEqual(cum["spatial_query_time_s"], 0.03, places=9)
+        self.assertEqual(cum["nearest_points"], 8)
+
+    def test_reset_perception_profile_clears_step_data(self):
+        """reset_perception_profile() should zero out step-level values only."""
+        self.env._perception_profile["bilinear_time_s"] = 0.07
+        self.env._perception_profile["bilinear_points"] = 12
+
+        # Ensure some cumulative data exists
+        self.env._perception_profile_cumulative["bilinear_time_s"] = 1.5
+
+        self.env.reset_perception_profile()
+
+        step_prof = self.env.get_perception_profile()
+        self.assertEqual(step_prof["bilinear_time_s"], 0.0)
+        self.assertEqual(step_prof["bilinear_points"], 0)
+
+        # Cumulative data must remain intact
+        cum_prof = self.env.get_cumulative_perception_profile()
+        self.assertAlmostEqual(cum_prof["bilinear_time_s"], 1.5, places=9)
+
+    def test_get_perception_profile_with_reset_flag(self):
+        """get_perception_profile(reset=True) returns current values then clears."""
+        self.env._perception_profile["nearest_time_s"] = 0.03
+        result = self.env.get_perception_profile(reset=True)
+
+        # Returned value should hold original data
+        self.assertAlmostEqual(result["nearest_time_s"], 0.03, places=9)
+
+        # Step-level dict should now be zeroed
+        after = self.env.get_perception_profile()
+        self.assertEqual(after["nearest_time_s"], 0.0)
+
+    def test_get_perception_profile_returns_copy(self):
+        """get_perception_profile() must return a copy, not a mutable reference."""
+        self.env._perception_profile["spatial_query_time_s"] = 0.0
+        prof = self.env.get_perception_profile()
+        prof["spatial_query_time_s"] = 999.0
+
+        # Internal dict should be unaffected and still hold the original value
+        self.assertEqual(self.env._perception_profile["spatial_query_time_s"], 0.0)
+
+    def test_get_cumulative_perception_profile_returns_copy(self):
+        """get_cumulative_perception_profile() must return a copy."""
+        self.env._perception_profile_cumulative["bilinear_points"] = 0
+        cum = self.env.get_cumulative_perception_profile()
+        cum["bilinear_points"] = 99999
+
+        self.assertEqual(self.env._perception_profile_cumulative["bilinear_points"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
