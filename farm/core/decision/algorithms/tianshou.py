@@ -1126,17 +1126,18 @@ class TianshouWrapper(RLAlgorithm):
                     tianshou_batch, batch_size=self.batch_size, repeat=1  # type: ignore
                 )
 
-                # Update PER priorities after optimizer step.
-                td_errors = self._estimate_td_errors(
-                    result if isinstance(result, dict) else {},
-                    rewards=rewards_np,
-                    dones=dones_np,
-                    states=states_np,
-                    next_states=next_states_np,
-                    actions=actions_np,
-                )
-                self.replay_buffer.update_priorities(indices, td_errors)
-                self.replay_buffer.update_beta()
+                # Update PER priorities after optimizer step (uniform sampling ignores them).
+                if self.replay_strategy == "prioritized":
+                    td_errors = self._estimate_td_errors(
+                        result if isinstance(result, dict) else {},
+                        rewards=rewards_np,
+                        dones=dones_np,
+                        states=states_np,
+                        next_states=next_states_np,
+                        actions=actions_np,
+                    )
+                    self.replay_buffer.update_priorities(indices, td_errors)
+                    self.replay_buffer.update_beta()
 
                 # Extract metrics
                 metrics = {}

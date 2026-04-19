@@ -181,7 +181,6 @@ class AlgorithmBenchmark:
                 # Store experience if RL algorithm
                 if isinstance(algorithm, RLAlgorithm):
                     algorithm.store_experience(state, action, reward, next_state, done)
-                    algorithm.update_step_count()
 
                     # Train if needed
                     if algorithm.should_train():
