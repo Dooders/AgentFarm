@@ -389,48 +389,12 @@ class MetricsTracker:
             alive_agents = [agent for agent in agent_objects.values() if agent.alive]
             total_agents = len(alive_agents)
 
-            # Calculate agent type counts dynamically
-            # Count agents by their agent_type attribute, handling any agent type
-            agent_type_counts = {}
-            for agent in alive_agents:
-                if hasattr(agent, 'agent_type'):
-                    agent_type = str(agent.agent_type)
-                    agent_type_counts[agent_type] = agent_type_counts.get(agent_type, 0) + 1
-
             # Get metrics from tracker
             tracker_metrics = self.get_step_metrics()
             births = tracker_metrics["births"]
             deaths = tracker_metrics["deaths"]
 
-            # Calculate generation metrics
-            current_max_generation = max([a.generation for a in alive_agents]) if alive_agents else 0
-
-            # Calculate health and age metrics
-            # Get health from combat component to ensure proper capping
-            health_values = []
-            for a in alive_agents:
-                combat_comp = a.get_component("combat")
-                if combat_comp:
-                    health_values.append(combat_comp.health)
-                else:
-                    health_values.append(0.0)
-            average_health = sum(health_values) / total_agents if total_agents > 0 else 0
-            average_age = sum(time - a.birth_time for a in alive_agents) / total_agents if total_agents > 0 else 0
-            average_reward = sum(a.total_reward for a in alive_agents) / total_agents if total_agents > 0 else 0
-
-            # Calculate resource metrics
-            total_resources = sum(r.amount for r in resources)
-            average_agent_resources = (
-                sum(a.resource_level for a in alive_agents) / total_agents if total_agents > 0 else 0
-            )
-            resource_efficiency = (
-                total_resources / (len(resources) * (config.resources.max_resource_amount if config else 30))
-                if resources
-                else 0
-            )
-
-            # Calculate genetic diversity
-            # Group by base genome_id (without counter) for lineage analysis
+            # Helper to normalise genome_id for lineage grouping.
             # Format: parent1:parent2[:counter] -> group by parent1:parent2
             def get_base_genome_id(genome_id: str) -> str:
                 """Extract base genome_id without counter."""
@@ -442,13 +406,48 @@ class MetricsTracker:
                     return f"{parts[0]}:{parts[1]}"
                 # Otherwise return as-is (already base or malformed)
                 return ":".join(parts[:2]) if len(parts) >= 2 else str(genome_id)
-            
-            genome_counts = {}
+
+            # Single-pass aggregation over alive agents
+            agent_type_counts: Dict[str, int] = {}
+            health_sum = 0.0
+            age_sum = 0.0
+            reward_sum = 0.0
+            resource_level_sum = 0.0
+            current_max_generation = 0
+            genome_counts: Dict[str, int] = {}
             for agent in alive_agents:
+                # Agent type counts
+                if hasattr(agent, "agent_type"):
+                    agent_type = str(agent.agent_type)
+                    agent_type_counts[agent_type] = agent_type_counts.get(agent_type, 0) + 1
+                # Health (via combat component to ensure proper capping)
+                combat_comp = agent.get_component("combat")
+                health_sum += combat_comp.health if combat_comp else 0.0
+                # Age, reward, resource level
+                age_sum += time - agent.birth_time
+                reward_sum += agent.total_reward
+                resource_level_sum += agent.resource_level
+                # Generation
+                if agent.generation > current_max_generation:
+                    current_max_generation = agent.generation
+                # Genetic diversity (lineage grouping)
                 base_genome_id = get_base_genome_id(agent.genome_id)
                 genome_counts[base_genome_id] = genome_counts.get(base_genome_id, 0) + 1
-            genetic_diversity = len(genome_counts) / total_agents if total_agents > 0 else 0
-            dominant_genome_ratio = max(genome_counts.values()) / total_agents if genome_counts else 0
+
+            average_health = health_sum / total_agents if total_agents > 0 else 0.0
+            average_age = age_sum / total_agents if total_agents > 0 else 0.0
+            average_reward = reward_sum / total_agents if total_agents > 0 else 0.0
+            average_agent_resources = resource_level_sum / total_agents if total_agents > 0 else 0.0
+            genetic_diversity = len(genome_counts) / total_agents if total_agents > 0 else 0.0
+            dominant_genome_ratio = max(genome_counts.values()) / total_agents if genome_counts else 0.0
+
+            # Calculate resource metrics
+            total_resources = sum(r.amount for r in resources)
+            resource_efficiency = (
+                total_resources / (len(resources) * (config.resources.max_resource_amount if config else 30))
+                if resources
+                else 0
+            )
 
             # Calculate resource distribution entropy
             # Note: Combat encounters, successful attacks, and resources shared are now derived
