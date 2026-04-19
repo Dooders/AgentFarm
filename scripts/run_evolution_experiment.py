@@ -29,6 +29,44 @@ from farm.core.hyperparameter_chromosome import (  # noqa: E402
 )
 from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
+# ---------------------------------------------------------------------------
+# Named presets
+# ---------------------------------------------------------------------------
+# Each preset is a dict whose keys match argparse ``dest`` names.  When a
+# preset is selected via ``--preset``, its values become the argparse
+# *defaults* for those arguments, so any explicit CLI flag still wins.
+#
+# ``stable_hyper_evo`` rationale
+# --------------------------------
+# Follow-up analysis in ``notebooks/hyperparameter_evolution_results.ipynb``
+# and ``docs/experiments/hyperparameter_evolution_convergence.md`` revealed
+# two recurring failure modes with the bare defaults:
+#
+#   1. **Lower-bound collapse** – tournament selection with aggressive mutation
+#      pushes the winning learning rate to its minimum boundary and keeps it
+#      there.  Switching to ``boundary_mode=reflect`` lets genes bounce back
+#      off the wall instead of sticking.
+#
+#   2. **Diversity collapse** – without adaptive mutation the population
+#      converges prematurely.  Enabling adaptive mutation with both the
+#      fitness-stall and diversity-collapse rules keeps the search alive.
+#
+# The mutation magnitudes (rate 0.20, scale 0.15) come from the
+# ``run_tournament_mut020_g6`` closure run, which showed the best trade-off
+# between exploration and exploitation across the evaluated configs.
+
+PRESETS: dict[str, dict[str, object]] = {
+    "stable_hyper_evo": {
+        "selection_method": EvolutionSelectionMethod.TOURNAMENT.value,
+        "boundary_mode": BoundaryMode.REFLECT.value,
+        "mutation_rate": 0.20,
+        "mutation_scale": 0.15,
+        "adaptive_mutation": True,
+        "tournament_size": 3,
+        "elitism_count": 1,
+    },
+}
+
 
 def _parse_per_gene_multipliers(raw: str | None, *, label: str) -> dict[str, float]:
     """Parse a comma-separated ``gene=value`` string into a multiplier dict.
@@ -60,10 +98,30 @@ def _parse_per_gene_multipliers(raw: str | None, *, label: str) -> dict[str, flo
     return multipliers
 
 
-def _parse_args() -> argparse.Namespace:
+def _build_parser() -> argparse.ArgumentParser:
+    """Return a fully-configured argument parser (without actually parsing)."""
     parser = argparse.ArgumentParser(
-        description="Run multi-generation hyperparameter evolution experiments.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=(
+            "Run multi-generation hyperparameter evolution experiments.\n\n"
+            "Named presets (--preset) provide opinionated defaults that reflect current\n"
+            "best-performing configurations.  Any explicit CLI flag still overrides the\n"
+            "preset value.\n\n"
+            "Available presets:\n"
+            "  stable_hyper_evo  tournament selection + reflect boundary + adaptive\n"
+            "                    mutation (rate 0.20, scale 0.15).  Prevents lower-bound\n"
+            "                    collapse and diversity collapse seen with bare defaults."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--preset",
+        type=str,
+        default=None,
+        choices=list(PRESETS),
+        help=(
+            "Load a named configuration preset.  Preset values act as defaults; any "
+            "explicit CLI flag still takes priority.  Available: %(choices)s."
+        ),
     )
     parser.add_argument(
         "--environment",
@@ -241,6 +299,22 @@ def _parse_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Structured logging level.",
     )
+    return parser
+
+
+def _parse_args() -> argparse.Namespace:
+    """Parse CLI arguments, applying any named preset as baseline defaults.
+
+    Two-pass approach: the first parse discovers ``--preset``; if set, the
+    preset values are installed as argparse defaults before the final parse so
+    that any explicit flag the user supplied still wins over the preset.
+    """
+    parser = _build_parser()
+    # First pass: discover --preset without failing on unknown/remaining args.
+    preset_discovery_args, _ = parser.parse_known_args()
+    if preset_discovery_args.preset is not None:
+        # preset is already validated by choices=, so this lookup always succeeds.
+        parser.set_defaults(**PRESETS[preset_discovery_args.preset])
     return parser.parse_args()
 
 
@@ -253,6 +327,7 @@ def main() -> int:
 
     logger.info(
         "evolution_experiment_cli_start",
+        preset=args.preset,
         environment=args.environment,
         profile=args.profile,
         generations=args.generations,
@@ -316,6 +391,38 @@ def main() -> int:
             seed=args.seed,
             output_dir=args.output_dir,
         )
+
+        # Persist the resolved configuration before running so the manifest is
+        # available even if the experiment is interrupted.
+        manifest: dict[str, object] = {
+            "script": "scripts/run_evolution_experiment.py",
+            "preset": args.preset,
+            "environment": args.environment,
+            "profile": args.profile,
+            "generations": args.generations,
+            "population_size": args.population_size,
+            "steps_per_candidate": args.steps_per_candidate,
+            "fitness_metric": args.fitness_metric,
+            "selection_method": args.selection_method,
+            "mutation_rate": args.mutation_rate,
+            "mutation_scale": args.mutation_scale,
+            "tournament_size": args.tournament_size,
+            "boundary_mode": args.boundary_mode,
+            "boundary_penalty_enabled": args.boundary_penalty_enabled,
+            "boundary_penalty_strength": args.boundary_penalty_strength,
+            "boundary_penalty_threshold": args.boundary_penalty_threshold,
+            "crossover_mode": args.crossover_mode,
+            "blend_alpha": args.blend_alpha,
+            "num_crossover_points": args.num_crossover_points,
+            "elitism_count": args.elitism_count,
+            "adaptive_mutation": args.adaptive_mutation,
+            "seed": args.seed,
+            "output_dir": args.output_dir,
+        }
+        manifest_path = os.path.join(args.output_dir, "run_manifest.json")
+        with open(manifest_path, "w") as manifest_file:
+            json.dump(manifest, manifest_file, indent=2)
+        logger.info("evolution_experiment_manifest_written", path=manifest_path)
 
         start = time.time()
         result = EvolutionExperiment(base_config, experiment_config).run()
