@@ -151,6 +151,33 @@ class TestDataLoggerBuffering(unittest.TestCase):
         self.assertEqual(len(self.logger._action_buffer), 0)
         self.assertEqual(len(self.logger._health_incident_buffer), 0)
 
+    def test_needs_flush_false_when_empty(self):
+        """needs_flush should be False when all buffers are empty."""
+        self.assertFalse(self.logger.needs_flush)
+
+    def test_needs_flush_true_after_action_buffered(self):
+        """needs_flush should be True once an action is buffered."""
+        self.logger.log_agent_action(
+            step_number=0, agent_id="a1", action_type="move"
+        )
+        self.assertTrue(self.logger.needs_flush)
+
+    def test_needs_flush_false_after_flush(self):
+        """needs_flush should return False after all buffers are flushed."""
+        self.logger.log_agent_action(
+            step_number=0, agent_id="a1", action_type="move"
+        )
+        self.mock_session.bulk_insert_mappings = Mock()
+        self.mock_session.commit = Mock()
+        self.logger.flush_all_buffers()
+        self.assertFalse(self.logger.needs_flush)
+
+    def test_flush_all_buffers_noop_when_empty(self):
+        """flush_all_buffers should not touch the DB when all buffers are empty."""
+        self.db._execute_in_transaction = Mock()
+        self.logger.flush_all_buffers()
+        self.db._execute_in_transaction.assert_not_called()
+
     def test_auto_flush_on_buffer_full(self):
         """When buffer reaches buffer_size the actions should be flushed."""
         self.mock_session.bulk_insert_mappings = Mock()
