@@ -835,26 +835,20 @@ class Environment(AECEnv):
 
             # Log milestone every 100 steps
             if self.time % 100 == 0 and self.time > 0:
-                # Calculate agent statistics
-                agents_alive = len(self.agents)
-                # Get health from combat component to ensure proper capping
-                health_values = []
-                for a in self._agent_objects.values():
-                    combat_comp = a.get_component("combat")
-                    if combat_comp:
-                        health_values.append(combat_comp.health)
-                    else:
-                        health_values.append(0.0)
-                avg_health = np.mean(health_values) if health_values else 0
-                avg_resources = (
-                    np.mean([a.resource_level for a in self._agent_objects.values()]) if self._agent_objects else 0
-                )
-
-                # Agent type distribution
-                agent_type_counts = {}
+                # Single-pass aggregation for milestone metrics
+                agents_alive = 0
+                health_sum = 0.0
+                resource_sum = 0.0
+                agent_type_counts: Dict[str, int] = {}
                 for agent in self._agent_objects.values():
-                    agent_type = agent.__class__.__name__
-                    agent_type_counts[agent_type] = agent_type_counts.get(agent_type, 0) + 1
+                    agents_alive += 1
+                    combat_comp = agent.get_component("combat")
+                    health_sum += combat_comp.health if combat_comp else 0.0
+                    resource_sum += agent.resource_level
+                    agent_cls = agent.__class__.__name__
+                    agent_type_counts[agent_cls] = agent_type_counts.get(agent_cls, 0) + 1
+                avg_health = health_sum / agents_alive if agents_alive else 0.0
+                avg_resources = resource_sum / agents_alive if agents_alive else 0.0
 
                 logger.info(
                     "simulation_milestone",
