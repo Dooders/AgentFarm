@@ -535,5 +535,238 @@ class TestConsolidatedObservationSystem:
             assert call[0][0] == agent.device
 
 
+class TestObservationCache:
+    """Test the short-lived per-step observation cache on AgentCore."""
+
+    @pytest.fixture
+    def mock_services(self):
+        """Create mock services for testing."""
+        return AgentServices(
+            spatial_service=Mock(),
+            time_service=Mock(current_time=Mock(return_value=0)),
+            metrics_service=Mock(),
+            logging_service=Mock(),
+            validation_service=Mock(is_valid_position=Mock(return_value=True)),
+            lifecycle_service=Mock(),
+        )
+
+    @pytest.fixture
+    def agent_with_mocked_perception(self, mock_services):
+        """Return an agent whose perception component is mocked."""
+        import torch
+
+        factory = AgentFactory(mock_services)
+        agent = factory.create_default_agent(
+            agent_id="cache_test",
+            position=(10.0, 10.0),
+            initial_resources=100.0,
+        )
+
+        perception_comp = agent.get_component("perception")
+        assert perception_comp is not None
+        perception_comp.get_observation_tensor = Mock(
+            return_value=torch.zeros((1, 11, 11), dtype=torch.float32)
+        )
+        return agent
+
+    # ------------------------------------------------------------------
+    # Cache basics
+    # ------------------------------------------------------------------
+
+    def test_cache_starts_invalid(self, agent_with_mocked_perception):
+        """Newly created agent has an empty, invalid cache."""
+        agent = agent_with_mocked_perception
+        assert agent._obs_cache is None
+        assert agent._obs_cache_valid is False
+
+    def test_first_call_populates_cache(self, agent_with_mocked_perception):
+        """First _create_observation() call fills the cache."""
+        agent = agent_with_mocked_perception
+        obs = agent._create_observation()
+        assert agent._obs_cache is not None
+        assert agent._obs_cache_valid is True
+        assert obs is agent._obs_cache
+
+    def test_second_call_returns_cache(self, agent_with_mocked_perception):
+        """Second consecutive _create_observation() reuses cached tensor."""
+        import torch
+
+        agent = agent_with_mocked_perception
+        perception_comp = agent.get_component("perception")
+
+        obs1 = agent._create_observation()
+        obs2 = agent._create_observation()
+
+        # Perception component should only have been called once
+        perception_comp.get_observation_tensor.assert_called_once()
+        assert obs1 is obs2
+
+    def test_invalidate_clears_cache(self, agent_with_mocked_perception):
+        """_invalidate_obs_cache() clears cached tensor and validity flag."""
+        agent = agent_with_mocked_perception
+        agent._create_observation()  # populate cache
+
+        agent._invalidate_obs_cache()
+
+        assert agent._obs_cache is None
+        assert agent._obs_cache_valid is False
+
+    def test_after_invalidation_next_call_recomputes(self, agent_with_mocked_perception):
+        """After invalidation a new _create_observation() call recomputes."""
+        agent = agent_with_mocked_perception
+        perception_comp = agent.get_component("perception")
+
+        agent._create_observation()  # 1st call → cache
+        agent._invalidate_obs_cache()
+        agent._create_observation()  # 2nd call → recompute
+
+        assert perception_comp.get_observation_tensor.call_count == 2
+
+    # ------------------------------------------------------------------
+    # Per-step cache lifecycle
+    # ------------------------------------------------------------------
+
+    def test_step_invalidates_cache_at_start(self, agent_with_mocked_perception):
+        """step() always invalidates the cache before the first observation build."""
+        import torch
+
+        agent = agent_with_mocked_perception
+        perception_comp = agent.get_component("perception")
+
+        # Pre-populate the cache manually
+        agent._obs_cache = torch.ones((1, 11, 11), dtype=torch.float32)
+        agent._obs_cache_valid = True
+
+        # Mock the behavior so step() proceeds without errors
+        agent.behavior.decide_action = Mock(return_value=agent.actions[-1])  # "pass"
+        agent.behavior.update = Mock()
+
+        agent.step()
+
+        # Cache should have been refreshed (get_observation_tensor called ≥ once)
+        assert perception_comp.get_observation_tensor.call_count >= 1
+
+    def test_pass_action_does_not_duplicate_observation(self, agent_with_mocked_perception):
+        """For a no-op pass action, _create_observation() is called once per step."""
+        import torch
+        from farm.core.action import action_registry
+
+        agent = agent_with_mocked_perception
+        perception_comp = agent.get_component("perception")
+
+        # Use the actual pass action so no state fields change
+        pass_action_obj = action_registry.get("pass")
+        agent.behavior.decide_action = Mock(return_value=pass_action_obj)
+        agent.behavior.update = Mock()
+
+        agent.step()
+
+        # Only one actual perception build should occur per no-op step
+        assert perception_comp.get_observation_tensor.call_count == 1
+
+    # ------------------------------------------------------------------
+    # Cache invalidation on state changes
+    # ------------------------------------------------------------------
+
+    def test_cache_invalidated_when_position_changes(self, mock_services):
+        """Cache is invalidated when the action changes position."""
+        import torch
+        from farm.core.action import Action
+
+        factory = AgentFactory(mock_services)
+        agent = factory.create_default_agent(
+            agent_id="cache_pos_test",
+            position=(10.0, 10.0),
+            initial_resources=100.0,
+        )
+        perception_comp = agent.get_component("perception")
+        perception_comp.get_observation_tensor = Mock(
+            return_value=torch.zeros((1, 11, 11), dtype=torch.float32)
+        )
+
+        def move_fn(a):
+            # Simulate a move by directly updating state
+            movement = a.get_component("movement")
+            if movement:
+                movement.position = (20.0, 20.0)
+            a.state.update_position((20.0, 20.0))
+            return {"success": True, "error": None, "details": {}}
+
+        move_action_obj = Action("fake_move", 1.0, move_fn)
+        agent.behavior.decide_action = Mock(return_value=move_action_obj)
+        agent.behavior.update = Mock()
+
+        agent.step()
+
+        # Position changed → cache invalidated → two calls to get_observation_tensor
+        assert perception_comp.get_observation_tensor.call_count == 2
+
+    def test_cache_invalidated_when_resource_level_changes(self, mock_services):
+        """Cache is invalidated when the action changes the agent's resource level."""
+        import torch
+        from farm.core.action import Action
+
+        factory = AgentFactory(mock_services)
+        agent = factory.create_default_agent(
+            agent_id="cache_res_test",
+            position=(10.0, 10.0),
+            initial_resources=50.0,
+        )
+        perception_comp = agent.get_component("perception")
+        perception_comp.get_observation_tensor = Mock(
+            return_value=torch.zeros((1, 11, 11), dtype=torch.float32)
+        )
+
+        def gather_fn(a):
+            # Simulate resource gain
+            resource_comp = a.get_component("resource")
+            if resource_comp:
+                resource_comp.level += 10.0
+            a.state.update_resource_level(a.resource_level)
+            return {"success": True, "error": None, "details": {}}
+
+        gather_action_obj = Action("fake_gather", 1.0, gather_fn)
+        agent.behavior.decide_action = Mock(return_value=gather_action_obj)
+        agent.behavior.update = Mock()
+
+        agent.step()
+
+        # Resource changed → cache invalidated → two calls to get_observation_tensor
+        assert perception_comp.get_observation_tensor.call_count == 2
+
+    def test_cache_invalidated_when_health_changes(self, mock_services):
+        """Cache is invalidated when the action changes the agent's health."""
+        import torch
+        from farm.core.action import Action
+
+        factory = AgentFactory(mock_services)
+        agent = factory.create_default_agent(
+            agent_id="cache_hp_test",
+            position=(10.0, 10.0),
+            initial_resources=100.0,
+        )
+        perception_comp = agent.get_component("perception")
+        perception_comp.get_observation_tensor = Mock(
+            return_value=torch.zeros((1, 11, 11), dtype=torch.float32)
+        )
+
+        def damage_fn(a):
+            # Simulate taking damage
+            combat_comp = a.get_component("combat")
+            if combat_comp:
+                combat_comp.health = max(0.0, combat_comp.health - 10.0)
+            a.state.update_health(a.current_health)
+            return {"success": True, "error": None, "details": {}}
+
+        damage_action_obj = Action("fake_damage", 1.0, damage_fn)
+        agent.behavior.decide_action = Mock(return_value=damage_action_obj)
+        agent.behavior.update = Mock()
+
+        agent.step()
+
+        # Health changed → cache invalidated → two calls to get_observation_tensor
+        assert perception_comp.get_observation_tensor.call_count == 2
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
