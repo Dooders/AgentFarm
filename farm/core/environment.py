@@ -177,7 +177,7 @@ class Environment(AECEnv):
         self.height = height
         self.agents = []
         self._agent_objects = {}  # Internal mapping: agent_id -> agent object
-        self._alive_agents: set = set()  # Set of agent_ids that are currently alive
+        self._alive_agents: set[str] = set()  # Set of agent_ids that are currently alive
         self.resources = []
         self.time = 0
 
@@ -419,9 +419,10 @@ class Environment(AECEnv):
         checks while preserving deterministic iteration order from
         ``_agent_objects``.
 
-        The guard ``if aid in self._agent_objects`` is a safety net for the rare
-        case where the two structures are temporarily out of sync (e.g. during
-        a reset that clears ``_agent_objects`` before rebuilding ``_alive_agents``).
+        Iteration is performed over ``self._agent_objects.items()``, so only
+        currently registered agent objects are returned. This also implicitly
+        handles temporary out-of-sync cases where ``_alive_agents`` may still
+        reference agent IDs that are no longer present in ``_agent_objects``.
         """
         return [
             agent
@@ -784,9 +785,13 @@ class Environment(AECEnv):
             # Update resources using ResourceManager
             resource_stats = self.resource_manager.update_resources(self.time)
 
-            # Update cached total resources incrementally using per-step deltas
-            self.cached_total_resources += (
-                resource_stats["resources_regenerated"] - resource_stats["resources_consumed"]
+            # Update cached total resources incrementally using per-step deltas,
+            # then clamp to zero to prevent negative drift from float arithmetic.
+            self.cached_total_resources = max(
+                0.0,
+                self.cached_total_resources
+                + resource_stats["resources_regenerated"]
+                - resource_stats["resources_consumed"],
             )
 
             # Log resource update statistics if needed
