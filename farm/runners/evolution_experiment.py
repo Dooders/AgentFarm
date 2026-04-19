@@ -617,10 +617,11 @@ class EvolutionExperiment:
         if len(best_fitness_history) < criteria.min_generations:
             return None
 
-        # Fitness plateau: current best has not improved over the trailing window.
+        # Fitness plateau: current best has not improved enough relative to
+        # the best fitness from `fitness_window` generations ago.
         if len(best_fitness_history) >= criteria.fitness_window + 1:
             window = best_fitness_history[-(criteria.fitness_window + 1):]
-            improvement = window[-1] - max(window[:-1])
+            improvement = window[-1] - window[0]
             if improvement <= criteria.fitness_threshold:
                 return ConvergenceReason.FITNESS_PLATEAU
 

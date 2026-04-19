@@ -99,6 +99,10 @@ def _parse_per_gene_multipliers(raw: str | None, *, label: str) -> dict[str, flo
     return multipliers
 
 
+class _HelpFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
+    """Formatter that preserves raw description layout and also shows defaults."""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Return a fully-configured argument parser (without actually parsing)."""
     parser = argparse.ArgumentParser(
@@ -112,7 +116,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "                    mutation (rate 0.20, scale 0.15).  Prevents lower-bound\n"
             "                    collapse and diversity collapse seen with bare defaults."
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=_HelpFormatter,
     )
     parser.add_argument(
         "--preset",
@@ -219,7 +223,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--elitism-count", type=int, default=1, help="Top candidates copied to next generation.")
     parser.add_argument(
         "--adaptive-mutation",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=False,
         help="Enable adaptive mutation rate/scale based on fitness progress and diversity.",
     )
     parser.add_argument(
