@@ -307,9 +307,6 @@ class AgentCore:
             except Exception:
                 pass
 
-        # Update state snapshot
-        self._update_state_snapshot()
-
     def act(self) -> None:
         """
         Alias for step() for consistency with agent lifecycle.
