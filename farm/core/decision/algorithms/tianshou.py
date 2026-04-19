@@ -7,12 +7,12 @@ Windows-compatible alternative to other RL libraries.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Literal, Optional, Tuple, Union
 
 import numpy as np
 import gymnasium
 
-from .rl_base import RLAlgorithm, SimpleReplayBuffer
+from .rl_base import PrioritizedReplayBuffer, RLAlgorithm
 
 from farm.utils.logging import get_logger
 
@@ -44,6 +44,12 @@ class TianshouWrapper(RLAlgorithm):
         buffer_size: int = 10000,
         batch_size: int = 32,
         train_freq: int = 4,
+        replay_strategy: Literal["uniform", "prioritized"] = "uniform",
+        per_alpha: float = 0.6,
+        per_beta_start: float = 0.4,
+        per_beta_end: float = 1.0,
+        per_beta_steps: int = 100_000,
+        per_epsilon: float = 1e-6,
         **kwargs: Any,
     ):
         """Initialize the Tianshou wrapper.
@@ -57,6 +63,12 @@ class TianshouWrapper(RLAlgorithm):
             buffer_size: Size of the experience replay buffer
             batch_size: Batch size for training
             train_freq: How often to train (every N steps)
+            replay_strategy: Replay sampling strategy ("uniform" or "prioritized")
+            per_alpha: PER priority exponent
+            per_beta_start: Initial IS-correction exponent
+            per_beta_end: Final IS-correction exponent
+            per_beta_steps: Number of beta annealing steps
+            per_epsilon: Stability floor added to priorities
             **kwargs: Additional arguments
         """
         super().__init__(num_actions=num_actions, **kwargs)
@@ -66,6 +78,7 @@ class TianshouWrapper(RLAlgorithm):
         self.observation_shape = observation_shape or (state_dim,)
         self.batch_size = batch_size
         self.train_freq = train_freq
+        self.replay_strategy = replay_strategy
 
         # Import Tianshou components
         try:
@@ -81,8 +94,16 @@ class TianshouWrapper(RLAlgorithm):
         # Set up algorithm configuration
         self.algorithm_config = self._get_default_config(algorithm_config or {})
 
-        # Initialize replay buffer
-        self.replay_buffer = SimpleReplayBuffer(max_size=buffer_size)
+        # Initialize replay buffer (PER implementation supports uniform fallback).
+        self.replay_buffer = PrioritizedReplayBuffer(
+            max_size=buffer_size,
+            alpha=per_alpha,
+            beta_start=per_beta_start,
+            beta_end=per_beta_end,
+            beta_steps=per_beta_steps,
+            epsilon=per_epsilon,
+            replay_strategy=replay_strategy,
+        )
 
         # Initialize algorithm
         self.policy = None
@@ -988,6 +1009,65 @@ class TianshouWrapper(RLAlgorithm):
             pass
 
         self.replay_buffer.append(state, action, reward, next_state, done, **kwargs)
+        self.update_step_count()
+
+    def _estimate_td_errors(
+        self,
+        result: Dict[str, Any],
+        rewards: np.ndarray,
+        dones: np.ndarray,
+        states: np.ndarray,
+        next_states: np.ndarray,
+        actions: np.ndarray,
+    ) -> np.ndarray:
+        """Estimate TD errors for PER priority updates.
+
+        Preference order:
+        1) Use explicit TD errors from policy outputs if present.
+        2) For DQN, compute one-step Bellman residual directly from policy networks.
+        3) Fallback to absolute centered rewards for algorithms that do not expose
+           per-sample TD errors.
+        """
+        for key in ("td_errors", "td_error", "per_td_errors", "per_td_error"):
+            if key not in result:
+                continue
+            values = np.asarray(result[key], dtype=np.float64).reshape(-1)
+            if values.size == rewards.size:
+                return np.abs(values)
+            if values.size == 1:
+                return np.full(rewards.shape[0], float(np.abs(values[0])), dtype=np.float64)
+
+        if self.algorithm_name == "DQN" and self.policy is not None:
+            try:
+                import torch
+
+                with torch.no_grad():
+                    states_tensor = torch.as_tensor(states, dtype=torch.float32)
+                    next_states_tensor = torch.as_tensor(next_states, dtype=torch.float32)
+                    actions_tensor = torch.as_tensor(actions, dtype=torch.long).reshape(-1)
+                    rewards_tensor = torch.as_tensor(rewards, dtype=torch.float32).reshape(-1)
+                    dones_tensor = torch.as_tensor(dones, dtype=torch.float32).reshape(-1)
+
+                    q_values = self.policy.model(states_tensor)
+                    if isinstance(q_values, tuple):
+                        q_values = q_values[0]
+                    selected_q = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
+
+                    target_model = getattr(self.policy, "model_old", self.policy.model)
+                    next_q_values = target_model(next_states_tensor)
+                    if isinstance(next_q_values, tuple):
+                        next_q_values = next_q_values[0]
+                    next_max_q = next_q_values.max(dim=1)[0]
+
+                    gamma = float(self.algorithm_config.get("gamma", 0.99))
+                    td_errors = rewards_tensor + (1.0 - dones_tensor) * gamma * next_max_q - selected_q
+                    return np.abs(td_errors.cpu().numpy())
+            except Exception as exc:
+                logger.debug("Failed to compute DQN TD-errors for PER: %s", exc)
+
+        # Fallback for policy-gradient style learners that do not expose per-sample TD errors.
+        centered_rewards = rewards - float(np.mean(rewards))
+        return np.abs(centered_rewards) + 1e-6
 
     def train_on_batch(self, batch: Dict[str, Any], **kwargs: Any) -> Dict[str, float]:
         """Train the algorithm on a batch of experiences.
@@ -1006,32 +1086,23 @@ class TianshouWrapper(RLAlgorithm):
             # Convert batch to Tianshou format
             import torch
 
-            # Extract data from our simple replay buffer format
-            if len(self.replay_buffer.buffer) >= self.batch_size:
-                # Sample from our buffer
-                indices = np.random.choice(
-                    len(self.replay_buffer.buffer), self.batch_size, replace=False
-                )
-                states = []
-                actions = []
-                rewards = []
-                next_states = []
-                dones = []
+            if len(self.replay_buffer) >= self.batch_size:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                indices = np.asarray(sampled_batch["indices"])
+                is_weights = np.asarray(sampled_batch["is_weights"], dtype=np.float32)
 
-                for idx in indices:
-                    exp = self.replay_buffer.buffer[idx]
-                    states.append(exp["state"])
-                    actions.append(exp["action"])
-                    rewards.append(exp["reward"])
-                    next_states.append(exp["next_state"])
-                    dones.append(exp["done"])
+                states_np = np.asarray(sampled_batch["state"])
+                actions_np = np.asarray(sampled_batch["action"])
+                rewards_np = np.asarray(sampled_batch["reward"], dtype=np.float32)
+                next_states_np = np.asarray(sampled_batch["next_state"])
+                dones_np = np.asarray(sampled_batch["done"], dtype=np.float32)
 
                 # Convert to tensors
-                states = torch.tensor(np.array(states), dtype=torch.float32)
-                actions = torch.tensor(np.array(actions), dtype=torch.long)
-                rewards = torch.tensor(np.array(rewards), dtype=torch.float32)
-                next_states = torch.tensor(np.array(next_states), dtype=torch.float32)
-                dones = torch.tensor(np.array(dones), dtype=torch.float32)
+                states = torch.tensor(states_np, dtype=torch.float32)
+                actions = torch.tensor(actions_np, dtype=torch.long)
+                rewards = torch.tensor(rewards_np, dtype=torch.float32)
+                next_states = torch.tensor(next_states_np, dtype=torch.float32)
+                dones = torch.tensor(dones_np, dtype=torch.float32)
 
                 # Create batch dictionary compatible with RolloutBatchProtocol
                 tianshou_batch = {
@@ -1052,6 +1123,18 @@ class TianshouWrapper(RLAlgorithm):
                     tianshou_batch, batch_size=self.batch_size, repeat=1  # type: ignore
                 )
 
+                # Update PER priorities after optimizer step.
+                td_errors = self._estimate_td_errors(
+                    result if isinstance(result, dict) else {},
+                    rewards=rewards_np,
+                    dones=dones_np,
+                    states=states_np,
+                    next_states=next_states_np,
+                    actions=actions_np,
+                )
+                self.replay_buffer.update_priorities(indices, td_errors)
+                self.replay_buffer.update_beta()
+
                 # Extract metrics
                 metrics = {}
                 if isinstance(result, dict):
@@ -1066,6 +1149,17 @@ class TianshouWrapper(RLAlgorithm):
                             except (TypeError, AttributeError):
                                 pass  # Skip if conversion fails
 
+                # Replay diagnostics for observability/tuning.
+                replay_diag = self.replay_buffer.diagnostics()
+                metrics.update(
+                    {
+                        "replay_beta": float(replay_diag["beta"]),
+                        "replay_priority_min": float(replay_diag["priority_min"]),
+                        "replay_priority_max": float(replay_diag["priority_max"]),
+                        "replay_priority_mean": float(replay_diag["priority_mean"]),
+                        "replay_is_weight_mean": float(np.mean(is_weights)),
+                    }
+                )
                 return metrics
 
             return {"loss": 0.0}

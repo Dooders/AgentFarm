@@ -889,6 +889,39 @@ class TestDecisionModule(unittest.TestCase):
                 mock_wrapper_class.assert_called_once()
                 self.assertEqual(module.config.algorithm_type, "dqn")
 
+    def test_initialization_passes_per_config_to_wrapper(self):
+        """Test PER knobs are forwarded to Tianshou wrappers."""
+        with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
+            with patch("farm.core.decision.decision._ALGORITHM_REGISTRY") as mock_registry:
+                mock_algorithm = Mock()
+                mock_wrapper_class = Mock(return_value=mock_algorithm)
+                mock_registry.__getitem__.return_value = mock_wrapper_class
+                mock_registry.__contains__.return_value = True
+
+                config = DecisionConfig(
+                    algorithm_type="dqn",
+                    replay_strategy="prioritized",
+                    per_alpha=0.7,
+                    per_beta_start=0.5,
+                    per_beta_end=1.0,
+                    per_beta_steps=50_000,
+                    per_epsilon=1e-5,
+                )
+                DecisionModule(
+                    self.mock_agent,
+                    self.mock_env.action_space,
+                    self.observation_space,
+                    config,
+                )
+
+                _, kwargs = mock_wrapper_class.call_args
+                self.assertEqual(kwargs["replay_strategy"], "prioritized")
+                self.assertAlmostEqual(kwargs["per_alpha"], 0.7)
+                self.assertAlmostEqual(kwargs["per_beta_start"], 0.5)
+                self.assertAlmostEqual(kwargs["per_beta_end"], 1.0)
+                self.assertEqual(kwargs["per_beta_steps"], 50_000)
+                self.assertAlmostEqual(kwargs["per_epsilon"], 1e-5)
+
     def test_initialization_with_tianshou_a2c(self):
         """Test DecisionModule initialization with Tianshou A2C."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):

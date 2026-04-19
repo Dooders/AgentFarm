@@ -134,6 +134,31 @@ class TestTianshouWrapperInitialization(unittest.TestCase):
         self.assertEqual(wrapper.algorithm_config["gamma"], 0.95)
         self.assertEqual(wrapper.algorithm_config["eps_clip"], 0.3)
 
+    def test_prioritized_replay_configuration(self):
+        """Test wrapper creates PER buffer when configured."""
+        from farm.core.decision.algorithms.rl_base import PrioritizedReplayBuffer
+        from farm.core.decision.algorithms.tianshou import DQNWrapper
+
+        wrapper = DQNWrapper(
+            num_actions=self.num_actions,
+            state_dim=self.state_dim,
+            observation_shape=self.observation_shape,
+            replay_strategy="prioritized",
+            per_alpha=0.7,
+            per_beta_start=0.5,
+            per_beta_end=1.0,
+            per_beta_steps=500,
+            per_epsilon=1e-5,
+        )
+
+        self.assertIsInstance(wrapper.replay_buffer, PrioritizedReplayBuffer)
+        self.assertEqual(wrapper.replay_buffer.replay_strategy, "prioritized")
+        self.assertAlmostEqual(wrapper.replay_buffer.alpha, 0.7)
+        self.assertAlmostEqual(wrapper.replay_buffer.beta_start, 0.5)
+        self.assertAlmostEqual(wrapper.replay_buffer.beta_end, 1.0)
+        self.assertEqual(wrapper.replay_buffer.beta_steps, 500)
+        self.assertAlmostEqual(wrapper.replay_buffer.epsilon, 1e-5)
+
     def test_invalid_state_dim(self):
         """Test initialization with invalid state_dim."""
         from farm.core.decision.algorithms.tianshou import TianshouWrapper

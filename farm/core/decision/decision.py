@@ -199,6 +199,12 @@ class DecisionModule:
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
                 train_freq=self.config.rl_train_freq,
+                replay_strategy=self.config.replay_strategy,
+                per_alpha=self.config.per_alpha,
+                per_beta_start=self.config.per_beta_start,
+                per_beta_end=self.config.per_beta_end,
+                per_beta_steps=self.config.per_beta_steps,
+                per_epsilon=self.config.per_epsilon,
             )
             logger.info("algorithm_initialized", algorithm="ppo", agent_id=self.agent_id)
 
@@ -241,6 +247,12 @@ class DecisionModule:
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
                 train_freq=self.config.rl_train_freq,
+                replay_strategy=self.config.replay_strategy,
+                per_alpha=self.config.per_alpha,
+                per_beta_start=self.config.per_beta_start,
+                per_beta_end=self.config.per_beta_end,
+                per_beta_steps=self.config.per_beta_steps,
+                per_epsilon=self.config.per_epsilon,
             )
             logger.info("algorithm_initialized", algorithm="sac", agent_id=self.agent_id)
 
@@ -284,6 +296,12 @@ class DecisionModule:
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
                 train_freq=self.config.rl_train_freq,
+                replay_strategy=self.config.replay_strategy,
+                per_alpha=self.config.per_alpha,
+                per_beta_start=self.config.per_beta_start,
+                per_beta_end=self.config.per_beta_end,
+                per_beta_steps=self.config.per_beta_steps,
+                per_epsilon=self.config.per_epsilon,
             )
             logger.info("algorithm_initialized", algorithm="dqn", agent_id=self.agent_id)
 
@@ -327,6 +345,12 @@ class DecisionModule:
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
                 train_freq=self.config.rl_train_freq,
+                replay_strategy=self.config.replay_strategy,
+                per_alpha=self.config.per_alpha,
+                per_beta_start=self.config.per_beta_start,
+                per_beta_end=self.config.per_beta_end,
+                per_beta_steps=self.config.per_beta_steps,
+                per_epsilon=self.config.per_epsilon,
             )
             logger.info("algorithm_initialized", algorithm="a2c", agent_id=self.agent_id)
 
@@ -367,6 +391,12 @@ class DecisionModule:
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
                 train_freq=self.config.rl_train_freq,
+                replay_strategy=self.config.replay_strategy,
+                per_alpha=self.config.per_alpha,
+                per_beta_start=self.config.per_beta_start,
+                per_beta_end=self.config.per_beta_end,
+                per_beta_steps=self.config.per_beta_steps,
+                per_epsilon=self.config.per_epsilon,
             )
             logger.info("algorithm_initialized", algorithm="ddpg", agent_id=self.agent_id)
 
