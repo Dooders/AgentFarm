@@ -218,6 +218,7 @@ class EvolutionGenerationSummary:
     mutation_scale_multiplier: Optional[float] = None
     diversity: Optional[float] = None
     adaptive_event: str = "initial_seeding"
+    best_fitness_delta: Optional[float] = None
 
 
 @dataclass
@@ -257,10 +258,13 @@ FitnessEvaluator = Callable[
 class _ProducedWith:
     """Mutation parameters that produced a generation's population.
 
-    All four numeric fields are ``None`` for the initial population because
+    All five numeric fields are ``None`` for the initial population because
     seeding bypasses the adaptive controller.  ``event`` is a short tag
     matching :attr:`AdaptiveMutationController.last_event` from the
-    observation that yielded these parameters.
+    observation that yielded these parameters.  ``fitness_delta`` is the
+    fitness improvement (or lack thereof) that triggered the adaptation,
+    ``None`` for the initial population and when fitness adaptation is
+    disabled.
     """
 
     rate: Optional[float]
@@ -268,6 +272,7 @@ class _ProducedWith:
     rate_multiplier: Optional[float]
     scale_multiplier: Optional[float]
     event: str
+    fitness_delta: Optional[float] = None
 
     @classmethod
     def initial(cls) -> "_ProducedWith":
@@ -333,6 +338,7 @@ class EvolutionExperiment:
                 mutation_scale_multiplier=produced_with.scale_multiplier,
                 diversity=diversity,
                 adaptive_event=produced_with.event,
+                best_fitness_delta=produced_with.fitness_delta,
             )
 
             # Update convergence histories and check criteria.
@@ -372,6 +378,7 @@ class EvolutionExperiment:
                 rate_multiplier=controller.rate_multiplier,
                 scale_multiplier=controller.scale_multiplier,
                 event=controller.last_event,
+                fitness_delta=controller.last_fitness_delta,
             )
 
         # When convergence checking is enabled but no criterion was met during
@@ -576,6 +583,7 @@ class EvolutionExperiment:
             mutation_scale_multiplier=produced.scale_multiplier,
             diversity=diversity,
             adaptive_event=produced.event,
+            best_fitness_delta=produced.fitness_delta,
         )
 
     def _compute_diversity(
