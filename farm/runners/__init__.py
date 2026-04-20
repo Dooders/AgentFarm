@@ -6,6 +6,8 @@ from farm.runners.adaptive_mutation import (
     compute_normalized_diversity,
 )
 from farm.runners.evolution_experiment import (
+    ConvergenceCriteria,
+    ConvergenceReason,
     EvolutionCandidateEvaluation,
     EvolutionExperiment,
     EvolutionExperimentConfig,
@@ -19,6 +21,8 @@ __all__ = [
     "AdaptiveMutationConfig",
     "AdaptiveMutationController",
     "compute_normalized_diversity",
+    "ConvergenceCriteria",
+    "ConvergenceReason",
     "EvolutionCandidateEvaluation",
     "EvolutionExperiment",
     "EvolutionExperimentConfig",

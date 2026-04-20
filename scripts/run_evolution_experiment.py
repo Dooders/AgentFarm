@@ -17,6 +17,7 @@ if _repo_root not in sys.path:
 from farm.config import SimulationConfig  # noqa: E402
 from farm.runners import (  # noqa: E402
     AdaptiveMutationConfig,
+    ConvergenceCriteria,
     EvolutionExperiment,
     EvolutionExperimentConfig,
     EvolutionFitnessMetric,
@@ -28,6 +29,44 @@ from farm.core.hyperparameter_chromosome import (  # noqa: E402
     CrossoverMode,
 )
 from farm.utils.logging import configure_logging, get_logger  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# Named presets
+# ---------------------------------------------------------------------------
+# Each preset is a dict whose keys match argparse ``dest`` names.  When a
+# preset is selected via ``--preset``, its values become the argparse
+# *defaults* for those arguments, so any explicit CLI flag still wins.
+#
+# ``stable_hyper_evo`` rationale
+# --------------------------------
+# Follow-up analysis in ``notebooks/hyperparameter_evolution_results.ipynb``
+# and ``docs/experiments/hyperparameter_evolution_convergence.md`` revealed
+# two recurring failure modes with the bare defaults:
+#
+#   1. **Lower-bound collapse** – tournament selection with aggressive mutation
+#      pushes the winning learning rate to its minimum boundary and keeps it
+#      there.  Switching to ``boundary_mode=reflect`` lets genes bounce back
+#      off the wall instead of sticking.
+#
+#   2. **Diversity collapse** – without adaptive mutation the population
+#      converges prematurely.  Enabling adaptive mutation with both the
+#      fitness-stall and diversity-collapse rules keeps the search alive.
+#
+# The mutation magnitudes (rate 0.20, scale 0.15) come from the
+# ``run_tournament_mut020_g6`` closure run, which showed the best trade-off
+# between exploration and exploitation across the evaluated configs.
+
+PRESETS: dict[str, dict[str, object]] = {
+    "stable_hyper_evo": {
+        "selection_method": EvolutionSelectionMethod.TOURNAMENT.value,
+        "boundary_mode": BoundaryMode.REFLECT.value,
+        "mutation_rate": 0.20,
+        "mutation_scale": 0.15,
+        "adaptive_mutation": True,
+        "tournament_size": 3,
+        "elitism_count": 1,
+    },
+}
 
 
 def _parse_per_gene_multipliers(raw: str | None, *, label: str) -> dict[str, float]:
@@ -60,10 +99,34 @@ def _parse_per_gene_multipliers(raw: str | None, *, label: str) -> dict[str, flo
     return multipliers
 
 
-def _parse_args() -> argparse.Namespace:
+class _HelpFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
+    """Formatter that preserves raw description layout and also shows defaults."""
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Return a fully-configured argument parser (without actually parsing)."""
     parser = argparse.ArgumentParser(
-        description="Run multi-generation hyperparameter evolution experiments.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=(
+            "Run multi-generation hyperparameter evolution experiments.\n\n"
+            "Named presets (--preset) provide opinionated defaults that reflect current\n"
+            "best-performing configurations.  Any explicit CLI flag still overrides the\n"
+            "preset value.\n\n"
+            "Available presets:\n"
+            "  stable_hyper_evo  tournament selection + reflect boundary + adaptive\n"
+            "                    mutation (rate 0.20, scale 0.15).  Prevents lower-bound\n"
+            "                    collapse and diversity collapse seen with bare defaults."
+        ),
+        formatter_class=_HelpFormatter,
+    )
+    parser.add_argument(
+        "--preset",
+        type=str,
+        default=None,
+        choices=list(PRESETS),
+        help=(
+            "Load a named configuration preset.  Preset values act as defaults; any "
+            "explicit CLI flag still takes priority.  Available: %(choices)s."
+        ),
     )
     parser.add_argument(
         "--environment",
@@ -160,7 +223,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--elitism-count", type=int, default=1, help="Top candidates copied to next generation.")
     parser.add_argument(
         "--adaptive-mutation",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=False,
         help="Enable adaptive mutation rate/scale based on fitness progress and diversity.",
     )
     parser.add_argument(
@@ -241,6 +305,80 @@ def _parse_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Structured logging level.",
     )
+    # ------------------------------------------------------------------
+    # Convergence criteria
+    # ------------------------------------------------------------------
+    parser.add_argument(
+        "--convergence-enabled",
+        action="store_true",
+        help=(
+            "Enable convergence checking.  When set, the run will detect "
+            "fitness plateau and diversity collapse and optionally stop early."
+        ),
+    )
+    parser.add_argument(
+        "--convergence-fitness-window",
+        type=int,
+        default=5,
+        help=(
+            "Number of trailing generations over which best-fitness improvement "
+            "is measured for the plateau criterion."
+        ),
+    )
+    parser.add_argument(
+        "--convergence-fitness-threshold",
+        type=float,
+        default=1e-4,
+        help=(
+            "Minimum absolute improvement in best fitness over the window "
+            "required to avoid a plateau declaration."
+        ),
+    )
+    parser.add_argument(
+        "--convergence-diversity-window",
+        type=int,
+        default=3,
+        help=(
+            "Number of consecutive generations with diversity below the threshold "
+            "required to trigger a diversity-collapse declaration."
+        ),
+    )
+    parser.add_argument(
+        "--convergence-diversity-threshold",
+        type=float,
+        default=0.01,
+        help="Normalized diversity at or below which diversity-collapse is considered.",
+    )
+    parser.add_argument(
+        "--convergence-min-generations",
+        type=int,
+        default=1,
+        help="Minimum number of completed generations before convergence checks begin.",
+    )
+    parser.add_argument(
+        "--convergence-no-early-stop",
+        action="store_true",
+        help=(
+            "When --convergence-enabled is set, annotate the result with convergence "
+            "metadata but do not halt the run early."
+        ),
+    )
+    return parser
+
+
+def _parse_args() -> argparse.Namespace:
+    """Parse CLI arguments, applying any named preset as baseline defaults.
+
+    Two-pass approach: the first parse discovers ``--preset``; if set, the
+    preset values are installed as argparse defaults before the final parse so
+    that any explicit flag the user supplied still wins over the preset.
+    """
+    parser = _build_parser()
+    # First pass: discover --preset without failing on unknown/remaining args.
+    preset_discovery_args, _ = parser.parse_known_args()
+    if preset_discovery_args.preset is not None:
+        # preset is already validated by choices=, so this lookup always succeeds.
+        parser.set_defaults(**PRESETS[preset_discovery_args.preset])
     return parser.parse_args()
 
 
@@ -253,6 +391,7 @@ def main() -> int:
 
     logger.info(
         "evolution_experiment_cli_start",
+        preset=args.preset,
         environment=args.environment,
         profile=args.profile,
         generations=args.generations,
@@ -309,6 +448,15 @@ def main() -> int:
                     args.adaptive_per_gene_scale, label="--adaptive-per-gene-scale"
                 ),
             ),
+            convergence_criteria=ConvergenceCriteria(
+                enabled=args.convergence_enabled,
+                fitness_window=args.convergence_fitness_window,
+                fitness_threshold=args.convergence_fitness_threshold,
+                diversity_window=args.convergence_diversity_window,
+                diversity_threshold=args.convergence_diversity_threshold,
+                min_generations=args.convergence_min_generations,
+                early_stop=not args.convergence_no_early_stop,
+            ),
             selection_method=EvolutionSelectionMethod(args.selection_method),
             tournament_size=args.tournament_size,
             elitism_count=args.elitism_count,
@@ -316,6 +464,45 @@ def main() -> int:
             seed=args.seed,
             output_dir=args.output_dir,
         )
+
+        # Persist the resolved configuration before running so the manifest is
+        # available even if the experiment is interrupted.
+        manifest: dict[str, object] = {
+            "script": "scripts/run_evolution_experiment.py",
+            "preset": args.preset,
+            "environment": args.environment,
+            "profile": args.profile,
+            "generations": args.generations,
+            "population_size": args.population_size,
+            "steps_per_candidate": args.steps_per_candidate,
+            "fitness_metric": args.fitness_metric,
+            "selection_method": args.selection_method,
+            "mutation_rate": args.mutation_rate,
+            "mutation_scale": args.mutation_scale,
+            "tournament_size": args.tournament_size,
+            "boundary_mode": args.boundary_mode,
+            "boundary_penalty_enabled": args.boundary_penalty_enabled,
+            "boundary_penalty_strength": args.boundary_penalty_strength,
+            "boundary_penalty_threshold": args.boundary_penalty_threshold,
+            "crossover_mode": args.crossover_mode,
+            "blend_alpha": args.blend_alpha,
+            "num_crossover_points": args.num_crossover_points,
+            "elitism_count": args.elitism_count,
+            "adaptive_mutation": args.adaptive_mutation,
+            "convergence_enabled": args.convergence_enabled,
+            "convergence_fitness_window": args.convergence_fitness_window,
+            "convergence_fitness_threshold": args.convergence_fitness_threshold,
+            "convergence_diversity_window": args.convergence_diversity_window,
+            "convergence_diversity_threshold": args.convergence_diversity_threshold,
+            "convergence_min_generations": args.convergence_min_generations,
+            "convergence_early_stop": not args.convergence_no_early_stop,
+            "seed": args.seed,
+            "output_dir": args.output_dir,
+        }
+        manifest_path = os.path.join(args.output_dir, "run_manifest.json")
+        with open(manifest_path, "w") as manifest_file:
+            json.dump(manifest, manifest_file, indent=2)
+        logger.info("evolution_experiment_manifest_written", path=manifest_path)
 
         start = time.time()
         result = EvolutionExperiment(base_config, experiment_config).run()
@@ -345,6 +532,9 @@ def main() -> int:
                 last_summary.mutation_scale_multiplier if last_summary else None
             ),
             "final_adaptive_event": last_summary.adaptive_event if last_summary else None,
+            "converged": result.converged,
+            "convergence_reason": result.convergence_reason,
+            "generation_of_convergence": result.generation_of_convergence,
             "output_dir": args.output_dir,
         }
         print(json.dumps(summary, indent=2))

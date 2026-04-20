@@ -50,6 +50,74 @@ class EvolutionSelectionMethod(str, Enum):
     ROULETTE = "roulette"
 
 
+class ConvergenceReason(str, Enum):
+    """Reason a run was declared converged or its budget was exhausted.
+
+    ``FITNESS_PLATEAU``
+        The best fitness did not improve by more than the configured threshold
+        over the trailing fitness window.
+
+    ``DIVERSITY_COLLAPSE``
+        The mean normalized gene diversity stayed below the configured
+        threshold for the required number of consecutive generations.
+
+    ``BUDGET_EXHAUSTED``
+        The run completed all configured generations without any convergence
+        criterion being satisfied.  Returned only when
+        :attr:`ConvergenceCriteria.enabled` is ``True`` and neither fitness
+        plateau nor diversity collapse was detected.
+    """
+
+    FITNESS_PLATEAU = "fitness_plateau"
+    DIVERSITY_COLLAPSE = "diversity_collapse"
+    BUDGET_EXHAUSTED = "budget_exhausted"
+
+
+@dataclass(frozen=True)
+class ConvergenceCriteria:
+    """Configurable convergence stopping criteria for evolution experiments.
+
+    When ``enabled`` is ``False`` (default), convergence checking is skipped
+    entirely and the run always uses the full generation budget, preserving
+    existing behavior.  When ``True``:
+
+    - **Fitness plateau**: declares convergence when the best fitness fails
+      to improve by more than ``fitness_threshold`` absolute units over the
+      trailing ``fitness_window`` generations.
+    - **Diversity collapse**: declares convergence when the mean normalized
+      gene diversity remains below ``diversity_threshold`` for
+      ``diversity_window`` consecutive generations.
+
+    Checks are suppressed until at least ``min_generations`` full generations
+    have been evaluated.
+
+    When ``early_stop`` is ``True`` (default), the run halts as soon as a
+    criterion is met.  When ``False``, the run continues for all configured
+    generations but the result is still annotated with the first convergence
+    event detected.
+    """
+
+    enabled: bool = False
+    fitness_window: int = 5
+    fitness_threshold: float = 1e-4
+    diversity_window: int = 3
+    diversity_threshold: float = 0.01
+    min_generations: int = 1
+    early_stop: bool = True
+
+    def __post_init__(self) -> None:
+        if self.fitness_window < 1:
+            raise ValueError("fitness_window must be at least 1.")
+        if self.fitness_threshold < 0.0:
+            raise ValueError("fitness_threshold must be non-negative.")
+        if self.diversity_window < 1:
+            raise ValueError("diversity_window must be at least 1.")
+        if self.diversity_threshold < 0.0:
+            raise ValueError("diversity_threshold must be non-negative.")
+        if self.min_generations < 0:
+            raise ValueError("min_generations must be non-negative.")
+
+
 @dataclass(frozen=True)
 class EvolutionExperimentConfig:
     """Configuration for generation-based hyperparameter evolution."""
@@ -70,6 +138,7 @@ class EvolutionExperimentConfig:
     elitism_count: int = 1
     fitness_metric: EvolutionFitnessMetric = EvolutionFitnessMetric.FINAL_POPULATION
     adaptive_mutation: AdaptiveMutationConfig = field(default_factory=AdaptiveMutationConfig)
+    convergence_criteria: ConvergenceCriteria = field(default_factory=ConvergenceCriteria)
     seed: Optional[int] = None
     output_dir: Optional[str] = None
 
@@ -153,11 +222,29 @@ class EvolutionGenerationSummary:
 
 @dataclass
 class EvolutionExperimentResult:
-    """Container with generation summaries and per-candidate lineage."""
+    """Container with generation summaries and per-candidate lineage.
+
+    ``converged`` is ``True`` when a convergence criterion (fitness plateau or
+    diversity collapse) was satisfied.  It remains ``False`` when convergence
+    checking is disabled or when the run exhausted its generation budget
+    without triggering a criterion.
+
+    ``convergence_reason`` holds a :class:`ConvergenceReason` value (as a
+    string) when convergence checking is enabled.  It is ``"budget_exhausted"``
+    when all generations completed without a criterion being met, and ``None``
+    when convergence checking is disabled.
+
+    ``generation_of_convergence`` is the 0-based generation index at which the
+    criterion was first satisfied.  When the budget is exhausted it is set to
+    the index of the last completed generation.  ``None`` when disabled.
+    """
 
     generation_summaries: List[EvolutionGenerationSummary]
     evaluations: List[EvolutionCandidateEvaluation]
     best_candidate: EvolutionCandidateEvaluation
+    converged: bool = False
+    convergence_reason: Optional[str] = None
+    generation_of_convergence: Optional[int] = None
 
 
 FitnessEvaluator = Callable[
@@ -213,6 +300,13 @@ class EvolutionExperiment:
         # `_initialize_population`, not by the adaptive controller.
         produced_with: _ProducedWith = _ProducedWith.initial()
 
+        # Convergence tracking: histories are used by _check_convergence.
+        best_fitness_history: List[float] = []
+        diversity_history: List[Optional[float]] = []
+        converged = False
+        convergence_reason: Optional[str] = None
+        generation_of_convergence: Optional[int] = None
+
         for generation in range(self.config.num_generations):
             generation_evals = self._evaluate_generation(generation, population, evaluator)
             evaluations.extend(generation_evals)
@@ -241,6 +335,24 @@ class EvolutionExperiment:
                 adaptive_event=produced_with.event,
             )
 
+            # Update convergence histories and check criteria.
+            best_fitness_history.append(best_fitness)
+            diversity_history.append(diversity)
+            if not converged:
+                reason = self._check_convergence(generation, best_fitness_history, diversity_history)
+                if reason is not None:
+                    converged = True
+                    convergence_reason = reason.value
+                    generation_of_convergence = generation
+                    logger.info(
+                        "evolution_converged",
+                        generation=generation,
+                        reason=reason.value,
+                        early_stop=self.config.convergence_criteria.early_stop,
+                    )
+                    if self.config.convergence_criteria.early_stop:
+                        break
+
             controller.observe(best_fitness=best_fitness, diversity=diversity)
             next_rate = controller.effective_rate(self.config.mutation_rate)
             next_scale = controller.effective_scale(self.config.mutation_scale)
@@ -262,11 +374,20 @@ class EvolutionExperiment:
                 event=controller.last_event,
             )
 
+        # When convergence checking is enabled but no criterion was met during
+        # the run, annotate the result as budget-exhausted.
+        if self.config.convergence_criteria.enabled and not converged and generation_summaries:
+            convergence_reason = ConvergenceReason.BUDGET_EXHAUSTED.value
+            generation_of_convergence = len(generation_summaries) - 1
+
         best_candidate = max(evaluations, key=lambda item: item.fitness)
         result = EvolutionExperimentResult(
             generation_summaries=generation_summaries,
             evaluations=evaluations,
             best_candidate=best_candidate,
+            converged=converged,
+            convergence_reason=convergence_reason,
+            generation_of_convergence=generation_of_convergence,
         )
         self._persist_results(result)
         return result
@@ -476,6 +597,44 @@ class EvolutionExperiment:
             return None
         return compute_normalized_diversity(gene_statistics, evolvable_names, gene_bounds)
 
+    def _check_convergence(
+        self,
+        generation: int,
+        best_fitness_history: List[float],
+        diversity_history: List[Optional[float]],
+    ) -> Optional[ConvergenceReason]:
+        """Return a :class:`ConvergenceReason` if convergence is detected.
+
+        Returns ``None`` when convergence checking is disabled, when fewer
+        than ``min_generations`` completed generations are recorded in the
+        histories, or when no criterion is satisfied.  The caller is
+        responsible for appending to both history lists *before* calling this
+        method so that the current generation is included in the check.
+        """
+        criteria = self.config.convergence_criteria
+        if not criteria.enabled:
+            return None
+        if len(best_fitness_history) < criteria.min_generations:
+            return None
+
+        # Fitness plateau: current best has not improved enough relative to
+        # the best fitness from `fitness_window` generations ago.
+        if len(best_fitness_history) >= criteria.fitness_window + 1:
+            window = best_fitness_history[-(criteria.fitness_window + 1):]
+            improvement = window[-1] - window[0]
+            if improvement <= criteria.fitness_threshold:
+                return ConvergenceReason.FITNESS_PLATEAU
+
+        # Diversity collapse: enough consecutive non-None diversity readings
+        # are all below the threshold.
+        recent_non_none = [d for d in diversity_history[-criteria.diversity_window:] if d is not None]
+        if len(recent_non_none) >= criteria.diversity_window and all(
+            d <= criteria.diversity_threshold for d in recent_non_none
+        ):
+            return ConvergenceReason.DIVERSITY_COLLAPSE
+
+        return None
+
     def _build_gene_statistics(
         self,
         generation_evals: List[EvolutionCandidateEvaluation],
@@ -562,6 +721,7 @@ class EvolutionExperiment:
         os.makedirs(self.config.output_dir, exist_ok=True)
         summaries_path = os.path.join(self.config.output_dir, "evolution_generation_summaries.json")
         lineage_path = os.path.join(self.config.output_dir, "evolution_lineage.json")
+        metadata_path = os.path.join(self.config.output_dir, "evolution_metadata.json")
 
         with open(summaries_path, "w", encoding="utf-8") as summaries_file:
             json.dump([asdict(summary) for summary in result.generation_summaries], summaries_file, indent=2)
@@ -586,10 +746,22 @@ class EvolutionExperiment:
         with open(lineage_path, "w", encoding="utf-8") as lineage_file:
             json.dump(serialized_evaluations, lineage_file, indent=2)
 
+        convergence_metadata: Dict[str, Any] = {
+            "converged": result.converged,
+            "convergence_reason": result.convergence_reason,
+            "generation_of_convergence": result.generation_of_convergence,
+            "num_generations_completed": len(result.generation_summaries),
+        }
+        with open(metadata_path, "w", encoding="utf-8") as metadata_file:
+            json.dump(convergence_metadata, metadata_file, indent=2)
+
         logger.info(
             "evolution_experiment_persisted",
             output_dir=self.config.output_dir,
             summaries_path=summaries_path,
             lineage_path=lineage_path,
+            metadata_path=metadata_path,
             num_generations=self.config.num_generations,
+            converged=result.converged,
+            convergence_reason=result.convergence_reason,
         )
