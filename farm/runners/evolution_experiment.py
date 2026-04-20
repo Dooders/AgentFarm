@@ -258,7 +258,7 @@ FitnessEvaluator = Callable[
 class _ProducedWith:
     """Mutation parameters that produced a generation's population.
 
-    All four numeric fields are ``None`` for the initial population because
+    All five numeric fields are ``None`` for the initial population because
     seeding bypasses the adaptive controller.  ``event`` is a short tag
     matching :attr:`AdaptiveMutationController.last_event` from the
     observation that yielded these parameters.  ``fitness_delta`` is the

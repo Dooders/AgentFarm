@@ -36,6 +36,7 @@ Design notes:
 
 from __future__ import annotations
 
+import math
 import statistics
 from dataclasses import dataclass, field
 from types import MappingProxyType
@@ -194,8 +195,8 @@ class AdaptiveMutationConfig:
             raise ValueError("min_scale_multiplier must be positive.")
         if self.max_scale_multiplier < self.min_scale_multiplier:
             raise ValueError("max_scale_multiplier must be >= min_scale_multiplier.")
-        if self.max_step_multiplier < 1.0:
-            raise ValueError("max_step_multiplier must be >= 1.0.")
+        if not math.isfinite(self.max_step_multiplier) or self.max_step_multiplier < 1.0:
+            raise ValueError("max_step_multiplier must be a finite number >= 1.0.")
         validate_non_negative_mapping("per_gene_rate_multipliers", self.per_gene_rate_multipliers)
         validate_non_negative_mapping("per_gene_scale_multipliers", self.per_gene_scale_multipliers)
         # Re-bind to immutable views so the frozen dataclass is actually immutable.
@@ -392,7 +393,7 @@ class AdaptiveMutationController:
             return self._config.per_gene_rate_multipliers
         merged = dict(DEFAULT_PER_GENE_RATE_MULTIPLIERS)
         merged.update(self._config.per_gene_rate_multipliers)
-        return merged
+        return _freeze_mapping(merged)
 
     def per_gene_scale_multipliers(self) -> Mapping[str, float]:
         """Return the effective per-gene scale multipliers (empty if disabled).
@@ -408,4 +409,4 @@ class AdaptiveMutationController:
             return self._config.per_gene_scale_multipliers
         merged = dict(DEFAULT_PER_GENE_SCALE_MULTIPLIERS)
         merged.update(self._config.per_gene_scale_multipliers)
-        return merged
+        return _freeze_mapping(merged)
