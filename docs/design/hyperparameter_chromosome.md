@@ -190,7 +190,7 @@ minimum boundary (a common symptom with `learning_rate` at `1e-6`).  Unlike
 `REFLECT`, it does not change values that are already interior, so it is
 safer when mutations rarely overshoot by large amounts.
 
-
+### Soft boundary penalties
 
 `compute_boundary_penalty(chromosome, config)` returns a non-negative float
 that should be **subtracted** from the raw fitness score.

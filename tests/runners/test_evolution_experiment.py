@@ -1,6 +1,7 @@
 """Tests for multi-generation hyperparameter evolution runner."""
 
 import json
+import statistics
 import tempfile
 import unittest
 from dataclasses import fields
@@ -1477,9 +1478,8 @@ class TestInteriorBiasedModeIntegration(unittest.TestCase):
         clamp_occ = [s.boundary_occupancy.get("learning_rate", 0.0) for s in result_clamp.generation_summaries]
         ib_occ = [s.boundary_occupancy.get("learning_rate", 0.0) for s in result_ib.generation_summaries]
         # Mean boundary fraction should be ≤ clamp's across the run.
-        import statistics as _stats
-        mean_clamp = _stats.mean(clamp_occ)
-        mean_ib = _stats.mean(ib_occ)
+        mean_clamp = statistics.mean(clamp_occ)
+        mean_ib = statistics.mean(ib_occ)
         self.assertLessEqual(
             mean_ib,
             mean_clamp,
