@@ -446,6 +446,10 @@ class TestRunCohortExperimentCLI(unittest.TestCase):
             sys.argv = argv
         self.assertEqual(args.num_seeds, 5)
         self.assertEqual(args.base_seed, 10)
+        # Seeds are derived as [base_seed, base_seed+1, ..., base_seed+num_seeds-1]
+        expected_seeds = list(range(10, 15))
+        derived_seeds = list(range(args.base_seed, args.base_seed + args.num_seeds))
+        self.assertEqual(derived_seeds, expected_seeds)
 
     def test_preset_applied_to_cohort(self):
         argv = sys.argv[:]
