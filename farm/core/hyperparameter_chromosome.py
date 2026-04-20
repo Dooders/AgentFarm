@@ -84,10 +84,10 @@ class BoundaryMode(str, Enum):
       This preserves the bounded invariant while avoiding absorbing edge states.
     - ``INTERIOR_BIASED``: clamp first like ``CLAMP``, then nudge any value
       landing *exactly* on a boundary inward by a small random amount drawn
-      uniformly from ``(0, interior_bias_fraction * span]``.  This prevents
+      uniformly from ``[0, interior_bias_fraction * span]``.  This reduces
       repeated exact-boundary hits without changing behavior for values that
       land strictly inside the range.  The ``interior_bias_fraction`` parameter
-      of :func:`mutate_chromosome` controls the nudge magnitude (default
+      of :func:`mutate_chromosome` controls the maximum nudge magnitude (default
       ``1e-3``).
     """
 
@@ -717,8 +717,8 @@ def mutate_chromosome(
         raise ValueError("mutation_rate must be between 0 and 1.")
     if mutation_scale is not None and mutation_scale < 0.0:
         raise ValueError("mutation_scale must be non-negative.")
-    if interior_bias_fraction < 0.0:
-        raise ValueError("interior_bias_fraction must be non-negative.")
+    if not math.isfinite(interior_bias_fraction) or interior_bias_fraction < 0.0:
+        raise ValueError("interior_bias_fraction must be a non-negative finite number.")
     if per_gene_rate_multipliers:
         validate_non_negative_mapping("per_gene_rate_multipliers", per_gene_rate_multipliers)
     if per_gene_scale_multipliers:
