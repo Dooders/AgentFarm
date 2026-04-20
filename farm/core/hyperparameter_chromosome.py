@@ -637,7 +637,7 @@ def _apply_boundary(
         if span == 0.0 or interior_bias_fraction <= 0.0:
             return clamped
         resolved_rng = rng or random
-        nudge_max = interior_bias_fraction * span
+        nudge_max = min(interior_bias_fraction * span, span)
         if clamped == min_value:
             return min_value + resolved_rng.uniform(0.0, nudge_max)
         if clamped == max_value:
