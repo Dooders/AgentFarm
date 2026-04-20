@@ -129,6 +129,7 @@ class EvolutionExperimentConfig:
     mutation_scale: float = 0.2
     mutation_mode: MutationMode = MutationMode.GAUSSIAN
     boundary_mode: BoundaryMode = BoundaryMode.CLAMP
+    interior_bias_fraction: float = 1e-3
     boundary_penalty: BoundaryPenaltyConfig = field(default_factory=BoundaryPenaltyConfig)
     crossover_mode: CrossoverMode = CrossoverMode.UNIFORM
     blend_alpha: float = 0.5
@@ -153,6 +154,8 @@ class EvolutionExperimentConfig:
             raise ValueError("mutation_rate must be between 0 and 1.")
         if self.mutation_scale < 0.0:
             raise ValueError("mutation_scale must be non-negative.")
+        if self.interior_bias_fraction < 0.0:
+            raise ValueError("interior_bias_fraction must be non-negative.")
         # Validate enum coercion for string-friendly construction.
         BoundaryMode(self.boundary_mode)
         CrossoverMode(self.crossover_mode)
@@ -203,6 +206,12 @@ class EvolutionGenerationSummary:
     ``mutation_rate=1.0`` to spread seed candidates) rather than via the
     adaptive controller.  ``diversity`` is measured **on this generation**
     and therefore is recorded for every generation.
+
+    ``boundary_occupancy`` maps each evolvable gene name to the fraction of
+    candidates in this generation whose gene value sits exactly on either
+    ``min_value`` or ``max_value``.  A value of ``0.0`` means no candidate
+    is pinned to a boundary; ``1.0`` means all candidates are.  Empty dict
+    when no gene data is available.
     """
 
     generation: int
@@ -219,6 +228,7 @@ class EvolutionGenerationSummary:
     diversity: Optional[float] = None
     adaptive_event: str = "initial_seeding"
     best_fitness_delta: Optional[float] = None
+    boundary_occupancy: Dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -339,6 +349,7 @@ class EvolutionExperiment:
                 diversity=diversity,
                 adaptive_event=produced_with.event,
                 best_fitness_delta=produced_with.fitness_delta,
+                boundary_occupancy=summary.boundary_occupancy,
             )
 
             # Update convergence histories and check criteria.
@@ -410,6 +421,7 @@ class EvolutionExperiment:
                     mutation_scale=self.config.mutation_scale,
                     mutation_mode=self.config.mutation_mode,
                     boundary_mode=self.config.boundary_mode,
+                    interior_bias_fraction=self.config.interior_bias_fraction,
                     rng=self._run_rng,
                 )
             population.append(
@@ -498,6 +510,7 @@ class EvolutionExperiment:
                 mutation_scale=resolved_scale,
                 mutation_mode=self.config.mutation_mode,
                 boundary_mode=self.config.boundary_mode,
+                interior_bias_fraction=self.config.interior_bias_fraction,
                 per_gene_rate_multipliers=per_gene_rate_multipliers,
                 per_gene_scale_multipliers=per_gene_scale_multipliers,
                 rng=self._run_rng,
@@ -569,6 +582,11 @@ class EvolutionExperiment:
         )
         best_chromosome = self._serialize_chromosome_values(best.metadata["chromosome"])
         produced = produced_with or _ProducedWith.initial()
+        boundary_occupancy = {
+            gene_name: stats["boundary_fraction"]
+            for gene_name, stats in resolved_gene_statistics.items()
+            if "boundary_fraction" in stats
+        }
         return EvolutionGenerationSummary(
             generation=generation,
             best_fitness=max(fitness_values),
@@ -584,6 +602,7 @@ class EvolutionExperiment:
             diversity=diversity,
             adaptive_event=produced.event,
             best_fitness_delta=produced.fitness_delta,
+            boundary_occupancy=boundary_occupancy,
         )
 
     def _compute_diversity(
@@ -651,19 +670,29 @@ class EvolutionExperiment:
             return {}
 
         gene_values: Dict[str, List[float]] = {}
+        gene_bounds: Dict[str, Tuple[float, float]] = {}
         for evaluation in generation_evals:
             chromosome = evaluation.metadata["chromosome"]
             for gene in chromosome.genes:
                 gene_values.setdefault(gene.name, []).append(gene.value)
+                if gene.name not in gene_bounds:
+                    gene_bounds[gene.name] = (gene.min_value, gene.max_value)
 
         gene_statistics: Dict[str, Dict[str, float]] = {}
         for gene_name, values in gene_values.items():
+            min_bound, max_bound = gene_bounds.get(gene_name, (float("-inf"), float("inf")))
+            n = len(values)
+            at_min_count = sum(1 for v in values if v == min_bound)
+            at_max_count = sum(1 for v in values if v == max_bound)
             gene_statistics[gene_name] = {
                 "mean": statistics.mean(values),
                 "median": statistics.median(values),
                 "std": statistics.pstdev(values) if len(values) > 1 else 0.0,
                 "min": min(values),
                 "max": max(values),
+                "at_min_count": float(at_min_count),
+                "at_max_count": float(at_max_count),
+                "boundary_fraction": float(at_min_count + at_max_count) / n,
             }
         return gene_statistics
 
