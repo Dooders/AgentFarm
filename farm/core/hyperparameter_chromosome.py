@@ -82,10 +82,18 @@ class BoundaryMode(str, Enum):
     - ``REFLECT``: bounce the mutated value back from the boundary.  If the raw
       value overshoots by *d*, the reflected result is *d* inside the boundary.
       This preserves the bounded invariant while avoiding absorbing edge states.
+    - ``INTERIOR_BIASED``: clamp first like ``CLAMP``, then nudge any value
+      landing *exactly* on a boundary inward by a small random amount drawn
+      uniformly from ``(0, interior_bias_fraction * span]``.  This prevents
+      repeated exact-boundary hits without changing behavior for values that
+      land strictly inside the range.  The ``interior_bias_fraction`` parameter
+      of :func:`mutate_chromosome` controls the nudge magnitude (default
+      ``1e-3``).
     """
 
     CLAMP = "clamp"
     REFLECT = "reflect"
+    INTERIOR_BIASED = "interior_biased"
 
 
 @dataclass(frozen=True)
@@ -593,7 +601,15 @@ def chromosome_from_learning_config(learning_config: Any) -> HyperparameterChrom
     return chromosome_from_values(overrides)
 
 
-def _apply_boundary(raw_value: float, min_value: float, max_value: float, mode: BoundaryMode) -> float:
+def _apply_boundary(
+    raw_value: float,
+    min_value: float,
+    max_value: float,
+    mode: BoundaryMode,
+    *,
+    rng: Optional[random.Random] = None,
+    interior_bias_fraction: float = 1e-3,
+) -> float:
     """Apply a boundary strategy to a raw (possibly out-of-range) gene value.
 
     Args:
@@ -601,12 +617,32 @@ def _apply_boundary(raw_value: float, min_value: float, max_value: float, mode: 
         min_value: Gene's lower bound (inclusive).
         max_value: Gene's upper bound (inclusive).
         mode: The :class:`BoundaryMode` strategy to apply.
+        rng: Optional :class:`random.Random` instance used by
+            ``INTERIOR_BIASED`` mode.  Falls back to the module-level
+            ``random`` singleton when ``None``.
+        interior_bias_fraction: Fraction of the gene span used as the upper
+            bound of the inward nudge in ``INTERIOR_BIASED`` mode.  Must be
+            non-negative.  Only used when ``mode`` is
+            :attr:`BoundaryMode.INTERIOR_BIASED`.
 
     Returns:
         A float guaranteed to lie within ``[min_value, max_value]``.
     """
     if mode is BoundaryMode.CLAMP:
         return max(min_value, min(max_value, raw_value))
+
+    if mode is BoundaryMode.INTERIOR_BIASED:
+        clamped = max(min_value, min(max_value, raw_value))
+        span = max_value - min_value
+        if span == 0.0 or interior_bias_fraction <= 0.0:
+            return clamped
+        resolved_rng = rng or random
+        nudge_max = interior_bias_fraction * span
+        if clamped == min_value:
+            return min_value + resolved_rng.uniform(0.0, nudge_max)
+        if clamped == max_value:
+            return max_value - resolved_rng.uniform(0.0, nudge_max)
+        return clamped
 
     # REFLECT: bounce the value back from each boundary.
     # The folded space has period = 2 * span; the first half maps straight,
@@ -631,6 +667,7 @@ def mutate_chromosome(
     mutation_scale: Optional[float] = None,
     mutation_mode: Optional[Union[MutationMode, str]] = None,
     boundary_mode: Union[BoundaryMode, str] = BoundaryMode.CLAMP,
+    interior_bias_fraction: float = 1e-3,
     per_gene_rate_multipliers: Optional[Mapping[str, float]] = None,
     per_gene_scale_multipliers: Optional[Mapping[str, float]] = None,
     rng: Optional[random.Random] = None,
@@ -650,7 +687,13 @@ def mutate_chromosome(
         boundary_mode: How to handle raw values that exceed gene bounds after
             mutation.  ``"clamp"`` (default) reproduces the original behavior;
             ``"reflect"`` bounces the value back off the boundary so edge states
-            are not absorbing.  See :class:`BoundaryMode`.
+            are not absorbing; ``"interior_biased"`` clamps first and then
+            nudges values sitting exactly on a boundary inward by a small
+            random amount.  See :class:`BoundaryMode`.
+        interior_bias_fraction: Fraction of the gene span used as the upper
+            bound of the inward nudge when ``boundary_mode`` is
+            ``"interior_biased"``.  Must be non-negative.  Default ``1e-3``
+            (0.1 % of gene range).  Ignored for other boundary modes.
         per_gene_rate_multipliers: Optional mapping of gene name to a
             non-negative multiplier applied to the resolved per-gene mutation
             probability.  After multiplication, the probability is clamped to
@@ -674,6 +717,8 @@ def mutate_chromosome(
         raise ValueError("mutation_rate must be between 0 and 1.")
     if mutation_scale is not None and mutation_scale < 0.0:
         raise ValueError("mutation_scale must be non-negative.")
+    if interior_bias_fraction < 0.0:
+        raise ValueError("interior_bias_fraction must be non-negative.")
     if per_gene_rate_multipliers:
         validate_non_negative_mapping("per_gene_rate_multipliers", per_gene_rate_multipliers)
     if per_gene_scale_multipliers:
@@ -705,7 +750,14 @@ def mutate_chromosome(
             delta = resolved_rng.uniform(-resolved_scale, resolved_scale)
             raw_value = gene.value * (1.0 + delta)
 
-        bounded_value = _apply_boundary(raw_value, gene.min_value, gene.max_value, resolved_boundary_mode)
+        bounded_value = _apply_boundary(
+            raw_value,
+            gene.min_value,
+            gene.max_value,
+            resolved_boundary_mode,
+            rng=resolved_rng,
+            interior_bias_fraction=interior_bias_fraction,
+        )
         updated_genes.append(gene.with_value(bounded_value))
 
     return HyperparameterChromosome(genes=tuple(updated_genes))
