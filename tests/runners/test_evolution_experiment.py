@@ -1016,5 +1016,263 @@ class TestConvergenceMetadataPersisted(unittest.TestCase):
             self.assertEqual(metadata["convergence_reason"], "budget_exhausted")
 
 
+class TestAdaptiveMutationHardenedBehavior(unittest.TestCase):
+    """Tests for the hardened adaptive mutation update rules (issue: Evolution v2)."""
+
+    # ------------------------------------------------------------------ #
+    # Damping / bounded change per generation                             #
+    # ------------------------------------------------------------------ #
+
+    @patch("farm.runners.evolution_experiment.mutate_chromosome")
+    def test_max_step_multiplier_limits_single_generation_change(self, mutate_mock):
+        """max_step_multiplier prevents a large stall_multiplier from fully applying."""
+        mutate_mock.side_effect = lambda chromosome, **kwargs: chromosome
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=3,
+            population_size=3,
+            num_steps_per_candidate=1,
+            mutation_rate=0.3,
+            mutation_scale=0.1,
+            adaptive_mutation=AdaptiveMutationConfig(
+                enabled=True,
+                use_fitness_adaptation=True,
+                use_diversity_adaptation=False,
+                stall_window=1,
+                stall_multiplier=5.0,
+                max_step_multiplier=1.4,
+                max_rate_multiplier=100.0,
+            ),
+            seed=77,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (1.0, {"member": member})
+        )
+        gen0, gen1, gen2 = result.generation_summaries
+        # Gen 1 was produced before any observe() had effect: multiplier still 1.0.
+        self.assertAlmostEqual(gen1.mutation_rate_multiplier, 1.0)
+        # Gen 2 was produced after one stall observation.
+        # Without damping: multiplier would be 5.0.
+        # With max_step=1.4: multiplier should be exactly 1.4.
+        self.assertIsNotNone(gen2.mutation_rate_multiplier)
+        self.assertAlmostEqual(gen2.mutation_rate_multiplier, 1.4, places=5)
+        self.assertIn("stalled", gen2.adaptive_event)
+
+    @patch("farm.runners.evolution_experiment.mutate_chromosome")
+    def test_stable_adaptation_over_8_generations(self, mutate_mock):
+        """Integration test: with damping, multiplier stays within bounds over >= 8 gens."""
+        mutate_mock.side_effect = lambda chromosome, **kwargs: chromosome
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=9,
+            population_size=3,
+            num_steps_per_candidate=1,
+            mutation_rate=0.25,
+            mutation_scale=0.15,
+            adaptive_mutation=AdaptiveMutationConfig(
+                enabled=True,
+                use_fitness_adaptation=True,
+                use_diversity_adaptation=False,
+                stall_window=2,
+                stall_multiplier=2.0,
+                improve_multiplier=0.7,
+                max_step_multiplier=1.5,
+                min_rate_multiplier=0.05,
+                max_rate_multiplier=10.0,
+            ),
+            seed=42,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        # Alternating fitness: improves on even generations, stalls on odd.
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                float(generation if generation % 2 == 0 else generation - 1),
+                {"member": member},
+            )
+        )
+        self.assertEqual(len(result.generation_summaries), 9)
+
+        # All non-seed generations must have bounded multipliers.
+        for summary in result.generation_summaries[1:]:
+            self.assertIsNotNone(summary.mutation_rate_multiplier)
+            self.assertGreaterEqual(summary.mutation_rate_multiplier, 0.05)
+            self.assertLessEqual(summary.mutation_rate_multiplier, 10.0)
+
+        # The effective mutation rate must always stay in [0, 1].
+        for summary in result.generation_summaries[1:]:
+            self.assertIsNotNone(summary.mutation_rate_used)
+            self.assertGreaterEqual(summary.mutation_rate_used, 0.0)
+            self.assertLessEqual(summary.mutation_rate_used, 1.0)
+
+    # ------------------------------------------------------------------ #
+    # Per-gene defaults without manual CLI flags                          #
+    # ------------------------------------------------------------------ #
+
+    @patch("farm.runners.evolution_experiment.mutate_chromosome")
+    def test_use_default_per_gene_multipliers_forwarded_to_mutate(self, mutate_mock):
+        """use_default_per_gene_multipliers=True passes built-in defaults to mutate_chromosome."""
+        mutate_mock.side_effect = lambda chromosome, **kwargs: chromosome
+        from farm.runners.adaptive_mutation import DEFAULT_PER_GENE_SCALE_MULTIPLIERS
+
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=2,
+            population_size=3,
+            num_steps_per_candidate=1,
+            adaptive_mutation=AdaptiveMutationConfig(
+                enabled=True,
+                use_fitness_adaptation=False,
+                use_diversity_adaptation=False,
+                use_default_per_gene_multipliers=True,
+            ),
+            seed=11,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                float(member),
+                {"member": member},
+            )
+        )
+        self.assertTrue(mutate_mock.called)
+        child_calls = [
+            call for call in mutate_mock.call_args_list
+            if call.kwargs.get("per_gene_scale_multipliers") is not None
+        ]
+        self.assertGreater(len(child_calls), 0)
+        for call in child_calls:
+            scale_mults = call.kwargs.get("per_gene_scale_multipliers", {})
+            self.assertAlmostEqual(
+                scale_mults.get("learning_rate"),
+                DEFAULT_PER_GENE_SCALE_MULTIPLIERS["learning_rate"],
+            )
+
+    @patch("farm.runners.evolution_experiment.mutate_chromosome")
+    def test_user_per_gene_overrides_default_per_gene(self, mutate_mock):
+        """User per-gene values override built-in defaults when both are active."""
+        mutate_mock.side_effect = lambda chromosome, **kwargs: chromosome
+        base_config = SimulationConfig()
+        custom_lr_scale = 0.1  # different from the built-in 0.5
+        config = EvolutionExperimentConfig(
+            num_generations=2,
+            population_size=3,
+            num_steps_per_candidate=1,
+            adaptive_mutation=AdaptiveMutationConfig(
+                enabled=True,
+                use_fitness_adaptation=False,
+                use_diversity_adaptation=False,
+                use_default_per_gene_multipliers=True,
+                per_gene_scale_multipliers={"learning_rate": custom_lr_scale},
+            ),
+            seed=22,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                float(member),
+                {"member": member},
+            )
+        )
+        child_calls = [
+            call for call in mutate_mock.call_args_list
+            if call.kwargs.get("per_gene_scale_multipliers") is not None
+        ]
+        self.assertGreater(len(child_calls), 0)
+        for call in child_calls:
+            scale_mults = call.kwargs.get("per_gene_scale_multipliers", {})
+            # User value wins over built-in default.
+            self.assertAlmostEqual(scale_mults.get("learning_rate"), custom_lr_scale)
+
+    # ------------------------------------------------------------------ #
+    # best_fitness_delta telemetry in EvolutionGenerationSummary          #
+    # ------------------------------------------------------------------ #
+
+    def test_best_fitness_delta_is_none_for_initial_seeding(self):
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=1,
+            population_size=3,
+            num_steps_per_candidate=1,
+            seed=1,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (1.0, {"member": member})
+        )
+        self.assertIsNone(result.generation_summaries[0].best_fitness_delta)
+
+    def test_best_fitness_delta_persisted_to_json(self):
+        base_config = SimulationConfig()
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = EvolutionExperimentConfig(
+                num_generations=3,
+                population_size=3,
+                num_steps_per_candidate=1,
+                mutation_rate=0.2,
+                adaptive_mutation=AdaptiveMutationConfig(
+                    enabled=True,
+                    use_fitness_adaptation=True,
+                    use_diversity_adaptation=False,
+                    stall_window=1,
+                    stall_multiplier=2.0,
+                ),
+                output_dir=output_dir,
+                seed=5,
+            )
+            experiment = EvolutionExperiment(base_config, config)
+            experiment.run(
+                fitness_evaluator=lambda candidate, cfg, generation, member: (
+                    float(generation),
+                    {"member": member},
+                )
+            )
+            import os as _os
+            with open(
+                _os.path.join(output_dir, "evolution_generation_summaries.json"),
+                encoding="utf-8",
+            ) as fp:
+                summaries = json.load(fp)
+            # Field must be present in all summary records.
+            for summary in summaries:
+                self.assertIn("best_fitness_delta", summary)
+            # Gen 0 is seeded: no delta.
+            self.assertIsNone(summaries[0]["best_fitness_delta"])
+            # Gen 1 was produced before any controller observation, so delta is None.
+            self.assertIsNone(summaries[1]["best_fitness_delta"])
+            # Gen 2 reflects the improvement observed from gen 1.
+            self.assertIsNotNone(summaries[2]["best_fitness_delta"])
+
+    def test_best_fitness_delta_correct_magnitude_on_improvement(self):
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=3,
+            population_size=3,
+            num_steps_per_candidate=1,
+            adaptive_mutation=AdaptiveMutationConfig(
+                enabled=True,
+                use_fitness_adaptation=True,
+                use_diversity_adaptation=False,
+                stall_window=1,
+            ),
+            seed=9,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        fitness_by_gen = {0: 1.0, 1: 5.0, 2: 8.0}
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                fitness_by_gen[generation],
+                {"member": member},
+            )
+        )
+        gen0, gen1, gen2 = result.generation_summaries
+        # Gen 0 and gen 1 have no delta (initial seeding / first observation).
+        self.assertIsNone(gen0.best_fitness_delta)
+        self.assertIsNone(gen1.best_fitness_delta)
+        # Gen 2 reflects the gen-1 observation: 5.0 - 1.0 = 4.0.
+        self.assertIsNotNone(gen2.best_fitness_delta)
+        self.assertAlmostEqual(gen2.best_fitness_delta, 4.0)
+
+
 if __name__ == "__main__":
     unittest.main()

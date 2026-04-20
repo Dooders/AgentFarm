@@ -49,6 +49,37 @@ def _freeze_mapping(mapping: Mapping[str, float]) -> Mapping[str, float]:
     return MappingProxyType(dict(mapping))
 
 
+# Built-in per-gene defaults tuned for the sensitivity of each evolvable locus.
+#
+# ``learning_rate`` uses log-space encoding but even so its effective value is
+# very sensitive to mutation scale near the lower bound.  Halving the scale
+# multiplier reduces chaotic jumps when exploration pressure is otherwise high.
+#
+# ``gamma`` and ``epsilon_decay`` are linear-encoded but both live near the
+# boundary at 1.0, making overshoots likely when the global scale is large.
+# A 0.75× scale softens those boundary hits without suppressing evolution.
+#
+# Users who set ``use_default_per_gene_multipliers=True`` receive these mappings
+# merged with (but overridable by) their own per-gene configuration.
+DEFAULT_PER_GENE_SCALE_MULTIPLIERS: Mapping[str, float] = _freeze_mapping(
+    {
+        "learning_rate": 0.5,
+        "gamma": 0.75,
+        "epsilon_decay": 0.75,
+    }
+)
+
+# Rate defaults keep per-gene mutation probability unchanged; callers who want
+# to suppress certain loci entirely can override via per_gene_rate_multipliers.
+DEFAULT_PER_GENE_RATE_MULTIPLIERS: Mapping[str, float] = _freeze_mapping(
+    {
+        "learning_rate": 1.0,
+        "gamma": 1.0,
+        "epsilon_decay": 1.0,
+    }
+)
+
+
 @dataclass(frozen=True)
 class AdaptiveMutationConfig:
     """Configuration for adaptive mutation rate/scale schedules.
@@ -107,6 +138,21 @@ class AdaptiveMutationConfig:
             non-negative multiplier applied to that gene's mutation scale at
             mutation time.  Missing genes keep their resolved scale
             unchanged.
+        max_step_multiplier: Maximum factor by which the accumulated
+            rate/scale multiplier may change in a single generation.  The
+            raw factor derived from ``stall_multiplier`` or
+            ``improve_multiplier`` is clamped to
+            ``[1/max_step_multiplier, max_step_multiplier]`` before being
+            applied, so large step sizes in either direction are dampened.
+            Must be >= 1.0.  Set to a large value (e.g. ``1e9``) to
+            effectively disable damping.
+        use_default_per_gene_multipliers: When ``True`` and ``enabled`` is
+            ``True``, the built-in :data:`DEFAULT_PER_GENE_SCALE_MULTIPLIERS`
+            and :data:`DEFAULT_PER_GENE_RATE_MULTIPLIERS` constants are
+            applied as a baseline for ``learning_rate``, ``gamma``, and
+            ``epsilon_decay``.  Any keys present in ``per_gene_rate_multipliers``
+            or ``per_gene_scale_multipliers`` take precedence over the
+            defaults.
     """
 
     enabled: bool = False
@@ -124,6 +170,8 @@ class AdaptiveMutationConfig:
     max_scale_multiplier: float = 5.0
     per_gene_rate_multipliers: Mapping[str, float] = field(default_factory=dict)
     per_gene_scale_multipliers: Mapping[str, float] = field(default_factory=dict)
+    max_step_multiplier: float = 2.0
+    use_default_per_gene_multipliers: bool = False
 
     def __post_init__(self) -> None:
         if self.stall_window < 1:
@@ -146,6 +194,8 @@ class AdaptiveMutationConfig:
             raise ValueError("min_scale_multiplier must be positive.")
         if self.max_scale_multiplier < self.min_scale_multiplier:
             raise ValueError("max_scale_multiplier must be >= min_scale_multiplier.")
+        if self.max_step_multiplier < 1.0:
+            raise ValueError("max_step_multiplier must be >= 1.0.")
         validate_non_negative_mapping("per_gene_rate_multipliers", self.per_gene_rate_multipliers)
         validate_non_negative_mapping("per_gene_scale_multipliers", self.per_gene_scale_multipliers)
         # Re-bind to immutable views so the frozen dataclass is actually immutable.
@@ -220,6 +270,7 @@ class AdaptiveMutationController:
         self._scale_multiplier = 1.0
         self._last_diversity: Optional[float] = None
         self._last_event: str = "baseline"
+        self._last_fitness_delta: Optional[float] = None
 
     @property
     def config(self) -> AdaptiveMutationConfig:
@@ -238,6 +289,16 @@ class AdaptiveMutationController:
         return self._last_diversity
 
     @property
+    def last_fitness_delta(self) -> Optional[float]:
+        """Fitness improvement observed in the most recent :meth:`observe` call.
+
+        Positive means fitness improved; zero or negative means it stalled.
+        ``None`` when :meth:`observe` has not been called yet or when
+        ``use_fitness_adaptation`` is ``False``.
+        """
+        return self._last_fitness_delta
+
+    @property
     def last_event(self) -> str:
         """Human-readable tag describing the most recent adaptation action."""
         return self._last_event
@@ -253,6 +314,7 @@ class AdaptiveMutationController:
         """
         self._best_fitness_history.append(float(best_fitness))
         self._last_diversity = diversity
+        self._last_fitness_delta = None
         events: List[str] = []
 
         if not self._config.enabled:
@@ -264,14 +326,20 @@ class AdaptiveMutationController:
             prior_best = max(window[:-1])
             latest_best = window[-1]
             improvement = latest_best - prior_best
+            self._last_fitness_delta = improvement
             if improvement > self._config.improvement_threshold:
-                self._rate_multiplier *= self._config.improve_multiplier
-                self._scale_multiplier *= self._config.improve_multiplier
+                raw_factor = self._config.improve_multiplier
                 events.append("improving")
             else:
-                self._rate_multiplier *= self._config.stall_multiplier
-                self._scale_multiplier *= self._config.stall_multiplier
+                raw_factor = self._config.stall_multiplier
                 events.append("stalled")
+            # Dampen: clamp per-step factor to [1/max_step, max_step] so
+            # a single generation cannot swing the multiplier too far in
+            # either direction, reducing oscillation.
+            max_step = self._config.max_step_multiplier
+            bounded_factor = min(max_step, max(1.0 / max_step, raw_factor))
+            self._rate_multiplier *= bounded_factor
+            self._scale_multiplier *= bounded_factor
 
         if (
             self._config.use_diversity_adaptation
@@ -311,13 +379,33 @@ class AdaptiveMutationController:
         return max(0.0, base_scale * self._scale_multiplier)
 
     def per_gene_rate_multipliers(self) -> Mapping[str, float]:
-        """Return the configured per-gene rate multipliers (empty if disabled)."""
+        """Return the effective per-gene rate multipliers (empty if disabled).
+
+        When ``use_default_per_gene_multipliers`` is ``True``, the built-in
+        :data:`DEFAULT_PER_GENE_RATE_MULTIPLIERS` are used as a baseline.
+        Any keys present in the config's ``per_gene_rate_multipliers`` take
+        precedence over the defaults.
+        """
         if not self._config.enabled:
             return {}
-        return self._config.per_gene_rate_multipliers
+        if not self._config.use_default_per_gene_multipliers:
+            return self._config.per_gene_rate_multipliers
+        merged = dict(DEFAULT_PER_GENE_RATE_MULTIPLIERS)
+        merged.update(self._config.per_gene_rate_multipliers)
+        return merged
 
     def per_gene_scale_multipliers(self) -> Mapping[str, float]:
-        """Return the configured per-gene scale multipliers (empty if disabled)."""
+        """Return the effective per-gene scale multipliers (empty if disabled).
+
+        When ``use_default_per_gene_multipliers`` is ``True``, the built-in
+        :data:`DEFAULT_PER_GENE_SCALE_MULTIPLIERS` are used as a baseline.
+        Any keys present in the config's ``per_gene_scale_multipliers`` take
+        precedence over the defaults.
+        """
         if not self._config.enabled:
             return {}
-        return self._config.per_gene_scale_multipliers
+        if not self._config.use_default_per_gene_multipliers:
+            return self._config.per_gene_scale_multipliers
+        merged = dict(DEFAULT_PER_GENE_SCALE_MULTIPLIERS)
+        merged.update(self._config.per_gene_scale_multipliers)
+        return merged
