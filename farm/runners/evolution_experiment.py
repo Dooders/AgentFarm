@@ -674,6 +674,8 @@ class EvolutionExperiment:
         for evaluation in generation_evals:
             chromosome = evaluation.metadata["chromosome"]
             for gene in chromosome.genes:
+                if not gene.evolvable:
+                    continue
                 gene_values.setdefault(gene.name, []).append(gene.value)
                 if gene.name not in gene_bounds:
                     gene_bounds[gene.name] = (gene.min_value, gene.max_value)

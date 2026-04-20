@@ -1087,7 +1087,6 @@ class TestInteriorBiasedBoundaryMode(unittest.TestCase):
     def test_interior_biased_does_not_produce_exact_max_on_large_overshoot(self):
         """When clamped value would be at max, INTERIOR_BIASED nudges it inward."""
         chromosome = chromosome_from_values({"learning_rate": 0.999})
-        rng = random.Random(1)
         # Large gauss pushes value above max → clamp to 1.0 → nudge inward
         with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=5.0):
             mutated = mutate_chromosome(
@@ -1096,7 +1095,6 @@ class TestInteriorBiasedBoundaryMode(unittest.TestCase):
                 mutation_scale=1.0,
                 boundary_mode=BoundaryMode.INTERIOR_BIASED,
                 interior_bias_fraction=1e-3,
-                rng=rng,
             )
         lr = mutated.get_value("learning_rate")
         self.assertGreaterEqual(lr, 1e-6)
@@ -1105,7 +1103,6 @@ class TestInteriorBiasedBoundaryMode(unittest.TestCase):
     def test_interior_biased_does_not_produce_exact_min_on_large_undershoot(self):
         """When clamped value would be at min, INTERIOR_BIASED nudges it inward."""
         chromosome = chromosome_from_values({"learning_rate": 0.001})
-        rng = random.Random(2)
         # Large negative gauss pushes value below min → clamp to 1e-6 → nudge inward
         with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=-5.0):
             mutated = mutate_chromosome(
@@ -1114,7 +1111,6 @@ class TestInteriorBiasedBoundaryMode(unittest.TestCase):
                 mutation_scale=1.0,
                 boundary_mode=BoundaryMode.INTERIOR_BIASED,
                 interior_bias_fraction=1e-3,
-                rng=rng,
             )
         lr = mutated.get_value("learning_rate")
         self.assertGreater(lr, 1e-6, msg="INTERIOR_BIASED should nudge value above min boundary")
@@ -1155,7 +1151,6 @@ class TestInteriorBiasedBoundaryMode(unittest.TestCase):
     def test_interior_biased_zero_fraction_behaves_like_clamp(self):
         """interior_bias_fraction=0.0 means no nudge; value at exact boundary is kept."""
         chromosome = chromosome_from_values({"learning_rate": 0.999})
-        rng = random.Random(7)
         with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=5.0):
             mutated = mutate_chromosome(
                 chromosome,
@@ -1163,7 +1158,6 @@ class TestInteriorBiasedBoundaryMode(unittest.TestCase):
                 mutation_scale=1.0,
                 boundary_mode=BoundaryMode.INTERIOR_BIASED,
                 interior_bias_fraction=0.0,
-                rng=rng,
             )
         self.assertEqual(mutated.get_value("learning_rate"), 1.0)
 
