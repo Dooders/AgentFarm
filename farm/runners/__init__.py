@@ -7,6 +7,11 @@ from farm.runners.adaptive_mutation import (
     AdaptiveMutationController,
     compute_normalized_diversity,
 )
+from farm.runners.cohort_runner import (
+    CohortAggregateResult,
+    CohortRunner,
+    CohortSeedResult,
+)
 from farm.runners.evolution_experiment import (
     ConvergenceCriteria,
     ConvergenceReason,
@@ -25,6 +30,9 @@ __all__ = [
     "AdaptiveMutationConfig",
     "AdaptiveMutationController",
     "compute_normalized_diversity",
+    "CohortAggregateResult",
+    "CohortRunner",
+    "CohortSeedResult",
     "ConvergenceCriteria",
     "ConvergenceReason",
     "EvolutionCandidateEvaluation",
