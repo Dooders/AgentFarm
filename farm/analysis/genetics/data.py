@@ -45,6 +45,8 @@ def process_genetics_data(data: Any, **kwargs) -> pd.DataFrame:
     if isinstance(data, (str, Path)):
         experiment_path = Path(data)
         logger.info("process_genetics_data: loading genetics from experiment path %s", experiment_path)
+        # Deferred imports to avoid circular dependencies at module import time and
+        # to keep heavy database dependencies from loading unless the Path branch is used.
         from farm.analysis.common.utils import find_database_path
         from farm.database.session_manager import SessionManager
         from farm.analysis.genetics.compute import build_agent_genetics_dataframe

@@ -12,7 +12,7 @@ Covers:
 
 from __future__ import annotations
 
-import tempfile
+import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -274,7 +274,6 @@ class TestProcessGeneticsData:
         """process_genetics_data should load a simulation.db when given a Path."""
         db_path = tmp_path / "simulation.db"
         # Create a minimal sqlite DB so find_database_path succeeds
-        import sqlite3
         conn = sqlite3.connect(str(db_path))
         conn.close()
         with patch(
@@ -289,7 +288,6 @@ class TestProcessGeneticsData:
     def test_dispatches_to_db_accessor_for_str_path(self, tmp_path):
         """process_genetics_data should also accept a str path to the experiment dir."""
         db_path = tmp_path / "simulation.db"
-        import sqlite3
         conn = sqlite3.connect(str(db_path))
         conn.close()
         with patch(
