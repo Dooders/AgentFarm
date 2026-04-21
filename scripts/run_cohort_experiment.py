@@ -189,6 +189,15 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=[mode.value for mode in BoundaryMode],
         help="Boundary strategy after mutation overshoots gene bounds.",
     )
+    parser.add_argument(
+        "--interior-bias-fraction",
+        type=float,
+        default=1e-3,
+        help=(
+            "When --boundary-mode=interior_biased, fraction of the gene span used as the "
+            "upper bound of the inward nudge applied to values landing exactly on a boundary."
+        ),
+    )
     parser.add_argument("--boundary-penalty-enabled", action="store_true", help="Enable soft near-boundary fitness penalty.")
     parser.add_argument("--boundary-penalty-strength", type=float, default=0.01)
     parser.add_argument("--boundary-penalty-threshold", type=float, default=0.05)
@@ -276,6 +285,7 @@ def main() -> int:
         generations=args.generations,
         population_size=args.population_size,
         steps_per_candidate=args.steps_per_candidate,
+        interior_bias_fraction=args.interior_bias_fraction,
         output_dir=args.output_dir,
     )
 
@@ -292,6 +302,7 @@ def main() -> int:
             mutation_rate=args.mutation_rate,
             mutation_scale=args.mutation_scale,
             boundary_mode=BoundaryMode(args.boundary_mode),
+            interior_bias_fraction=args.interior_bias_fraction,
             boundary_penalty=BoundaryPenaltyConfig(
                 enabled=args.boundary_penalty_enabled,
                 penalty_strength=args.boundary_penalty_strength,
@@ -346,10 +357,11 @@ def main() -> int:
             "num_seeds": args.num_seeds,
             "base_seed": args.base_seed,
             "seeds": seeds,
+            "interior_bias_fraction": args.interior_bias_fraction,
             "experiment_config": _serialize_experiment_config(experiment_config_template),
         }
         manifest_path = os.path.join(args.output_dir, "cohort_manifest.json")
-        with open(manifest_path, "w") as manifest_file:
+        with open(manifest_path, "w", encoding="utf-8") as manifest_file:
             json.dump(manifest, manifest_file, indent=2)
         logger.info("cohort_manifest_written", path=manifest_path)
 

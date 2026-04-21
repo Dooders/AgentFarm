@@ -153,7 +153,16 @@ class TestLowerBoundOccupancy(unittest.TestCase):
     def test_returns_none_for_empty_summaries(self):
         result = MagicMock()
         result.generation_summaries = []
-        self.assertIsNone(_lower_bound_occupancy(result))
+        self.assertIsNone(
+            _lower_bound_occupancy(result, learning_rate_lower_bound=1e-6)
+        )
+
+    def test_returns_none_when_lower_bound_missing(self):
+        result = MagicMock()
+        result.generation_summaries = [MagicMock()]
+        self.assertIsNone(
+            _lower_bound_occupancy(result, learning_rate_lower_bound=None)
+        )
 
     def test_returns_zero_when_no_lower_bound_hit(self):
         result = MagicMock()
@@ -162,7 +171,7 @@ class TestLowerBoundOccupancy(unittest.TestCase):
         summary.gene_statistics = {"learning_rate": {"min": 0.001}}
         summary.best_chromosome = {"learning_rate": 0.05}
         result.generation_summaries = [summary]
-        occ = _lower_bound_occupancy(result)
+        occ = _lower_bound_occupancy(result, learning_rate_lower_bound=1e-6)
         self.assertIsNotNone(occ)
         self.assertAlmostEqual(occ, 0.0)
 
@@ -171,22 +180,32 @@ class TestLowerBoundOccupancy(unittest.TestCase):
         summary = MagicMock()
         # best_lr equal to pop_min
         summary.gene_statistics = {"learning_rate": {"min": 0.001}}
-        summary.best_chromosome = {"learning_rate": 0.001}
+        summary.best_chromosome = {"learning_rate": 1e-6}
         result.generation_summaries = [summary, summary]
-        occ = _lower_bound_occupancy(result)
+        occ = _lower_bound_occupancy(result, learning_rate_lower_bound=1e-6)
         self.assertAlmostEqual(occ, 1.0)
 
     def test_partial_occupancy(self):
         result = MagicMock()
         s_hit = MagicMock()
         s_hit.gene_statistics = {"learning_rate": {"min": 0.001}}
-        s_hit.best_chromosome = {"learning_rate": 0.001}
+        s_hit.best_chromosome = {"learning_rate": 1e-6}
         s_miss = MagicMock()
         s_miss.gene_statistics = {"learning_rate": {"min": 0.001}}
         s_miss.best_chromosome = {"learning_rate": 0.05}
         result.generation_summaries = [s_hit, s_miss, s_miss, s_miss]
-        occ = _lower_bound_occupancy(result)
+        occ = _lower_bound_occupancy(result, learning_rate_lower_bound=1e-6)
         self.assertAlmostEqual(occ, 0.25)
+
+    def test_uses_configured_lower_bound_not_population_min(self):
+        result = MagicMock()
+        summary = MagicMock()
+        # Population minimum is not at the real boundary.
+        summary.gene_statistics = {"learning_rate": {"min": 0.01}}
+        summary.best_chromosome = {"learning_rate": 0.01}
+        result.generation_summaries = [summary]
+        occ = _lower_bound_occupancy(result, learning_rate_lower_bound=1e-6)
+        self.assertAlmostEqual(occ, 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -250,10 +269,9 @@ class TestCohortRunnerRun(unittest.TestCase):
             seeds=seeds,
             output_dir=output_dir,
         )
-        with (
-            patch.object(EvolutionExperiment, "__init__", fake_experiment_init),
-            patch.object(EvolutionExperiment, "run", fake_run),
-        ):
+        with patch.object(
+            EvolutionExperiment, "__init__", fake_experiment_init
+        ), patch.object(EvolutionExperiment, "run", fake_run):
             return runner.run()
 
     def test_returns_cohort_aggregate_result(self):
@@ -590,6 +608,25 @@ class TestRunCohortExperimentCLI(unittest.TestCase):
         preset = run_cohort_experiment.PRESETS["stable_hyper_evo"]
         for key in ("selection_method", "boundary_mode", "mutation_rate", "mutation_scale", "adaptive_mutation"):
             self.assertIn(key, preset)
+
+    def test_parse_args_interior_bias_fraction_custom(self):
+        argv = sys.argv[:]
+        try:
+            sys.argv = [
+                "run_cohort_experiment.py",
+                "--generations",
+                "1",
+                "--population-size",
+                "2",
+                "--steps-per-candidate",
+                "1",
+                "--interior-bias-fraction",
+                "0.123",
+            ]
+            args = run_cohort_experiment._parse_args()
+        finally:
+            sys.argv = argv
+        self.assertAlmostEqual(args.interior_bias_fraction, 0.123)
 
 
 if __name__ == "__main__":

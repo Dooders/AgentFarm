@@ -23,7 +23,7 @@ python scripts/run_cohort_experiment.py \
   --output-dir experiments/cohort_smoke
 ```
 
-This runs 5 seeds (0, 1, 2, 3, 4) and writes three artifacts to
+This runs 5 seeds (0, 1, 2, 3, 4) and writes four artifact types to
 `experiments/cohort_smoke/`:
 
 | File | Contents |

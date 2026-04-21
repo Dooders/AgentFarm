@@ -35,10 +35,14 @@ import csv
 import json
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional
 
 from farm.config import SimulationConfig
+from farm.core.hyperparameter_chromosome import (
+    chromosome_from_learning_config,
+    default_hyperparameter_chromosome,
+)
 from farm.runners.evolution_experiment import (
     EvolutionExperiment,
     EvolutionExperimentConfig,
@@ -156,16 +160,24 @@ class CohortAggregateResult:
     total_elapsed_seconds: float
 
 
-def _lower_bound_occupancy(result: EvolutionExperimentResult) -> Optional[float]:
+def _lower_bound_occupancy(
+    result: EvolutionExperimentResult,
+    *,
+    learning_rate_lower_bound: Optional[float],
+) -> Optional[float]:
     """Return fraction of generations where the best chromosome hit the lower boundary.
 
     A generation is considered to have *lower-bound occupancy* when the
     best candidate's ``learning_rate`` gene value is within 1 % of the
-    gene's minimum boundary.  The 1 % tolerance handles floating-point
-    noise after reflection/clamping.
+    configured lower boundary.  The 1 % tolerance handles floating-point
+    noise near the exact boundary value.
 
-    Returns ``None`` when no generation summaries are available.
+    Returns ``None`` when no generation summaries are available or when the
+    learning-rate lower boundary is unavailable.
     """
+    if learning_rate_lower_bound is None:
+        return None
+
     summaries = result.generation_summaries
     if not summaries:
         return None
@@ -178,16 +190,28 @@ def _lower_bound_occupancy(result: EvolutionExperimentResult) -> Optional[float]
         best_lr = summary.best_chromosome.get("learning_rate")
         if best_lr is None:
             continue
-        # Infer the lower bound from the gene statistics minimum across the
-        # population.  A chromosome value at (or within 1 %) of the population
-        # minimum is treated as boundary-hugging.
-        pop_min = lr_stats.get("min", best_lr)
-        # We use 0.001 as an absolute floor to handle cases where pop_min ~= 0.
-        threshold = max(abs(pop_min) * 0.01, 1e-9)
-        if abs(best_lr - pop_min) <= threshold:
+        # Use a small relative tolerance around the configured lower bound.
+        threshold = max(abs(learning_rate_lower_bound) * 0.01, 1e-9)
+        if abs(best_lr - learning_rate_lower_bound) <= threshold:
             count += 1
 
     return count / len(summaries)
+
+
+def _resolve_learning_rate_lower_bound(base_config: SimulationConfig) -> Optional[float]:
+    """Resolve configured learning-rate lower bound from simulation config."""
+    chromosome = default_hyperparameter_chromosome()
+    learning_config = getattr(base_config, "learning", None)
+    if learning_config is not None:
+        try:
+            chromosome = chromosome_from_learning_config(learning_config)
+        except (TypeError, ValueError):
+            # Fallback keeps test doubles and partial configs robust.
+            chromosome = default_hyperparameter_chromosome()
+    gene = chromosome.get_gene("learning_rate")
+    if gene is None:
+        return None
+    return gene.min_value
 
 
 def _safe_stdev(values: List[float]) -> Optional[float]:
@@ -252,6 +276,7 @@ class CohortRunner:
 
         cohort_start = time.time()
         seed_results: List[CohortSeedResult] = []
+        learning_rate_lower_bound = _resolve_learning_rate_lower_bound(self.base_config)
 
         for seed in self.seeds:
             seed_output_dir = (
@@ -266,7 +291,10 @@ class CohortRunner:
             result = EvolutionExperiment(self.base_config, seed_config).run()
             elapsed = time.time() - seed_start
 
-            occupancy = _lower_bound_occupancy(result)
+            occupancy = _lower_bound_occupancy(
+                result,
+                learning_rate_lower_bound=learning_rate_lower_bound,
+            )
             best_fitness = result.best_candidate.fitness
 
             seed_result = CohortSeedResult(
