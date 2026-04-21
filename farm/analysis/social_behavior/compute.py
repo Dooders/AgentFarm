@@ -16,6 +16,7 @@ import pandas as pd
 from sqlalchemy import and_, desc, func, or_
 from sqlalchemy.orm import Session
 
+from farm.analysis.genetics.utils import parse_parent_ids
 from farm.core.social_dynamics import (
     compute_social_dynamics_trends,
     per_step_records_for_json,
@@ -759,16 +760,14 @@ def compute_reproduction_social_patterns(session: Session) -> Dict[str, Any]:
         return {"error": "No successful reproduction events found"}
 
     # Parse genome_id to get parent relationships and reconstruct events
-    from farm.database.data_types import GenomeId
-    
     reproduction_events = []
     reproduction_steps = set()
     
     for offspring in offspring_agents:
         try:
-            genome = GenomeId.from_string(offspring.genome_id)
-            if genome.parent_ids:
-                parent_id = genome.parent_ids[0]  # Use first parent
+            parent_ids = parse_parent_ids(offspring.genome_id)
+            if parent_ids:
+                parent_id = parent_ids[0]  # Use first parent
                 parent = (
                     session.query(AgentModel)
                     .filter(AgentModel.agent_id == parent_id)

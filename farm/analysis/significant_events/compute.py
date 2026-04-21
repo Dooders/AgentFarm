@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 
 from farm.analysis.common.utils import calculate_statistics
+from farm.database.data_types import GenomeId
 from farm.database.models import (
     AgentModel,
     AgentStateModel,
@@ -18,6 +19,9 @@ from farm.database.models import (
     HealthIncident,
     ActionModel,
 )
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Event detection thresholds
 POPULATION_CRASH_THRESHOLD = 0.3  # >30% decrease triggers crash detection
@@ -145,30 +149,37 @@ def _detect_agent_births(query_func, start_step: int, end_step: Optional[int]) -
             q = q.filter(AgentModel.birth_time <= end_step)
 
         results = q.all()
-        
+
         # Convert to expected format with parent_id
-        from farm.database.data_types import GenomeId
         formatted_results = []
         for result in results:
-            try:
-                # Parse genome_id directly from query result
-                genome = GenomeId.from_string(result.genome_id)
-                parent_id = genome.parent_ids[0] if genome.parent_ids else None
-                formatted_results.append({
-                    'step_number': result.step_number,
-                    'parent_id': parent_id,
-                    'offspring_id': result.offspring_id,
-                    'success': True,  # All have birth_time > 0 so successful
-                    'offspring_generation': result.offspring_generation,
-                })
-            except Exception as e:
-                from farm.utils.logging import get_logger
-                logger = get_logger(__name__)
+            if not result.genome_id:
                 logger.warning(
-                    f"Failed to parse genome_id '{result.genome_id}' for offspring agent_id {result.offspring_id}: {e}"
+                    "Skipping birth event: missing genome_id for offspring agent_id %s",
+                    result.offspring_id,
                 )
                 continue
-        
+            try:
+                genome = GenomeId.from_string(result.genome_id)
+            except Exception as e:
+                logger.warning(
+                    "Failed to parse genome_id %r for offspring agent_id %s: %s",
+                    result.genome_id,
+                    result.offspring_id,
+                    e,
+                )
+                continue
+            parent_id = genome.parent_ids[0] if genome.parent_ids else None
+            formatted_results.append(
+                {
+                    "step_number": result.step_number,
+                    "parent_id": parent_id,
+                    "offspring_id": result.offspring_id,
+                    "success": True,  # All have birth_time > 0 so successful
+                    "offspring_generation": result.offspring_generation,
+                }
+            )
+
         events = []
         for result in formatted_results:
             step_number = result['step_number']

@@ -3,7 +3,7 @@ from typing import Optional
 from scipy.spatial.distance import euclidean
 
 from farm.analysis.dominance.constants import DOMINANCE_AGENT_TYPES
-from farm.database.data_types import GenomeId
+from farm.analysis.genetics.utils import parse_parent_ids
 from farm.database.models import (
     ActionModel,
     AgentModel,
@@ -237,14 +237,10 @@ def get_reproduction_stats(sim_session):
         # Build a set of successful reproduction step+parent combinations
         successful_reproductions = set()
         for offspring in offspring_agents:
-            try:
-                genome = GenomeId.from_string(offspring.genome_id)
-                if genome.parent_ids:
-                    parent_id = genome.parent_ids[0]
-                    successful_reproductions.add((offspring.birth_time, parent_id))
-            except Exception as e:
-                logger.warning(f"Failed to parse genome ID '{offspring.genome_id}' for agent {offspring.id}: {e}")
-                continue
+            parent_ids = parse_parent_ids(offspring.genome_id)
+            if parent_ids:
+                parent_id = parent_ids[0]
+                successful_reproductions.add((offspring.birth_time, parent_id))
 
         # Filter reproduce_actions to find failed attempts
         failed_actions = []
@@ -299,11 +295,11 @@ def get_reproduction_stats(sim_session):
         # Process successful reproductions
         for offspring in offspring_agents:
             try:
-                genome = GenomeId.from_string(offspring.genome_id)
-                if not genome.parent_ids:
+                parent_ids = parse_parent_ids(offspring.genome_id)
+                if not parent_ids:
                     continue
 
-                parent_id = genome.parent_ids[0]
+                parent_id = parent_ids[0]
                 parent_type = agents.get(parent_id, "unknown")
 
                 if parent_type not in stats:
