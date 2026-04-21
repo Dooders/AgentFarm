@@ -1,5 +1,30 @@
 #!/usr/bin/env python3
-"""CLI entrypoint for multi-generation hyperparameter evolution experiments."""
+"""CLI entrypoint for multi-seed cohort evolution experiments.
+
+Runs the same :class:`~farm.runners.EvolutionExperiment` configuration
+over *N* random seeds and writes aggregate JSON/CSV artifacts to
+``--output-dir``.  All evolution flags mirror :mod:`run_evolution_experiment`.
+
+Example::
+
+    source venv/bin/activate
+    python scripts/run_cohort_experiment.py \\
+      --preset stable_hyper_evo \\
+      --generations 8 \\
+      --population-size 10 \\
+      --steps-per-candidate 80 \\
+      --num-seeds 5 \\
+      --base-seed 0 \\
+      --output-dir experiments/cohort_smoke
+
+Artifacts written to ``--output-dir``:
+
+* ``cohort_manifest.json``   – resolved configuration snapshot (pre-run)
+* ``cohort_aggregate.json``  – per-seed and aggregate statistics
+* ``cohort_aggregate.csv``   – per-seed rows (notebook-ready)
+* ``seed_<N>/``              – per-seed evolution artifacts (same layout as
+                               :mod:`run_evolution_experiment`)
+"""
 
 from __future__ import annotations
 
@@ -17,12 +42,13 @@ if _repo_root not in sys.path:
 from farm.config import SimulationConfig  # noqa: E402
 from farm.runners import (  # noqa: E402
     AdaptiveMutationConfig,
+    CohortRunner,
     ConvergenceCriteria,
-    EvolutionExperiment,
     EvolutionExperimentConfig,
     EvolutionFitnessMetric,
     EvolutionSelectionMethod,
 )
+from farm.runners.cohort_runner import _serialize_experiment_config  # noqa: E402
 from farm.core.hyperparameter_chromosome import (  # noqa: E402
     BoundaryMode,
     BoundaryPenaltyConfig,
@@ -44,68 +70,66 @@ PRESETS = get_presets(
 )
 
 
-def _parse_per_gene_multipliers(raw: str | None, *, label: str) -> dict[str, float]:
-    """Backward-compatible alias for tests/imports using the old helper name."""
-    return parse_per_gene_multipliers(raw, label=label)
-
-
 def _build_parser() -> argparse.ArgumentParser:
-    """Return a fully-configured argument parser (without actually parsing)."""
+    """Return a fully-configured argument parser."""
     parser = argparse.ArgumentParser(
         description=(
-            "Run multi-generation hyperparameter evolution experiments.\n\n"
-            "Named presets (--preset) provide opinionated defaults that reflect current\n"
-            "best-performing configurations.  Any explicit CLI flag still overrides the\n"
-            "preset value.\n\n"
+            "Run multi-seed cohort hyperparameter evolution experiments.\n\n"
+            "Executes the same evolution config over N seeds and writes aggregate\n"
+            "JSON/CSV artifacts to --output-dir for confidence-aware comparison.\n\n"
             "Available presets:\n"
             "  stable_hyper_evo  tournament selection + reflect boundary + adaptive\n"
-            "                    mutation (rate 0.20, scale 0.15).  Prevents lower-bound\n"
-            "                    collapse and diversity collapse seen with bare defaults."
+            "                    mutation (rate 0.20, scale 0.15)."
         ),
         formatter_class=EvolutionExperimentHelpFormatter,
+    )
+    parser.add_argument(
+        "--num-seeds",
+        type=int,
+        default=3,
+        help="Number of seeds to run in the cohort.",
+    )
+    parser.add_argument(
+        "--base-seed",
+        type=int,
+        default=0,
+        help=(
+            "Base seed value.  Seeds are derived as "
+            "[base_seed, base_seed+1, ..., base_seed+num_seeds-1]."
+        ),
     )
     add_evolution_training_arguments(
         parser,
         presets=PRESETS,
-        preset_help=(
-            "Load a named configuration preset.  Preset values act as defaults; any "
-            "explicit CLI flag still takes priority.  Available: %(choices)s."
-        ),
+        preset_help="Load a named configuration preset.",
         evolution_fitness_metric=EvolutionFitnessMetric,
         evolution_selection_method=EvolutionSelectionMethod,
         boundary_mode=BoundaryMode,
         crossover_mode=CrossoverMode,
+        generations_help="Number of generations per seed.",
+        fitness_metric_help="Built-in fitness metric.",
     )
     add_evolution_convergence_arguments(parser)
-    parser.add_argument("--seed", type=int, default=42, help="Global deterministic seed.")
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="experiments/evolution",
-        help="Directory where lineage and summaries are persisted.",
+        default="experiments/cohort",
+        help="Root directory for cohort artifacts.",
     )
     parser.add_argument(
         "--log-level",
         type=str,
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Structured logging level.",
     )
     return parser
 
 
 def _parse_args() -> argparse.Namespace:
-    """Parse CLI arguments, applying any named preset as baseline defaults.
-
-    Two-pass approach: the first parse discovers ``--preset``; if set, the
-    preset values are installed as argparse defaults before the final parse so
-    that any explicit flag the user supplied still wins over the preset.
-    """
+    """Parse CLI arguments, applying any named preset as baseline defaults."""
     parser = _build_parser()
-    # First pass: discover --preset without failing on unknown/remaining args.
     preset_discovery_args, _ = parser.parse_known_args()
     if preset_discovery_args.preset is not None:
-        # preset is already validated by choices=, so this lookup always succeeds.
         parser.set_defaults(**PRESETS[preset_discovery_args.preset])
     return parser.parse_args()
 
@@ -117,25 +141,19 @@ def main() -> int:
     configure_logging(environment=args.environment, log_dir="logs", log_level=args.log_level, disable_console=False)
     logger = get_logger(__name__)
 
+    seeds = list(range(args.base_seed, args.base_seed + args.num_seeds))
+
     logger.info(
-        "evolution_experiment_cli_start",
+        "cohort_experiment_cli_start",
         preset=args.preset,
+        num_seeds=args.num_seeds,
+        base_seed=args.base_seed,
+        seeds=seeds,
         environment=args.environment,
-        profile=args.profile,
         generations=args.generations,
         population_size=args.population_size,
         steps_per_candidate=args.steps_per_candidate,
-        fitness_metric=args.fitness_metric,
-        selection_method=args.selection_method,
-        boundary_mode=args.boundary_mode,
         interior_bias_fraction=args.interior_bias_fraction,
-        boundary_penalty_enabled=args.boundary_penalty_enabled,
-        boundary_penalty_strength=args.boundary_penalty_strength,
-        boundary_penalty_threshold=args.boundary_penalty_threshold,
-        crossover_mode=args.crossover_mode,
-        blend_alpha=args.blend_alpha,
-        num_crossover_points=args.num_crossover_points,
-        adaptive_mutation=args.adaptive_mutation,
         output_dir=args.output_dir,
     )
 
@@ -145,7 +163,7 @@ def main() -> int:
             profile=args.profile,
         )
 
-        experiment_config = EvolutionExperimentConfig(
+        experiment_config_template = EvolutionExperimentConfig(
             num_generations=args.generations,
             population_size=args.population_size,
             num_steps_per_candidate=args.steps_per_candidate,
@@ -193,93 +211,65 @@ def main() -> int:
             tournament_size=args.tournament_size,
             elitism_count=args.elitism_count,
             fitness_metric=EvolutionFitnessMetric(args.fitness_metric),
-            seed=args.seed,
-            output_dir=args.output_dir,
+            # seed overridden per-run by CohortRunner
+            seed=None,
+            output_dir=None,
         )
 
-        # Persist the resolved configuration before running so the manifest is
-        # available even if the experiment is interrupted.
+        # Persist cohort manifest before running.
         manifest: dict[str, object] = {
-            "script": "scripts/run_evolution_experiment.py",
+            "script": "scripts/run_cohort_experiment.py",
             "preset": args.preset,
             "environment": args.environment,
             "profile": args.profile,
-            "generations": args.generations,
-            "population_size": args.population_size,
-            "steps_per_candidate": args.steps_per_candidate,
-            "fitness_metric": args.fitness_metric,
-            "selection_method": args.selection_method,
-            "mutation_rate": args.mutation_rate,
-            "mutation_scale": args.mutation_scale,
-            "tournament_size": args.tournament_size,
-            "boundary_mode": args.boundary_mode,
+            "num_seeds": args.num_seeds,
+            "base_seed": args.base_seed,
+            "seeds": seeds,
             "interior_bias_fraction": args.interior_bias_fraction,
-            "boundary_penalty_enabled": args.boundary_penalty_enabled,
-            "boundary_penalty_strength": args.boundary_penalty_strength,
-            "boundary_penalty_threshold": args.boundary_penalty_threshold,
-            "crossover_mode": args.crossover_mode,
-            "blend_alpha": args.blend_alpha,
-            "num_crossover_points": args.num_crossover_points,
-            "elitism_count": args.elitism_count,
-            "adaptive_mutation": args.adaptive_mutation,
-            "convergence_enabled": args.convergence_enabled,
-            "convergence_fitness_window": args.convergence_fitness_window,
-            "convergence_fitness_threshold": args.convergence_fitness_threshold,
-            "convergence_diversity_window": args.convergence_diversity_window,
-            "convergence_diversity_threshold": args.convergence_diversity_threshold,
-            "convergence_min_generations": args.convergence_min_generations,
-            "convergence_early_stop": not args.convergence_no_early_stop,
-            "seed": args.seed,
-            "output_dir": args.output_dir,
+            "experiment_config": _serialize_experiment_config(experiment_config_template),
         }
-        manifest_path = os.path.join(args.output_dir, "run_manifest.json")
-        with open(manifest_path, "w") as manifest_file:
+        manifest_path = os.path.join(args.output_dir, "cohort_manifest.json")
+        with open(manifest_path, "w", encoding="utf-8") as manifest_file:
             json.dump(manifest, manifest_file, indent=2)
-        logger.info("evolution_experiment_manifest_written", path=manifest_path)
+        logger.info("cohort_manifest_written", path=manifest_path)
 
         start = time.time()
-        result = EvolutionExperiment(base_config, experiment_config).run()
+        runner = CohortRunner(
+            base_config=base_config,
+            experiment_config_template=experiment_config_template,
+            seeds=seeds,
+            output_dir=args.output_dir,
+        )
+        aggregate = runner.run()
         elapsed = time.time() - start
 
-        last_summary = result.generation_summaries[-1] if result.generation_summaries else None
         summary = {
-            "elapsed_seconds": round(elapsed, 3),
-            "num_generations": len(result.generation_summaries),
-            "num_evaluations": len(result.evaluations),
-            "best_candidate_id": result.best_candidate.candidate_id,
-            "best_fitness": result.best_candidate.fitness,
-            "best_learning_rate": result.best_candidate.learning_rate,
-            "best_parent_ids": list(result.best_candidate.parent_ids),
-            "boundary_mode": args.boundary_mode,
-            "boundary_penalty_enabled": args.boundary_penalty_enabled,
-            "boundary_penalty_strength": args.boundary_penalty_strength,
-            "boundary_penalty_threshold": args.boundary_penalty_threshold,
-            "crossover_mode": args.crossover_mode,
-            "blend_alpha": args.blend_alpha,
-            "num_crossover_points": args.num_crossover_points,
-            "adaptive_mutation_enabled": args.adaptive_mutation,
-            "final_mutation_rate_multiplier": (
-                last_summary.mutation_rate_multiplier if last_summary else None
-            ),
-            "final_mutation_scale_multiplier": (
-                last_summary.mutation_scale_multiplier if last_summary else None
-            ),
-            "final_adaptive_event": last_summary.adaptive_event if last_summary else None,
-            "converged": result.converged,
-            "convergence_reason": result.convergence_reason,
-            "generation_of_convergence": result.generation_of_convergence,
+            "num_seeds": aggregate.num_seeds,
+            "seeds": aggregate.seeds,
+            "best_fitness_mean": aggregate.best_fitness_mean,
+            "best_fitness_std": aggregate.best_fitness_std,
+            "best_fitness_min": aggregate.best_fitness_min,
+            "best_fitness_max": aggregate.best_fitness_max,
+            "convergence_rate": aggregate.convergence_rate,
+            "convergence_reason_counts": aggregate.convergence_reason_counts,
+            "mean_generation_of_convergence": aggregate.mean_generation_of_convergence,
+            "std_generation_of_convergence": aggregate.std_generation_of_convergence,
+            "lower_bound_occupancy_mean": aggregate.lower_bound_occupancy_mean,
+            "lower_bound_occupancy_std": aggregate.lower_bound_occupancy_std,
+            "mean_elapsed_seconds": aggregate.mean_elapsed_seconds,
+            "total_elapsed_seconds": round(elapsed, 3),
             "output_dir": args.output_dir,
         }
         print(json.dumps(summary, indent=2))
         return 0
     except Exception as exc:  # pragma: no cover - CLI safety guard
         logger.error(
-            "evolution_experiment_cli_failed",
+            "cohort_experiment_cli_failed",
             error_type=type(exc).__name__,
             error_message=str(exc),
             exc_info=True,
         )
-        print(f"Evolution experiment failed: {exc}", file=sys.stderr)
+        print(f"Cohort experiment failed: {exc}", file=sys.stderr)
         return 1
 
 
