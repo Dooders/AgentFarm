@@ -12,8 +12,10 @@ Covers:
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -253,7 +255,7 @@ class TestProcessGeneticsData:
 
     def test_raises_on_unsupported_type(self):
         with pytest.raises(TypeError):
-            process_genetics_data("not supported")
+            process_genetics_data(42)
 
     def test_dispatches_to_db_accessor_for_session(self):
         session = MagicMock()
@@ -267,6 +269,36 @@ class TestProcessGeneticsData:
         result = process_genetics_data(evo_result)
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == EVOLUTION_GENETICS_COLUMNS
+
+    def test_dispatches_to_db_accessor_for_path(self, tmp_path):
+        """process_genetics_data should load a simulation.db when given a Path."""
+        db_path = tmp_path / "simulation.db"
+        # Create a minimal sqlite DB so find_database_path succeeds
+        import sqlite3
+        conn = sqlite3.connect(str(db_path))
+        conn.close()
+        with patch(
+            "farm.analysis.genetics.compute.build_agent_genetics_dataframe",
+            return_value=pd.DataFrame(columns=AGENT_GENETICS_COLUMNS),
+        ) as mock_build:
+            result = process_genetics_data(tmp_path)
+        mock_build.assert_called_once()
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == AGENT_GENETICS_COLUMNS
+
+    def test_dispatches_to_db_accessor_for_str_path(self, tmp_path):
+        """process_genetics_data should also accept a str path to the experiment dir."""
+        db_path = tmp_path / "simulation.db"
+        import sqlite3
+        conn = sqlite3.connect(str(db_path))
+        conn.close()
+        with patch(
+            "farm.analysis.genetics.compute.build_agent_genetics_dataframe",
+            return_value=pd.DataFrame(columns=AGENT_GENETICS_COLUMNS),
+        ) as mock_build:
+            result = process_genetics_data(str(tmp_path))
+        mock_build.assert_called_once()
+        assert isinstance(result, pd.DataFrame)
 
 
 # ---------------------------------------------------------------------------

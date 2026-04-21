@@ -237,14 +237,10 @@ def get_reproduction_stats(sim_session):
         # Build a set of successful reproduction step+parent combinations
         successful_reproductions = set()
         for offspring in offspring_agents:
-            try:
-                parent_ids = parse_parent_ids(offspring.genome_id)
-                if parent_ids:
-                    parent_id = parent_ids[0]
-                    successful_reproductions.add((offspring.birth_time, parent_id))
-            except Exception as e:
-                logger.warning(f"Failed to parse genome ID '{offspring.genome_id}' for agent {offspring.id}: {e}")
-                continue
+            parent_ids = parse_parent_ids(offspring.genome_id)
+            if parent_ids:
+                parent_id = parent_ids[0]
+                successful_reproductions.add((offspring.birth_time, parent_id))
 
         # Filter reproduce_actions to find failed attempts
         failed_actions = []

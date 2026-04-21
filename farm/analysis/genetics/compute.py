@@ -8,7 +8,7 @@ simulation-database and evolution-experiment data sources.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import pandas as pd
 
@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def parse_parent_ids(genome_id: str) -> List[str]:
+def parse_parent_ids(genome_id: Optional[str]) -> List[str]:
     """Return the list of parent agent IDs encoded in *genome_id*.
 
     This is the single authoritative wrapper around
@@ -46,13 +46,17 @@ def parse_parent_ids(genome_id: str) -> List[str]:
     genome_id:
         Raw genome-ID string as stored in the ``agents`` table or carried by
         :class:`~farm.runners.evolution_experiment.EvolutionCandidate`.
+        ``None`` or any falsy/non-string value returns an empty list without
+        logging a warning.
 
     Returns
     -------
     list[str]
         Possibly-empty list of parent agent IDs.  Empty for initial
-        (generation-0) agents with no parents.
+        (generation-0) agents with no parents or when *genome_id* is absent.
     """
+    if not genome_id or not isinstance(genome_id, str):
+        return []
     try:
         return GenomeId.from_string(genome_id).parent_ids
     except Exception as exc:
@@ -114,7 +118,7 @@ def build_agent_genetics_dataframe(session: "Session") -> pd.DataFrame:
                 "birth_time": agent.birth_time,
                 "death_time": agent.death_time,
                 "genome_id": agent.genome_id,
-                "parent_ids": parse_parent_ids(agent.genome_id) if agent.genome_id else [],
+                "parent_ids": parse_parent_ids(agent.genome_id),
                 "action_weights": agent.action_weights or {},
             }
         )
