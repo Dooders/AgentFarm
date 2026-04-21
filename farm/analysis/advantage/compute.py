@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import func
 
+from farm.analysis.genetics.utils import parse_parent_ids
+
 logger = get_logger(__name__)
 
 
@@ -441,8 +443,6 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
     # Calculate reproduction metrics for each agent type
     # Reconstruct from agents and agent_actions tables
-    from farm.analysis.genetics.compute import parse_parent_ids
-    
     # Get successful reproductions (offspring)
     offspring_agents = (
         sim_session.query(AgentModel)

@@ -12,24 +12,25 @@ Covers:
 
 from __future__ import annotations
 
-import sqlite3
-from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 from farm.analysis.genetics.compute import (
     AGENT_GENETICS_COLUMNS,
     EVOLUTION_GENETICS_COLUMNS,
     build_agent_genetics_dataframe,
     build_evolution_experiment_dataframe,
-    parse_parent_ids,
 )
+from farm.analysis.genetics.utils import parse_parent_ids
 from farm.analysis.genetics.analyze import analyze_genetics
 from farm.analysis.genetics.data import process_genetics_data
 from farm.analysis.genetics.module import GeneticsModule, genetics_module
+from farm.database.models import AgentModel, Base
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +256,7 @@ class TestProcessGeneticsData:
 
     def test_raises_on_unsupported_type(self):
         with pytest.raises(TypeError):
-            process_genetics_data(42)
+            process_genetics_data(12345)
 
     def test_dispatches_to_db_accessor_for_session(self):
         session = MagicMock()
@@ -270,33 +271,27 @@ class TestProcessGeneticsData:
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == EVOLUTION_GENETICS_COLUMNS
 
-    def test_dispatches_to_db_accessor_for_path(self, tmp_path):
-        """process_genetics_data should load a simulation.db when given a Path."""
-        db_path = tmp_path / "simulation.db"
-        # Create a minimal sqlite DB so find_database_path succeeds
-        conn = sqlite3.connect(str(db_path))
-        conn.close()
-        with patch(
-            "farm.analysis.genetics.compute.build_agent_genetics_dataframe",
-            return_value=pd.DataFrame(columns=AGENT_GENETICS_COLUMNS),
-        ) as mock_build:
-            result = process_genetics_data(tmp_path)
-        mock_build.assert_called_once()
+    def test_loads_from_experiment_path(self, tmp_path):
+        db_file = tmp_path / "simulation.db"
+        engine = create_engine(f"sqlite:///{db_file}")
+        Base.metadata.create_all(engine)
+        with Session(engine) as session:
+            session.add(
+                AgentModel(
+                    agent_id="agent_path_1",
+                    agent_type="system",
+                    birth_time=0,
+                    genome_id="::1",
+                    generation=0,
+                )
+            )
+            session.commit()
+        engine.dispose()
+
+        result = process_genetics_data(tmp_path)
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == AGENT_GENETICS_COLUMNS
-
-    def test_dispatches_to_db_accessor_for_str_path(self, tmp_path):
-        """process_genetics_data should also accept a str path to the experiment dir."""
-        db_path = tmp_path / "simulation.db"
-        conn = sqlite3.connect(str(db_path))
-        conn.close()
-        with patch(
-            "farm.analysis.genetics.compute.build_agent_genetics_dataframe",
-            return_value=pd.DataFrame(columns=AGENT_GENETICS_COLUMNS),
-        ) as mock_build:
-            result = process_genetics_data(str(tmp_path))
-        mock_build.assert_called_once()
-        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -334,3 +329,38 @@ class TestGeneticsModule:
         required = ["name", "description", "get_data_processor", "get_analysis_functions", "get_function_groups"]
         for attr in required:
             assert hasattr(genetics_module, attr), f"Missing attribute: {attr}"
+
+    def test_run_analysis_with_experiment_path(self, tmp_path):
+        db_file = tmp_path / "simulation.db"
+        engine = create_engine(f"sqlite:///{db_file}")
+        Base.metadata.create_all(engine)
+
+        with Session(engine) as session:
+            session.add_all(
+                [
+                    AgentModel(
+                        agent_id="parent_a",
+                        agent_type="system",
+                        birth_time=0,
+                        genome_id="::1",
+                        generation=0,
+                    ),
+                    AgentModel(
+                        agent_id="child_a",
+                        agent_type="system",
+                        birth_time=5,
+                        genome_id="parent_a:1",
+                        generation=1,
+                    ),
+                ]
+            )
+            session.commit()
+        engine.dispose()
+
+        output_dir = tmp_path / "analysis_output"
+        out_path, df = genetics_module.run_analysis(tmp_path, output_dir, group="analysis")
+
+        assert out_path == output_dir
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 2
+        assert set(AGENT_GENETICS_COLUMNS).issubset(df.columns)

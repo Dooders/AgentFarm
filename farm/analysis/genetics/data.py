@@ -8,31 +8,35 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
+from farm.analysis.common.utils import find_database_path
+from farm.analysis.genetics.compute import (
+    build_agent_genetics_dataframe,
+    build_evolution_experiment_dataframe,
+)
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def process_genetics_data(data: Any, **kwargs) -> pd.DataFrame:
+def process_genetics_data(data: Any, use_database: bool = True, **kwargs) -> pd.DataFrame:
     """Process input data for the genetics analysis module.
 
-    Accepts a :class:`~pathlib.Path` or ``str`` (experiment directory), a
-    :class:`pandas.DataFrame` (passed through unchanged), an SQLAlchemy
-    session, or an ``EvolutionExperimentResult``.
+    Supports:
 
-    When a ``Path`` or ``str`` is provided the function locates
-    ``simulation.db`` inside the experiment directory (using
-    :func:`~farm.analysis.common.utils.find_database_path`), opens a
-    transient session via :class:`~farm.database.session_manager.SessionManager`,
-    and delegates to :func:`~farm.analysis.genetics.compute.build_agent_genetics_dataframe`.
+    - ``Path`` / ``str`` experiment directories (standard module workflow)
+    - :class:`pandas.DataFrame` passthrough
+    - SQLAlchemy session objects
+    - ``EvolutionExperimentResult``-like objects
 
     Parameters
     ----------
     data:
-        A :class:`~pathlib.Path` or ``str`` experiment directory, a
-        :class:`pandas.DataFrame`, an SQLAlchemy session, or an
-        ``EvolutionExperimentResult``.
+        Input data source.
+    use_database:
+        Whether path-based inputs should load from ``simulation.db``.
     **kwargs:
         Reserved for future use.
 
@@ -41,20 +45,19 @@ def process_genetics_data(data: Any, **kwargs) -> pd.DataFrame:
     pd.DataFrame
         Processed data ready for analysis.
     """
-    # Path / str  ->  locate simulation.db and build the genetics frame
-    if isinstance(data, (str, Path)):
-        experiment_path = Path(data)
-        logger.info("process_genetics_data: loading genetics from experiment path %s", experiment_path)
-        # Deferred imports to avoid circular dependencies at module import time and
-        # to keep heavy database dependencies from loading unless the Path branch is used.
-        from farm.analysis.common.utils import find_database_path
-        from farm.database.session_manager import SessionManager
-        from farm.analysis.genetics.compute import build_agent_genetics_dataframe
+    if isinstance(data, (Path, str)):
+        if not use_database:
+            raise ValueError("process_genetics_data requires use_database=True for path inputs")
 
-        db_path = find_database_path(experiment_path)
-        session_manager = SessionManager(f"sqlite:///{db_path}")
-        with session_manager.session_scope() as session:
-            return build_agent_genetics_dataframe(session)
+        experiment_path = Path(data)
+        db_path = find_database_path(experiment_path, "simulation.db")
+        logger.info("process_genetics_data: loading agent genetics from database %s", db_path)
+
+        engine = create_engine(f"sqlite:///{db_path}")
+        with Session(engine) as session:
+            df = build_agent_genetics_dataframe(session)
+        engine.dispose()
+        return df
 
     if isinstance(data, pd.DataFrame):
         logger.info("process_genetics_data: passing DataFrame through unchanged")
@@ -62,20 +65,15 @@ def process_genetics_data(data: Any, **kwargs) -> pd.DataFrame:
 
     # SQLAlchemy session duck-type check
     if hasattr(data, "query"):
-        logger.info("process_genetics_data: loading agent genetics from database session")
-        from farm.analysis.genetics.compute import build_agent_genetics_dataframe
-
+        logger.info("process_genetics_data: loading agent genetics from provided session")
         return build_agent_genetics_dataframe(data)
 
     # EvolutionExperimentResult duck-type check
     if hasattr(data, "evaluations") and hasattr(data, "generation_summaries"):
         logger.info("process_genetics_data: loading genetics from EvolutionExperimentResult")
-        from farm.analysis.genetics.compute import build_evolution_experiment_dataframe
-
         return build_evolution_experiment_dataframe(data)
 
     raise TypeError(
         f"process_genetics_data: unsupported data type {type(data).__name__!r}. "
-        "Expected a Path/str experiment directory, DataFrame, SQLAlchemy session, "
-        "or EvolutionExperimentResult."
+        "Expected experiment path, DataFrame, SQLAlchemy session, or EvolutionExperimentResult."
     )

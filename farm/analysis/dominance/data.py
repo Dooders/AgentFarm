@@ -3,7 +3,7 @@ from typing import Optional
 from scipy.spatial.distance import euclidean
 
 from farm.analysis.dominance.constants import DOMINANCE_AGENT_TYPES
-from farm.analysis.genetics.compute import parse_parent_ids
+from farm.analysis.genetics.utils import parse_parent_ids
 from farm.database.models import (
     ActionModel,
     AgentModel,

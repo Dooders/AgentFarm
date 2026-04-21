@@ -20,8 +20,8 @@ Quick Start::
     ... )
 """
 
+from farm.analysis.genetics.utils import parse_parent_ids
 from farm.analysis.genetics.compute import (
-    parse_parent_ids,
     build_agent_genetics_dataframe,
     build_evolution_experiment_dataframe,
 )

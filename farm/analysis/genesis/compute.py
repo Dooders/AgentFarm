@@ -20,6 +20,7 @@ from sklearn.preprocessing import StandardScaler
 from sqlalchemy import and_, desc, func, or_
 from sqlalchemy.orm import Session
 
+from farm.analysis.genetics.utils import parse_parent_ids
 from farm.database.models import (
     ActionModel,
     AgentModel,
@@ -935,8 +936,6 @@ def compute_simulation_outcomes(session: Session) -> Dict[str, Any]:
 
         # Reproduction by agent type - get parent agent_type by parsing genome_id
         reproduction_by_type = defaultdict(int)
-        from farm.analysis.genetics.compute import parse_parent_ids
-        
         for offspring in offspring_agents:
             # Parse genome_id to get parent_id(s)
             try:
@@ -1179,8 +1178,6 @@ def compute_critical_period_metrics(
         )
         .all()
     )
-    
-    from farm.analysis.genetics.compute import parse_parent_ids
     
     first_reproductions = {}
     reproduction_count = 0

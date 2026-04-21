@@ -8,11 +8,11 @@ simulation-database and evolution-experiment data sources.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, TYPE_CHECKING
 
 import pandas as pd
 
-from farm.database.data_types import GenomeId
+from farm.analysis.genetics.utils import parse_parent_ids
 from farm.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -20,48 +20,6 @@ if TYPE_CHECKING:
     from farm.runners.evolution_experiment import EvolutionExperimentResult
 
 logger = get_logger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Shared helper – replaces scattered GenomeId.from_string call sites
-# ---------------------------------------------------------------------------
-
-
-def parse_parent_ids(genome_id: Optional[str]) -> List[str]:
-    """Return the list of parent agent IDs encoded in *genome_id*.
-
-    This is the single authoritative wrapper around
-    :meth:`~farm.database.data_types.GenomeId.from_string` for all analysis
-    modules.  Call sites that previously did::
-
-        genome = GenomeId.from_string(offspring.genome_id)
-        parent_ids = genome.parent_ids
-
-    should be replaced with::
-
-        parent_ids = parse_parent_ids(offspring.genome_id)
-
-    Parameters
-    ----------
-    genome_id:
-        Raw genome-ID string as stored in the ``agents`` table or carried by
-        :class:`~farm.runners.evolution_experiment.EvolutionCandidate`.
-        ``None`` or any falsy/non-string value returns an empty list without
-        logging a warning.
-
-    Returns
-    -------
-    list[str]
-        Possibly-empty list of parent agent IDs.  Empty for initial
-        (generation-0) agents with no parents or when *genome_id* is absent.
-    """
-    if not genome_id or not isinstance(genome_id, str):
-        return []
-    try:
-        return GenomeId.from_string(genome_id).parent_ids
-    except Exception as exc:
-        logger.warning("parse_parent_ids failed for genome_id=%r: %s", genome_id, exc)
-        return []
 
 
 # ---------------------------------------------------------------------------
