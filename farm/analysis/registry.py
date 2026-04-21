@@ -232,6 +232,9 @@ def _register_builtin_modules() -> int:
         # Comparative and population analysis modules
         "farm.analysis.population.module.population_module",
         "farm.analysis.comparative.module.comparative_module",
+
+        # Genetics analysis module
+        "farm.analysis.genetics.module.genetics_module",
     ]
 
     count = 0
