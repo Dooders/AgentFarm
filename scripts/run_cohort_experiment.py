@@ -56,50 +56,18 @@ from farm.core.hyperparameter_chromosome import (  # noqa: E402
 )
 from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
-# ---------------------------------------------------------------------------
-# Named presets (mirror run_evolution_experiment.py)
-# ---------------------------------------------------------------------------
-PRESETS: dict[str, dict[str, object]] = {
-    "stable_hyper_evo": {
-        "selection_method": EvolutionSelectionMethod.TOURNAMENT.value,
-        "boundary_mode": BoundaryMode.REFLECT.value,
-        "mutation_rate": 0.20,
-        "mutation_scale": 0.15,
-        "adaptive_mutation": True,
-        "tournament_size": 3,
-        "elitism_count": 1,
-    },
-}
+from scripts.evolution_experiment_cli import (  # noqa: E402
+    EvolutionExperimentHelpFormatter,
+    add_evolution_convergence_arguments,
+    add_evolution_training_arguments,
+    get_presets,
+    parse_per_gene_multipliers,
+)
 
-
-def _parse_per_gene_multipliers(raw: str | None, *, label: str) -> dict[str, float]:
-    """Parse a comma-separated ``gene=value`` string into a multiplier dict."""
-    if not raw:
-        return {}
-    multipliers: dict[str, float] = {}
-    for entry in raw.split(","):
-        token = entry.strip()
-        if not token:
-            continue
-        if "=" not in token:
-            raise ValueError(
-                f"{label} entry '{token}' must be of the form 'gene_name=value'."
-            )
-        name, _, value_str = token.partition("=")
-        name = name.strip()
-        if not name:
-            raise ValueError(f"{label} entry '{token}' has an empty gene name.")
-        try:
-            multipliers[name] = float(value_str)
-        except ValueError as exc:
-            raise ValueError(
-                f"{label} entry '{token}' has a non-numeric value."
-            ) from exc
-    return multipliers
-
-
-class _HelpFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
-    """Formatter that preserves raw description layout and also shows defaults."""
+PRESETS = get_presets(
+    evolution_selection_method=EvolutionSelectionMethod,
+    boundary_mode=BoundaryMode,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -113,11 +81,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  stable_hyper_evo  tournament selection + reflect boundary + adaptive\n"
             "                    mutation (rate 0.20, scale 0.15)."
         ),
-        formatter_class=_HelpFormatter,
+        formatter_class=EvolutionExperimentHelpFormatter,
     )
-    # ------------------------------------------------------------------
-    # Cohort-specific flags
-    # ------------------------------------------------------------------
     parser.add_argument(
         "--num-seeds",
         type=int,
@@ -133,115 +98,18 @@ def _build_parser() -> argparse.ArgumentParser:
             "[base_seed, base_seed+1, ..., base_seed+num_seeds-1]."
         ),
     )
-    # ------------------------------------------------------------------
-    # Shared preset / environment flags
-    # ------------------------------------------------------------------
-    parser.add_argument(
-        "--preset",
-        type=str,
-        default=None,
-        choices=list(PRESETS),
-        help="Load a named configuration preset.",
+    add_evolution_training_arguments(
+        parser,
+        presets=PRESETS,
+        preset_help="Load a named configuration preset.",
+        evolution_fitness_metric=EvolutionFitnessMetric,
+        evolution_selection_method=EvolutionSelectionMethod,
+        boundary_mode=BoundaryMode,
+        crossover_mode=CrossoverMode,
+        generations_help="Number of generations per seed.",
+        fitness_metric_help="Built-in fitness metric.",
     )
-    parser.add_argument(
-        "--environment",
-        type=str,
-        default="development",
-        choices=["development", "production", "testing"],
-        help="Centralized config environment.",
-    )
-    parser.add_argument(
-        "--profile",
-        type=str,
-        default=None,
-        choices=["benchmark", "simulation", "research"],
-        help="Optional centralized config profile.",
-    )
-    parser.add_argument("--generations", type=int, default=2, help="Number of generations per seed.")
-    parser.add_argument("--population-size", type=int, default=4, help="Candidates per generation.")
-    parser.add_argument(
-        "--steps-per-candidate",
-        type=int,
-        default=20,
-        help="Simulation steps used to evaluate each candidate.",
-    )
-    parser.add_argument(
-        "--fitness-metric",
-        type=str,
-        default=EvolutionFitnessMetric.FINAL_POPULATION.value,
-        choices=[metric.value for metric in EvolutionFitnessMetric],
-        help="Built-in fitness metric.",
-    )
-    parser.add_argument(
-        "--selection-method",
-        type=str,
-        default=EvolutionSelectionMethod.TOURNAMENT.value,
-        choices=[method.value for method in EvolutionSelectionMethod],
-        help="Parent selection strategy.",
-    )
-    parser.add_argument("--mutation-rate", type=float, default=0.25, help="Mutation probability per gene.")
-    parser.add_argument("--mutation-scale", type=float, default=0.2, help="Mutation magnitude for mutated genes.")
-    parser.add_argument("--tournament-size", type=int, default=3, help="Tournament bracket size.")
-    parser.add_argument(
-        "--boundary-mode",
-        type=str,
-        default=BoundaryMode.CLAMP.value,
-        choices=[mode.value for mode in BoundaryMode],
-        help="Boundary strategy after mutation overshoots gene bounds.",
-    )
-    parser.add_argument(
-        "--interior-bias-fraction",
-        type=float,
-        default=1e-3,
-        help=(
-            "When --boundary-mode=interior_biased, fraction of the gene span used as the "
-            "upper bound of the inward nudge applied to values landing exactly on a boundary."
-        ),
-    )
-    parser.add_argument("--boundary-penalty-enabled", action="store_true", help="Enable soft near-boundary fitness penalty.")
-    parser.add_argument("--boundary-penalty-strength", type=float, default=0.01)
-    parser.add_argument("--boundary-penalty-threshold", type=float, default=0.05)
-    parser.add_argument(
-        "--crossover-mode",
-        type=str,
-        default=CrossoverMode.UNIFORM.value,
-        choices=[mode.value for mode in CrossoverMode],
-        help="Crossover operator.",
-    )
-    parser.add_argument("--blend-alpha", type=float, default=0.5)
-    parser.add_argument("--num-crossover-points", type=int, default=2)
-    parser.add_argument("--elitism-count", type=int, default=1)
-    parser.add_argument(
-        "--adaptive-mutation",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Enable adaptive mutation.",
-    )
-    parser.add_argument("--adaptive-stall-window", type=int, default=3)
-    parser.add_argument("--adaptive-improve-threshold", type=float, default=1e-6)
-    parser.add_argument("--adaptive-stall-multiplier", type=float, default=1.5)
-    parser.add_argument("--adaptive-improve-multiplier", type=float, default=0.8)
-    parser.add_argument("--adaptive-diversity-threshold", type=float, default=0.05)
-    parser.add_argument("--adaptive-diversity-multiplier", type=float, default=1.5)
-    parser.add_argument("--adaptive-disable-fitness", action="store_true")
-    parser.add_argument("--adaptive-disable-diversity", action="store_true")
-    parser.add_argument("--adaptive-max-step-multiplier", type=float, default=2.0)
-    parser.add_argument("--adaptive-default-per-gene", action="store_true")
-    parser.add_argument("--adaptive-per-gene-rate", type=str, default=None)
-    parser.add_argument("--adaptive-per-gene-scale", type=str, default=None)
-    # ------------------------------------------------------------------
-    # Convergence criteria
-    # ------------------------------------------------------------------
-    parser.add_argument("--convergence-enabled", action="store_true")
-    parser.add_argument("--convergence-fitness-window", type=int, default=5)
-    parser.add_argument("--convergence-fitness-threshold", type=float, default=1e-4)
-    parser.add_argument("--convergence-diversity-window", type=int, default=3)
-    parser.add_argument("--convergence-diversity-threshold", type=float, default=0.01)
-    parser.add_argument("--convergence-min-generations", type=int, default=1)
-    parser.add_argument("--convergence-no-early-stop", action="store_true")
-    # ------------------------------------------------------------------
-    # Output
-    # ------------------------------------------------------------------
+    add_evolution_convergence_arguments(parser)
     parser.add_argument(
         "--output-dir",
         type=str,
@@ -323,10 +191,10 @@ def main() -> int:
                 diversity_multiplier=args.adaptive_diversity_multiplier,
                 max_step_multiplier=args.adaptive_max_step_multiplier,
                 use_default_per_gene_multipliers=args.adaptive_default_per_gene,
-                per_gene_rate_multipliers=_parse_per_gene_multipliers(
+                per_gene_rate_multipliers=parse_per_gene_multipliers(
                     args.adaptive_per_gene_rate, label="--adaptive-per-gene-rate"
                 ),
-                per_gene_scale_multipliers=_parse_per_gene_multipliers(
+                per_gene_scale_multipliers=parse_per_gene_multipliers(
                     args.adaptive_per_gene_scale, label="--adaptive-per-gene-scale"
                 ),
             ),

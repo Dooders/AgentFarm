@@ -32,6 +32,7 @@ Typical usage::
 from __future__ import annotations
 
 import csv
+import enum
 import json
 import os
 import time
@@ -484,16 +485,10 @@ def _serialize_experiment_config(config: EvolutionExperimentConfig) -> Dict[str,
     import dataclasses
 
     def _coerce(obj: Any) -> Any:
-        # Enum → its .value string
-        if hasattr(obj, "value") and isinstance(obj, type(obj)):
-            try:
-                # Only coerce actual Enum instances, not arbitrary objects with
-                # a `.value` attribute.
-                import enum
-                if isinstance(obj, enum.Enum):
-                    return obj.value
-            except ImportError:
-                pass
+        # Enum → its .value string (only for real Enum instances, not arbitrary
+        # objects that happen to expose a `.value` attribute).
+        if isinstance(obj, enum.Enum):
+            return obj.value
         if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
             return {f.name: _coerce(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
         if hasattr(obj, "items"):
