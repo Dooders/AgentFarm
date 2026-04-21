@@ -27,7 +27,6 @@ from farm.runners import (  # noqa: E402
     CohortSeedResult,
     EvolutionExperiment,
     EvolutionExperimentConfig,
-    EvolutionFitnessMetric,
 )
 from farm.runners.cohort_runner import (  # noqa: E402
     _lower_bound_occupancy,
