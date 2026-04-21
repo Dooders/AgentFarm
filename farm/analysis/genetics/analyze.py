@@ -54,7 +54,7 @@ def analyze_genetics(df: pd.DataFrame) -> Dict[str, Any]:
         )
 
     if "action_weights" in df.columns:
-        non_empty = df["action_weights"].apply(lambda w: bool(w))
+        non_empty = df["action_weights"].apply(bool)
         result["pct_with_action_weights"] = float(non_empty.mean() * 100)
 
     # --- Evolution-experiment frame ---
