@@ -54,7 +54,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 import pytest
 
@@ -102,7 +102,7 @@ def _deterministic_evaluator(
     candidate_config: SimulationConfig,
     generation: int,
     member_index: int,
-) -> Tuple[float, Dict[str, Any]]:
+) -> tuple[float, dict[str, Any]]:
     """Fast, deterministic fitness: rewards higher learning_rate linearly.
 
     Fitness = learning_rate × 1000.  This creates clear selection pressure
@@ -354,6 +354,10 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         silently drops it from both in-memory summaries and persisted JSON.
         """
         required_stat_keys = {"mean", "std", "min", "max", "median", "boundary_fraction"}
+        # Note: gene_statistics uses the key "boundary_fraction" (the raw per-generation
+        # fraction computed in _build_gene_statistics), while summary.boundary_occupancy
+        # is a derived dict that re-exposes the same values under a public API name.
+        # Checking "boundary_fraction" here validates the internal stats structure.
         result = _run_benchmark()
         evolvable_genes = {"learning_rate", "gamma", "epsilon_decay"}
         for summary in result.generation_summaries:
