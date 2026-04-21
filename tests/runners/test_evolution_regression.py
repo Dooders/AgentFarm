@@ -91,6 +91,44 @@ _MIN_DIVERSITY: float = 0.05
 _MAX_BOUNDARY_OCCUPANCY: float = 0.75
 _FITNESS_REGRESSION_TOLERANCE: float = 0.0
 
+# ---------------------------------------------------------------------------
+# Artifact schema constants – keep centralized for maintainability.
+# ---------------------------------------------------------------------------
+
+_SUMMARY_REQUIRED_KEYS: set[str] = {
+    "generation",
+    "best_fitness",
+    "mean_fitness",
+    "min_fitness",
+    "best_candidate_id",
+    "gene_statistics",
+    "best_chromosome",
+    "diversity",
+    "boundary_occupancy",
+    "adaptive_event",
+    "mutation_rate_used",
+    "mutation_scale_used",
+    "mutation_rate_multiplier",
+    "mutation_scale_multiplier",
+    "best_fitness_delta",
+}
+
+_LINEAGE_REQUIRED_KEYS: set[str] = {
+    "candidate_id",
+    "generation",
+    "fitness",
+    "learning_rate",
+    "chromosome",
+    "parent_ids",
+}
+
+_METADATA_REQUIRED_KEYS: set[str] = {
+    "converged",
+    "convergence_reason",
+    "generation_of_convergence",
+    "num_generations_completed",
+}
+
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -238,23 +276,6 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         EvolutionGenerationSummary silently drops it from the persisted JSON,
         breaking downstream analysis tools.
         """
-        required_keys = {
-            "generation",
-            "best_fitness",
-            "mean_fitness",
-            "min_fitness",
-            "best_candidate_id",
-            "gene_statistics",
-            "best_chromosome",
-            "diversity",
-            "boundary_occupancy",
-            "adaptive_event",
-            "mutation_rate_used",
-            "mutation_scale_used",
-            "mutation_rate_multiplier",
-            "mutation_scale_multiplier",
-            "best_fitness_delta",
-        }
         with tempfile.TemporaryDirectory() as output_dir:
             _run_benchmark(output_dir=output_dir)
             with open(
@@ -264,7 +285,7 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
                 summaries = json.load(fh)
 
         for summary in summaries:
-            missing = required_keys - summary.keys()
+            missing = _SUMMARY_REQUIRED_KEYS - summary.keys()
             self.assertFalse(
                 missing,
                 msg=(
@@ -280,14 +301,6 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         Regression caught: removing a field from the lineage serialization in
         _persist_results breaks lineage tracking and downstream tools.
         """
-        required_keys = {
-            "candidate_id",
-            "generation",
-            "fitness",
-            "learning_rate",
-            "chromosome",
-            "parent_ids",
-        }
         with tempfile.TemporaryDirectory() as output_dir:
             _run_benchmark(output_dir=output_dir)
             with open(
@@ -297,7 +310,7 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
                 lineage = json.load(fh)
 
         for entry in lineage:
-            missing = required_keys - entry.keys()
+            missing = _LINEAGE_REQUIRED_KEYS - entry.keys()
             self.assertFalse(
                 missing,
                 msg=(
@@ -307,6 +320,29 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
                     "_persist_results."
                 ),
             )
+
+    def test_metadata_schema_contains_required_fields(self) -> None:
+        """evolution_metadata.json must contain all required convergence keys.
+
+        Regression caught: removing or renaming convergence metadata fields in
+        _persist_results breaks downstream tooling that tracks run outcomes.
+        """
+        with tempfile.TemporaryDirectory() as output_dir:
+            _run_benchmark(output_dir=output_dir)
+            with open(
+                f"{output_dir}/evolution_metadata.json",
+                encoding="utf-8",
+            ) as fh:
+                metadata = json.load(fh)
+
+        missing = _METADATA_REQUIRED_KEYS - metadata.keys()
+        self.assertFalse(
+            missing,
+            msg=(
+                "REGRESSION: evolution_metadata.json is missing schema keys: "
+                f"{missing}. A field was likely removed or renamed in _persist_results."
+            ),
+        )
 
     def test_chromosome_contains_all_evolvable_genes(self) -> None:
         """best_chromosome in every summary must include all evolvable genes.
