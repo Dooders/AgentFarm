@@ -44,6 +44,11 @@ PRESETS = get_presets(
 )
 
 
+def _parse_per_gene_multipliers(raw: str | None, *, label: str) -> dict[str, float]:
+    """Backward-compatible alias for tests/imports using the old helper name."""
+    return parse_per_gene_multipliers(raw, label=label)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Return a fully-configured argument parser (without actually parsing)."""
     parser = argparse.ArgumentParser(
