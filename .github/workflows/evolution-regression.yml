@@ -18,6 +18,7 @@ on:
       - 'farm/core/genome.py'
       - 'tests/runners/test_evolution_regression.py'
       - '.github/workflows/evolution-regression.yml'
+      - 'pytest.ini'
   pull_request:
     branches: [main]
     paths:
@@ -28,6 +29,7 @@ on:
       - 'farm/core/genome.py'
       - 'tests/runners/test_evolution_regression.py'
       - '.github/workflows/evolution-regression.yml'
+      - 'pytest.ini'
   schedule:
     - cron: '0 8 * * 1'
 
@@ -46,24 +48,14 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install Python deps
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Install package
-        run: pip install -e .
+          pip install -e .
 
       - name: Run evolution regression suite
         run: |
-          pytest -v -m evolution_regression \
+          pytest -v -o addopts='' -m "evolution_regression and not slow and not integration" \
             tests/runners/test_evolution_regression.py \
             --tb=short

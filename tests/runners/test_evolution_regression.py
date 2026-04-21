@@ -52,9 +52,10 @@ CI: see .github/workflows/evolution-regression.yml.
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 import unittest
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 import pytest
 
@@ -184,7 +185,23 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
     considered regression-free.  Failing output includes which metric
     regressed and what value was observed, so failures are immediately
     actionable.
+
+    The benchmark is executed once per class (``setUpClass``) and shared
+    across all test methods to avoid redundant re-runs of the same
+    deterministic loop.
     """
+
+    _result: ClassVar[EvolutionExperimentResult]
+    _artifact_dir: ClassVar[str]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._artifact_dir = tempfile.mkdtemp()
+        cls._result = _run_benchmark(output_dir=cls._artifact_dir)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls._artifact_dir, ignore_errors=True)
 
     def test_diversity_non_degenerate_at_every_generation(self) -> None:
         """Diversity must exceed MIN_DIVERSITY at every generation.
@@ -194,7 +211,7 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         exploration.  Causes: mutation disabled, broken crossover, or
         selection pressure too high.
         """
-        result = _run_benchmark()
+        result = self._result
         for summary in result.generation_summaries:
             diversity = summary.diversity
             self.assertIsNotNone(
@@ -226,7 +243,7 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         Regression caught: broken elitism (elite not carried forward),
         non-deterministic evaluator, or selection returning wrong candidates.
         """
-        result = _run_benchmark()
+        result = self._result
         summaries = result.generation_summaries
         for i in range(1, len(summaries)):
             prev_best = summaries[i - 1].best_fitness
@@ -254,7 +271,7 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         broken BoundaryMode handling, or mutation scale so large that every
         candidate saturates.
         """
-        result = _run_benchmark()
+        result = self._result
         for summary in result.generation_summaries:
             for gene_name, occupancy in summary.boundary_occupancy.items():
                 self.assertLessEqual(
@@ -276,10 +293,8 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         EvolutionGenerationSummary silently drops it from the persisted JSON,
         breaking downstream analysis tools.
         """
-        with tempfile.TemporaryDirectory() as output_dir:
-            _run_benchmark(output_dir=output_dir)
-            with open(
-                f"{output_dir}/evolution_generation_summaries.json",
+        with open(
+                f"{self._artifact_dir}/evolution_generation_summaries.json",
                 encoding="utf-8",
             ) as fh:
                 summaries = json.load(fh)
@@ -301,10 +316,8 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         Regression caught: removing a field from the lineage serialization in
         _persist_results breaks lineage tracking and downstream tools.
         """
-        with tempfile.TemporaryDirectory() as output_dir:
-            _run_benchmark(output_dir=output_dir)
-            with open(
-                f"{output_dir}/evolution_lineage.json",
+        with open(
+                f"{self._artifact_dir}/evolution_lineage.json",
                 encoding="utf-8",
             ) as fh:
                 lineage = json.load(fh)
@@ -327,10 +340,8 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         Regression caught: removing or renaming convergence metadata fields in
         _persist_results breaks downstream tooling that tracks run outcomes.
         """
-        with tempfile.TemporaryDirectory() as output_dir:
-            _run_benchmark(output_dir=output_dir)
-            with open(
-                f"{output_dir}/evolution_metadata.json",
+        with open(
+                f"{self._artifact_dir}/evolution_metadata.json",
                 encoding="utf-8",
             ) as fh:
                 metadata = json.load(fh)
@@ -351,7 +362,7 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         causes downstream code that reads chromosome fields to get KeyError.
         """
         expected_genes = {"learning_rate", "gamma", "epsilon_decay"}
-        result = _run_benchmark()
+        result = self._result
         for summary in result.generation_summaries:
             missing = expected_genes - summary.best_chromosome.keys()
             self.assertFalse(
@@ -370,7 +381,7 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         Regression caught: skipping candidates or evaluating duplicates
         breaks selection pressure and lineage tracking integrity.
         """
-        result = _run_benchmark()
+        result = self._result
         expected = _NUM_GENERATIONS * _POPULATION_SIZE
         self.assertEqual(
             len(result.evaluations),
@@ -394,7 +405,7 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         # fraction computed in _build_gene_statistics), while summary.boundary_occupancy
         # is a derived dict that re-exposes the same values under a public API name.
         # Checking "boundary_fraction" here validates the internal stats structure.
-        result = _run_benchmark()
+        result = self._result
         evolvable_genes = {"learning_rate", "gamma", "epsilon_decay"}
         for summary in result.generation_summaries:
             for gene_name in evolvable_genes:
