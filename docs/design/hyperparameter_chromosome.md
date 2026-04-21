@@ -161,6 +161,35 @@ mutated = mutate_chromosome(chromosome, mutation_rate=0.1, boundary_mode="reflec
 **Recommended default**: `CLAMP` for stability in early experiments;
 `REFLECT` when you observe boundary collapse (genes sticking at min/max).
 
+### `BoundaryMode.INTERIOR_BIASED`
+
+Clamps the raw value first (like `CLAMP`), then nudges any value that lands
+*exactly* on a boundary inward by a small random amount:
+
+- overshoot above `max_value` → clamp to `max_value`, then subtract
+  `uniform(0, interior_bias_fraction × span)`
+- undershoot below `min_value` → clamp to `min_value`, then add
+  `uniform(0, interior_bias_fraction × span)`
+- values strictly between the bounds are **unchanged** (no nudge applied)
+
+The `interior_bias_fraction` parameter (default `1e-3`, 0.1 % of range)
+controls the nudge magnitude.  Set it larger to push genes further from
+walls, smaller (or `0.0`) to match `CLAMP` behavior exactly.
+
+```python
+mutated = mutate_chromosome(
+    chromosome,
+    mutation_rate=0.1,
+    boundary_mode="interior_biased",
+    interior_bias_fraction=1e-3,
+)
+```
+
+**When to use**: preferred over `CLAMP` when genes repeatedly stick at the
+minimum boundary (a common symptom with `learning_rate` at `1e-6`).  Unlike
+`REFLECT`, it does not change values that are already interior, so it is
+safer when mutations rarely overshoot by large amounts.
+
 ### Soft boundary penalties
 
 `compute_boundary_penalty(chromosome, config)` returns a non-negative float
@@ -394,12 +423,97 @@ Until step 1 is validated in integration tests, `memory_size` stays fixed to avo
 
 - `evolution_generation_summaries.json`
   - per-generation fitness aggregates (`best_fitness`, `mean_fitness`, `min_fitness`)
-  - per-gene statistics (`mean`, `median`, `std`, `min`, `max`)
+  - per-gene statistics (`mean`, `median`, `std`, `min`, `max`, `at_min_count`,
+    `at_max_count`, `boundary_fraction`)
   - best candidate chromosome values for that generation
+  - **`boundary_occupancy`**: per-gene fraction of candidates sitting exactly on
+    `min_value` or `max_value` that generation; `0.0` = no boundary hugging,
+    `1.0` = entire population pinned to a wall
 - `evolution_lineage.json`
   - one row per evaluated candidate with lineage (`parent_ids`) and fitness metadata
 
 Use `scripts/plot_hyperparameter_evolution.py` to produce a convergence chart from the summaries JSON.
+
+### Boundary occupancy fields
+
+Each entry in `gene_statistics` now contains three occupancy fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `at_min_count` | `float` | Number of candidates with `value == min_value` |
+| `at_max_count` | `float` | Number of candidates with `value == max_value` |
+| `boundary_fraction` | `float` | `(at_min_count + at_max_count) / population_size` |
+
+The top-level `boundary_occupancy` dict in each generation summary provides
+quick access to `boundary_fraction` per gene without digging into nested stats:
+
+```json
+{
+  "generation": 2,
+  "boundary_occupancy": {
+    "learning_rate": 0.5,
+    "gamma": 0.0,
+    "epsilon_decay": 0.167
+  }
+}
+```
+
+A `boundary_occupancy` rising toward `1.0` for `learning_rate` over multiple
+generations is the primary signal of boundary collapse.
+
+## Anti-collapse settings guide
+
+Boundary collapse — where all candidates cluster at `learning_rate=1e-6` — is
+the most common failure mode in hyperparameter evolution.  The table below
+lists the recommended combination of settings for each scenario.
+
+| Scenario | Recommended settings |
+|---|---|
+| Default / exploratory | `boundary_mode=clamp` (default) |
+| `learning_rate` stuck at `1e-6` | `boundary_mode=reflect` |
+| Reflect overshoots too aggressively | `boundary_mode=interior_biased`, `interior_bias_fraction=1e-3` |
+| Soft discouragement near walls | `boundary_penalty_enabled=True`, `penalty_strength=0.01` |
+| Diversity collapse | `adaptive_mutation=True`, `adaptive_diversity_multiplier=1.5` |
+| Combined anti-collapse | `--preset stable_hyper_evo` |
+
+### Choosing `interior_biased` vs `reflect`
+
+- **`reflect`**: zero chance of landing exactly on the boundary after any
+  overshoot because the reflected value is always at least `ε` inside.  Best
+  when overshoots are large and you want guaranteed diversity away from walls.
+- **`interior_biased`**: only nudges values that *would* land exactly on a
+  boundary; values that land strictly inside the range are unchanged.  Lower
+  overhead, safer for small perturbations, easier to reason about.
+
+### Example: anti-collapse run
+
+```bash
+source venv/bin/activate
+
+# Interior-biased mode with boundary-occupancy reporting
+python scripts/run_evolution_experiment.py \
+  --generations 6 --population-size 8 --steps-per-candidate 40 \
+  --selection-method tournament --mutation-rate 0.20 --mutation-scale 0.2 \
+  --boundary-mode interior_biased --interior-bias-fraction 1e-3 \
+  --fitness-metric final_population --seed 42 \
+  --output-dir experiments/evolution/run_interior_biased_g6
+```
+
+After the run, inspect `boundary_occupancy` in
+`experiments/evolution/run_interior_biased_g6/evolution_generation_summaries.json`:
+
+```bash
+python -c "
+import json, sys
+data = json.load(open('experiments/evolution/run_interior_biased_g6/evolution_generation_summaries.json'))
+for s in data:
+    print(f\"gen {s['generation']}: lr_occupancy={s['boundary_occupancy'].get('learning_rate', 0):.2%}\")
+"
+```
+
+A healthy run shows `lr_occupancy` remaining well below `50 %` for most
+generations.  Values consistently at or above `80 %` indicate collapse; switch
+to `reflect` or lower `mutation_scale` and re-run.
 
 ## Crossover strategy comparison runs
 

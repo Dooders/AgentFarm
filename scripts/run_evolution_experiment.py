@@ -185,6 +185,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Boundary strategy after mutation overshoots gene bounds.",
     )
     parser.add_argument(
+        "--interior-bias-fraction",
+        type=float,
+        default=1e-3,
+        help=(
+            "When --boundary-mode=interior_biased, fraction of the gene span used as the "
+            "upper bound of the inward nudge applied to values landing exactly on a boundary. "
+            "Must be non-negative.  Default: 1e-3."
+        ),
+    )
+    parser.add_argument(
         "--boundary-penalty-enabled",
         action="store_true",
         help="Enable soft near-boundary fitness penalty.",
@@ -419,6 +429,7 @@ def main() -> int:
         fitness_metric=args.fitness_metric,
         selection_method=args.selection_method,
         boundary_mode=args.boundary_mode,
+        interior_bias_fraction=args.interior_bias_fraction,
         boundary_penalty_enabled=args.boundary_penalty_enabled,
         boundary_penalty_strength=args.boundary_penalty_strength,
         boundary_penalty_threshold=args.boundary_penalty_threshold,
@@ -442,6 +453,7 @@ def main() -> int:
             mutation_rate=args.mutation_rate,
             mutation_scale=args.mutation_scale,
             boundary_mode=BoundaryMode(args.boundary_mode),
+            interior_bias_fraction=args.interior_bias_fraction,
             boundary_penalty=BoundaryPenaltyConfig(
                 enabled=args.boundary_penalty_enabled,
                 penalty_strength=args.boundary_penalty_strength,
@@ -502,6 +514,7 @@ def main() -> int:
             "mutation_scale": args.mutation_scale,
             "tournament_size": args.tournament_size,
             "boundary_mode": args.boundary_mode,
+            "interior_bias_fraction": args.interior_bias_fraction,
             "boundary_penalty_enabled": args.boundary_penalty_enabled,
             "boundary_penalty_strength": args.boundary_penalty_strength,
             "boundary_penalty_threshold": args.boundary_penalty_threshold,

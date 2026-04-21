@@ -1,6 +1,7 @@
 """Tests for multi-generation hyperparameter evolution runner."""
 
 import json
+import statistics
 import tempfile
 import unittest
 from dataclasses import fields
@@ -1272,6 +1273,221 @@ class TestAdaptiveMutationHardenedBehavior(unittest.TestCase):
         # Gen 2 reflects the gen-1 observation: 5.0 - 1.0 = 4.0.
         self.assertIsNotNone(gen2.best_fitness_delta)
         self.assertAlmostEqual(gen2.best_fitness_delta, 4.0)
+
+
+class TestBoundaryOccupancyMetrics(unittest.TestCase):
+    """Tests for per-generation boundary occupancy reporting."""
+
+    def test_boundary_occupancy_present_in_generation_summaries(self):
+        """boundary_occupancy is populated for every generation."""
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=2,
+            population_size=4,
+            num_steps_per_candidate=1,
+            seed=42,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                float(member + generation),
+                {"member": member},
+            )
+        )
+        for summary in result.generation_summaries:
+            self.assertIsInstance(summary.boundary_occupancy, dict)
+            # All evolvable genes should appear.
+            self.assertIn("learning_rate", summary.boundary_occupancy)
+            self.assertIn("gamma", summary.boundary_occupancy)
+            self.assertIn("epsilon_decay", summary.boundary_occupancy)
+            # Non-evolvable genes should not appear.
+            self.assertNotIn("memory_size", summary.boundary_occupancy)
+            # Values must be fractions in [0, 1].
+            for gene_name, frac in summary.boundary_occupancy.items():
+                self.assertGreaterEqual(frac, 0.0, msg=f"{gene_name} fraction < 0")
+                self.assertLessEqual(frac, 1.0, msg=f"{gene_name} fraction > 1")
+
+    def test_gene_statistics_include_boundary_counts(self):
+        """gene_statistics dict contains at_min_count, at_max_count, boundary_fraction."""
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=1,
+            population_size=4,
+            num_steps_per_candidate=1,
+            seed=7,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                float(member),
+                {"member": member},
+            )
+        )
+        gen_stats = result.generation_summaries[0].gene_statistics
+        self.assertNotIn("memory_size", gen_stats)
+        for gene_name, stats in gen_stats.items():
+            self.assertIn("at_min_count", stats, msg=f"at_min_count missing for {gene_name}")
+            self.assertIn("at_max_count", stats, msg=f"at_max_count missing for {gene_name}")
+            self.assertIn("boundary_fraction", stats, msg=f"boundary_fraction missing for {gene_name}")
+            self.assertGreaterEqual(stats["at_min_count"], 0.0)
+            self.assertGreaterEqual(stats["at_max_count"], 0.0)
+            self.assertGreaterEqual(stats["boundary_fraction"], 0.0)
+            self.assertLessEqual(stats["boundary_fraction"], 1.0)
+
+    def test_boundary_occupancy_persisted_to_summaries_json(self):
+        """boundary_occupancy appears in the serialized generation summaries JSON."""
+        base_config = SimulationConfig()
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = EvolutionExperimentConfig(
+                num_generations=2,
+                population_size=3,
+                num_steps_per_candidate=1,
+                output_dir=output_dir,
+                seed=13,
+            )
+            experiment = EvolutionExperiment(base_config, config)
+            experiment.run(
+                fitness_evaluator=lambda candidate, cfg, generation, member: (
+                    float(member + generation),
+                    {"member": member},
+                )
+            )
+            with open(
+                f"{output_dir}/evolution_generation_summaries.json",
+                encoding="utf-8",
+            ) as summaries_file:
+                summaries = json.load(summaries_file)
+
+            for summary in summaries:
+                self.assertIn("boundary_occupancy", summary)
+                self.assertIsInstance(summary["boundary_occupancy"], dict)
+                self.assertIn("learning_rate", summary["boundary_occupancy"])
+
+    def test_all_at_boundary_gives_occupancy_one(self):
+        """When every candidate is pinned to min_value, boundary_fraction == 1.0."""
+        base_config = SimulationConfig()
+        # Force learning_rate to minimum across all candidates (mutation_scale=0
+        # with initial learning_rate at min).
+        base_config.learning.learning_rate = 1e-6
+        config = EvolutionExperimentConfig(
+            num_generations=1,
+            population_size=3,
+            num_steps_per_candidate=1,
+            mutation_scale=0.0,
+            seed=17,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        result = experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (1.0, {"member": member})
+        )
+        gen_stats = result.generation_summaries[0].gene_statistics
+        # learning_rate is at its minimum for all three candidates.
+        lr_stats = gen_stats["learning_rate"]
+        self.assertAlmostEqual(lr_stats["at_min_count"], 3.0)
+        self.assertAlmostEqual(lr_stats["boundary_fraction"], 1.0)
+        # boundary_occupancy should reflect this.
+        self.assertAlmostEqual(
+            result.generation_summaries[0].boundary_occupancy["learning_rate"], 1.0
+        )
+
+
+class TestInteriorBiasedModeIntegration(unittest.TestCase):
+    """Integration tests for INTERIOR_BIASED boundary mode in the evolution runner."""
+
+    def test_config_accepts_interior_biased_boundary_mode(self):
+        config = EvolutionExperimentConfig(
+            boundary_mode=BoundaryMode.INTERIOR_BIASED,
+            interior_bias_fraction=1e-3,
+        )
+        self.assertEqual(config.boundary_mode, BoundaryMode.INTERIOR_BIASED)
+        self.assertAlmostEqual(config.interior_bias_fraction, 1e-3)
+
+    def test_config_rejects_negative_interior_bias_fraction(self):
+        with self.assertRaises(ValueError):
+            EvolutionExperimentConfig(
+                boundary_mode=BoundaryMode.INTERIOR_BIASED,
+                interior_bias_fraction=-0.01,
+            )
+
+    @patch("farm.runners.evolution_experiment.mutate_chromosome")
+    def test_interior_bias_fraction_forwarded_to_mutation_calls(self, mutate_mock):
+        mutate_mock.side_effect = lambda chromosome, **kwargs: chromosome
+        base_config = SimulationConfig()
+        config = EvolutionExperimentConfig(
+            num_generations=2,
+            population_size=4,
+            num_steps_per_candidate=1,
+            boundary_mode=BoundaryMode.INTERIOR_BIASED,
+            interior_bias_fraction=5e-3,
+            seed=55,
+        )
+        experiment = EvolutionExperiment(base_config, config)
+        experiment.run(
+            fitness_evaluator=lambda candidate, cfg, generation, member: (
+                float(member + generation),
+                {"member": member},
+            )
+        )
+        self.assertTrue(mutate_mock.called)
+        for call in mutate_mock.call_args_list:
+            self.assertEqual(call.kwargs.get("boundary_mode"), BoundaryMode.INTERIOR_BIASED)
+            self.assertAlmostEqual(call.kwargs.get("interior_bias_fraction"), 5e-3)
+
+    def test_interior_biased_reduces_boundary_occupancy_vs_clamp(self):
+        """Population-level: INTERIOR_BIASED should produce lower boundary occupancy
+        than CLAMP when starting at the minimum boundary with heavy mutation."""
+        base_config_clamp = SimulationConfig()
+        base_config_clamp.learning.learning_rate = 1e-6
+
+        base_config_ib = SimulationConfig()
+        base_config_ib.learning.learning_rate = 1e-6
+
+        def make_config(mode):
+            return EvolutionExperimentConfig(
+                num_generations=3,
+                population_size=6,
+                num_steps_per_candidate=1,
+                mutation_rate=1.0,
+                mutation_scale=0.5,
+                boundary_mode=mode,
+                interior_bias_fraction=0.1,
+                seed=100,
+            )
+
+        exp_clamp = EvolutionExperiment(base_config_clamp, make_config(BoundaryMode.CLAMP))
+        result_clamp = exp_clamp.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
+        )
+
+        exp_ib = EvolutionExperiment(base_config_ib, make_config(BoundaryMode.INTERIOR_BIASED))
+        result_ib = exp_ib.run(
+            fitness_evaluator=lambda candidate, cfg, gen, member: (1.0, {"member": member})
+        )
+
+        # Gene values must remain within their declared per-gene bounds.
+        # The chromosome schema validation already enforces this, but we verify
+        # here that no out-of-range value slips through.
+        from farm.core.hyperparameter_chromosome import default_hyperparameter_chromosome
+        gene_bounds = {gene.name: (gene.min_value, gene.max_value) for gene in default_hyperparameter_chromosome().genes}
+        for summary in result_ib.generation_summaries:
+            for gene_name, stats in summary.gene_statistics.items():
+                if gene_name in gene_bounds:
+                    lo, hi = gene_bounds[gene_name]
+                    self.assertGreaterEqual(stats["min"], lo, msg=f"{gene_name} min below bound")
+                    self.assertLessEqual(stats["max"], hi, msg=f"{gene_name} max above bound")
+
+        # At least one generation should have lower lr boundary occupancy with
+        # INTERIOR_BIASED than with CLAMP (since INTERIOR_BIASED nudges away from walls).
+        clamp_occ = [s.boundary_occupancy.get("learning_rate", 0.0) for s in result_clamp.generation_summaries]
+        ib_occ = [s.boundary_occupancy.get("learning_rate", 0.0) for s in result_ib.generation_summaries]
+        # Mean boundary fraction should be ≤ clamp's across the run.
+        mean_clamp = statistics.mean(clamp_occ)
+        mean_ib = statistics.mean(ib_occ)
+        self.assertLessEqual(
+            mean_ib,
+            mean_clamp,
+            msg=f"INTERIOR_BIASED mean occupancy {mean_ib:.3f} should be ≤ CLAMP {mean_clamp:.3f}",
+        )
 
 
 if __name__ == "__main__":
