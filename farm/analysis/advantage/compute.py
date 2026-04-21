@@ -441,7 +441,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
     # Calculate reproduction metrics for each agent type
     # Reconstruct from agents and agent_actions tables
-    from farm.database.data_types import GenomeId
+    from farm.analysis.genetics.compute import parse_parent_ids
     
     # Get successful reproductions (offspring)
     offspring_agents = (
@@ -465,9 +465,9 @@ def compute_advantages(sim_session, focus_agent_type=None):
         
         for offspring in offspring_agents:
             try:
-                genome = GenomeId.from_string(offspring.genome_id)
-                if genome.parent_ids:
-                    parent_id = genome.parent_ids[0]
+                parent_ids = parse_parent_ids(offspring.genome_id)
+                if parent_ids:
+                    parent_id = parent_ids[0]
                     parent = (
                         sim_session.query(AgentModel)
                         .filter(AgentModel.agent_id == parent_id)
@@ -503,9 +503,9 @@ def compute_advantages(sim_session, focus_agent_type=None):
         
         for offspring in offspring_agents:
             try:
-                genome = GenomeId.from_string(offspring.genome_id)
-                if genome.parent_ids:
-                    parent_id = genome.parent_ids[0]
+                parent_ids = parse_parent_ids(offspring.genome_id)
+                if parent_ids:
+                    parent_id = parent_ids[0]
                     parent = (
                         sim_session.query(AgentModel)
                         .filter(AgentModel.agent_id == parent_id)

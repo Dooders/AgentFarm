@@ -935,15 +935,15 @@ def compute_simulation_outcomes(session: Session) -> Dict[str, Any]:
 
         # Reproduction by agent type - get parent agent_type by parsing genome_id
         reproduction_by_type = defaultdict(int)
-        from farm.database.data_types import GenomeId
+        from farm.analysis.genetics.compute import parse_parent_ids
         
         for offspring in offspring_agents:
             # Parse genome_id to get parent_id(s)
             try:
-                genome = GenomeId.from_string(offspring.genome_id)
-                if genome.parent_ids:
+                parent_ids = parse_parent_ids(offspring.genome_id)
+                if parent_ids:
                     # Use first parent for asexual reproduction, or get parent agent_type
-                    parent_id = genome.parent_ids[0]
+                    parent_id = parent_ids[0]
                     parent = (
                         session.query(AgentModel)
                         .filter(AgentModel.agent_id == parent_id)
@@ -1180,7 +1180,7 @@ def compute_critical_period_metrics(
         .all()
     )
     
-    from farm.database.data_types import GenomeId
+    from farm.analysis.genetics.compute import parse_parent_ids
     
     first_reproductions = {}
     reproduction_count = 0
@@ -1188,9 +1188,9 @@ def compute_critical_period_metrics(
     for offspring in offspring_during_critical:
         # Parse genome_id to get parent and determine parent agent_type
         try:
-            genome = GenomeId.from_string(offspring.genome_id)
-            if genome.parent_ids:
-                parent_id = genome.parent_ids[0]
+            parent_ids = parse_parent_ids(offspring.genome_id)
+            if parent_ids:
+                parent_id = parent_ids[0]
                 parent = (
                     session.query(AgentModel)
                     .filter(AgentModel.agent_id == parent_id)

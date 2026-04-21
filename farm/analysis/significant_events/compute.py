@@ -147,13 +147,13 @@ def _detect_agent_births(query_func, start_step: int, end_step: Optional[int]) -
         results = q.all()
         
         # Convert to expected format with parent_id
-        from farm.database.data_types import GenomeId
+        from farm.analysis.genetics.compute import parse_parent_ids
         formatted_results = []
         for result in results:
             try:
                 # Parse genome_id directly from query result
-                genome = GenomeId.from_string(result.genome_id)
-                parent_id = genome.parent_ids[0] if genome.parent_ids else None
+                parent_ids = parse_parent_ids(result.genome_id)
+                parent_id = parent_ids[0] if parent_ids else None
                 formatted_results.append({
                     'step_number': result.step_number,
                     'parent_id': parent_id,
