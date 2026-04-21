@@ -9,7 +9,6 @@ import os
 import sys
 import tempfile
 import unittest
-from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
