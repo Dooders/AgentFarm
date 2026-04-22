@@ -88,7 +88,9 @@ metrics = obs.get_metrics()
 ### AI & Learning
 - [Deep Q Learning](deep_q_learning.md) - Reinforcement learning implementation
 - [Redis Agent Memory](redis_agent_memory.md) - Distributed agent memory system
+- [Genetic System Overview](design/genetic_system.md) - **Landing page** for everything genetics: lineage IDs, hyperparameter chromosomes, evolution experiments, neural crossover, persistence, metrics, and analysis
 - [Hyperparameter Chromosome Design](design/hyperparameter_chromosome.md) - Typed, bounded hyperparameter genes and reproduction-time evolution wiring
+- [Evolvable Loci Roadmap](design/evolvable_loci_roadmap.md) - Forward plan for expanding evolvable loci
 
 ## 🔬 Research & Experiments
 

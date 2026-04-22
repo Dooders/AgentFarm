@@ -10,6 +10,7 @@ Welcome to the documentation and development notes for AgentFarm.
 ## Start Here
 
 - [Documentation Index](README.md)
+- [Genetic System Overview](design/genetic_system.md) — landing page for the genetic subsystem
 - [Hyperparameter Evolution Convergence Notes](experiments/hyperparameter_evolution_convergence.md)
 - [Devlog](devlog/)
 
