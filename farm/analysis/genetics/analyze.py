@@ -7,6 +7,7 @@ produced by the genetics compute layer.
 
 from __future__ import annotations
 
+import math
 from typing import Any, Dict
 
 import pandas as pd
@@ -64,18 +65,40 @@ def analyze_genetics(df: pd.DataFrame) -> Dict[str, Any]:
         result["min_fitness"] = float(df["fitness"].min())
 
     if "chromosome_values" in df.columns and not df["chromosome_values"].empty:
-        all_keys: set = set()
-        df["chromosome_values"].apply(lambda d: all_keys.update(d.keys()))
+        values_by_gene: Dict[str, list] = {}
+        skipped_rows = 0
+        skipped_values = 0
+        for row in df["chromosome_values"]:
+            if not isinstance(row, dict):
+                skipped_rows += 1
+                continue
+            for gene, raw_value in row.items():
+                try:
+                    numeric_value = float(raw_value)
+                except (TypeError, ValueError):
+                    skipped_values += 1
+                    continue
+                if not math.isfinite(numeric_value):
+                    skipped_values += 1
+                    continue
+                values_by_gene.setdefault(gene, []).append(numeric_value)
+
+        if skipped_rows or skipped_values:
+            logger.warning(
+                "analyze_genetics: skipped malformed chromosome data rows=%d values=%d",
+                skipped_rows,
+                skipped_values,
+            )
+
         gene_stats: Dict[str, Any] = {}
-        for gene in sorted(all_keys):
-            values = df["chromosome_values"].apply(lambda d: d.get(gene))
-            valid = values.dropna()
-            if not valid.empty:
+        for gene, values in sorted(values_by_gene.items()):
+            series = pd.Series(values, dtype=float)
+            if not series.empty:
                 gene_stats[gene] = {
-                    "mean": float(valid.mean()),
-                    "std": float(valid.std(ddof=0)),
-                    "min": float(valid.min()),
-                    "max": float(valid.max()),
+                    "mean": float(series.mean()),
+                    "std": float(series.std(ddof=0)),
+                    "min": float(series.min()),
+                    "max": float(series.max()),
                 }
         result["gene_statistics"] = gene_stats
 

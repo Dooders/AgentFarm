@@ -249,6 +249,23 @@ class TestAnalyzeGenetics:
         assert "gene_statistics" in result
         assert "learning_rate" in result["gene_statistics"]
 
+    def test_evolution_frame_skips_malformed_chromosome_values(self):
+        data = {
+            "candidate_id": ["c0", "c1", "c2", "c3"],
+            "generation": [0, 0, 1, 1],
+            "fitness": [10.0, 20.0, 15.0, 12.0],
+            "chromosome_values": [
+                {"learning_rate": 0.001},
+                {"learning_rate": "bad"},
+                None,
+                {"learning_rate": 0.005},
+            ],
+        }
+        df = pd.DataFrame(data)
+        result = analyze_genetics(df)
+        assert "gene_statistics" in result
+        assert result["gene_statistics"]["learning_rate"]["mean"] == pytest.approx(0.003)
+
 
 # ---------------------------------------------------------------------------
 # process_genetics_data
@@ -493,6 +510,26 @@ class TestContinuousLocusDiversity:
         )
         assert r.shannon_entropy is not None
         assert r.shannon_entropy == pytest.approx(0.0)
+
+    def test_entropy_with_out_of_bounds_values_is_still_finite(self):
+        r = compute_continuous_locus_diversity(
+            [-0.5, 0.1, 0.9, 1.5],
+            "lr",
+            bounds=(0.0, 1.0),
+            entropy_bins=5,
+            compute_entropy=True,
+        )
+        assert r.shannon_entropy is not None
+        assert r.shannon_entropy > 0.0
+        assert r.shannon_entropy < float("inf")
+
+    def test_range_occupancy_clamped_to_one_when_values_exceed_bounds(self):
+        r = compute_continuous_locus_diversity(
+            [-0.5, 1.5],
+            "lr",
+            bounds=(0.0, 1.0),
+        )
+        assert r.range_occupancy == pytest.approx(1.0)
 
 
 class TestCategoricalLocusDiversity:

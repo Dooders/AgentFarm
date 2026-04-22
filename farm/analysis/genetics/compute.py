@@ -317,6 +317,9 @@ def compute_continuous_locus_diversity(
     * Population variance (``ddof=0``) is used throughout.
     * Histogram bins span ``[bounds[0], bounds[1]]`` when bounds are given,
       otherwise span the observed data range.
+    * When bounds are provided and entropy is requested, out-of-range values
+      are clipped to the nearest bound before histogramming so all individuals
+      contribute to entropy.
     * Zero-count bins are excluded from entropy (convention: ``0 ln 0 = 0``).
     """
     if bounds is not None and bounds[0] >= bounds[1]:
@@ -358,7 +361,7 @@ def compute_continuous_locus_diversity(
     observed_range = float(np.max(arr) - np.min(arr))
     if bounds is not None:
         span = bounds[1] - bounds[0]
-        range_occupancy = observed_range / span if span > 0.0 else 0.0
+        range_occupancy = min(observed_range / span, 1.0) if span > 0.0 else 0.0
     else:
         range_occupancy = float("nan")
 
@@ -366,8 +369,22 @@ def compute_continuous_locus_diversity(
     shannon_entropy: Optional[float] = None
     if compute_entropy:
         if bounds is not None:
+            lower, upper = bounds
+            below_bounds = int(np.sum(arr < lower))
+            above_bounds = int(np.sum(arr > upper))
+            if below_bounds or above_bounds:
+                logger.warning(
+                    "compute_continuous_locus_diversity: clipped %d value(s) for locus %r to fit bounds %r "
+                    "(below=%d, above=%d)",
+                    below_bounds + above_bounds,
+                    locus_name,
+                    bounds,
+                    below_bounds,
+                    above_bounds,
+                )
+            arr_for_entropy = np.clip(arr, lower, upper)
             bin_edges = np.linspace(bounds[0], bounds[1], entropy_bins + 1)
-            counts, _ = np.histogram(arr, bins=bin_edges)
+            counts, _ = np.histogram(arr_for_entropy, bins=bin_edges)
         else:
             counts, _ = np.histogram(arr, bins=entropy_bins)
         total = int(counts.sum())
