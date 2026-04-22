@@ -401,6 +401,22 @@ class TestContinuousLocusDiversity:
         with pytest.raises(ValueError, match="no values"):
             compute_continuous_locus_diversity([], "lr")
 
+    def test_reversed_bounds_raises(self):
+        with pytest.raises(ValueError, match="bounds must satisfy bounds\\[0\\] < bounds\\[1\\]"):
+            compute_continuous_locus_diversity([0.1, 0.2], "lr", bounds=(1.0, 0.0))
+
+    def test_equal_bounds_raises(self):
+        with pytest.raises(ValueError, match="bounds must satisfy bounds\\[0\\] < bounds\\[1\\]"):
+            compute_continuous_locus_diversity([0.5, 0.5], "lr", bounds=(0.5, 0.5))
+
+    def test_invalid_entropy_bins_raises(self):
+        with pytest.raises(ValueError, match="entropy_bins must be >= 1"):
+            compute_continuous_locus_diversity([0.1, 0.2], "lr", entropy_bins=0, compute_entropy=True)
+
+    def test_negative_entropy_bins_raises(self):
+        with pytest.raises(ValueError, match="entropy_bins must be >= 1"):
+            compute_continuous_locus_diversity([0.1, 0.2], "lr", entropy_bins=-5, compute_entropy=True)
+
     # --- Hand-computed fixture: values=[0.1, 0.2, 0.3], bounds=(0.0, 1.0) ---
     # mean = 0.2
     # var  = ((0.1-0.2)² + (0.2-0.2)² + (0.3-0.2)²) / 3 = 0.02/3
@@ -487,6 +503,16 @@ class TestCategoricalLocusDiversity:
     def test_empty_raises(self):
         with pytest.raises(ValueError, match="no weight vectors"):
             compute_categorical_locus_diversity([], "action_weights")
+
+    def test_all_empty_dicts_raises(self):
+        """Weight vectors with no categories (all empty dicts) should raise."""
+        with pytest.raises(ValueError, match="no categories"):
+            compute_categorical_locus_diversity([{}, {}], "action_weights")
+
+    def test_single_empty_dict_raises(self):
+        """A single empty dict provides no categories."""
+        with pytest.raises(ValueError, match="no categories"):
+            compute_categorical_locus_diversity([{}], "action_weights")
 
     def test_single_individual_heterozygosity_is_pure(self):
         """Single individual: diversity of the distribution is what it is;
@@ -634,6 +660,36 @@ class TestComputePopulationDiversity:
         result = compute_population_diversity(df, gene_bounds={"lr": (0.0, 1.0)})
         assert "lr" in result.continuous_loci
         assert "action_weights" in result.categorical_loci
+
+    def test_non_numeric_chromosome_values_are_skipped(self):
+        """Rows with non-numeric or None gene values are silently skipped."""
+        data = {
+            "chromosome_values": [
+                {"lr": 0.1},
+                {"lr": None},
+                {"lr": "bad"},
+                {"lr": 0.3},
+            ]
+        }
+        df = pd.DataFrame(data)
+        result = compute_population_diversity(df)
+        # Only the two finite numeric rows are counted
+        assert result.continuous_loci["lr"].n_individuals == 2
+        assert result.continuous_loci["lr"].mean == pytest.approx(0.2)
+
+    def test_nan_chromosome_values_are_skipped(self):
+        """NaN gene values are filtered out and don't poison locus stats."""
+        data = {
+            "chromosome_values": [
+                {"lr": 0.1},
+                {"lr": float("nan")},
+                {"lr": 0.3},
+            ]
+        }
+        df = pd.DataFrame(data)
+        result = compute_population_diversity(df)
+        assert result.continuous_loci["lr"].n_individuals == 2
+        assert result.continuous_loci["lr"].mean == pytest.approx(0.2)
 
 
 class TestComputeEvolutionDiversityTimeseries:

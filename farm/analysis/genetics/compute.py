@@ -319,6 +319,17 @@ def compute_continuous_locus_diversity(
       otherwise span the observed data range.
     * Zero-count bins are excluded from entropy (convention: ``0 ln 0 = 0``).
     """
+    if bounds is not None and bounds[0] >= bounds[1]:
+        raise ValueError(
+            f"compute_continuous_locus_diversity: bounds must satisfy bounds[0] < bounds[1], "
+            f"got {bounds!r} for locus {locus_name!r}"
+        )
+    if compute_entropy and entropy_bins < 1:
+        raise ValueError(
+            f"compute_continuous_locus_diversity: entropy_bins must be >= 1, "
+            f"got {entropy_bins!r} for locus {locus_name!r}"
+        )
+
     arr = np.asarray(values, dtype=float)
     if len(arr) == 0:
         raise ValueError(
@@ -426,6 +437,12 @@ def compute_categorical_locus_diversity(
         {action for wv in weight_vectors for action in wv}
     )
 
+    if not all_actions:
+        raise ValueError(
+            f"compute_categorical_locus_diversity: weight_vectors contain no categories "
+            f"for locus {locus_name!r} (all dicts are empty)"
+        )
+
     # Compute mean weight per action
     mean_weights: Dict[str, float] = {
         action: sum(float(wv.get(action, 0.0)) for wv in weight_vectors) / n
@@ -519,11 +536,17 @@ def compute_population_diversity(
             if isinstance(row, dict):
                 all_genes.update(row.keys())
         for gene in sorted(all_genes):
-            values = [
-                float(row[gene])
-                for row in df["chromosome_values"]
-                if isinstance(row, dict) and gene in row
-            ]
+            values: List[float] = []
+            for row in df["chromosome_values"]:
+                if not isinstance(row, dict) or gene not in row:
+                    continue
+                raw_value = row[gene]
+                try:
+                    numeric_value = float(raw_value)
+                except (TypeError, ValueError):
+                    continue
+                if math.isfinite(numeric_value):
+                    values.append(numeric_value)
             if values:
                 locus = compute_continuous_locus_diversity(
                     values,
