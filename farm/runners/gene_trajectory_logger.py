@@ -107,6 +107,7 @@ class GeneTrajectoryLogger:
                     handle.flush()
                     handle.close()
                 except Exception:
+                    # Best-effort teardown: ignore flush/close failures to keep shutdown non-fatal.
                     pass
                 setattr(self, attr, None)
 
