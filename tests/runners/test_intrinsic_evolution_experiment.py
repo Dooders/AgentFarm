@@ -13,7 +13,6 @@ import random
 import tempfile
 import unittest
 from types import SimpleNamespace
-from typing import List
 from unittest.mock import patch
 
 from farm.config import SimulationConfig
