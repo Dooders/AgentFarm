@@ -16,7 +16,7 @@ import json
 import os
 import random
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional
 
 from farm.config import SimulationConfig
 from farm.core.hyperparameter_chromosome import (
