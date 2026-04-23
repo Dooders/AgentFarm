@@ -11,6 +11,7 @@ Welcome to the documentation and development notes for AgentFarm.
 
 - [Documentation Index](README.md)
 - [Hyperparameter Evolution Convergence Notes](experiments/hyperparameter_evolution_convergence.md)
+- [Intrinsic Evolution Experiment](experiments/intrinsic_evolution.md)
 - [Devlog](devlog/)
 
 ## Latest Devlog

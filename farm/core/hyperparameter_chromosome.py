@@ -13,9 +13,10 @@ from __future__ import annotations
 import copy
 import math
 import random
+import statistics
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 
 def validate_non_negative_mapping(label: str, mapping: Mapping[str, float]) -> None:
@@ -981,3 +982,51 @@ def apply_chromosome_to_learning_config(
     for key, value in updates.items():
         setattr(copied, key, value)
     return copied
+
+
+def compute_gene_statistics(
+    chromosomes: Iterable[HyperparameterChromosome],
+    *,
+    evolvable_only: bool = True,
+) -> Dict[str, Dict[str, float]]:
+    """Compute per-gene aggregate statistics across a collection of chromosomes.
+
+    For each gene name observed in the input, returns mean / median / pstdev /
+    min / max plus boundary occupancy counts and a fraction of values pinned
+    to either ``min_value`` or ``max_value``.  When ``evolvable_only`` is
+    ``True`` (the default), non-evolvable genes are skipped.
+
+    The output schema matches the per-generation gene statistics produced by
+    :class:`farm.runners.evolution_experiment.EvolutionExperiment` so the same
+    downstream tooling can consume both intra-simulation and outer-loop
+    artifacts.
+
+    Returns an empty dict when the input yields no qualifying genes.
+    """
+    gene_values: Dict[str, List[float]] = {}
+    gene_bounds: Dict[str, Tuple[float, float]] = {}
+    for chromosome in chromosomes:
+        for gene in chromosome.genes:
+            if evolvable_only and not gene.evolvable:
+                continue
+            gene_values.setdefault(gene.name, []).append(gene.value)
+            if gene.name not in gene_bounds:
+                gene_bounds[gene.name] = (gene.min_value, gene.max_value)
+
+    gene_statistics: Dict[str, Dict[str, float]] = {}
+    for gene_name, values in gene_values.items():
+        min_bound, max_bound = gene_bounds[gene_name]
+        n = len(values)
+        at_min_count = sum(1 for v in values if v == min_bound)
+        at_max_count = sum(1 for v in values if v == max_bound)
+        gene_statistics[gene_name] = {
+            "mean": statistics.mean(values),
+            "median": statistics.median(values),
+            "std": statistics.pstdev(values) if n > 1 else 0.0,
+            "min": min(values),
+            "max": max(values),
+            "at_min_count": float(at_min_count),
+            "at_max_count": float(at_max_count),
+            "boundary_fraction": float(at_min_count + at_max_count) / n,
+        }
+    return gene_statistics

@@ -2,6 +2,8 @@
 
 This note documents how to capture and interpret learning-rate convergence from the hyperparameter chromosome evolution runner.
 
+> Looking for *intra-population* (in-situ) evolution where each agent carries its own chromosome and selection emerges from survival? See [Intrinsic Evolution Experiment](./intrinsic_evolution.md). The two runners are complementary.
+
 ## Quick start: stable preset
 
 The recommended way to run an experiment for the first time is via the `stable_hyper_evo` named preset. It encodes the configuration found to prevent lower-bound collapse and diversity collapse in the closure runs described below:

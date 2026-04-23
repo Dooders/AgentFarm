@@ -37,7 +37,7 @@ import os
 import random
 import time
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -275,6 +275,8 @@ def run_simulation(
     simulation_id: Optional[str] = None,
     identity: Optional[Identity] = None,
     disable_console_logging: bool = False,
+    on_environment_ready: Optional[Callable[[Environment], None]] = None,
+    on_step_end: Optional[Callable[[Environment, int], None]] = None,
 ) -> Environment:
     """
     Run the main simulation loop.
@@ -297,6 +299,15 @@ def run_simulation(
         Identity service instance for ID generation. If None, uses shared instance.
     disable_console_logging : bool, optional
         Whether to disable console logging during simulation (useful with tqdm), by default False
+    on_environment_ready : Optional[Callable[[Environment], None]], optional
+        Hook invoked after the environment and initial agents are created but
+        before the main loop begins.  Useful for attaching per-environment
+        policies (e.g., ``intrinsic_evolution_policy``) or seeding the
+        population.  Exceptions raised by the hook propagate.
+    on_step_end : Optional[Callable[[Environment, int], None]], optional
+        Hook invoked after ``environment.update()`` at the end of each step,
+        receiving the environment and the 0-based step index just completed.
+        Exceptions raised by the hook propagate.
 
     Returns
     -------
@@ -468,6 +479,11 @@ def run_simulation(
             environment.db.logger.flush_all_buffers()
             logger.info("initial_agents_committed_to_database")
 
+        # Allow callers to attach per-environment policy / state, seed
+        # population diversity, etc., after agents exist but before stepping.
+        if on_environment_ready is not None:
+            on_environment_ready(environment)
+
         # Main simulation loop
         # Disable tqdm progress bar in CI environments to avoid output interference
         disable_tqdm = (
@@ -525,6 +541,11 @@ def run_simulation(
             
             # Update environment once per step
             environment.update()
+
+            # Per-step hook (e.g., chromosome telemetry).  Runs after env update
+            # so consumers see the post-step state.
+            if on_step_end is not None:
+                on_step_end(environment, step)
 
             # Check for slow steps
             step_duration = time.time() - step_start_time

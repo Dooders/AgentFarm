@@ -6,8 +6,10 @@ Most capabilities are provided by components, but it contains some agent-specifi
 logic for reward calculation, lifecycle management, and orchestration.
 """
 
+import math
+import random as _module_random
 from copy import deepcopy
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import torch
 
@@ -18,8 +20,10 @@ from farm.core.agent.config.component_configs import AgentComponentConfig
 from farm.core.agent.services import AgentServices
 from farm.core.device_utils import create_device_from_config
 from farm.core.hyperparameter_chromosome import (
+    HyperparameterChromosome,
     apply_chromosome_to_learning_config,
     chromosome_from_learning_config,
+    crossover_chromosomes,
     mutate_chromosome,
 )
 from farm.core.environment import _AgentList
@@ -31,7 +35,6 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
-DEFAULT_HYPERPARAMETER_MUTATION_RATE = 0.1
 
 
 class AgentCore:
@@ -679,6 +682,82 @@ class AgentCore:
         else:
             self.services.spatial_service = value
 
+    def _derive_child_chromosome(
+        self, parent_chromosome: HyperparameterChromosome
+    ) -> HyperparameterChromosome:
+        """Produce the child's chromosome from the parent's, honoring policy.
+
+        When the environment carries an enabled ``intrinsic_evolution_policy``,
+        the child is the result of (optional) crossover with a co-parent
+        followed by mutation.  When no policy is set or the policy is
+        disabled, the child inherits a deep copy of the parent's chromosome
+        unchanged.
+        """
+        policy = getattr(self.environment, "intrinsic_evolution_policy", None)
+        if policy is None or not getattr(policy, "enabled", False):
+            return deepcopy(parent_chromosome)
+
+        rng = getattr(self.environment, "intrinsic_evolution_rng", None)
+        base = parent_chromosome
+        if policy.crossover_enabled:
+            coparent = self._select_coparent(policy, rng)
+            if coparent is not None:
+                base = crossover_chromosomes(
+                    parent_chromosome,
+                    coparent.hyperparameter_chromosome,
+                    mode=policy.crossover_mode,
+                    blend_alpha=policy.blend_alpha,
+                    num_crossover_points=policy.num_crossover_points,
+                    rng=rng,
+                )
+
+        return mutate_chromosome(
+            base,
+            mutation_rate=policy.mutation_rate,
+            mutation_scale=policy.mutation_scale,
+            mutation_mode=policy.mutation_mode,
+            boundary_mode=policy.boundary_mode,
+            interior_bias_fraction=policy.interior_bias_fraction,
+            rng=rng,
+        )
+
+    def _select_coparent(self, policy, rng) -> Optional["AgentCore"]:
+        """Pick a co-parent for crossover according to the policy.
+
+        Filters to alive agents of the same ``agent_type`` (excluding self)
+        with a chromosome attribute, optionally constrained to
+        ``policy.coparent_max_radius`` Euclidean distance from self.
+        Returns ``None`` when no eligible candidate exists, in which case
+        reproduction falls back to asexual (mutation-only) inheritance.
+        """
+        if self.environment is None:
+            return None
+
+        candidates: List["AgentCore"] = []
+        for other in self.environment.alive_agent_objects:
+            if other is self:
+                continue
+            if other.agent_type != self.agent_type:
+                continue
+            if getattr(other, "hyperparameter_chromosome", None) is None:
+                continue
+            candidates.append(other)
+
+        if policy.coparent_max_radius is not None:
+            radius = policy.coparent_max_radius
+            candidates = [
+                a for a in candidates if math.dist(a.position, self.position) <= radius
+            ]
+
+        if not candidates:
+            return None
+
+        if policy.coparent_strategy == "nearest_alive_same_type":
+            return min(candidates, key=lambda a: math.dist(a.position, self.position))
+
+        chooser = rng if rng is not None else _module_random
+        return chooser.choice(candidates)
+
     def reproduce(self) -> bool:
         """
         Create offspring agent.
@@ -734,19 +813,17 @@ class AgentCore:
             # Generate new agent ID
             offspring_id = self.environment.get_next_agent_id()
 
-            # Build child config from a mutated hyperparameter chromosome (for evolvable loci).
-            # Prefer the stored chromosome so reproduction uses a single authoritative
-            # representation of inheritable hyperparameters. If it is missing, derive it
-            # from the current learning config and synchronize the instance state.
+            # Inherit the hyperparameter chromosome.  When the environment exposes
+            # an enabled `intrinsic_evolution_policy`, optionally cross with a
+            # co-parent and then mutate; otherwise the child inherits the parent
+            # chromosome unchanged so deterministic / outer-loop experiments
+            # observe a homogeneous population.
             parent_chromosome = getattr(self, "hyperparameter_chromosome", None)
             if parent_chromosome is None:
                 parent_chromosome = chromosome_from_learning_config(self.config.decision)
                 self.hyperparameter_chromosome = deepcopy(parent_chromosome)
 
-            child_chromosome = mutate_chromosome(
-                deepcopy(parent_chromosome),
-                mutation_rate=DEFAULT_HYPERPARAMETER_MUTATION_RATE,
-            )
+            child_chromosome = self._derive_child_chromosome(parent_chromosome)
             child_config = deepcopy(self.config)
             child_config.decision = apply_chromosome_to_learning_config(
                 child_config.decision,
