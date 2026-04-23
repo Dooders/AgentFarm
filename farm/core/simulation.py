@@ -474,15 +474,19 @@ def run_simulation(
             config.population.chaos_agents,
         )
 
-        # Ensure all initial agents are committed to database before simulation starts
+        # Allow callers to attach per-environment policy / state, seed
+        # population diversity, etc., after agents exist but before the
+        # initial DB flush.  Mutations made here (e.g., chromosome seeding)
+        # will therefore be captured by the flush below and keep in-memory
+        # state in sync with persisted records.
+        if on_environment_ready is not None:
+            on_environment_ready(environment)
+
+        # Ensure all initial agents (including any hook-induced mutations) are
+        # committed to database before simulation starts.
         if environment.db is not None:
             environment.db.logger.flush_all_buffers()
             logger.info("initial_agents_committed_to_database")
-
-        # Allow callers to attach per-environment policy / state, seed
-        # population diversity, etc., after agents exist but before stepping.
-        if on_environment_ready is not None:
-            on_environment_ready(environment)
 
         # Main simulation loop
         # Disable tqdm progress bar in CI environments to avoid output interference

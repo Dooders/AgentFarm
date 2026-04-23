@@ -95,6 +95,24 @@ class TestIntrinsicEvolutionPolicy(unittest.TestCase):
         with self.assertRaises(ValueError):
             IntrinsicEvolutionPolicy(coparent_strategy="bogus")  # type: ignore[arg-type]
 
+    def test_string_enums_coerced_to_enum_instances(self):
+        """String values passed for enum fields must be normalized to enum instances."""
+        policy = IntrinsicEvolutionPolicy(
+            mutation_mode="gaussian",  # type: ignore[arg-type]
+            boundary_mode="clamp",  # type: ignore[arg-type]
+            crossover_mode="uniform",  # type: ignore[arg-type]
+        )
+        self.assertIsInstance(policy.mutation_mode, MutationMode)
+        self.assertIsInstance(policy.boundary_mode, BoundaryMode)
+        self.assertIsInstance(policy.crossover_mode, CrossoverMode)
+        self.assertEqual(policy.mutation_mode, MutationMode.GAUSSIAN)
+        self.assertEqual(policy.boundary_mode, BoundaryMode.CLAMP)
+        self.assertEqual(policy.crossover_mode, CrossoverMode.UNIFORM)
+
+    def test_invalid_string_enum_raises(self):
+        with self.assertRaises(ValueError):
+            IntrinsicEvolutionPolicy(mutation_mode="not_a_mode")  # type: ignore[arg-type]
+
 
 class TestIntrinsicEvolutionExperimentConfig(unittest.TestCase):
     def test_rejects_zero_steps(self):
@@ -131,6 +149,36 @@ class TestSeedPopulationDiversity(unittest.TestCase):
         # Decision config is updated alongside the chromosome.
         for agent, lr in zip(agents, new_lrs):
             self.assertEqual(agent.config.decision.learning_rate, lr)
+
+    def test_reinitializes_decision_module_when_behavior_present(self):
+        """DecisionModule config and algorithm are updated when already constructed."""
+        from unittest.mock import MagicMock
+
+        from farm.core.agent.behaviors.learning import LearningAgentBehavior
+
+        dm = MagicMock()
+        behavior = LearningAgentBehavior(dm)
+        config = SimpleNamespace(decision=SimpleNamespace(learning_rate=0.01))
+        chromosome = chromosome_from_learning_config(config.decision)
+        agent = SimpleNamespace(
+            agent_id="dm_agent",
+            agent_type="system",
+            alive=True,
+            config=config,
+            hyperparameter_chromosome=chromosome,
+            behavior=behavior,
+        )
+        env = _FakeEnvironment([agent])
+        policy = IntrinsicEvolutionPolicy(
+            seed_initial_diversity=True,
+            seed_mutation_rate=1.0,
+            seed_mutation_scale=0.5,
+        )
+        seed_population_diversity(env, policy, random.Random(42))
+
+        # DecisionModule config must be updated and algorithm reinitialized.
+        dm._initialize_algorithm.assert_called_once()
+        self.assertIs(dm.config, agent.config.decision)
 
 
 class TestRunnerOrchestration(unittest.TestCase):

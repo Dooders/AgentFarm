@@ -109,10 +109,10 @@ class IntrinsicEvolutionPolicy:
             raise ValueError("num_crossover_points must be at least 1.")
         if self.coparent_max_radius is not None and self.coparent_max_radius < 0.0:
             raise ValueError("coparent_max_radius must be non-negative when set.")
-        # Coerce string-friendly enum values, raising if invalid.
-        MutationMode(self.mutation_mode)
-        BoundaryMode(self.boundary_mode)
-        CrossoverMode(self.crossover_mode)
+        # Coerce string-friendly enum values to enum instances, raising if invalid.
+        object.__setattr__(self, "mutation_mode", MutationMode(self.mutation_mode))
+        object.__setattr__(self, "boundary_mode", BoundaryMode(self.boundary_mode))
+        object.__setattr__(self, "crossover_mode", CrossoverMode(self.crossover_mode))
         if self.coparent_strategy not in ("nearest_alive_same_type", "random_alive_same_type"):
             raise ValueError(
                 "coparent_strategy must be 'nearest_alive_same_type' or 'random_alive_same_type'."
@@ -160,10 +160,17 @@ def seed_population_diversity(
     When ``policy.seed_initial_diversity`` is ``False`` this is a no-op.
     Both the agent's ``hyperparameter_chromosome`` attribute and its
     ``config.decision`` are updated so subsequent decision-module construction
-    sees the seeded values.
+    sees the seeded values.  If the agent already has a ``LearningAgentBehavior``
+    with a ``DecisionModule`` (i.e., the module was constructed before seeding),
+    the module's config is updated and its algorithm is reinitialized so that
+    optimizer hyper-parameters (LR, gamma, …) reflect the seeded chromosome.
     """
     if not policy.seed_initial_diversity:
         return
+
+    # Import here to avoid a top-level circular dependency.
+    from farm.core.agent.behaviors.learning import LearningAgentBehavior  # noqa: PLC0415
+
     for agent in list(environment.agent_objects):
         chromosome = getattr(agent, "hyperparameter_chromosome", None)
         if chromosome is None:
@@ -178,9 +185,20 @@ def seed_population_diversity(
             rng=rng,
         )
         agent.hyperparameter_chromosome = mutated
-        agent.config.decision = apply_chromosome_to_learning_config(
+        new_decision_config = apply_chromosome_to_learning_config(
             agent.config.decision, mutated
         )
+        agent.config.decision = new_decision_config
+
+        # If the agent's DecisionModule was already constructed (common when
+        # on_environment_ready fires after create_initial_agents), update its
+        # config and reinitialize the algorithm so the optimizer reflects the
+        # seeded hyperparameters rather than the pre-seed defaults.
+        behavior = getattr(agent, "behavior", None)
+        if isinstance(behavior, LearningAgentBehavior):
+            dm = behavior.decision_module
+            dm.config = new_decision_config
+            dm._initialize_algorithm()  # noqa: SLF001
 
 
 class IntrinsicEvolutionExperiment:
