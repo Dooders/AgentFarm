@@ -176,9 +176,8 @@ class TestSeedPopulationDiversity(unittest.TestCase):
         )
         seed_population_diversity(env, policy, random.Random(42))
 
-        # DecisionModule config must be updated and algorithm reinitialized.
-        dm._initialize_algorithm.assert_called_once()
-        self.assertIs(dm.config, agent.config.decision)
+        # DecisionModule must be reinitialized via the public reinitialize_algorithm method.
+        dm.reinitialize_algorithm.assert_called_once_with(agent.config.decision)
 
 
 class TestRunnerOrchestration(unittest.TestCase):

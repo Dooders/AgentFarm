@@ -196,9 +196,7 @@ def seed_population_diversity(
         # seeded hyperparameters rather than the pre-seed defaults.
         behavior = getattr(agent, "behavior", None)
         if isinstance(behavior, LearningAgentBehavior):
-            dm = behavior.decision_module
-            dm.config = new_decision_config
-            dm._initialize_algorithm()  # noqa: SLF001
+            behavior.decision_module.reinitialize_algorithm(new_decision_config)
 
 
 class IntrinsicEvolutionExperiment:
