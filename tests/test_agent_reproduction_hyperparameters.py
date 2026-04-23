@@ -8,10 +8,16 @@ from farm.core.agent.config.component_configs import AgentComponentConfig
 from farm.core.agent.core import AgentCore
 from farm.core.decision.config import DecisionConfig
 from farm.core.hyperparameter_chromosome import chromosome_from_learning_config
+from farm.runners.intrinsic_evolution_experiment import IntrinsicEvolutionPolicy
 
 
 def _build_parent_agent_for_reproduction() -> AgentCore:
-    """Create a minimal AgentCore instance with required reproduction attributes."""
+    """Create a minimal AgentCore instance with required reproduction attributes.
+
+    The mock environment defaults to ``intrinsic_evolution_policy=None`` so the
+    parent's chromosome is inherited unchanged unless a test explicitly opts
+    into the in-situ evolution policy.
+    """
     agent = object.__new__(AgentCore)
     agent.agent_id = "parent_1"
     agent.agent_type = "system"
@@ -19,6 +25,8 @@ def _build_parent_agent_for_reproduction() -> AgentCore:
     agent.services = Mock()
     agent.environment = Mock()
     agent.environment.get_next_agent_id.return_value = "child_1"
+    agent.environment.intrinsic_evolution_policy = None
+    agent.environment.intrinsic_evolution_rng = None
     agent.state = Mock()
     agent.state.position = (2.0, 3.0)
     agent.state._state = Mock()
@@ -47,8 +55,40 @@ def _build_parent_agent_for_reproduction() -> AgentCore:
     return agent
 
 
-def test_reproduce_mutates_learning_rate_and_passes_child_config():
+def test_reproduce_inherits_chromosome_unchanged_without_policy():
+    """Without an intrinsic evolution policy, child chromosome equals parent's exactly."""
     parent = _build_parent_agent_for_reproduction()
+    parent_lr = parent.hyperparameter_chromosome.get_value("learning_rate")
+
+    offspring = Mock()
+    offspring.state = Mock()
+    offspring.state._state = Mock()
+    offspring.state._state.model_copy.return_value = Mock()
+
+    with patch("farm.core.agent.factory.AgentFactory") as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    assert offspring.generation == 5
+    assert offspring.hyperparameter_chromosome.get_value("learning_rate") == parent_lr
+    kwargs = factory.create_learning_agent.call_args.kwargs
+    child_config = kwargs["config"]
+    assert child_config is not parent.config
+    # Pure inheritance: every gene matches.
+    assert child_config.decision.learning_rate == parent_lr
+
+
+def test_reproduce_with_policy_mutates_learning_rate_and_passes_child_config():
+    """When the policy is enabled, child genes are mutated using the policy's knobs."""
+    parent = _build_parent_agent_for_reproduction()
+    parent.environment.intrinsic_evolution_policy = IntrinsicEvolutionPolicy(
+        mutation_rate=1.0,
+        mutation_scale=0.2,
+    )
+    parent.environment.intrinsic_evolution_rng = None
+
     offspring = Mock()
     offspring.state = Mock()
     offspring.state._state = Mock()
@@ -70,22 +110,19 @@ def test_reproduce_mutates_learning_rate_and_passes_child_config():
     kwargs = factory.create_learning_agent.call_args.kwargs
     child_config = kwargs["config"]
     assert child_config is not parent.config
-    assert child_config.decision.learning_rate == 0.012
-    # epsilon_decay and gamma are now evolvable; gauss patched to 0.002 shifts both.
-    # gamma: span = 1.0, mutation_scale (default) = 0.2 → sigma = 0.2 → delta = 0.002
-    # epsilon_decay: span ≈ 1.0, mutation_scale = 0.2 → sigma ≈ 0.2 → delta = 0.002
+    assert child_config.decision.learning_rate == pytest.approx(0.012, abs=1e-9)
     assert child_config.decision.epsilon_decay == pytest.approx(0.997, abs=1e-9)
     assert child_config.decision.gamma == pytest.approx(0.992, abs=1e-9)
-    # memory_size is fixed (evolvable=False) and stays at the parent value.
     assert child_config.decision.memory_size == 2000
-    assert offspring.hyperparameter_chromosome.get_value("learning_rate") == 0.012
+    assert offspring.hyperparameter_chromosome.get_value("learning_rate") == pytest.approx(0.012, abs=1e-9)
 
 
 def test_reproduce_logs_exception_and_returns_false():
+    """Errors during chromosome derivation should refund and return False."""
     parent = _build_parent_agent_for_reproduction()
 
     with patch(
-        "farm.core.agent.core.mutate_chromosome",
+        "farm.core.agent.core.AgentCore._derive_child_chromosome",
         side_effect=RuntimeError("boom"),
     ), patch("farm.core.agent.core.logger.exception") as log_exception:
         success = AgentCore.reproduce(parent)

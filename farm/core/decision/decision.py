@@ -168,6 +168,23 @@ class DecisionModule:
             )
             self._initialize_fallback()
 
+    def reinitialize_algorithm(self, config: Any = None) -> None:
+        """Reinitialize the decision algorithm, optionally with a new config.
+
+        Use this when the agent's hyperparameter chromosome has been updated
+        (e.g., during population seeding) and the optimizer/algorithm must
+        reflect the new settings (learning rate, gamma, …).
+
+        Args:
+            config: Optional new :class:`DecisionConfig`.  When provided, the
+                module's ``config`` attribute is replaced before the algorithm
+                is reinitialized so all subsequent operations see the updated
+                parameters.
+        """
+        if config is not None:
+            self.config = config
+        self._initialize_algorithm()
+
     def _initialize_tianshou_ppo(self):
         """Initialize PPO using Tianshou."""
         if "ppo" not in _ALGORITHM_REGISTRY:
