@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 
 from farm.analysis.common.utils import calculate_statistics
-from farm.database.data_types import GenomeId
+from farm.analysis.genetics.utils import parse_parent_ids
 from farm.database.models import (
     AgentModel,
     AgentStateModel,
@@ -159,17 +159,8 @@ def _detect_agent_births(query_func, start_step: int, end_step: Optional[int]) -
                     result.offspring_id,
                 )
                 continue
-            try:
-                genome = GenomeId.from_string(result.genome_id)
-            except Exception as e:
-                logger.warning(
-                    "Failed to parse genome_id %r for offspring agent_id %s: %s",
-                    result.genome_id,
-                    result.offspring_id,
-                    e,
-                )
-                continue
-            parent_id = genome.parent_ids[0] if genome.parent_ids else None
+            parent_ids = parse_parent_ids(result.genome_id)
+            parent_id = parent_ids[0] if parent_ids else None
             formatted_results.append(
                 {
                     "step_number": result.step_number,
