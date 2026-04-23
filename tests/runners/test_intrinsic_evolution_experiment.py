@@ -148,6 +148,8 @@ class TestRunnerOrchestration(unittest.TestCase):
                 env.time = step + 1
                 if on_step_end is not None:
                     on_step_end(env, step)
+            # Match run_simulation: one extra environment.update() after the loop.
+            env.time += 1
             return env
 
         return _side_effect, env

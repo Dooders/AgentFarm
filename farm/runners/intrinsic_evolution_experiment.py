@@ -238,7 +238,10 @@ class IntrinsicEvolutionExperiment:
             if getattr(agent, "hyperparameter_chromosome", None) is not None
         ]
         result = IntrinsicEvolutionResult(
-            num_steps_completed=int(environment.time),
+            num_steps_completed=min(
+                self.config.num_steps,
+                max(0, int(environment.time) - 1),
+            ),
             final_population=len(final_alive),
             final_gene_statistics=compute_gene_statistics(
                 final_chromosomes, evolvable_only=True
