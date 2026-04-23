@@ -178,6 +178,32 @@ class TestSeedPopulationDiversity(unittest.TestCase):
         # DecisionModule must be reinitialized via the public reinitialize_algorithm method.
         dm.reinitialize_algorithm.assert_called_once_with(agent.config.decision)
 
+    def test_reinitializes_any_behavior_with_compatible_decision_module(self):
+        """Reinitialization is capability-based, not tied to one behavior class."""
+        from unittest.mock import MagicMock
+
+        dm = MagicMock()
+        behavior = SimpleNamespace(decision_module=dm)
+        config = SimpleNamespace(decision=SimpleNamespace(learning_rate=0.01))
+        chromosome = chromosome_from_learning_config(config.decision)
+        agent = SimpleNamespace(
+            agent_id="generic_behavior_agent",
+            agent_type="system",
+            alive=True,
+            config=config,
+            hyperparameter_chromosome=chromosome,
+            behavior=behavior,
+        )
+        env = _FakeEnvironment([agent])
+        policy = IntrinsicEvolutionPolicy(
+            seed_initial_diversity=True,
+            seed_mutation_rate=1.0,
+            seed_mutation_scale=0.5,
+        )
+        seed_population_diversity(env, policy, random.Random(42))
+
+        dm.reinitialize_algorithm.assert_called_once_with(agent.config.decision)
+
 
 class TestRunnerOrchestration(unittest.TestCase):
     def _stub_run_simulation(self, num_agents: int = 4, num_steps: int = 3):
@@ -264,6 +290,37 @@ class TestRunnerOrchestration(unittest.TestCase):
             self.assertIn("policy", metadata)
             # Enums in the policy must serialize to plain string values.
             self.assertEqual(metadata["policy"]["mutation_mode"], "gaussian")
+
+    def test_final_result_uses_last_hooked_state(self):
+        """Final metadata aligns with callback telemetry, not post-loop finalization."""
+        agents = [_make_fake_agent(0.01), _make_fake_agent(0.02)]
+        env = _FakeEnvironment(agents)
+
+        def _side_effect(*args, **kwargs):
+            on_environment_ready = kwargs.get("on_environment_ready")
+            on_step_end = kwargs.get("on_step_end")
+            if on_environment_ready is not None:
+                on_environment_ready(env)
+            # Run exactly one logical step and report it via hook.
+            env.time = 1
+            if on_step_end is not None:
+                on_step_end(env, 0)
+            # Simulate a post-loop finalization update that changes live state.
+            env._agents[1].alive = False
+            env.time = 2
+            return env
+
+        with patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=_side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(num_steps=1, snapshot_interval=1, seed=7)
+            base_config = SimulationConfig()
+            result = IntrinsicEvolutionExperiment(base_config, cfg).run()
+
+        # Last hooked state still had both agents alive.
+        self.assertEqual(result.final_population, 2)
+        self.assertEqual(result.num_steps_completed, 1)
 
 
 if __name__ == "__main__":

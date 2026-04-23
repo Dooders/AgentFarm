@@ -16,7 +16,7 @@ import json
 import os
 import random
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from farm.config import SimulationConfig
 from farm.core.hyperparameter_chromosome import (
@@ -168,9 +168,6 @@ def seed_population_diversity(
     if not policy.seed_initial_diversity:
         return
 
-    # Import here to avoid a top-level circular dependency.
-    from farm.core.agent.behaviors.learning import LearningAgentBehavior  # noqa: PLC0415
-
     for agent in list(environment.agent_objects):
         chromosome = getattr(agent, "hyperparameter_chromosome", None)
         if chromosome is None:
@@ -190,13 +187,15 @@ def seed_population_diversity(
         )
         agent.config.decision = new_decision_config
 
-        # If the agent's DecisionModule was already constructed (common when
+        # If a decision module was already constructed (common when
         # on_environment_ready fires after create_initial_agents), update its
         # config and reinitialize the algorithm so the optimizer reflects the
         # seeded hyperparameters rather than the pre-seed defaults.
         behavior = getattr(agent, "behavior", None)
-        if isinstance(behavior, LearningAgentBehavior):
-            behavior.decision_module.reinitialize_algorithm(new_decision_config)
+        decision_module = getattr(behavior, "decision_module", None)
+        reinitialize = getattr(decision_module, "reinitialize_algorithm", None)
+        if callable(reinitialize):
+            reinitialize(new_decision_config)
 
 
 class IntrinsicEvolutionExperiment:
@@ -224,15 +223,42 @@ class IntrinsicEvolutionExperiment:
         )
 
         policy = self.config.policy
+        latest_step = 0
+        latest_population = 0
+        latest_gene_statistics: Dict[str, Dict[str, float]] = {}
+
+        def _capture_current_state(environment: Any, step: int) -> None:
+            """Capture the same state we emit to the trajectory logger.
+
+            The simulation loop performs a final post-loop environment update.
+            To keep metadata/result summaries aligned with persisted telemetry,
+            derive final result fields from the last callback-observed state.
+            """
+            nonlocal latest_step, latest_population, latest_gene_statistics
+            alive_agents = list(environment.alive_agent_objects)
+            chromosomes: List[HyperparameterChromosome] = [
+                agent.hyperparameter_chromosome
+                for agent in alive_agents
+                if getattr(agent, "hyperparameter_chromosome", None) is not None
+            ]
+            latest_step = step
+            latest_population = len(alive_agents)
+            latest_gene_statistics = compute_gene_statistics(
+                chromosomes,
+                evolvable_only=True,
+            )
 
         def _on_environment_ready(environment: Any) -> None:
             environment.intrinsic_evolution_policy = policy
             environment.intrinsic_evolution_rng = rng
             seed_population_diversity(environment, policy, rng)
             gene_logger.snapshot(environment, step=0)
+            _capture_current_state(environment, step=0)
 
         def _on_step_end(environment: Any, step: int) -> None:
-            gene_logger.snapshot(environment, step=step + 1)
+            logical_step = step + 1
+            gene_logger.snapshot(environment, step=logical_step)
+            _capture_current_state(environment, step=logical_step)
 
         try:
             environment = run_simulation(
@@ -247,21 +273,10 @@ class IntrinsicEvolutionExperiment:
         finally:
             gene_logger.close()
 
-        final_alive = environment.alive_agent_objects
-        final_chromosomes: List[HyperparameterChromosome] = [
-            agent.hyperparameter_chromosome
-            for agent in final_alive
-            if getattr(agent, "hyperparameter_chromosome", None) is not None
-        ]
         result = IntrinsicEvolutionResult(
-            num_steps_completed=min(
-                self.config.num_steps,
-                max(0, int(environment.time) - 1),
-            ),
-            final_population=len(final_alive),
-            final_gene_statistics=compute_gene_statistics(
-                final_chromosomes, evolvable_only=True
-            ),
+            num_steps_completed=min(self.config.num_steps, max(0, latest_step)),
+            final_population=latest_population,
+            final_gene_statistics=latest_gene_statistics,
         )
         self._persist(result)
         logger.info(
