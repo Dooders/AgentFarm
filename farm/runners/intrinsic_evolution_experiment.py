@@ -261,7 +261,7 @@ class IntrinsicEvolutionExperiment:
             _capture_current_state(environment, step=logical_step)
 
         try:
-            environment = run_simulation(
+            run_simulation(
                 num_steps=self.config.num_steps,
                 config=self.base_config,
                 path=self.config.output_dir,
