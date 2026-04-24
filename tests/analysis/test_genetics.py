@@ -806,3 +806,45 @@ class TestComputeEvolutionDiversityTimeseries:
         lr_div = ts[0]["diversity"].continuous_loci["lr"]
         assert not math.isnan(lr_div.normalized_variance)
         assert not math.isnan(lr_div.range_occupancy)
+
+    def test_fallback_to_generation_summaries_when_evaluations_missing(self):
+        generation_summaries = [
+            SimpleNamespace(
+                generation=1,
+                gene_statistics={"lr": {"mean": 0.3, "std": 0.1}},
+            ),
+            SimpleNamespace(
+                generation=0,
+                gene_statistics={"lr": {"mean": 0.2, "std": 0.0}},
+            ),
+        ]
+        result = SimpleNamespace(evaluations=[], generation_summaries=generation_summaries)
+
+        ts = compute_evolution_diversity_timeseries(
+            result,
+            gene_bounds={"lr": (0.0, 1.0)},
+        )
+
+        assert [row["generation"] for row in ts] == [0, 1]
+        gen1_lr = ts[1]["diversity"].continuous_loci["lr"]
+        assert gen1_lr.mean == pytest.approx(0.3)
+        assert gen1_lr.std == pytest.approx(0.1)
+        assert gen1_lr.normalized_variance == pytest.approx(0.01)
+        assert math.isnan(gen1_lr.range_occupancy)
+
+    def test_fallback_generation_summary_skips_malformed_gene_stats(self):
+        generation_summaries = [
+            SimpleNamespace(
+                generation=0,
+                gene_statistics={
+                    "lr": {"mean": "bad", "std": 0.1},
+                    "gamma": {"mean": 0.95, "std": 0.01},
+                },
+            )
+        ]
+        result = SimpleNamespace(evaluations=[], generation_summaries=generation_summaries)
+
+        ts = compute_evolution_diversity_timeseries(result)
+        diversity = ts[0]["diversity"]
+        assert "lr" not in diversity.continuous_loci
+        assert diversity.continuous_loci["gamma"].mean == pytest.approx(0.95)
