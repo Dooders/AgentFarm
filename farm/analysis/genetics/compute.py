@@ -3,8 +3,9 @@ Genetics Analysis Computation
 
 Core computation functions for the genetics analysis module, including the
 shared ``parse_parent_ids`` helper, population-level accessors for both
-simulation-database and evolution-experiment data sources, and genotypic
-diversity metrics (heterozygosity, Shannon entropy, per-locus stats).
+simulation-database and evolution-experiment data sources, genotypic
+diversity metrics (heterozygosity, Shannon entropy, per-locus stats), and
+allele-frequency trajectory tracking with selection-pressure detection.
 """
 
 from __future__ import annotations
@@ -711,6 +712,397 @@ def compute_evolution_diversity_timeseries(
         len(rows),
     )
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Allele-frequency tracking and selection-pressure detection
+# ---------------------------------------------------------------------------
+
+#: Sentinel allele name for the mean of a continuous locus.
+ALLELE_MEAN = "__mean__"
+
+#: Sentinel allele name for the variance of a continuous locus.
+ALLELE_VARIANCE = "__variance__"
+
+#: Columns produced by :func:`compute_allele_frequency_timeseries`.
+ALLELE_FREQUENCY_COLUMNS = [
+    "generation",
+    "locus",
+    "locus_type",
+    "allele",
+    "frequency",
+    "n_individuals",
+]
+
+#: Columns produced by :func:`compute_selection_pressure_summary`.
+SELECTION_PRESSURE_COLUMNS = [
+    "locus",
+    "allele",
+    "locus_type",
+    "n_generations",
+    "mean_delta_frequency",
+    "cumulative_shift",
+    "z_score",
+    "regression_slope",
+    "effect_size",
+    "is_under_selection",
+    "collapse_detected",
+]
+
+
+def compute_allele_frequency_timeseries(
+    df: pd.DataFrame,
+    gene_bounds: Optional[Mapping[str, Tuple[float, float]]] = None,  # noqa: ARG001
+) -> pd.DataFrame:
+    """Compute per-(generation, locus) allele-frequency / moment trajectories.
+
+    For **categorical loci** (``action_weights`` column): tracks the
+    population-mean normalized weight of each action per generation as an
+    allele frequency.
+
+    For **continuous loci** (``chromosome_values`` column): tracks two
+    distribution moments per generation as named synthetic alleles:
+
+    * :data:`ALLELE_MEAN` (``"__mean__"``) – population mean of the gene value.
+    * :data:`ALLELE_VARIANCE` (``"__variance__"``) – population variance
+      (ddof=0) of the gene value.
+
+    Parameters
+    ----------
+    df:
+        DataFrame with a ``generation`` column and at least one of:
+
+        * ``chromosome_values``: column of ``{gene_name: float}`` dicts
+          (e.g. from :func:`build_evolution_experiment_dataframe`).
+        * ``action_weights``: column of ``{action_name: weight}`` dicts
+          (e.g. from :func:`build_agent_genetics_dataframe`).
+
+        Rows with a non-numeric or ``NaN`` ``generation`` value are silently
+        skipped.
+    gene_bounds:
+        Accepted for API symmetry with other ``compute_*`` helpers; not
+        used in the current implementation.
+
+    Returns
+    -------
+    pd.DataFrame
+        Tidy frame with columns defined in :data:`ALLELE_FREQUENCY_COLUMNS`:
+
+        * ``generation`` (int)
+        * ``locus`` (str) – gene name, or ``"action_weights"``
+        * ``locus_type`` (str) – ``"continuous"`` or ``"categorical"``
+        * ``allele`` (str) – action name, ``"__mean__"``, or
+          ``"__variance__"``
+        * ``frequency`` (float) – allele frequency in ``[0, 1]`` for
+          categorical; population mean / variance for continuous
+        * ``n_individuals`` (int) – number of valid observations in this
+          generation for this locus
+
+        Returns an empty DataFrame (with correct columns) when *df* is
+        empty or contains no recognised locus columns.
+
+    Notes
+    -----
+    * Rows are sorted by ``(locus, allele, generation)`` in ascending order.
+    * Rows with non-finite gene values are excluded from continuous-locus
+      statistics (``NaN``, ``±inf``).
+    * For categorical loci, allele frequencies are renormalized to sum to 1
+      per generation (guarding against floating-point rounding errors).
+    """
+    if df.empty or "generation" not in df.columns:
+        return pd.DataFrame(columns=ALLELE_FREQUENCY_COLUMNS)
+
+    has_continuous = "chromosome_values" in df.columns
+    has_categorical = "action_weights" in df.columns
+
+    if not has_continuous and not has_categorical:
+        return pd.DataFrame(columns=ALLELE_FREQUENCY_COLUMNS)
+
+    rows: List[Dict[str, Any]] = []
+
+    for gen, group in df.groupby("generation"):
+        try:
+            gen_int = int(gen)
+        except (TypeError, ValueError):
+            continue
+
+        # --- Continuous loci: chromosome_values ---
+        if has_continuous:
+            all_genes: set = set()
+            for cv in group["chromosome_values"]:
+                if isinstance(cv, dict):
+                    all_genes.update(cv.keys())
+            for gene in sorted(all_genes):
+                values: List[float] = []
+                for cv in group["chromosome_values"]:
+                    if not isinstance(cv, dict) or gene not in cv:
+                        continue
+                    raw = cv[gene]
+                    try:
+                        v = float(raw)
+                    except (TypeError, ValueError):
+                        continue
+                    if math.isfinite(v):
+                        values.append(v)
+                if not values:
+                    continue
+                arr = np.array(values, dtype=float)
+                mean_val = float(np.mean(arr))
+                var_val = float(np.var(arr, ddof=0))
+                n = len(values)
+                rows.append(
+                    {
+                        "generation": gen_int,
+                        "locus": gene,
+                        "locus_type": "continuous",
+                        "allele": ALLELE_MEAN,
+                        "frequency": mean_val,
+                        "n_individuals": n,
+                    }
+                )
+                rows.append(
+                    {
+                        "generation": gen_int,
+                        "locus": gene,
+                        "locus_type": "continuous",
+                        "allele": ALLELE_VARIANCE,
+                        "frequency": var_val,
+                        "n_individuals": n,
+                    }
+                )
+
+        # --- Categorical loci: action_weights ---
+        if has_categorical:
+            weight_vectors = [
+                wv
+                for wv in group["action_weights"]
+                if isinstance(wv, dict) and len(wv) > 0
+            ]
+            if weight_vectors:
+                n_cat = len(weight_vectors)
+                all_actions = sorted({a for wv in weight_vectors for a in wv})
+                mean_weights = {
+                    a: sum(float(wv.get(a, 0.0)) for wv in weight_vectors) / n_cat
+                    for a in all_actions
+                }
+                total = sum(mean_weights.values())
+                if total > 0:
+                    freqs: Dict[str, float] = {a: w / total for a, w in mean_weights.items()}
+                else:
+                    k = len(all_actions)
+                    freqs = {a: 1.0 / k for a in all_actions} if k > 0 else {}
+                for action, freq in freqs.items():
+                    rows.append(
+                        {
+                            "generation": gen_int,
+                            "locus": "action_weights",
+                            "locus_type": "categorical",
+                            "allele": action,
+                            "frequency": freq,
+                            "n_individuals": n_cat,
+                        }
+                    )
+
+    if not rows:
+        return pd.DataFrame(columns=ALLELE_FREQUENCY_COLUMNS)
+
+    result_df = pd.DataFrame(rows, columns=ALLELE_FREQUENCY_COLUMNS)
+    result_df = result_df.sort_values(["locus", "allele", "generation"]).reset_index(drop=True)
+    logger.info(
+        "compute_allele_frequency_timeseries: %d rows across %d generation(s)",
+        len(result_df),
+        result_df["generation"].nunique(),
+    )
+    return result_df
+
+
+def compute_selection_pressure_summary(
+    freq_df: pd.DataFrame,
+    pop_size: Optional[int] = None,
+    significance_threshold: float = 2.0,
+) -> pd.DataFrame:
+    """Compute per-(locus, allele) selection-pressure metrics from allele-frequency trajectories.
+
+    Detects (locus, allele) pairs with statistically significant directional
+    changes in allele frequency (or gene-value moment) across generations,
+    relative to a neutral-drift baseline.
+
+    Parameters
+    ----------
+    freq_df:
+        Output of :func:`compute_allele_frequency_timeseries`.  The DataFrame
+        must contain ``generation``, ``locus``, ``allele``, ``frequency``, and
+        ``locus_type`` columns.  Empty DataFrames are handled gracefully.
+    pop_size:
+        Effective population size *N_e*.  When provided for **categorical**
+        loci, the Wright-Fisher binomial variance ``p̄(1−p̄)/N_e`` is used as
+        the per-generation drift variance.  For **continuous** loci (and for
+        categorical loci when *pop_size* is ``None``), the empirical standard
+        deviation of generation-to-generation Δ values is used as the drift
+        baseline.
+    significance_threshold:
+        Absolute z-score above which a (locus, allele) pair is flagged with
+        ``is_under_selection = True``.  Default ``2.0`` (≈ 95th percentile
+        under a standard normal).
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per (locus, allele) with columns defined in
+        :data:`SELECTION_PRESSURE_COLUMNS`:
+
+        * ``locus`` (str)
+        * ``allele`` (str)
+        * ``locus_type`` (str) – ``"continuous"`` or ``"categorical"``
+        * ``n_generations`` (int) – number of generation observations
+        * ``mean_delta_frequency`` (float) – mean Δ between consecutive
+          generation pairs; ``nan`` when fewer than 2 observations
+        * ``cumulative_shift`` (float) – frequency at last generation minus
+          frequency at first generation; ``nan`` when fewer than 2
+          observations
+        * ``z_score`` (float) – mean Δ divided by its standard error under
+          the drift baseline; ``nan`` when fewer than 2 generation pairs are
+          available or the drift variance is zero
+        * ``regression_slope`` (float) – OLS slope of frequency vs.
+          generation index; ``nan`` when fewer than 2 observations or when
+          all generation indices are identical
+        * ``effect_size`` (float) – ``|cumulative_shift|``; ``nan`` when
+          ``cumulative_shift`` is ``nan``
+        * ``is_under_selection`` (bool) – ``True`` when
+          ``|z_score| ≥ significance_threshold``
+        * ``collapse_detected`` (bool) – ``True`` when the (locus, allele)
+          pair shows fixation signs: for the ``"__variance__"`` allele of
+          a continuous locus, the final-generation variance is near zero
+          (< 1e-12); for a categorical allele, the final-generation
+          frequency is ≥ 0.99
+
+        Returns an empty DataFrame (with correct columns) when *freq_df* is
+        empty or missing required columns.
+
+    Notes
+    -----
+    **Drift baseline assumptions**
+
+    For categorical loci with *pop_size* provided::
+
+        σ_drift = sqrt(p̄(1−p̄) / N_e)
+
+    where *p̄* is the time-mean allele frequency.  This is the standard
+    Wright-Fisher binomial model for frequency change under neutral drift in a
+    finite population of size *N_e*.
+
+    For continuous loci or when *pop_size* is ``None``::
+
+        σ_drift = std(Δ_t)   (empirical, ddof=1)
+
+    The z-score is then::
+
+        z = mean(Δ_t) / (σ_drift / sqrt(T))
+
+    where *T* is the number of consecutive generation pairs.  Under neutral
+    drift this statistic is approximately standard-normal for large *T*.
+
+    **Boundary-collapse detection**
+
+    A locus-allele pair is flagged (``collapse_detected = True``) when the
+    final generation shows evidence of fixation:
+
+    * Continuous ``"__variance__"`` allele: variance < 1e-12 (all individuals
+      share the same gene value, consistent with boundary collapse).
+    * Categorical allele: frequency ≥ 0.99 (near-fixation of that allele).
+    """
+    required = {"generation", "locus", "allele", "frequency", "locus_type"}
+    if freq_df.empty or not required.issubset(freq_df.columns):
+        return pd.DataFrame(columns=SELECTION_PRESSURE_COLUMNS)
+
+    summary_rows: List[Dict[str, Any]] = []
+
+    for (locus, allele), group in freq_df.groupby(["locus", "allele"], sort=False):
+        group_sorted = group.sort_values("generation")
+        freqs = group_sorted["frequency"].tolist()
+        gens = group_sorted["generation"].tolist()
+        locus_type = str(group_sorted["locus_type"].iloc[0])
+        n_gen = len(freqs)
+
+        cumulative_shift: float = freqs[-1] - freqs[0] if n_gen >= 2 else float("nan")
+
+        deltas = [freqs[i + 1] - freqs[i] for i in range(n_gen - 1)]
+        T = len(deltas)
+        mean_delta: float = float(np.mean(deltas)) if T > 0 else float("nan")
+
+        # --- Drift baseline and z-score ---
+        z_score = float("nan")
+        if T >= 2:
+            if locus_type == "categorical" and pop_size is not None and pop_size > 0:
+                # Wright-Fisher: σ_drift = sqrt(p̄(1−p̄) / N_e)
+                p_mean = float(np.mean(freqs))
+                drift_var = p_mean * (1.0 - p_mean) / pop_size
+                drift_std = math.sqrt(drift_var) if drift_var > 0 else 0.0
+            else:
+                # Empirical drift baseline: std of Δ_t
+                drift_std = float(np.std(deltas, ddof=1))
+
+            if drift_std > 0.0:
+                se = drift_std / math.sqrt(T)
+                z_score = mean_delta / se
+            # When drift_std == 0 (no variation in Δ) the z-score is indeterminate.
+
+        # --- OLS regression slope ---
+        regression_slope = float("nan")
+        if n_gen >= 2:
+            gens_arr = np.array(gens, dtype=float)
+            freqs_arr = np.array(freqs, dtype=float)
+            gen_mean = float(np.mean(gens_arr))
+            freq_mean = float(np.mean(freqs_arr))
+            cov = float(np.mean((gens_arr - gen_mean) * (freqs_arr - freq_mean)))
+            var_gen = float(np.var(gens_arr, ddof=0))
+            if var_gen > 0.0:
+                regression_slope = cov / var_gen
+
+        effect_size = abs(cumulative_shift) if not math.isnan(cumulative_shift) else float("nan")
+        is_under_selection = (not math.isnan(z_score)) and abs(z_score) >= significance_threshold
+
+        # --- Boundary/collapse detection ---
+        collapse_detected = False
+        if locus_type == "continuous" and allele == ALLELE_VARIANCE:
+            if n_gen >= 1 and freqs[-1] < 1e-12:
+                collapse_detected = True
+        elif locus_type == "categorical":
+            if n_gen >= 1 and freqs[-1] >= 0.99:
+                collapse_detected = True
+
+        summary_rows.append(
+            {
+                "locus": locus,
+                "allele": allele,
+                "locus_type": locus_type,
+                "n_generations": n_gen,
+                "mean_delta_frequency": mean_delta,
+                "cumulative_shift": cumulative_shift,
+                "z_score": z_score,
+                "regression_slope": regression_slope,
+                "effect_size": effect_size,
+                "is_under_selection": is_under_selection,
+                "collapse_detected": collapse_detected,
+            }
+        )
+
+    if not summary_rows:
+        return pd.DataFrame(columns=SELECTION_PRESSURE_COLUMNS)
+
+    result_df = pd.DataFrame(summary_rows, columns=SELECTION_PRESSURE_COLUMNS)
+    result_df = result_df.sort_values(["locus", "allele"]).reset_index(drop=True)
+
+    n_selected = int(result_df["is_under_selection"].sum())
+    n_collapsed = int(result_df["collapse_detected"].sum())
+    logger.info(
+        "compute_selection_pressure_summary: %d locus-allele pairs; "
+        "%d under selection; %d boundary collapse(s)",
+        len(result_df),
+        n_selected,
+        n_collapsed,
+    )
+    return result_df
 
 
 def _build_summary_diversity_from_generation_summary(

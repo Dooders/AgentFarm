@@ -25,13 +25,19 @@ from sqlalchemy.orm import Session
 
 from farm.analysis.genetics.compute import (
     AGENT_GENETICS_COLUMNS,
+    ALLELE_FREQUENCY_COLUMNS,
+    ALLELE_MEAN,
+    ALLELE_VARIANCE,
     EVOLUTION_GENETICS_COLUMNS,
+    SELECTION_PRESSURE_COLUMNS,
     build_agent_genetics_dataframe,
     build_evolution_experiment_dataframe,
+    compute_allele_frequency_timeseries,
     compute_categorical_locus_diversity,
     compute_continuous_locus_diversity,
     compute_evolution_diversity_timeseries,
     compute_population_diversity,
+    compute_selection_pressure_summary,
 )
 from farm.analysis.genetics.utils import parse_parent_ids
 from farm.analysis.genetics.analyze import analyze_genetics
@@ -848,3 +854,443 @@ class TestComputeEvolutionDiversityTimeseries:
         diversity = ts[0]["diversity"]
         assert "lr" not in diversity.continuous_loci
         assert diversity.continuous_loci["gamma"].mean == pytest.approx(0.95)
+
+# ---------------------------------------------------------------------------
+# compute_allele_frequency_timeseries
+# ---------------------------------------------------------------------------
+
+
+def _continuous_df(n_gens: int, n_individuals: int, gene: str, value_fn) -> pd.DataFrame:
+    """Build a minimal chromosome_values DataFrame for testing.
+
+    Parameters
+    ----------
+    n_gens:
+        Number of generations.
+    n_individuals:
+        Number of individuals per generation.
+    gene:
+        Gene name.
+    value_fn:
+        Callable(gen, ind) → float producing the gene value for individual
+        *ind* in generation *gen*.
+    """
+    rows = []
+    for g in range(n_gens):
+        for i in range(n_individuals):
+            rows.append({"generation": g, "chromosome_values": {gene: value_fn(g, i)}})
+    return pd.DataFrame(rows)
+
+
+def _categorical_df(n_gens: int, n_individuals: int, action_fn) -> pd.DataFrame:
+    """Build a minimal action_weights DataFrame for testing."""
+    rows = []
+    for g in range(n_gens):
+        for i in range(n_individuals):
+            rows.append({"generation": g, "action_weights": action_fn(g, i)})
+    return pd.DataFrame(rows)
+
+
+class TestComputeAlleleFrequencyTimeseries:
+    """Tests for compute_allele_frequency_timeseries."""
+
+    # --- Output shape and columns ---
+
+    def test_empty_df_returns_empty_with_correct_columns(self):
+        result = compute_allele_frequency_timeseries(pd.DataFrame())
+        assert result.empty
+        assert list(result.columns) == ALLELE_FREQUENCY_COLUMNS
+
+    def test_missing_generation_column_returns_empty(self):
+        df = pd.DataFrame({"chromosome_values": [{"lr": 0.1}]})
+        result = compute_allele_frequency_timeseries(df)
+        assert result.empty
+
+    def test_no_recognised_locus_columns_returns_empty(self):
+        df = pd.DataFrame({"generation": [0, 1], "fitness": [1.0, 2.0]})
+        result = compute_allele_frequency_timeseries(df)
+        assert result.empty
+        assert list(result.columns) == ALLELE_FREQUENCY_COLUMNS
+
+    def test_output_columns_are_correct(self):
+        df = _continuous_df(2, 3, "lr", lambda g, i: 0.1)
+        result = compute_allele_frequency_timeseries(df)
+        assert list(result.columns) == ALLELE_FREQUENCY_COLUMNS
+
+    # --- Continuous loci ---
+
+    def test_continuous_produces_mean_and_variance_alleles(self):
+        df = _continuous_df(2, 4, "lr", lambda g, i: 0.1 + 0.01 * i)
+        result = compute_allele_frequency_timeseries(df)
+        alleles = set(result["allele"].unique())
+        assert ALLELE_MEAN in alleles
+        assert ALLELE_VARIANCE in alleles
+
+    def test_continuous_one_row_per_generation_per_allele(self):
+        n_gens = 5
+        df = _continuous_df(n_gens, 4, "lr", lambda g, i: 0.1 + 0.01 * g)
+        result = compute_allele_frequency_timeseries(df)
+        mean_rows = result[result["allele"] == ALLELE_MEAN]
+        assert len(mean_rows) == n_gens
+
+    def test_continuous_mean_frequency_matches_population_mean(self):
+        # 3 individuals with values 0.1, 0.2, 0.3 → mean = 0.2
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0, 0],
+                "chromosome_values": [{"lr": 0.1}, {"lr": 0.2}, {"lr": 0.3}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        mean_row = result[(result["allele"] == ALLELE_MEAN) & (result["generation"] == 0)]
+        assert len(mean_row) == 1
+        assert mean_row.iloc[0]["frequency"] == pytest.approx(0.2)
+
+    def test_continuous_variance_frequency_matches_population_variance(self):
+        # variance of [0.1, 0.2, 0.3] with ddof=0 = 0.02/3 ≈ 0.00667
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0, 0],
+                "chromosome_values": [{"lr": 0.1}, {"lr": 0.2}, {"lr": 0.3}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        var_row = result[(result["allele"] == ALLELE_VARIANCE) & (result["generation"] == 0)]
+        assert len(var_row) == 1
+        assert var_row.iloc[0]["frequency"] == pytest.approx(0.02 / 3, rel=1e-5)
+
+    def test_continuous_n_individuals_is_correct(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0, 0],
+                "chromosome_values": [{"lr": 0.1}, {"lr": 0.2}, {"lr": 0.3}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        assert result[result["generation"] == 0]["n_individuals"].unique().tolist() == [3]
+
+    def test_continuous_nan_values_excluded(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0, 0],
+                "chromosome_values": [{"lr": 0.1}, {"lr": float("nan")}, {"lr": 0.3}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        mean_row = result[result["allele"] == ALLELE_MEAN]
+        assert mean_row.iloc[0]["n_individuals"] == 2
+        assert mean_row.iloc[0]["frequency"] == pytest.approx(0.2)
+
+    def test_continuous_multiple_genes(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0],
+                "chromosome_values": [{"lr": 0.1, "gamma": 0.9}, {"lr": 0.2, "gamma": 0.95}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        loci = set(result["locus"].unique())
+        assert "lr" in loci
+        assert "gamma" in loci
+
+    def test_continuous_locus_type_is_continuous(self):
+        df = _continuous_df(1, 2, "lr", lambda g, i: 0.1)
+        result = compute_allele_frequency_timeseries(df)
+        assert (result["locus_type"] == "continuous").all()
+
+    def test_continuous_sorted_by_generation(self):
+        df = _continuous_df(4, 2, "lr", lambda g, i: 0.1 * g)
+        result = compute_allele_frequency_timeseries(df)
+        mean_rows = result[result["allele"] == ALLELE_MEAN]
+        assert mean_rows["generation"].is_monotonic_increasing
+
+    # --- Categorical loci ---
+
+    def test_categorical_produces_action_alleles(self):
+        df = _categorical_df(2, 4, lambda g, i: {"move": 0.6, "gather": 0.4})
+        result = compute_allele_frequency_timeseries(df)
+        alleles = set(result["allele"].unique())
+        assert "move" in alleles
+        assert "gather" in alleles
+
+    def test_categorical_frequencies_sum_to_one_per_generation(self):
+        df = _categorical_df(3, 5, lambda g, i: {"move": 0.6, "gather": 0.4})
+        result = compute_allele_frequency_timeseries(df)
+        for gen, grp in result.groupby("generation"):
+            assert grp["frequency"].sum() == pytest.approx(1.0, abs=1e-10)
+
+    def test_categorical_allele_frequencies_match_mean_weights(self):
+        # 2 individuals: one move=1.0, one gather=1.0 → mean p_move = 0.5
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0],
+                "action_weights": [{"move": 1.0}, {"gather": 1.0}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        move_freq = result[(result["allele"] == "move") & (result["generation"] == 0)]["frequency"].iloc[0]
+        gather_freq = result[(result["allele"] == "gather") & (result["generation"] == 0)]["frequency"].iloc[0]
+        assert move_freq == pytest.approx(0.5)
+        assert gather_freq == pytest.approx(0.5)
+
+    def test_categorical_locus_type_is_categorical(self):
+        df = _categorical_df(1, 2, lambda g, i: {"move": 1.0})
+        result = compute_allele_frequency_timeseries(df)
+        assert (result["locus_type"] == "categorical").all()
+
+    def test_categorical_locus_name_is_action_weights(self):
+        df = _categorical_df(1, 2, lambda g, i: {"move": 1.0})
+        result = compute_allele_frequency_timeseries(df)
+        assert (result["locus"] == "action_weights").all()
+
+    def test_categorical_empty_dicts_skipped(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0, 0],
+                "action_weights": [{}, {"move": 1.0}, {"move": 1.0}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        assert result.iloc[0]["n_individuals"] == 2
+
+    # --- Both column types present ---
+
+    def test_both_locus_types_present(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0],
+                "chromosome_values": [{"lr": 0.1}, {"lr": 0.2}],
+                "action_weights": [{"move": 1.0}, {"move": 1.0}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        assert "continuous" in result["locus_type"].values
+        assert "categorical" in result["locus_type"].values
+
+
+# ---------------------------------------------------------------------------
+# compute_selection_pressure_summary
+# ---------------------------------------------------------------------------
+
+
+class TestComputeSelectionPressureSummary:
+    """Tests for compute_selection_pressure_summary."""
+
+    # --- Output shape and columns ---
+
+    def test_empty_df_returns_empty_with_correct_columns(self):
+        result = compute_selection_pressure_summary(pd.DataFrame())
+        assert result.empty
+        assert list(result.columns) == SELECTION_PRESSURE_COLUMNS
+
+    def test_missing_required_column_returns_empty(self):
+        df = pd.DataFrame({"generation": [0], "locus": ["lr"], "allele": [ALLELE_MEAN]})
+        result = compute_selection_pressure_summary(df)
+        assert result.empty
+
+    def test_output_columns_are_correct(self):
+        df = _continuous_df(4, 5, "lr", lambda g, i: 0.1 + 0.01 * g)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        assert list(result.columns) == SELECTION_PRESSURE_COLUMNS
+
+    def test_one_row_per_locus_allele(self):
+        # 1 continuous gene → 2 alleles (__mean__, __variance__)
+        df = _continuous_df(5, 4, "lr", lambda g, i: 0.1 + 0.02 * g)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        assert len(result) == 2  # __mean__ and __variance__
+
+    # --- Drift-only population (no directional signal expected) ---
+
+    def test_drift_only_continuous_not_flagged(self):
+        """Flat mean across generations should not be flagged as under selection."""
+        # Same value every generation → delta = 0 always → z_score = 0
+        df = _continuous_df(10, 20, "lr", lambda g, i: 0.1)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        mean_row = result[result["allele"] == ALLELE_MEAN].iloc[0]
+        assert not mean_row["is_under_selection"]
+        assert mean_row["cumulative_shift"] == pytest.approx(0.0)
+
+    def test_drift_only_categorical_not_flagged(self):
+        """Constant allele frequencies → no selection signal."""
+        df = _categorical_df(10, 20, lambda g, i: {"move": 0.5, "gather": 0.5})
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df, pop_size=20)
+        # All deltas are zero → mean_delta = 0, z_score = nan (drift_std also 0)
+        for _, row in result.iterrows():
+            assert not row["is_under_selection"]
+
+    # --- Directional selection (clear signal) ---
+
+    def test_directional_selection_continuous_flagged(self):
+        """Linearly increasing mean value should be flagged under selection."""
+        # mean increases by 0.05 per generation over 10 generations
+        df = _continuous_df(10, 50, "lr", lambda g, i: 0.1 + 0.05 * g + 0.001 * (i - 25))
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df, significance_threshold=2.0)
+        mean_row = result[result["allele"] == ALLELE_MEAN].iloc[0]
+        assert mean_row["is_under_selection"]
+        assert mean_row["regression_slope"] > 0
+        assert mean_row["cumulative_shift"] > 0
+
+    def test_directional_selection_categorical_flagged_with_pop_size(self):
+        """Allele frequency sweeping from 0.1 to 0.9 should be flagged."""
+        n_gens = 10
+        rows = []
+        for g in range(n_gens):
+            target_freq = 0.1 + 0.08 * g  # 0.1 → 0.82 over 10 gens
+            rows.append({"generation": g, "action_weights": {"move": target_freq, "gather": 1.0 - target_freq}})
+        df = pd.DataFrame(rows)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df, pop_size=100, significance_threshold=2.0)
+        move_row = result[result["allele"] == "move"].iloc[0]
+        assert move_row["is_under_selection"]
+        assert move_row["regression_slope"] > 0
+
+    # --- Effect size and cumulative shift ---
+
+    def test_cumulative_shift_matches_first_last_difference(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0, 1, 1, 2, 2],
+                "chromosome_values": [
+                    {"lr": 0.1}, {"lr": 0.1},
+                    {"lr": 0.2}, {"lr": 0.2},
+                    {"lr": 0.4}, {"lr": 0.4},
+                ],
+            }
+        )
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        mean_row = result[result["allele"] == ALLELE_MEAN].iloc[0]
+        # first gen mean = 0.1, last gen mean = 0.4 → shift = 0.3
+        assert mean_row["cumulative_shift"] == pytest.approx(0.3)
+
+    def test_effect_size_is_absolute_cumulative_shift(self):
+        # Decreasing mean: shift = negative, effect_size = positive
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0, 1, 1],
+                "chromosome_values": [
+                    {"lr": 0.5}, {"lr": 0.5},
+                    {"lr": 0.1}, {"lr": 0.1},
+                ],
+            }
+        )
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        mean_row = result[result["allele"] == ALLELE_MEAN].iloc[0]
+        assert mean_row["cumulative_shift"] == pytest.approx(-0.4)
+        assert mean_row["effect_size"] == pytest.approx(0.4)
+
+    def test_regression_slope_positive_for_increasing_trend(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0, 1, 2, 3],
+                "chromosome_values": [{"lr": 0.1}, {"lr": 0.2}, {"lr": 0.3}, {"lr": 0.4}],
+            }
+        )
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        mean_row = result[result["allele"] == ALLELE_MEAN].iloc[0]
+        assert mean_row["regression_slope"] > 0
+
+    def test_regression_slope_negative_for_decreasing_trend(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0, 1, 2, 3],
+                "chromosome_values": [{"lr": 0.4}, {"lr": 0.3}, {"lr": 0.2}, {"lr": 0.1}],
+            }
+        )
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        mean_row = result[result["allele"] == ALLELE_MEAN].iloc[0]
+        assert mean_row["regression_slope"] < 0
+
+    # --- Single generation: nan for multi-generation statistics ---
+
+    def test_single_generation_cumulative_shift_is_nan(self):
+        df = _continuous_df(1, 4, "lr", lambda g, i: 0.1)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        mean_row = result[result["allele"] == ALLELE_MEAN].iloc[0]
+        assert math.isnan(mean_row["cumulative_shift"])
+
+    def test_single_generation_z_score_is_nan(self):
+        df = _continuous_df(1, 4, "lr", lambda g, i: 0.1)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        mean_row = result[result["allele"] == ALLELE_MEAN].iloc[0]
+        assert math.isnan(mean_row["z_score"])
+
+    def test_single_generation_is_under_selection_false(self):
+        df = _continuous_df(1, 4, "lr", lambda g, i: 0.1)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        assert not result["is_under_selection"].any()
+
+    # --- Boundary-collapse detection ---
+
+    def test_continuous_collapse_detected_when_variance_reaches_zero(self):
+        """All individuals identical in last generation → variance = 0 → collapse."""
+        rows = []
+        # Generations 0-3: spread; generation 4: collapsed (all same value)
+        for g in range(4):
+            for i in range(5):
+                rows.append({"generation": g, "chromosome_values": {"lr": 0.1 + 0.01 * i}})
+        for i in range(5):  # generation 4: all same
+            rows.append({"generation": 4, "chromosome_values": {"lr": 0.5}})
+        df = pd.DataFrame(rows)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        var_row = result[result["allele"] == ALLELE_VARIANCE].iloc[0]
+        assert var_row["collapse_detected"]
+
+    def test_continuous_no_collapse_when_variance_positive(self):
+        """Non-zero final variance → no collapse."""
+        df = _continuous_df(5, 5, "lr", lambda g, i: 0.1 + 0.01 * i)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        var_row = result[result["allele"] == ALLELE_VARIANCE].iloc[0]
+        assert not var_row["collapse_detected"]
+
+    def test_categorical_collapse_detected_when_allele_fixed(self):
+        """Allele frequency sweeping to 1.0 in final generation → collapse."""
+        rows = []
+        for g in range(5):
+            freq = min(0.2 * g + 0.2, 1.0)  # 0.2, 0.4, 0.6, 0.8, 1.0
+            rows.append({"generation": g, "action_weights": {"move": freq, "gather": 1.0 - freq}})
+        df = pd.DataFrame(rows)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        move_row = result[result["allele"] == "move"].iloc[0]
+        assert move_row["collapse_detected"]
+
+    def test_categorical_no_collapse_when_alleles_balanced(self):
+        df = _categorical_df(5, 10, lambda g, i: {"move": 0.5, "gather": 0.5})
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        assert not result["collapse_detected"].any()
+
+    # --- n_generations column ---
+
+    def test_n_generations_matches_number_of_observed_generations(self):
+        n_gens = 7
+        df = _continuous_df(n_gens, 3, "lr", lambda g, i: 0.1)
+        freq_df = compute_allele_frequency_timeseries(df)
+        result = compute_selection_pressure_summary(freq_df)
+        assert (result["n_generations"] == n_gens).all()
+
+    # --- Configurable significance threshold ---
+
+    def test_higher_threshold_reduces_number_flagged(self):
+        # Build a strong but finite directional signal
+        df = _continuous_df(10, 50, "lr", lambda g, i: 0.05 * g + 0.001 * (i - 25))
+        freq_df = compute_allele_frequency_timeseries(df)
+        result_low = compute_selection_pressure_summary(freq_df, significance_threshold=1.0)
+        result_high = compute_selection_pressure_summary(freq_df, significance_threshold=10.0)
+        n_low = int(result_low["is_under_selection"].sum())
+        n_high = int(result_high["is_under_selection"].sum())
+        assert n_low >= n_high  # higher threshold cannot flag more
