@@ -58,6 +58,7 @@ from farm.analysis import (
     dominance,
     genesis,
     learning,
+    phylogenetics,
     population,
     resources,
     significant_events,
