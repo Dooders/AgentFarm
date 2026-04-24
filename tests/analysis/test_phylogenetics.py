@@ -25,7 +25,6 @@ import pytest
 
 from farm.analysis.phylogenetics.compute import (
     PhylogeneticTree,
-    PhylogeneticTreeSummary,
     build_phylogenetic_tree,
     build_phylogenetic_tree_from_records,
 )
