@@ -2559,7 +2559,7 @@ def compute_conserved_runs(
     epsilon: float = 1e-4,
     min_run_length: int = 2,
 ) -> pd.DataFrame:
-    """Detect conserved contiguous locus spans (ROH analogue) per generation.
+    """Detect conserved contiguous locus spans (runs of homozygosity, ROH analogue) per generation.
 
     For each generation, sorts loci alphabetically to define chromosome order,
     computes population variance (ddof=0) per locus, and identifies contiguous
@@ -2752,7 +2752,10 @@ def compute_sweep_candidates(
     Combines :func:`compute_conserved_runs` output with
     :func:`compute_selection_pressure_summary` output to surface loci that are
     simultaneously under directional selection *and* show reduced population
-    variance, analogous to a selective sweep.
+    variance, analogous to a selective sweep.  Selection-pressure signals are
+    derived from :func:`compute_selection_pressure_summary`, which detects
+    statistically significant directional changes in allele frequency (or
+    gene-value moments) relative to a neutral-drift baseline.
 
     Parameters
     ----------
@@ -2825,15 +2828,16 @@ def compute_sweep_candidates(
     # -- Extract per-locus selection pressure --
     selection_stats: Dict[str, Dict[str, Any]] = {}
     if not pressure_df.empty and required_pressure.issubset(pressure_df.columns):
+        has_allele_col = "allele" in pressure_df.columns
         for locus, locus_pgroup in pressure_df.groupby("locus"):
             locus_str = str(locus)
             # Prefer the __mean__ allele for continuous loci.
-            mean_rows = locus_pgroup[locus_pgroup["allele"] == ALLELE_MEAN] if "allele" in locus_pgroup.columns else pd.DataFrame()
+            mean_rows = locus_pgroup[locus_pgroup["allele"] == ALLELE_MEAN] if has_allele_col else pd.DataFrame()
             if not mean_rows.empty:
                 row = mean_rows.iloc[0]
             else:
                 # For categorical loci: pick allele with largest |z_score|.
-                if "allele" in locus_pgroup.columns and not locus_pgroup.empty:
+                if has_allele_col and not locus_pgroup.empty:
                     abs_z = locus_pgroup["z_score"].abs()
                     row = locus_pgroup.iloc[int(abs_z.argmax())]
                 else:
