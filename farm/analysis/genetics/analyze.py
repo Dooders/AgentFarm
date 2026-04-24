@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -163,7 +163,7 @@ def generate_genetics_report(
         # ------------------------------------------------------------------
         # Build Markdown content
         # ------------------------------------------------------------------
-        lines: list[str] = [
+        lines: List[str] = [
             "# Genetics Analysis Report",
             "",
             "## Population Overview",
@@ -216,7 +216,10 @@ def generate_genetics_report(
                 "| Generation | Count |",
                 "|------------|-------|",
             ]
-            for gen_key in sorted(stats["generation_counts"].keys(), key=lambda x: int(x)):
+            for gen_key in sorted(
+                (k for k in stats["generation_counts"].keys() if str(k).lstrip("-").isdigit()),
+                key=lambda x: int(x),
+            ):
                 lines.append(f"| {gen_key} | {stats['generation_counts'][gen_key]} |")
 
         lines += [
@@ -249,9 +252,9 @@ def generate_genetics_report(
             try:
                 import html as html_lib
 
-                def _md_table_to_html(md_lines: list[str]) -> str:
+                def _md_table_to_html(md_lines: List[str]) -> str:
                     """Minimal Markdown-table → HTML conversion."""
-                    html_rows: list[str] = []
+                    html_rows: List[str] = []
                     header_done = False
                     for line in md_lines:
                         line = line.strip()
@@ -278,7 +281,7 @@ def generate_genetics_report(
                     return "<table border='1' cellpadding='6' cellspacing='0'>" + "".join(html_rows) + "</table>"
 
                 # Convert markdown to basic HTML
-                html_body_parts: list[str] = []
+                html_body_parts: List[str] = []
                 i = 0
                 md_lines_list = md_content.splitlines()
                 while i < len(md_lines_list):
@@ -290,7 +293,7 @@ def generate_genetics_report(
                         html_body_parts.append(f"<h2>{html_lib.escape(stripped[3:])}</h2>")
                     elif stripped.startswith("|"):
                         # Collect table block
-                        table_block: list[str] = []
+                        table_block: List[str] = []
                         while i < len(md_lines_list) and md_lines_list[i].strip().startswith("|"):
                             table_block.append(md_lines_list[i])
                             i += 1

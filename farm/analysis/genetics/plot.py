@@ -364,7 +364,9 @@ def plot_allele_frequency_trajectories(
         freq_df = compute_allele_frequency_timeseries(df)
     else:
         logger.warning(
-            "plot_allele_frequency_trajectories: DataFrame lacks required columns"
+            "plot_allele_frequency_trajectories: DataFrame lacks required columns; "
+            "expected either (locus, allele, frequency) columns (allele-frequency tidy frame) "
+            "or (generation, chromosome_values/action_weights) columns (raw genetics frame)"
         )
         return None
 
@@ -651,7 +653,9 @@ def plot_wright_fisher_overlay(
             return None
 
         gens_sorted = sorted(freq_df["generation"].unique())
-        n_gens = n_generations if n_generations is not None else (max(gens_sorted) - min(gens_sorted))
+        # Use generation span + 1 so the WF run covers the same number of steps
+        # as the observed data (e.g. generations [0, 1, 2] → n_gens=3).
+        n_gens = n_generations if n_generations is not None else (max(gens_sorted) - min(gens_sorted) + 1)
         if n_gens <= 0:
             logger.warning("plot_wright_fisher_overlay: need at least 2 generations")
             return None
@@ -700,7 +704,13 @@ def plot_wright_fisher_overlay(
                 ax.plot(obs_gens, obs_vals, color="steelblue", linewidth=2, label="Observed (mean)", zorder=3)
                 obs_label = "Population mean"
 
-                # WF neutral drift: use initial mean as the "allele frequency"
+                # WF neutral drift: use initial mean as the "allele frequency".
+                # The Wright-Fisher simulator requires frequency values in [0, 1]
+                # that sum to 1.  For continuous loci we create a two-allele proxy:
+                # "allele" = initial population mean (clipped to [0, 1]) and
+                # "_complement" = 1 - initial_mean.  This provides a neutral-drift
+                # baseline that shows the expected variance under random drift alone,
+                # making directional shifts in the observed mean visually apparent.
                 if len(obs_vals) > 0 and np.isfinite(obs_vals[0]):
                     # Normalize to [0, 1] range for WF simulator using a two-allele proxy
                     init_val = float(np.clip(obs_vals[0], 0.0, 1.0))
