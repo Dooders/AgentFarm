@@ -1,0 +1,20 @@
+---
+layout: home
+title: Page not found
+permalink: /404.html
+---
+
+<div class="container" style="text-align:center; padding: 80px 20px;">
+  <p style="font-family: var(--font-mono); color: var(--text-soft); letter-spacing: 0.2em;">ERROR 404</p>
+  <h1 style="font-size: clamp(2rem, 1.4rem + 2vw, 3rem); margin: 8px 0 12px; letter-spacing: -0.02em;">
+    This page wandered off the simulation grid.
+  </h1>
+  <p class="muted" style="max-width: 50ch; margin: 0 auto 24px;">
+    The page you're looking for doesn't exist or has been moved. Try the docs index, the devlog, or jump
+    back to the AgentFarm homepage.
+  </p>
+  <p>
+    <a class="btn btn--primary" href="{{ '/' | relative_url }}">Back to home</a>
+    <a class="btn btn--ghost" style="background: var(--surface-muted); color: var(--text); border-color: var(--border);" href="{{ '/README/' | relative_url }}">Documentation index</a>
+  </p>
+</div>

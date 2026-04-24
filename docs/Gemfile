@@ -1,0 +1,4 @@
+source "https://rubygems.org"
+
+# Mirrors what the `actions/jekyll-build-pages` action uses on GitHub Pages.
+gem "github-pages", group: :jekyll_plugins
