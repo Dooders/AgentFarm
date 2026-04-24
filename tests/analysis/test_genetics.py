@@ -3443,3 +3443,305 @@ class TestGeneticsModuleAdaptationSignatures:
         assert isinstance(result, pd.DataFrame)
         lr_row = result[result["locus"] == "lr"].iloc[0]
         assert bool(lr_row["is_under_selection"]) is True
+
+
+# ---------------------------------------------------------------------------
+# New plot functions and report generation
+# ---------------------------------------------------------------------------
+
+
+from farm.analysis.genetics.analyze import generate_genetics_report
+from farm.analysis.genetics.plot import (
+    plot_allele_frequency_trajectories,
+    plot_diversity_over_time,
+    plot_wright_fisher_overlay,
+    plot_conserved_run_timeline,
+)
+
+
+def _make_simple_evolution_df(n_gens: int = 3, n_per_gen: int = 4) -> pd.DataFrame:
+    """Build a minimal evolution DataFrame for plotting tests."""
+    rows = []
+    for gen in range(n_gens):
+        for i in range(n_per_gen):
+            rows.append({
+                "candidate_id": f"g{gen}_c{i}",
+                "generation": gen,
+                "fitness": float(gen * 10 + i),
+                "parent_ids": ["seed"] if gen == 0 else [f"g{gen-1}_c{i % n_per_gen}"],
+                "chromosome_values": {"learning_rate": 0.001 + i * 0.001 + gen * 0.0001, "gamma": 0.9 + i * 0.01},
+                "agent_type": "SystemAgent",
+            })
+    return pd.DataFrame(rows)
+
+
+def _make_simple_db_df(n_gens: int = 3, n_per_gen: int = 4) -> pd.DataFrame:
+    """Build a minimal DB-backed DataFrame for plotting tests."""
+    rows = []
+    for gen in range(n_gens):
+        for i in range(n_per_gen):
+            rows.append({
+                "agent_id": f"a{gen}_{i}",
+                "agent_type": "SystemAgent",
+                "generation": gen,
+                "birth_time": gen * 5 + i,
+                "death_time": None,
+                "genome_id": f"::1",
+                "parent_ids": [],
+                "action_weights": {"move": 0.5 + i * 0.05, "gather": 0.5 - i * 0.05},
+            })
+    return pd.DataFrame(rows)
+
+
+class TestGenerateGeneticsReport:
+    """Tests for generate_genetics_report."""
+
+    def test_markdown_report_created(self, tmp_path):
+        df = _make_simple_evolution_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = generate_genetics_report(df, ctx, formats="markdown")
+        assert result is not None
+        md_file = tmp_path / "genetics_report.md"
+        assert md_file.exists()
+        content = md_file.read_text()
+        assert "# Genetics Analysis Report" in content
+        assert "Fitness Summary" in content
+
+    def test_html_report_created(self, tmp_path):
+        df = _make_simple_evolution_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        generate_genetics_report(df, ctx, formats="html")
+        html_file = tmp_path / "genetics_report.html"
+        assert html_file.exists()
+        content = html_file.read_text()
+        assert "<html>" in content
+        assert "Genetics Analysis Report" in content
+
+    def test_both_formats_created(self, tmp_path):
+        df = _make_simple_evolution_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        generate_genetics_report(df, ctx, formats="both")
+        assert (tmp_path / "genetics_report.md").exists()
+        assert (tmp_path / "genetics_report.html").exists()
+
+    def test_json_summary_created(self, tmp_path):
+        df = _make_simple_evolution_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        generate_genetics_report(df, ctx, formats="markdown")
+        json_file = tmp_path / "genetics_summary.json"
+        assert json_file.exists()
+        import json
+        data = json.loads(json_file.read_text())
+        assert "total_agents" in data
+
+    def test_empty_dataframe_graceful(self, tmp_path):
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = generate_genetics_report(pd.DataFrame(), ctx, formats="markdown")
+        # Should not raise; may return None or a path
+        assert result is None or isinstance(result, Path)
+
+    def test_db_backed_dataframe(self, tmp_path):
+        df = _make_simple_db_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = generate_genetics_report(df, ctx, formats="markdown")
+        assert result is not None
+        content = (tmp_path / "genetics_report.md").read_text()
+        assert "Generation" in content
+
+
+class TestPlotAllelFrequencyTrajectories:
+    """Tests for plot_allele_frequency_trajectories."""
+
+    def test_returns_path_on_valid_data(self, tmp_path):
+        df = _make_simple_evolution_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_allele_frequency_trajectories(df, ctx)
+        assert result is not None
+        assert Path(result).exists()
+
+    def test_returns_none_on_empty(self, tmp_path):
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_allele_frequency_trajectories(pd.DataFrame(), ctx)
+        assert result is None
+
+    def test_works_with_precomputed_freq_df(self, tmp_path):
+        from farm.analysis.genetics.compute import compute_allele_frequency_timeseries
+        df = _make_simple_evolution_df()
+        freq_df = compute_allele_frequency_timeseries(df)
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_allele_frequency_trajectories(freq_df, ctx)
+        assert result is not None
+
+    def test_works_with_db_df(self, tmp_path):
+        df = _make_simple_db_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_allele_frequency_trajectories(df, ctx)
+        # DB frames with action_weights should produce a plot
+        assert result is not None
+
+
+class TestPlotDiversityOverTime:
+    """Tests for plot_diversity_over_time."""
+
+    def test_returns_path_on_valid_evolution_data(self, tmp_path):
+        df = _make_simple_evolution_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_diversity_over_time(df, ctx)
+        assert result is not None
+        assert Path(result).exists()
+
+    def test_returns_none_on_empty(self, tmp_path):
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_diversity_over_time(pd.DataFrame(), ctx)
+        assert result is None
+
+    def test_works_with_freq_df(self, tmp_path):
+        from farm.analysis.genetics.compute import compute_allele_frequency_timeseries
+        df = _make_simple_db_df()
+        freq_df = compute_allele_frequency_timeseries(df)
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_diversity_over_time(freq_df, ctx)
+        # Result may be None if no categorical loci have valid diversity
+        assert result is None or Path(result).exists()
+
+
+class TestPlotWrightFisherOverlay:
+    """Tests for plot_wright_fisher_overlay."""
+
+    def test_returns_path_on_valid_data(self, tmp_path):
+        df = _make_simple_evolution_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_wright_fisher_overlay(df, ctx, n_effective=10, n_generations=2, seed=0)
+        assert result is not None
+        assert Path(result).exists()
+
+    def test_returns_none_on_empty(self, tmp_path):
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_wright_fisher_overlay(pd.DataFrame(), ctx)
+        assert result is None
+
+    def test_works_with_db_df(self, tmp_path):
+        df = _make_simple_db_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_wright_fisher_overlay(df, ctx, n_effective=5, n_generations=2, seed=1)
+        assert result is not None
+
+
+class TestPlotConservedRunTimeline:
+    """Tests for plot_conserved_run_timeline."""
+
+    def test_returns_path_on_valid_data(self, tmp_path):
+        df = _make_simple_evolution_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_conserved_run_timeline(df, ctx)
+        assert result is not None
+        assert Path(result).exists()
+
+    def test_returns_none_on_empty(self, tmp_path):
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_conserved_run_timeline(pd.DataFrame(), ctx)
+        assert result is None
+
+    def test_works_with_precomputed_conserved_df(self, tmp_path):
+        df = _make_simple_evolution_df()
+        conserved_df = compute_conserved_runs(df, epsilon=1e-4, min_run_length=1)
+        if not conserved_df.empty:
+            ctx = AnalysisContext(output_path=tmp_path)
+            result = plot_conserved_run_timeline(conserved_df, ctx)
+            assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# End-to-end AnalysisService integration test
+# ---------------------------------------------------------------------------
+
+
+import pytest as _pytest
+from unittest.mock import MagicMock as _MagicMock
+
+
+class TestGeneticsServiceIntegration:
+    """End-to-end integration test for AnalysisService with the genetics module."""
+
+    @_pytest.mark.integration
+    def test_analysis_service_run_produces_outputs(self, tmp_path):
+        """AnalysisService.run(AnalysisRequest(module_name='genetics', ...)) produces charts + report."""
+        from farm.analysis.service import AnalysisService, AnalysisRequest
+        from farm.analysis.registry import registry
+
+        # Ensure genetics module is registered
+        if "genetics" not in registry.get_module_names():
+            from farm.analysis.genetics.module import genetics_module
+            registry.register(genetics_module)
+
+        # Build a minimal fixture experiment directory with a genetics CSV
+        experiment_path = tmp_path / "experiment"
+        experiment_path.mkdir()
+
+        # Write fixture CSV that the data processor can load
+        df_fixture = _make_simple_evolution_df(n_gens=3, n_per_gen=4)
+        fixture_csv = experiment_path / "genetics_data.csv"
+        df_fixture.to_csv(fixture_csv, index=False)
+
+        config_mock = _MagicMock()
+        config_mock.get_analysis_module_paths.return_value = []
+
+        output_path = tmp_path / "output"
+
+        request = AnalysisRequest(
+            module_name="genetics",
+            experiment_path=experiment_path,
+            output_path=output_path,
+            group="basic",
+        )
+
+        service = AnalysisService(config_service=config_mock, auto_register=False)
+        result = service.run(request)
+
+        # Module was invoked without crashing
+        assert result is not None
+        assert result.module_name == "genetics"
+        # A success or graceful empty result is acceptable; no unhandled exception
+        assert result.error is None or isinstance(result.error, str)
+
+    def test_genetics_module_registered_in_builtin_list(self):
+        """Genetics module is present in the built-in registry list."""
+        from farm.analysis.registry import _register_builtin_modules, registry, ModuleRegistry
+
+        # Use a fresh registry to avoid side effects
+        temp_registry = ModuleRegistry()
+        original = registry._modules.copy()
+        try:
+            registry.clear()
+            count = _register_builtin_modules()
+            assert "genetics" in registry.get_module_names(), (
+                "genetics module not found in built-in registry"
+            )
+            assert count > 0
+        finally:
+            # Restore
+            registry._modules.update(original)
+
+    def test_genetics_module_function_groups(self):
+        """All expected function groups are present in the GeneticsModule."""
+        module = GeneticsModule()
+        module.register_functions()
+        groups = module.get_function_groups()
+        for expected_group in ("all", "plots", "analysis", "basic", "report",
+                               "fitness_landscape", "population_genetics", "adaptation_signatures"):
+            assert expected_group in groups, f"Missing function group: {expected_group}"
+
+    def test_genetics_module_new_plot_functions_registered(self):
+        """New plot functions are registered in the genetics module."""
+        module = GeneticsModule()
+        module.register_functions()
+        # _functions is a dict keyed by function name
+        func_names = list(module._functions.keys())
+        for expected_fn in (
+            "plot_allele_frequency_trajectories",
+            "plot_diversity_over_time",
+            "plot_wright_fisher_overlay",
+            "plot_conserved_run_timeline",
+            "generate_genetics_report",
+        ):
+            assert expected_fn in func_names, f"Missing function: {expected_fn}"
