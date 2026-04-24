@@ -53,7 +53,7 @@ log.info(<span class="tk-str">"simulation_complete"</span>, agents=<span class="
   </div>
 </section>
 
-<section class="section">
+<section class="section" id="features">
   <div class="container">
     <header class="section__head">
       <span class="section__eyebrow">What it does</span>
@@ -122,7 +122,7 @@ log.info(<span class="tk-str">"simulation_complete"</span>, agents=<span class="
   </div>
 </section>
 
-<section class="section section--muted">
+<section class="section section--muted" id="quickstart">
   <div class="container">
     <header class="section__head">
       <span class="section__eyebrow">Quick start</span>
