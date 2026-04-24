@@ -235,6 +235,9 @@ def _register_builtin_modules() -> int:
 
         # Genetics analysis module
         "farm.analysis.genetics.module.genetics_module",
+
+        # Phylogenetics analysis module
+        "farm.analysis.phylogenetics.module.phylogenetics_module",
     ]
 
     count = 0
