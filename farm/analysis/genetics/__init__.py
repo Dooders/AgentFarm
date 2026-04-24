@@ -87,7 +87,7 @@ from farm.analysis.genetics.compute import (
     compute_sweep_candidates,
     SWEEP_CANDIDATE_COLUMNS,
 )
-from farm.analysis.genetics.analyze import analyze_genetics
+from farm.analysis.genetics.analyze import analyze_genetics, generate_genetics_report
 from farm.analysis.genetics.module import genetics_module, GeneticsModule
 
 __all__ = [
@@ -140,6 +140,7 @@ __all__ = [
     "SWEEP_CANDIDATE_COLUMNS",
     # High-level analysis
     "analyze_genetics",
+    "generate_genetics_report",
     "genetics_module",
     "GeneticsModule",
 ]

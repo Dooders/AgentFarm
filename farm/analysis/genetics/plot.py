@@ -1,14 +1,20 @@
 """
 Genetics Analysis Visualization
 
-Placeholder visualization functions for the genetics analysis module.
+Visualization functions for the genetics analysis module covering:
+- Generation distribution and fitness trajectories
+- Allele-frequency trajectories per locus
+- Per-generation diversity (heterozygosity, Shannon entropy)
+- Wright-Fisher neutral drift overlay vs. observed frequencies
+- 2D fitness-landscape heatmap / scatter
+- Conserved-run timeline per locus
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
 
@@ -303,4 +309,585 @@ def plot_fitness_landscape_2d(
         return output_file
     except Exception as exc:
         logger.warning("plot_fitness_landscape_2d failed: %s", exc)
+        return None
+
+
+def plot_allele_frequency_trajectories(
+    df: pd.DataFrame,
+    ctx: AnalysisContext,
+    loci: Optional[Sequence[str]] = None,
+    max_loci: int = 6,
+    **kwargs: Any,
+) -> Optional[Path]:
+    """Plot per-locus allele-frequency trajectories across generations.
+
+    Accepts the tidy DataFrame produced by
+    :func:`~farm.analysis.genetics.compute.compute_allele_frequency_timeseries`
+    **or** a raw genetics DataFrame (with ``generation`` plus
+    ``chromosome_values`` / ``action_weights`` columns), computing the
+    allele-frequency timeseries internally when needed.
+
+    One subplot is drawn per locus.  Continuous loci show the population
+    ``__mean__`` trajectory; categorical loci show one line per allele.
+
+    Parameters
+    ----------
+    df:
+        Allele-frequency tidy frame or raw genetics DataFrame.
+    ctx:
+        Analysis context supplying output paths and a logger.
+    loci:
+        Optional subset of locus names to plot.  When omitted, all loci up
+        to *max_loci* are shown.
+    max_loci:
+        Maximum number of subplots when *loci* is not supplied.
+
+    Returns
+    -------
+    Path or None
+        Path to the saved PNG file, or ``None`` on error / missing data.
+    """
+    if df.empty:
+        logger.warning("plot_allele_frequency_trajectories: empty DataFrame")
+        return None
+
+    # If the frame already has allele-frequency columns use it directly;
+    # otherwise derive from the raw genetics DataFrame.
+    freq_df: pd.DataFrame
+    if "locus" in df.columns and "allele" in df.columns and "frequency" in df.columns:
+        freq_df = df
+    elif "generation" in df.columns and (
+        "chromosome_values" in df.columns or "action_weights" in df.columns
+    ):
+        from farm.analysis.genetics.compute import compute_allele_frequency_timeseries
+
+        freq_df = compute_allele_frequency_timeseries(df)
+    else:
+        logger.warning(
+            "plot_allele_frequency_trajectories: DataFrame lacks required columns"
+        )
+        return None
+
+    if freq_df.empty:
+        logger.warning("plot_allele_frequency_trajectories: no allele-frequency data")
+        return None
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        from farm.analysis.genetics.compute import ALLELE_MEAN
+
+        # Determine loci to plot
+        available_loci: List[str] = list(freq_df["locus"].unique())
+        if loci:
+            plot_loci = [loc for loc in loci if loc in available_loci]
+        else:
+            plot_loci = available_loci[:max_loci]
+
+        if not plot_loci:
+            logger.warning("plot_allele_frequency_trajectories: no loci to plot")
+            return None
+
+        n_cols = min(3, len(plot_loci))
+        n_rows = (len(plot_loci) + n_cols - 1) // n_cols
+        fig, axes = plt.subplots(
+            n_rows, n_cols,
+            figsize=(5 * n_cols, 4 * n_rows),
+            squeeze=False,
+        )
+        axes_flat = [axes[r][c] for r in range(n_rows) for c in range(n_cols)]
+
+        for ax_idx, locus in enumerate(plot_loci):
+            ax = axes_flat[ax_idx]
+            locus_df = freq_df[freq_df["locus"] == locus].copy()
+            locus_type = locus_df["locus_type"].iloc[0] if not locus_df.empty else "unknown"
+
+            if locus_type == "continuous":
+                # Show __mean__ trajectory; skip __variance__ for clarity
+                mean_df = locus_df[locus_df["allele"] == ALLELE_MEAN].sort_values("generation")
+                if not mean_df.empty:
+                    ax.plot(mean_df["generation"], mean_df["frequency"], marker="o", markersize=3)
+                ax.set_ylabel("Population mean")
+            else:
+                # Categorical: one line per allele
+                for allele, allele_df in locus_df.groupby("allele"):
+                    allele_df = allele_df.sort_values("generation")
+                    ax.plot(allele_df["generation"], allele_df["frequency"], marker=".", markersize=3, label=str(allele))
+                if len(locus_df["allele"].unique()) <= 8:
+                    ax.legend(fontsize=7, loc="best")
+                ax.set_ylabel("Allele frequency")
+
+            ax.set_xlabel("Generation")
+            ax.set_title(f"{locus}\n({locus_type})", fontsize=9)
+            ax.set_ylim(bottom=0)
+
+        # Hide unused axes
+        for ax in axes_flat[len(plot_loci):]:
+            ax.set_visible(False)
+
+        fig.suptitle("Allele-frequency trajectories", fontsize=11, y=1.02)
+        fig.tight_layout()
+
+        output_file = ctx.get_output_file("genetics_allele_frequency_trajectories.png")
+        fig.savefig(output_file, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info("Saved allele-frequency trajectory plot to %s", output_file)
+        return output_file
+    except Exception as exc:
+        logger.warning("plot_allele_frequency_trajectories failed: %s", exc)
+        return None
+
+
+def plot_diversity_over_time(
+    df: pd.DataFrame,
+    ctx: AnalysisContext,
+    **kwargs: Any,
+) -> Optional[Path]:
+    """Plot per-generation genetic diversity: heterozygosity and Shannon entropy.
+
+    Accepts either:
+    * A raw genetics DataFrame (with ``generation`` and ``chromosome_values`` /
+      ``action_weights`` columns) – diversity metrics are computed per
+      generation internally, or
+    * A tidy allele-frequency DataFrame (from
+      :func:`~farm.analysis.genetics.compute.compute_allele_frequency_timeseries`)
+      – Shannon entropy is derived from allele-frequency distributions.
+
+    Parameters
+    ----------
+    df:
+        Genetics DataFrame or allele-frequency tidy frame.
+    ctx:
+        Analysis context supplying output paths and a logger.
+
+    Returns
+    -------
+    Path or None
+        Path to the saved PNG file, or ``None`` on error / missing data.
+    """
+    if df.empty:
+        logger.warning("plot_diversity_over_time: empty DataFrame")
+        return None
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        generations: List[int] = []
+        heterozygosity_vals: List[float] = []
+        entropy_vals: List[float] = []
+
+        is_freq_df = (
+            "locus" in df.columns
+            and "allele" in df.columns
+            and "frequency" in df.columns
+            and "generation" in df.columns
+        )
+        has_raw_columns = "generation" in df.columns and (
+            "chromosome_values" in df.columns or "action_weights" in df.columns
+        )
+
+        if is_freq_df:
+            # Derive diversity metrics from allele-frequency tidy frame
+            for gen, gen_df in df.groupby("generation"):
+                cats = gen_df[gen_df["locus_type"] == "categorical"]
+                het_vals_gen: List[float] = []
+                ent_vals_gen: List[float] = []
+                for locus, locus_df in cats.groupby("locus"):
+                    freqs = locus_df["frequency"].values
+                    freqs = freqs[np.isfinite(freqs)]
+                    if freqs.sum() > 0:
+                        freqs = freqs / freqs.sum()
+                    het_vals_gen.append(1.0 - float(np.sum(freqs ** 2)))
+                    nonzero = freqs[freqs > 0]
+                    ent_vals_gen.append(float(-np.sum(nonzero * np.log(nonzero))))
+                generations.append(int(gen))
+                heterozygosity_vals.append(float(np.mean(het_vals_gen)) if het_vals_gen else float("nan"))
+                entropy_vals.append(float(np.mean(ent_vals_gen)) if ent_vals_gen else float("nan"))
+
+        elif has_raw_columns:
+            from farm.analysis.genetics.compute import (
+                compute_population_diversity,
+            )
+            for gen, gen_df in df.groupby("generation"):
+                try:
+                    gen_int = int(float(gen))
+                except (TypeError, ValueError):
+                    continue
+                diversity = compute_population_diversity(gen_df.reset_index(drop=True))
+                generations.append(gen_int)
+                heterozygosity_vals.append(diversity.mean_heterozygosity)
+                entropy_vals.append(diversity.mean_shannon_entropy)
+        else:
+            logger.warning("plot_diversity_over_time: DataFrame lacks required columns")
+            return None
+
+        if not generations:
+            logger.warning("plot_diversity_over_time: no generation data extracted")
+            return None
+
+        sort_idx = sorted(range(len(generations)), key=lambda i: generations[i])
+        generations = [generations[i] for i in sort_idx]
+        heterozygosity_vals = [heterozygosity_vals[i] for i in sort_idx]
+        entropy_vals = [entropy_vals[i] for i in sort_idx]
+
+        fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+        ax_het, ax_ent = axes
+
+        het_arr = np.array(heterozygosity_vals, dtype=float)
+        ent_arr = np.array(entropy_vals, dtype=float)
+
+        valid_het = np.isfinite(het_arr)
+        if valid_het.any():
+            ax_het.plot(
+                [generations[i] for i in range(len(generations)) if valid_het[i]],
+                het_arr[valid_het],
+                marker="o", markersize=4, color="steelblue",
+            )
+        ax_het.set_ylabel("Expected heterozygosity")
+        ax_het.set_title("Per-generation genetic diversity")
+        ax_het.set_ylim(bottom=0)
+
+        valid_ent = np.isfinite(ent_arr)
+        if valid_ent.any():
+            ax_ent.plot(
+                [generations[i] for i in range(len(generations)) if valid_ent[i]],
+                ent_arr[valid_ent],
+                marker="s", markersize=4, color="darkorange",
+            )
+        ax_ent.set_ylabel("Shannon entropy (nats)")
+        ax_ent.set_xlabel("Generation")
+        ax_ent.set_ylim(bottom=0)
+
+        fig.tight_layout()
+        output_file = ctx.get_output_file("genetics_diversity_over_time.png")
+        fig.savefig(output_file, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info("Saved diversity-over-time plot to %s", output_file)
+        return output_file
+    except Exception as exc:
+        logger.warning("plot_diversity_over_time failed: %s", exc)
+        return None
+
+
+def plot_wright_fisher_overlay(
+    df: pd.DataFrame,
+    ctx: AnalysisContext,
+    n_effective: Optional[int] = None,
+    n_generations: Optional[int] = None,
+    seed: Optional[int] = 42,
+    loci: Optional[Sequence[str]] = None,
+    max_loci: int = 4,
+    **kwargs: Any,
+) -> Optional[Path]:
+    """Overlay observed allele-frequency trajectories against Wright-Fisher neutral drift.
+
+    For each selected locus, computes the observed allele-frequency trajectory
+    from *df* and draws it against a simulated Wright-Fisher neutral baseline
+    so that deviations from neutral expectation are immediately visible.
+
+    Parameters
+    ----------
+    df:
+        Raw genetics DataFrame (``generation`` + ``chromosome_values`` /
+        ``action_weights``) or allele-frequency tidy frame.
+    ctx:
+        Analysis context supplying output paths and a logger.
+    n_effective:
+        Effective population size for the Wright-Fisher simulation.  Derived
+        from the first-generation population count when omitted.
+    n_generations:
+        Number of generations to simulate.  Derived from *df* when omitted.
+    seed:
+        RNG seed for reproducibility.
+    loci:
+        Subset of loci to plot.  The first *max_loci* are shown when omitted.
+    max_loci:
+        Maximum loci plotted when *loci* is not supplied.
+
+    Returns
+    -------
+    Path or None
+        Path to the saved PNG file, or ``None`` on error / missing data.
+    """
+    if df.empty:
+        logger.warning("plot_wright_fisher_overlay: empty DataFrame")
+        return None
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from farm.analysis.genetics.compute import (
+            ALLELE_MEAN,
+            compute_allele_frequency_timeseries,
+            simulate_wright_fisher,
+        )
+
+        # Derive observed allele-frequency frame
+        is_freq_df = (
+            "locus" in df.columns
+            and "allele" in df.columns
+            and "frequency" in df.columns
+        )
+        if is_freq_df:
+            freq_df = df
+        elif "generation" in df.columns and (
+            "chromosome_values" in df.columns or "action_weights" in df.columns
+        ):
+            freq_df = compute_allele_frequency_timeseries(df)
+        else:
+            logger.warning("plot_wright_fisher_overlay: DataFrame lacks required columns")
+            return None
+
+        if freq_df.empty:
+            logger.warning("plot_wright_fisher_overlay: no allele-frequency data")
+            return None
+
+        gens_sorted = sorted(freq_df["generation"].unique())
+        n_gens = n_generations if n_generations is not None else (max(gens_sorted) - min(gens_sorted))
+        if n_gens <= 0:
+            logger.warning("plot_wright_fisher_overlay: need at least 2 generations")
+            return None
+
+        # Infer N_e from first generation count if not provided
+        if n_effective is None:
+            first_gen = min(gens_sorted)
+            n_effective = int(freq_df[freq_df["generation"] == first_gen]["n_individuals"].max())
+            n_effective = max(1, n_effective)
+
+        # Select loci
+        available_loci = list(freq_df["locus"].unique())
+        if loci:
+            plot_loci = [loc for loc in loci if loc in available_loci]
+        else:
+            # Prefer continuous loci for the overlay (mean trajectory)
+            cont_loci = [
+                loc for loc in available_loci
+                if freq_df[freq_df["locus"] == loc]["locus_type"].iloc[0] == "continuous"
+            ]
+            plot_loci = (cont_loci or available_loci)[:max_loci]
+
+        if not plot_loci:
+            logger.warning("plot_wright_fisher_overlay: no loci to plot")
+            return None
+
+        n_cols = min(2, len(plot_loci))
+        n_rows = (len(plot_loci) + n_cols - 1) // n_cols
+        fig, axes = plt.subplots(
+            n_rows, n_cols,
+            figsize=(6 * n_cols, 4 * n_rows),
+            squeeze=False,
+        )
+        axes_flat = [axes[r][c] for r in range(n_rows) for c in range(n_cols)]
+
+        for ax_idx, locus in enumerate(plot_loci):
+            ax = axes_flat[ax_idx]
+            locus_df = freq_df[freq_df["locus"] == locus].copy()
+            locus_type = locus_df["locus_type"].iloc[0] if not locus_df.empty else "unknown"
+
+            # Observed trajectory
+            if locus_type == "continuous":
+                obs_df = locus_df[locus_df["allele"] == ALLELE_MEAN].sort_values("generation")
+                obs_gens = obs_df["generation"].values
+                obs_vals = obs_df["frequency"].values
+                ax.plot(obs_gens, obs_vals, color="steelblue", linewidth=2, label="Observed (mean)", zorder=3)
+                obs_label = "Population mean"
+
+                # WF neutral drift: use initial mean as the "allele frequency"
+                if len(obs_vals) > 0 and np.isfinite(obs_vals[0]):
+                    # Normalize to [0, 1] range for WF simulator using a two-allele proxy
+                    init_val = float(np.clip(obs_vals[0], 0.0, 1.0))
+                    init_freqs = {"allele": init_val, "_complement": 1.0 - init_val}
+                    try:
+                        wf_df = simulate_wright_fisher(
+                            initial_frequencies=init_freqs,
+                            n_effective=n_effective,
+                            n_generations=n_gens,
+                            seed=seed,
+                        )
+                        wf_allele = wf_df[wf_df["allele"] == "allele"].sort_values("generation")
+                        gen_offset = min(gens_sorted)
+                        ax.plot(
+                            wf_allele["generation"] + gen_offset,
+                            wf_allele["frequency"],
+                            color="gray", linewidth=1.2, linestyle="--",
+                            alpha=0.8, label=f"WF neutral (N_e={n_effective})", zorder=2,
+                        )
+                    except (ValueError, Exception) as wf_exc:
+                        logger.debug("WF simulation skipped for locus %r: %s", locus, wf_exc)
+            else:
+                # Categorical: one allele per line; WF run separately per allele
+                alleles = list(locus_df["allele"].unique())
+                first_gen_df = locus_df[locus_df["generation"] == min(gens_sorted)]
+                init_freqs: Dict[str, float] = {}
+                for allele in alleles:
+                    allele_row = first_gen_df[first_gen_df["allele"] == allele]
+                    if not allele_row.empty:
+                        init_freqs[allele] = float(allele_row["frequency"].iloc[0])
+                if init_freqs and abs(sum(init_freqs.values()) - 1.0) < 0.05:
+                    try:
+                        wf_df = simulate_wright_fisher(
+                            initial_frequencies=init_freqs,
+                            n_effective=n_effective,
+                            n_generations=n_gens,
+                            seed=seed,
+                        )
+                        for allele in alleles[:6]:
+                            wf_allele = wf_df[wf_df["allele"] == allele].sort_values("generation")
+                            gen_offset = min(gens_sorted)
+                            ax.plot(
+                                wf_allele["generation"] + gen_offset,
+                                wf_allele["frequency"],
+                                color="gray", linewidth=1.0, linestyle="--", alpha=0.6, zorder=2,
+                            )
+                    except (ValueError, Exception) as wf_exc:
+                        logger.debug("WF simulation skipped for locus %r: %s", locus, wf_exc)
+
+                for allele_name, allele_df in locus_df.groupby("allele"):
+                    allele_df = allele_df.sort_values("generation")
+                    ax.plot(
+                        allele_df["generation"], allele_df["frequency"],
+                        marker=".", markersize=3, label=str(allele_name), zorder=3,
+                    )
+                if len(alleles) <= 8:
+                    ax.legend(fontsize=7)
+                obs_label = "Allele frequency"
+
+            ax.set_xlabel("Generation")
+            ax.set_ylabel(obs_label)
+            ax.set_title(f"{locus} – WF overlay", fontsize=9)
+            ax.set_ylim(bottom=0)
+
+            handles, labels = ax.get_legend_handles_labels()
+            if handles:
+                ax.legend(fontsize=7, loc="best")
+
+        for ax in axes_flat[len(plot_loci):]:
+            ax.set_visible(False)
+
+        fig.suptitle(
+            f"Observed vs. Wright-Fisher neutral drift (N_e={n_effective})",
+            fontsize=11, y=1.02,
+        )
+        fig.tight_layout()
+        output_file = ctx.get_output_file("genetics_wright_fisher_overlay.png")
+        fig.savefig(output_file, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info("Saved Wright-Fisher overlay plot to %s", output_file)
+        return output_file
+    except Exception as exc:
+        logger.warning("plot_wright_fisher_overlay failed: %s", exc)
+        return None
+
+
+def plot_conserved_run_timeline(
+    df: pd.DataFrame,
+    ctx: AnalysisContext,
+    epsilon: float = 1e-4,
+    min_run_length: int = 2,
+    **kwargs: Any,
+) -> Optional[Path]:
+    """Plot a conserved-run timeline showing per-locus conservation across generations.
+
+    Accepts the conserved-runs tidy DataFrame produced by
+    :func:`~farm.analysis.genetics.compute.compute_conserved_runs` **or** a
+    raw genetics DataFrame (with ``generation`` plus ``chromosome_values``
+    columns), deriving conserved runs internally when needed.
+
+    For each locus a horizontal lane is drawn; a coloured block indicates a
+    generation where the locus is conserved (variance below epsilon).
+
+    Parameters
+    ----------
+    df:
+        Conserved-runs DataFrame or raw genetics DataFrame.
+    ctx:
+        Analysis context supplying output paths and a logger.
+    epsilon:
+        Variance threshold used when deriving conserved runs from raw data.
+    min_run_length:
+        Minimum consecutive conserved generations to qualify as a run.
+
+    Returns
+    -------
+    Path or None
+        Path to the saved PNG file, or ``None`` on error / missing data.
+    """
+    if df.empty:
+        logger.warning("plot_conserved_run_timeline: empty DataFrame")
+        return None
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+        import numpy as np
+
+        # Determine if this is already a conserved-runs frame
+        conserved_cols = {"generation", "locus", "is_conserved"}
+        if conserved_cols.issubset(df.columns):
+            conserved_df = df
+        elif "generation" in df.columns and "chromosome_values" in df.columns:
+            from farm.analysis.genetics.compute import compute_conserved_runs
+            conserved_df = compute_conserved_runs(df, epsilon=epsilon, min_run_length=min_run_length)
+        else:
+            logger.warning(
+                "plot_conserved_run_timeline: DataFrame lacks required columns"
+            )
+            return None
+
+        if conserved_df.empty:
+            logger.warning("plot_conserved_run_timeline: no conserved-run data")
+            return None
+
+        loci = list(conserved_df["locus"].unique())
+        if not loci:
+            logger.warning("plot_conserved_run_timeline: no loci found")
+            return None
+
+        all_gens = sorted(conserved_df["generation"].unique())
+        n_loci = len(loci)
+        fig_height = max(3.0, n_loci * 0.6 + 1.5)
+        fig, ax = plt.subplots(figsize=(max(8, len(all_gens) * 0.4), fig_height))
+
+        cmap_conserved = "steelblue"
+        cmap_not_conserved = "#e0e0e0"
+
+        locus_to_y = {locus: i for i, locus in enumerate(loci)}
+
+        for _, row in conserved_df.iterrows():
+            locus = row["locus"]
+            gen = row["generation"]
+            is_conserved = bool(row["is_conserved"])
+            y = locus_to_y[locus]
+            color = cmap_conserved if is_conserved else cmap_not_conserved
+            ax.barh(y, 1, left=gen, height=0.7, color=color, edgecolor="none", align="center")
+
+        ax.set_yticks(list(locus_to_y.values()))
+        ax.set_yticklabels(loci, fontsize=8)
+        ax.set_xlabel("Generation")
+        ax.set_title("Conserved-region timeline per locus")
+
+        legend_patches = [
+            mpatches.Patch(color=cmap_conserved, label="Conserved"),
+            mpatches.Patch(color=cmap_not_conserved, label="Not conserved", linewidth=0.5, edgecolor="gray"),
+        ]
+        ax.legend(handles=legend_patches, loc="upper right", fontsize=8)
+
+        fig.tight_layout()
+        output_file = ctx.get_output_file("genetics_conserved_run_timeline.png")
+        fig.savefig(output_file, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info("Saved conserved-run timeline plot to %s", output_file)
+        return output_file
+    except Exception as exc:
+        logger.warning("plot_conserved_run_timeline failed: %s", exc)
         return None
