@@ -20,6 +20,8 @@ from farm.analysis.genetics.plot import (
     plot_fitness_landscape_2d,
 )
 from farm.analysis.genetics.compute import (
+    compute_allele_frequency_timeseries,
+    compute_selection_pressure_summary,
     compute_fitness_gene_correlations,
     compute_pairwise_epistasis,
     simulate_wright_fisher,
@@ -27,7 +29,9 @@ from farm.analysis.genetics.compute import (
     compute_migration_counts,
     compute_gene_flow_timeseries,
     compute_realized_mutation_rate,
+    compute_realized_mutation_rate_per_locus,
     compute_conserved_runs,
+    compute_conserved_run_fitness_correlation,
     compute_sweep_candidates,
 )
 from farm.utils.logging import get_logger
@@ -61,6 +65,60 @@ def _simulate_wright_fisher_for_analysis(
         n_generations=n_generations,
         seed=seed,
     )
+
+
+def _compute_conserved_run_fitness_correlation_for_analysis(
+    df: Any,
+    conserved_df: Optional[Any] = None,
+    epsilon: float = 1e-4,
+    min_run_length: int = 2,
+) -> Any:
+    """Adapter for module-run execution of conserved-run / fitness correlation.
+
+    The analysis runner provides one DataFrame by default. This adapter derives
+    ``conserved_df`` via :func:`compute_conserved_runs` unless an explicit
+    ``conserved_df`` kwarg is provided.
+    """
+    if conserved_df is None:
+        conserved_df = compute_conserved_runs(
+            df,
+            epsilon=epsilon,
+            min_run_length=min_run_length,
+        )
+    return compute_conserved_run_fitness_correlation(conserved_df, df)
+
+
+def _compute_sweep_candidates_for_analysis(
+    df: Any,
+    conserved_df: Optional[Any] = None,
+    pressure_df: Optional[Any] = None,
+    epsilon: float = 1e-4,
+    min_run_length: int = 2,
+    pop_size: Optional[int] = None,
+    significance_threshold: float = 2.0,
+) -> Any:
+    """Adapter for module-run execution of sweep-candidate detection.
+
+    The analysis runner provides one DataFrame by default. This adapter derives
+    required intermediate inputs unless they are explicitly provided via
+    analysis kwargs.
+    """
+    if conserved_df is None:
+        conserved_df = compute_conserved_runs(
+            df,
+            epsilon=epsilon,
+            min_run_length=min_run_length,
+        )
+
+    if pressure_df is None:
+        allele_freq_df = compute_allele_frequency_timeseries(df)
+        pressure_df = compute_selection_pressure_summary(
+            allele_freq_df,
+            pop_size=pop_size,
+            significance_threshold=significance_threshold,
+        )
+
+    return compute_sweep_candidates(conserved_df, pressure_df)
 
 
 class GeneticsModule(BaseAnalysisModule):
@@ -111,8 +169,14 @@ class GeneticsModule(BaseAnalysisModule):
             "compute_migration_counts": make_analysis_function(compute_migration_counts),
             "compute_gene_flow_timeseries": make_analysis_function(compute_gene_flow_timeseries),
             "compute_realized_mutation_rate": make_analysis_function(compute_realized_mutation_rate),
+            "compute_realized_mutation_rate_per_locus": make_analysis_function(
+                compute_realized_mutation_rate_per_locus
+            ),
             "compute_conserved_runs": make_analysis_function(compute_conserved_runs),
-            "compute_sweep_candidates": make_analysis_function(compute_sweep_candidates),
+            "compute_conserved_run_fitness_correlation": make_analysis_function(
+                _compute_conserved_run_fitness_correlation_for_analysis
+            ),
+            "compute_sweep_candidates": make_analysis_function(_compute_sweep_candidates_for_analysis),
         }
 
         self._groups = {
@@ -146,7 +210,9 @@ class GeneticsModule(BaseAnalysisModule):
             ],
             "adaptation_signatures": [
                 self._functions["compute_realized_mutation_rate"],
+                self._functions["compute_realized_mutation_rate_per_locus"],
                 self._functions["compute_conserved_runs"],
+                self._functions["compute_conserved_run_fitness_correlation"],
                 self._functions["compute_sweep_candidates"],
             ],
         }

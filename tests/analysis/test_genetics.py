@@ -15,6 +15,7 @@ Covers:
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional
 from unittest.mock import MagicMock
@@ -54,12 +55,18 @@ from farm.analysis.genetics.compute import (
     GENE_FLOW_COLUMNS,
     compute_realized_mutation_rate,
     REALIZED_MUTATION_COLUMNS,
+    compute_realized_mutation_rate_per_locus,
+    REALIZED_MUTATION_PER_LOCUS_COLUMNS,
     compute_conserved_runs,
     CONSERVED_RUNS_COLUMNS,
+    CATEGORICAL_LOCUS_PREFIX,
+    compute_conserved_run_fitness_correlation,
+    CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS,
     compute_sweep_candidates,
     SWEEP_CANDIDATE_COLUMNS,
 )
 from farm.analysis.genetics.utils import parse_parent_ids
+from farm.analysis.common.context import AnalysisContext
 from farm.analysis.genetics.analyze import analyze_genetics
 from farm.analysis.genetics.data import process_genetics_data
 from farm.analysis.genetics.module import GeneticsModule, genetics_module
@@ -2645,6 +2652,94 @@ class TestComputeRealizedMutationRate:
 
 
 # ---------------------------------------------------------------------------
+# compute_realized_mutation_rate_per_locus
+# ---------------------------------------------------------------------------
+
+
+class TestComputeRealizedMutationRatePerLocus:
+    """Tests for compute_realized_mutation_rate_per_locus."""
+
+    def test_empty_df_returns_empty_with_correct_columns(self):
+        result = compute_realized_mutation_rate_per_locus(pd.DataFrame())
+        assert result.empty
+        assert list(result.columns) == REALIZED_MUTATION_PER_LOCUS_COLUMNS
+
+    def test_missing_required_columns_returns_empty(self):
+        df = pd.DataFrame({"generation": [0, 1]})
+        result = compute_realized_mutation_rate_per_locus(df)
+        assert result.empty
+
+    def test_no_lineage_pairs_returns_empty(self):
+        # All candidates are seeds → no parent-child pairs available.
+        df = _make_mutation_lineage_df(1, 4, {"lr": (0.0, 1.0)}, lambda cv, rng: dict(cv))
+        result = compute_realized_mutation_rate_per_locus(df)
+        assert result.empty
+        assert list(result.columns) == REALIZED_MUTATION_PER_LOCUS_COLUMNS
+
+    def test_one_row_per_locus(self):
+        df = _make_mutation_lineage_df(
+            3, 4, {"lr": (0.0, 1.0), "gamma": (0.0, 1.0)}, lambda cv, rng: dict(cv)
+        )
+        result = compute_realized_mutation_rate_per_locus(df)
+        assert set(result["locus"]) == {"lr", "gamma"}
+        assert len(result) == 2
+
+    def test_aggregation_matches_underlying_pairs(self):
+        # Constant child = parent → magnitude should be 0 for all loci.
+        df = _make_mutation_lineage_df(
+            3, 5, {"lr": (0.0, 1.0)}, lambda cv, rng: dict(cv)
+        )
+        result = compute_realized_mutation_rate_per_locus(df)
+        lr = result[result["locus"] == "lr"].iloc[0]
+        assert lr["mean_magnitude"] == pytest.approx(0.0)
+        assert lr["median_magnitude"] == pytest.approx(0.0)
+        assert lr["std_magnitude"] == pytest.approx(0.0)
+        assert lr["fraction_mutated"] == pytest.approx(0.0)
+        # Two non-seed generations (1, 2) each contributed pairs.
+        assert lr["n_generations"] == 2
+        assert lr["n_pairs"] > 0
+
+    def test_fraction_mutated_when_changes_exceed_epsilon(self):
+        # Each child shifts every gene by +0.1 from its parent → all pairs mutated.
+        def mutate(cv, rng):
+            return {g: float(v) + 0.1 for g, v in cv.items()}
+
+        df = _make_mutation_lineage_df(3, 5, {"lr": (0.0, 1.0)}, mutate)
+        result = compute_realized_mutation_rate_per_locus(
+            df, mutation_scale=0.1, min_change_epsilon=1e-6
+        )
+        lr = result[result["locus"] == "lr"].iloc[0]
+        assert lr["fraction_mutated"] == pytest.approx(1.0)
+        assert lr["mean_magnitude"] == pytest.approx(0.1, abs=1e-9)
+        assert lr["drift"] == pytest.approx(0.0, abs=1e-9)
+        assert lr["configured_scale"] == pytest.approx(0.1)
+
+    def test_drift_nan_when_scale_not_provided(self):
+        df = _make_mutation_lineage_df(2, 3, {"lr": (0.0, 1.0)}, lambda cv, rng: dict(cv))
+        result = compute_realized_mutation_rate_per_locus(df)
+        if not result.empty:
+            assert math.isnan(result.iloc[0]["drift"])
+            assert math.isnan(result.iloc[0]["configured_scale"])
+
+    def test_invalid_min_change_epsilon_raises(self):
+        df = _make_mutation_lineage_df(2, 4, {"lr": (0.0, 1.0)}, lambda cv, rng: dict(cv))
+        with pytest.raises(ValueError, match="min_change_epsilon"):
+            compute_realized_mutation_rate_per_locus(df, min_change_epsilon=-1.0)
+
+    def test_per_locus_pairs_consistent_with_per_generation(self):
+        # Per-locus n_pairs must equal sum of per-generation n_pairs.
+        df = _make_mutation_lineage_df(
+            4, 5, {"lr": (0.0, 1.0), "gamma": (0.0, 1.0)}, lambda cv, rng: dict(cv)
+        )
+        per_gen = compute_realized_mutation_rate(df)
+        per_locus = compute_realized_mutation_rate_per_locus(df)
+        for locus in per_locus["locus"]:
+            expected = int(per_gen[per_gen["locus"] == locus]["n_pairs"].sum())
+            actual = int(per_locus[per_locus["locus"] == locus]["n_pairs"].iloc[0])
+            assert expected == actual, f"locus {locus}: {expected} vs {actual}"
+
+
+# ---------------------------------------------------------------------------
 # compute_conserved_runs
 # ---------------------------------------------------------------------------
 
@@ -2779,6 +2874,238 @@ class TestComputeConservedRuns:
         df = _make_gen_df(1, 4, lambda g, i: {"a": 0.1})
         with pytest.raises(ValueError, match="min_run_length"):
             compute_conserved_runs(df, min_run_length=0)
+
+    # --- Categorical fixation support ---
+
+    def test_categorical_fixated_action_marked_conserved(self):
+        # Every individual has identical normalized weights {move: 1.0, gather: 0.0}
+        # → every action's per-individual weight is identical → variance 0 → conserved.
+        rows = [
+            {"generation": 0, "action_weights": {"move": 1.0, "gather": 0.0}}
+            for _ in range(6)
+        ]
+        df = pd.DataFrame(rows)
+        result = compute_conserved_runs(df, epsilon=1e-4, min_run_length=1)
+        assert not result.empty
+        assert (result["locus_type"] == "categorical").all()
+        # Locus names should carry the categorical prefix.
+        assert all(loc.startswith(CATEGORICAL_LOCUS_PREFIX) for loc in result["locus"])
+        assert result["is_conserved"].all()
+
+    def test_categorical_diverse_population_not_conserved(self):
+        # Half population prefers move, half prefers gather → high variance per action.
+        rows = (
+            [{"generation": 0, "action_weights": {"move": 1.0, "gather": 0.0}}] * 5
+            + [{"generation": 0, "action_weights": {"move": 0.0, "gather": 1.0}}] * 5
+        )
+        df = pd.DataFrame(rows)
+        result = compute_conserved_runs(df, epsilon=1e-4, min_run_length=1)
+        assert not result.empty
+        assert not result["is_conserved"].any()
+
+    def test_mixed_continuous_and_categorical_loci(self):
+        # Both data types present; continuous gene fixed, categorical action diverse.
+        rows = []
+        for i in range(6):
+            # Half assign weight to "a" and half to "b" → diverse.
+            weights = {"a": 1.0, "b": 0.0} if i % 2 == 0 else {"a": 0.0, "b": 1.0}
+            rows.append(
+                {
+                    "generation": 0,
+                    "chromosome_values": {"lr": 0.5},
+                    "action_weights": weights,
+                }
+            )
+        df = pd.DataFrame(rows)
+        result = compute_conserved_runs(df, epsilon=1e-4, min_run_length=1)
+        # Continuous lr is conserved; categorical action loci are not.
+        lr_row = result[result["locus"] == "lr"].iloc[0]
+        assert lr_row["locus_type"] == "continuous"
+        assert bool(lr_row["is_conserved"]) is True
+        cat_rows = result[result["locus_type"] == "categorical"]
+        assert not cat_rows.empty
+        assert not cat_rows["is_conserved"].any()
+
+    def test_categorical_normalization_is_scale_invariant(self):
+        # Two populations with same relative weights but different scales should
+        # both be detected as fixated.
+        rows_a = [{"generation": 0, "action_weights": {"move": 2.0, "gather": 0.0}}] * 4
+        rows_b = [{"generation": 0, "action_weights": {"move": 100.0, "gather": 0.0}}] * 4
+        df = pd.DataFrame(rows_a + rows_b)
+        result = compute_conserved_runs(df, epsilon=1e-4, min_run_length=1)
+        # All individuals normalize to {move: 1.0, gather: 0.0} → per-action variance 0.
+        assert result["is_conserved"].all()
+
+    def test_locus_type_column_present_for_continuous(self):
+        df = _make_gen_df(1, 4, lambda g, i: {"a": 0.1})
+        result = compute_conserved_runs(df, epsilon=1e-3, min_run_length=1)
+        assert (result["locus_type"] == "continuous").all()
+
+
+# ---------------------------------------------------------------------------
+# compute_conserved_run_fitness_correlation
+# ---------------------------------------------------------------------------
+
+
+def _make_gen_df_with_fitness(
+    n_generations: int,
+    n_per_gen: int,
+    gene_value_fn,
+    fitness_fn,
+) -> pd.DataFrame:
+    """Build a chromosome_values DataFrame that also carries per-row ``fitness``."""
+    rows = []
+    for g in range(n_generations):
+        for i in range(n_per_gen):
+            rows.append(
+                {
+                    "generation": g,
+                    "chromosome_values": gene_value_fn(g, i),
+                    "fitness": fitness_fn(g, i),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+class TestComputeConservedRunFitnessCorrelation:
+    """Tests for compute_conserved_run_fitness_correlation."""
+
+    def test_empty_inputs_return_empty_with_correct_columns(self):
+        result = compute_conserved_run_fitness_correlation(pd.DataFrame(), pd.DataFrame())
+        assert result.empty
+        assert list(result.columns) == CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS
+
+    def test_missing_required_columns_returns_empty(self):
+        # Conserved df missing longest_conserved_run.
+        c_df = pd.DataFrame({"generation": [0, 1]})
+        f_df = pd.DataFrame({"generation": [0, 1], "fitness": [0.1, 0.2]})
+        assert compute_conserved_run_fitness_correlation(c_df, f_df).empty
+
+        # Source df missing fitness.
+        c_df2 = pd.DataFrame({"generation": [0, 1], "longest_conserved_run": [1, 2]})
+        f_df2 = pd.DataFrame({"generation": [0, 1]})
+        assert compute_conserved_run_fitness_correlation(c_df2, f_df2).empty
+
+    def test_perfectly_correlated_runs_and_fitness_delta(self):
+        # Construct: per-gen longest_run grows linearly; mean and best fitness also
+        # grow linearly → constant per-gen delta → both series correlate (after
+        # std checks).  Use varied deltas to avoid degenerate constant-series.
+        # 5 generations: longest_run at gen N = N+1; fitness deltas ramp up.
+        gen_to_run = {0: 1, 1: 2, 2: 3, 3: 5, 4: 8}
+        rows_conserved = [
+            {
+                "generation": g,
+                "locus": "lr",
+                "locus_type": "continuous",
+                "locus_variance": 0.0,
+                "is_conserved": True,
+                "run_id": 0,
+                "run_length": gen_to_run[g],
+                "longest_conserved_run": gen_to_run[g],
+            }
+            for g in gen_to_run
+        ]
+        c_df = pd.DataFrame(rows_conserved, columns=CONSERVED_RUNS_COLUMNS)
+
+        # Per-generation mean fitness chosen so deltas are monotonic with prev_run.
+        gen_to_mean = {0: 0.10, 1: 0.20, 2: 0.35, 3: 0.55, 4: 0.95}
+        gen_to_best = {0: 0.15, 1: 0.30, 2: 0.50, 3: 0.80, 4: 1.30}
+        rows_f = [
+            {"generation": g, "fitness": gen_to_mean[g]}
+            for g in gen_to_mean
+        ] + [
+            {"generation": g, "fitness": gen_to_best[g]}
+            for g in gen_to_best
+        ]
+        f_df = pd.DataFrame(rows_f)
+
+        result = compute_conserved_run_fitness_correlation(c_df, f_df)
+        assert list(result.columns) == CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS
+        assert set(result["metric"]) == {"mean_fitness_delta", "best_fitness_delta"}
+        for _, row in result.iterrows():
+            assert row["n_pairs"] == 4  # 5 gens → 4 pairs
+            assert not math.isnan(row["pearson_r"])
+            assert not math.isnan(row["spearman_r"])
+
+    def test_constant_series_returns_nan(self):
+        # All longest_runs identical → degenerate Pearson → NaN.
+        rows_conserved = [
+            {
+                "generation": g,
+                "locus": "lr",
+                "locus_type": "continuous",
+                "locus_variance": 0.0,
+                "is_conserved": True,
+                "run_id": 0,
+                "run_length": 2,
+                "longest_conserved_run": 2,
+            }
+            for g in range(5)
+        ]
+        c_df = pd.DataFrame(rows_conserved, columns=CONSERVED_RUNS_COLUMNS)
+        rows_f = [{"generation": g, "fitness": 0.1 * g} for g in range(5)]
+        f_df = pd.DataFrame(rows_f)
+
+        result = compute_conserved_run_fitness_correlation(c_df, f_df)
+        for _, row in result.iterrows():
+            assert math.isnan(row["pearson_r"])
+            assert math.isnan(row["pearson_p"])
+            assert math.isnan(row["spearman_r"])
+
+    def test_too_few_generations_returns_empty(self):
+        # Single generation → fewer than 2 pairs.
+        c_df = pd.DataFrame(
+            [
+                {
+                    "generation": 0,
+                    "locus": "lr",
+                    "locus_type": "continuous",
+                    "locus_variance": 0.0,
+                    "is_conserved": True,
+                    "run_id": 0,
+                    "run_length": 1,
+                    "longest_conserved_run": 1,
+                }
+            ],
+            columns=CONSERVED_RUNS_COLUMNS,
+        )
+        f_df = pd.DataFrame([{"generation": 0, "fitness": 0.5}])
+        result = compute_conserved_run_fitness_correlation(c_df, f_df)
+        assert result.empty
+
+    def test_mean_and_best_can_diverge(self):
+        # Construct best-fitness deltas that correlate with run length while
+        # mean-fitness deltas are noisy/uncorrelated.  Then verify that both
+        # rows are produced (the correlation values themselves can differ).
+        gen_to_run = {0: 1, 1: 4, 2: 9, 3: 16}
+        c_rows = [
+            {
+                "generation": g,
+                "locus": "lr",
+                "locus_type": "continuous",
+                "locus_variance": 0.0,
+                "is_conserved": True,
+                "run_id": 0,
+                "run_length": gen_to_run[g],
+                "longest_conserved_run": gen_to_run[g],
+            }
+            for g in gen_to_run
+        ]
+        c_df = pd.DataFrame(c_rows, columns=CONSERVED_RUNS_COLUMNS)
+
+        # Best fitness grows monotonically with conservation; mean fluctuates.
+        f_rows = []
+        gen_to_best = {0: 0.10, 1: 0.30, 2: 0.60, 3: 1.10}
+        gen_to_mean = {0: 0.40, 1: 0.10, 2: 0.50, 3: 0.20}
+        for g in gen_to_best:
+            f_rows.append({"generation": g, "fitness": gen_to_best[g]})
+            f_rows.append({"generation": g, "fitness": gen_to_mean[g]})
+        f_df = pd.DataFrame(f_rows)
+
+        result = compute_conserved_run_fitness_correlation(c_df, f_df)
+        assert {"mean_fitness_delta", "best_fitness_delta"} == set(result["metric"])
+        # n_pairs is consistent across both metrics.
+        assert result["n_pairs"].nunique() == 1
 
 
 # ---------------------------------------------------------------------------
@@ -2975,18 +3302,31 @@ class TestGeneticsModuleAdaptationSignatures:
         module.register_functions()
         assert "adaptation_signatures" in module._groups
 
-    def test_adaptation_signatures_group_has_three_functions(self):
+    def test_adaptation_signatures_group_lists_all_functions(self):
         module = GeneticsModule()
         module.register_functions()
         group = module._groups["adaptation_signatures"]
-        assert len(group) == 3
+        expected_fns = {
+            module._functions[name]
+            for name in (
+                "compute_realized_mutation_rate",
+                "compute_realized_mutation_rate_per_locus",
+                "compute_conserved_runs",
+                "compute_conserved_run_fitness_correlation",
+                "compute_sweep_candidates",
+            )
+        }
+        assert set(group) == expected_fns
+        assert len(group) == len(expected_fns)
 
     def test_new_functions_registered(self):
         module = GeneticsModule()
         module.register_functions()
         names = set(module._functions.keys())
         assert "compute_realized_mutation_rate" in names
+        assert "compute_realized_mutation_rate_per_locus" in names
         assert "compute_conserved_runs" in names
+        assert "compute_conserved_run_fitness_correlation" in names
         assert "compute_sweep_candidates" in names
 
     def test_all_group_includes_new_functions(self):
@@ -2996,3 +3336,110 @@ class TestGeneticsModuleAdaptationSignatures:
         adaptation_group = module._groups["adaptation_signatures"]
         for fn in adaptation_group:
             assert fn in all_group
+
+    def test_wrapped_sweep_candidates_invocable_with_default_pipeline(self):
+        module = GeneticsModule()
+        module.register_functions()
+        fn = module.get_function("compute_sweep_candidates")
+        assert fn is not None
+
+        df = _make_gen_df(3, 5, lambda g, i: {"lr": 0.5, "gamma": float(i)})
+        ctx = AnalysisContext(output_path=Path("/tmp/agentfarm-test-output"))
+
+        result = fn(df, ctx)
+
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == SWEEP_CANDIDATE_COLUMNS
+        assert set(result["locus"]) == {"gamma", "lr"}
+
+    def test_wrapped_per_locus_mutation_invocable(self):
+        module = GeneticsModule()
+        module.register_functions()
+        fn = module.get_function("compute_realized_mutation_rate_per_locus")
+        assert fn is not None
+
+        df = _make_mutation_lineage_df(
+            3, 4, {"lr": (0.0, 1.0), "gamma": (0.0, 1.0)}, lambda cv, rng: dict(cv)
+        )
+        ctx = AnalysisContext(output_path=Path("/tmp/agentfarm-test-output"))
+
+        result = fn(df, ctx)
+
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == REALIZED_MUTATION_PER_LOCUS_COLUMNS
+        assert set(result["locus"]) == {"gamma", "lr"}
+
+    def test_wrapped_run_fitness_correlation_invocable_with_default_pipeline(self):
+        module = GeneticsModule()
+        module.register_functions()
+        fn = module.get_function("compute_conserved_run_fitness_correlation")
+        assert fn is not None
+
+        df = _make_gen_df_with_fitness(
+            5,
+            5,
+            lambda g, i: {"lr": 0.5, "gamma": float(i) + 0.001 * g},
+            lambda g, i: 0.1 * (g + 1) + 0.01 * i,
+        )
+        ctx = AnalysisContext(output_path=Path("/tmp/agentfarm-test-output"))
+
+        result = fn(df, ctx)
+
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS
+        assert set(result["metric"]) == {"mean_fitness_delta", "best_fitness_delta"}
+
+    def test_wrapped_run_fitness_correlation_uses_explicit_conserved_df(self):
+        module = GeneticsModule()
+        module.register_functions()
+        fn = module.get_function("compute_conserved_run_fitness_correlation")
+        assert fn is not None
+
+        df = _make_gen_df_with_fitness(
+            4,
+            4,
+            lambda g, i: {"lr": 0.5},
+            lambda g, i: 0.1 * (g + 1),
+        )
+        # Build conserved_df with non-default thresholds and pass explicitly.
+        conserved_df = compute_conserved_runs(df, epsilon=1e-3, min_run_length=1)
+        ctx = AnalysisContext(output_path=Path("/tmp/agentfarm-test-output"))
+
+        result = fn(df, ctx, conserved_df=conserved_df)
+
+        assert isinstance(result, pd.DataFrame)
+        assert not result.empty
+
+    def test_wrapped_sweep_candidates_uses_explicit_intermediates(self):
+        module = GeneticsModule()
+        module.register_functions()
+        fn = module.get_function("compute_sweep_candidates")
+        assert fn is not None
+
+        df = _make_gen_df(2, 5, lambda g, i: {"lr": 0.5})
+        conserved_df = compute_conserved_runs(df, epsilon=1e-3, min_run_length=1)
+        pressure_df = pd.DataFrame(
+            [
+                {
+                    "locus": "lr",
+                    "allele": ALLELE_MEAN,
+                    "locus_type": "continuous",
+                    "n_generations": 2,
+                    "mean_delta_frequency": 0.1,
+                    "cumulative_shift": 0.2,
+                    "z_score": 3.0,
+                    "regression_slope": 0.1,
+                    "effect_size": 0.2,
+                    "is_under_selection": True,
+                    "collapse_detected": False,
+                }
+            ],
+            columns=SELECTION_PRESSURE_COLUMNS,
+        )
+        ctx = AnalysisContext(output_path=Path("/tmp/agentfarm-test-output"))
+
+        result = fn(df, ctx, conserved_df=conserved_df, pressure_df=pressure_df)
+
+        assert isinstance(result, pd.DataFrame)
+        lr_row = result[result["locus"] == "lr"].iloc[0]
+        assert bool(lr_row["is_under_selection"]) is True

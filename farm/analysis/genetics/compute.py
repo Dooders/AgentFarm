@@ -2384,6 +2384,85 @@ REALIZED_MUTATION_COLUMNS = [
 ]
 
 
+#: Columns produced by :func:`compute_realized_mutation_rate_per_locus`.
+REALIZED_MUTATION_PER_LOCUS_COLUMNS = [
+    "locus",
+    "n_pairs",
+    "n_generations",
+    "mean_magnitude",
+    "median_magnitude",
+    "std_magnitude",
+    "fraction_mutated",
+    "configured_scale",
+    "drift",
+]
+
+
+def _collect_parent_child_locus_changes(
+    df: pd.DataFrame,
+) -> Dict[Tuple[int, str], List[float]]:
+    """Build per-(generation, locus) lists of ``|child_val - parent_val|`` from lineage.
+
+    Shared internal helper used by :func:`compute_realized_mutation_rate` and
+    :func:`compute_realized_mutation_rate_per_locus` so neither function
+    duplicates the lineage-walking logic.
+
+    Returns an empty mapping when no valid parent-child pairs exist.
+    """
+    required = {"candidate_id", "generation", "chromosome_values", "parent_ids"}
+    if df.empty or not required.issubset(df.columns):
+        return {}
+
+    id_to_chrom: Dict[str, Dict[str, float]] = {}
+    for _, row in df.iterrows():
+        cid = row["candidate_id"]
+        cv = row.get("chromosome_values")
+        if isinstance(cv, dict) and cid is not None:
+            id_to_chrom[str(cid)] = cv
+
+    if not id_to_chrom:
+        return {}
+
+    gen_locus_changes: Dict[Tuple[int, str], List[float]] = {}
+
+    for _, row in df.iterrows():
+        gen_raw = row["generation"]
+        try:
+            gen_int = int(float(gen_raw))
+        except (TypeError, ValueError):
+            continue
+
+        parent_ids_raw = row.get("parent_ids")
+        if not isinstance(parent_ids_raw, (list, tuple)):
+            continue
+
+        child_cv = row.get("chromosome_values")
+        if not isinstance(child_cv, dict):
+            continue
+
+        for parent_id in parent_ids_raw:
+            parent_id_str = str(parent_id)
+            if parent_id_str not in id_to_chrom:
+                continue  # skip "seed" or missing parents
+
+            parent_cv = id_to_chrom[parent_id_str]
+            for gene, child_val in child_cv.items():
+                parent_val = parent_cv.get(gene)
+                if parent_val is None:
+                    continue
+                try:
+                    c_val = float(child_val)
+                    p_val = float(parent_val)
+                except (TypeError, ValueError):
+                    continue
+                if not (math.isfinite(c_val) and math.isfinite(p_val)):
+                    continue
+                key: Tuple[int, str] = (gen_int, gene)
+                gen_locus_changes.setdefault(key, []).append(abs(c_val - p_val))
+
+    return gen_locus_changes
+
+
 def compute_realized_mutation_rate(
     df: pd.DataFrame,
     mutation_scale: Optional[float] = None,
@@ -2450,61 +2529,10 @@ def compute_realized_mutation_rate(
       mutation magnitude.
     * Rows are sorted by ``(generation, locus)`` in ascending order.
     """
-    required = {"candidate_id", "generation", "chromosome_values", "parent_ids"}
-    if df.empty or not required.issubset(df.columns):
-        return pd.DataFrame(columns=REALIZED_MUTATION_COLUMNS)
     if min_change_epsilon < 0.0:
         raise ValueError("min_change_epsilon must be >= 0")
 
-    # Build candidate_id → chromosome_values lookup.
-    id_to_chrom: Dict[str, Dict[str, float]] = {}
-    for _, row in df.iterrows():
-        cid = row["candidate_id"]
-        cv = row.get("chromosome_values")
-        if isinstance(cv, dict) and cid is not None:
-            id_to_chrom[str(cid)] = cv
-
-    if not id_to_chrom:
-        return pd.DataFrame(columns=REALIZED_MUTATION_COLUMNS)
-
-    # Collect per-locus absolute changes per generation.
-    gen_locus_changes: Dict[Tuple[int, str], List[float]] = {}
-
-    for _, row in df.iterrows():
-        gen_raw = row["generation"]
-        try:
-            gen_int = int(float(gen_raw))
-        except (TypeError, ValueError):
-            continue
-
-        parent_ids_raw = row.get("parent_ids")
-        if not isinstance(parent_ids_raw, (list, tuple)):
-            continue
-
-        child_cv = row.get("chromosome_values")
-        if not isinstance(child_cv, dict):
-            continue
-
-        for parent_id in parent_ids_raw:
-            parent_id_str = str(parent_id)
-            if parent_id_str not in id_to_chrom:
-                continue  # skip "seed" or missing parents
-
-            parent_cv = id_to_chrom[parent_id_str]
-            for gene, child_val in child_cv.items():
-                parent_val = parent_cv.get(gene)
-                if parent_val is None:
-                    continue
-                try:
-                    c_val = float(child_val)
-                    p_val = float(parent_val)
-                except (TypeError, ValueError):
-                    continue
-                if not (math.isfinite(c_val) and math.isfinite(p_val)):
-                    continue
-                key: Tuple[int, str] = (gen_int, gene)
-                gen_locus_changes.setdefault(key, []).append(abs(c_val - p_val))
-
+    gen_locus_changes = _collect_parent_child_locus_changes(df)
     if not gen_locus_changes:
         return pd.DataFrame(columns=REALIZED_MUTATION_COLUMNS)
 
@@ -2538,14 +2566,127 @@ def compute_realized_mutation_rate(
     return result_df
 
 
+def compute_realized_mutation_rate_per_locus(
+    df: pd.DataFrame,
+    mutation_scale: Optional[float] = None,
+    min_change_epsilon: float = 1e-9,
+) -> pd.DataFrame:
+    """Aggregate realized mutation statistics per locus across all generations.
+
+    Companion to :func:`compute_realized_mutation_rate` that collapses the
+    per-(generation, locus) trajectory into one row per locus, summarising
+    mutation magnitude and frequency over the entire run.  Useful for
+    surfacing loci whose realized mutation behavior diverges from the
+    configured ``mutation_scale`` over the long horizon.
+
+    Parameters
+    ----------
+    df:
+        DataFrame with the same columns required by
+        :func:`compute_realized_mutation_rate` (``candidate_id``,
+        ``generation``, ``chromosome_values``, ``parent_ids``).
+    mutation_scale:
+        Optional configured mutation scale.  When provided, ``drift`` is
+        ``mean_magnitude - mutation_scale``; otherwise ``nan``.
+    min_change_epsilon:
+        Minimum absolute change to count as a mutation event.  Must be
+        ``>= 0``.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per locus with columns defined in
+        :data:`REALIZED_MUTATION_PER_LOCUS_COLUMNS`:
+
+        * ``locus`` (str)
+        * ``n_pairs`` (int) – total parent-child pairs across all
+          generations for this locus.
+        * ``n_generations`` (int) – distinct generations contributing
+          parent-child pairs for this locus.
+        * ``mean_magnitude`` (float) – overall mean ``|child - parent|``.
+        * ``median_magnitude`` (float) – overall median ``|child - parent|``.
+        * ``std_magnitude`` (float) – overall population std (``ddof=0``)
+          of ``|child - parent|``.
+        * ``fraction_mutated`` (float) – overall fraction of pairs with
+          ``|change| > min_change_epsilon``.
+        * ``configured_scale`` (float or NaN) – the ``mutation_scale``
+          argument when provided, ``nan`` otherwise.
+        * ``drift`` (float or NaN) – ``mean_magnitude - configured_scale``
+          when ``mutation_scale`` is provided, ``nan`` otherwise.
+
+        Returns an empty DataFrame (with correct columns) when the input
+        is empty, missing required columns, or has no valid parent-child
+        pairs.
+
+    Notes
+    -----
+    * Aggregation is computed directly from the underlying parent-child
+      pair changes, not from per-(generation, locus) means, so the output
+      reflects the true overall distribution rather than a mean-of-means.
+    * Rows are sorted by ``locus`` ascending.
+    """
+    if min_change_epsilon < 0.0:
+        raise ValueError("min_change_epsilon must be >= 0")
+
+    gen_locus_changes = _collect_parent_child_locus_changes(df)
+    if not gen_locus_changes:
+        return pd.DataFrame(columns=REALIZED_MUTATION_PER_LOCUS_COLUMNS)
+
+    locus_to_changes: Dict[str, List[float]] = {}
+    locus_to_generations: Dict[str, set] = {}
+    for (gen, locus), changes in gen_locus_changes.items():
+        locus_to_changes.setdefault(locus, []).extend(changes)
+        locus_to_generations.setdefault(locus, set()).add(gen)
+
+    configured_scale = float(mutation_scale) if mutation_scale is not None else float("nan")
+
+    rows: List[Dict[str, Any]] = []
+    for locus in sorted(locus_to_changes.keys()):
+        arr = np.array(locus_to_changes[locus], dtype=float)
+        n = int(arr.size)
+        n_gens = len(locus_to_generations[locus])
+        mean_mag = float(np.mean(arr))
+        median_mag = float(np.median(arr))
+        std_mag = float(np.std(arr, ddof=0))
+        frac_mutated = float(np.sum(arr > min_change_epsilon) / n) if n > 0 else 0.0
+        drift = (mean_mag - configured_scale) if math.isfinite(configured_scale) else float("nan")
+        rows.append(
+            {
+                "locus": locus,
+                "n_pairs": n,
+                "n_generations": n_gens,
+                "mean_magnitude": mean_mag,
+                "median_magnitude": median_mag,
+                "std_magnitude": std_mag,
+                "fraction_mutated": frac_mutated,
+                "configured_scale": configured_scale,
+                "drift": drift,
+            }
+        )
+
+    result_df = pd.DataFrame(rows, columns=REALIZED_MUTATION_PER_LOCUS_COLUMNS)
+    logger.info(
+        "compute_realized_mutation_rate_per_locus: %d locus row(s)",
+        len(result_df),
+    )
+    return result_df
+
+
 # ---------------------------------------------------------------------------
 # Conserved-region (ROH analogue) detection
 # ---------------------------------------------------------------------------
+
+#: Prefix used to namespace categorical (action_weights) loci in
+#: :func:`compute_conserved_runs` output, so they do not collide with
+#: continuous gene names from ``chromosome_values``.
+CATEGORICAL_LOCUS_PREFIX = "action:"
+
 
 #: Columns produced by :func:`compute_conserved_runs`.
 CONSERVED_RUNS_COLUMNS = [
     "generation",
     "locus",
+    "locus_type",
     "locus_variance",
     "is_conserved",
     "run_id",
@@ -2562,16 +2703,31 @@ def compute_conserved_runs(
     """Detect conserved contiguous locus spans (runs of homozygosity, ROH analogue) per generation.
 
     For each generation, sorts loci alphabetically to define chromosome order,
-    computes population variance (ddof=0) per locus, and identifies contiguous
-    runs of loci with variance below ``epsilon``.  This is the analogue of
-    runs of homozygosity (ROH) in population genetics, surfacing fixed or
-    near-fixed gene regions.
+    computes a per-locus population variance (``ddof=0``), and identifies
+    contiguous runs of loci with variance below ``epsilon``.  This is the
+    analogue of runs of homozygosity (ROH) in population genetics, surfacing
+    fixed or near-fixed gene regions.
+
+    Two locus types participate in the same chromosome order:
+
+    * **continuous** loci – derived from ``chromosome_values`` (per-individual
+      ``{gene_name: float}`` dicts).  Variance is the population variance of
+      per-individual gene values.
+    * **categorical** loci – derived from ``action_weights`` (per-individual
+      ``{action_name: weight}`` dicts).  Each action becomes its own locus
+      named ``f"{CATEGORICAL_LOCUS_PREFIX}{action_name}"`` and its variance
+      is the population variance of per-individual normalized weights.  An
+      action whose normalized weight is identical across all individuals
+      (e.g. fully fixated on or off) has variance ``0`` and is marked
+      conserved.
 
     Parameters
     ----------
     df:
-        DataFrame with ``generation`` and ``chromosome_values`` (dict) columns.
-        Typically produced by :func:`build_evolution_experiment_dataframe`.
+        DataFrame with a ``generation`` column and at least one of:
+
+        * ``chromosome_values``: column of ``{gene_name: float}`` dicts.
+        * ``action_weights``: column of ``{action_name: weight}`` dicts.
     epsilon:
         Variance threshold below which a locus is considered conserved
         (population-level fixation or near-fixation).  Must be >= 0.
@@ -2589,6 +2745,7 @@ def compute_conserved_runs(
 
         * ``generation`` (int)
         * ``locus`` (str)
+        * ``locus_type`` (str) – ``"continuous"`` or ``"categorical"``
         * ``locus_variance`` (float) – population variance (ddof=0)
         * ``is_conserved`` (bool) – ``True`` when
           ``locus_variance < epsilon``
@@ -2601,23 +2758,31 @@ def compute_conserved_runs(
           length in this generation.  ``0`` when no qualifying run exists.
 
         Returns an empty DataFrame (with correct columns) when the input
-        is empty or missing required columns.
+        is empty or missing all recognised locus columns.
 
     Notes
     -----
-    * Loci are sorted alphabetically to define a consistent chromosome order.
+    * Loci are sorted alphabetically to define a consistent chromosome order;
+      categorical loci sort with their ``action:`` prefix.
     * A ``longest_conserved_run`` equal to the total number of loci indicates
-      a degenerate population where all loci are fixated.
+      a degenerate population where every locus is fixated.
     * Population variance uses ``ddof=0`` (biased estimator), consistent with
       the rest of this module.
+    * Per-individual ``action_weights`` are normalized to sum to 1 before
+      variance is computed, so the categorical fixation criterion is
+      invariant to overall weight scale.
     """
     if epsilon < 0.0:
         raise ValueError("epsilon must be >= 0")
     if min_run_length < 1:
         raise ValueError("min_run_length must be >= 1")
 
-    required = {"generation", "chromosome_values"}
-    if df.empty or not required.issubset(df.columns):
+    if df.empty or "generation" not in df.columns:
+        return pd.DataFrame(columns=CONSERVED_RUNS_COLUMNS)
+
+    has_continuous = "chromosome_values" in df.columns
+    has_categorical = "action_weights" in df.columns
+    if not has_continuous and not has_categorical:
         return pd.DataFrame(columns=CONSERVED_RUNS_COLUMNS)
 
     all_rows: List[Dict[str, Any]] = []
@@ -2628,30 +2793,69 @@ def compute_conserved_runs(
         except (TypeError, ValueError):
             continue
 
-        # Collect per-locus numeric values across all individuals.
+        # --- Continuous loci: chromosome_values ---
         gene_values: Dict[str, List[float]] = {}
-        for cv in group["chromosome_values"]:
-            if not isinstance(cv, dict):
-                continue
-            for gene, val in cv.items():
-                try:
-                    v = float(val)
-                except (TypeError, ValueError):
+        if has_continuous:
+            for cv in group["chromosome_values"]:
+                if not isinstance(cv, dict):
                     continue
-                if math.isfinite(v):
-                    gene_values.setdefault(gene, []).append(v)
+                for gene, val in cv.items():
+                    try:
+                        v = float(val)
+                    except (TypeError, ValueError):
+                        continue
+                    if math.isfinite(v):
+                        gene_values.setdefault(gene, []).append(v)
 
-        if not gene_values:
+        # --- Categorical loci: action_weights, normalized per-individual ---
+        action_values: Dict[str, List[float]] = {}
+        if has_categorical:
+            normalized_weights: List[Dict[str, float]] = []
+            for raw_wv in group["action_weights"]:
+                if not isinstance(raw_wv, dict) or len(raw_wv) == 0:
+                    continue
+                sanitized: Dict[str, float] = {}
+                for action, raw_weight in raw_wv.items():
+                    try:
+                        numeric_weight = float(raw_weight)
+                    except (TypeError, ValueError):
+                        continue
+                    if math.isfinite(numeric_weight):
+                        sanitized[action] = numeric_weight
+                if not sanitized:
+                    continue
+                total = sum(sanitized.values())
+                if total > 0:
+                    normalized = {a: w / total for a, w in sanitized.items()}
+                else:
+                    k = len(sanitized)
+                    normalized = {a: 1.0 / k for a in sanitized} if k > 0 else {}
+                normalized_weights.append(normalized)
+
+            if normalized_weights:
+                all_actions = sorted({a for wv in normalized_weights for a in wv})
+                for action in all_actions:
+                    locus_name = f"{CATEGORICAL_LOCUS_PREFIX}{action}"
+                    action_values[locus_name] = [
+                        float(wv.get(action, 0.0)) for wv in normalized_weights
+                    ]
+
+        if not gene_values and not action_values:
             continue
 
-        # Sort loci alphabetically (chromosome order).
-        sorted_loci = sorted(gene_values.keys())
+        # Merge and sort all loci (continuous + categorical) alphabetically.
+        sorted_loci = sorted(set(gene_values.keys()) | set(action_values.keys()))
+        locus_types: Dict[str, str] = {
+            **{k: "continuous" for k in gene_values},
+            **{k: "categorical" for k in action_values},
+        }
+        merged_values: Dict[str, List[float]] = {**gene_values, **action_values}
 
         # Compute per-locus variance and conservation flag.
         locus_variances: List[float] = []
         locus_is_conserved: List[bool] = []
         for locus in sorted_loci:
-            vals = np.array(gene_values[locus], dtype=float)
+            vals = np.array(merged_values[locus], dtype=float)
             var = float(np.var(vals, ddof=0))
             locus_variances.append(var)
             locus_is_conserved.append(var < epsilon)
@@ -2689,6 +2893,7 @@ def compute_conserved_runs(
                     {
                         "generation": gen_int,
                         "locus": locus,
+                        "locus_type": locus_types[locus],
                         "locus_variance": locus_variances[idx],
                         "is_conserved": locus_is_conserved[idx],
                         "run_id": rid,
@@ -2701,6 +2906,7 @@ def compute_conserved_runs(
                     {
                         "generation": gen_int,
                         "locus": locus,
+                        "locus_type": locus_types[locus],
                         "locus_variance": locus_variances[idx],
                         "is_conserved": locus_is_conserved[idx],
                         "run_id": float("nan"),
@@ -2725,6 +2931,182 @@ def compute_conserved_runs(
         n_gens_with_runs,
     )
     return result_df
+
+
+# ---------------------------------------------------------------------------
+# Conserved-run vs fitness-improvement correlation
+# ---------------------------------------------------------------------------
+
+#: Columns produced by :func:`compute_conserved_run_fitness_correlation`.
+CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS = [
+    "metric",
+    "n_pairs",
+    "pearson_r",
+    "pearson_p",
+    "spearman_r",
+    "spearman_p",
+]
+
+
+def compute_conserved_run_fitness_correlation(
+    conserved_df: pd.DataFrame,
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Correlate per-generation longest conserved-run length with fitness improvement.
+
+    For each generation, joins the ``longest_conserved_run`` scalar from
+    :func:`compute_conserved_runs` output with population fitness statistics
+    derived from *df*.  Computes Pearson and Spearman correlations between
+    the longest conserved-run length at generation N and the
+    generation-to-generation fitness deltas, separately for two fitness
+    metrics:
+
+    * ``mean_fitness_delta`` – ``mean(fitness_{N+1}) - mean(fitness_N)``
+    * ``best_fitness_delta`` – ``max(fitness_{N+1}) - max(fitness_N)``
+
+    A positive correlation indicates that more conservation in one
+    generation precedes a fitness improvement in the next, consistent with
+    an adaptive-sweep signature.
+
+    Parameters
+    ----------
+    conserved_df:
+        Output of :func:`compute_conserved_runs`.  Must contain
+        ``generation`` and ``longest_conserved_run`` columns.
+    df:
+        DataFrame with ``generation`` and ``fitness`` columns.  Typically
+        produced by :func:`build_evolution_experiment_dataframe`.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per metric with columns defined in
+        :data:`CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS`:
+
+        * ``metric`` (str) – ``"mean_fitness_delta"`` or
+          ``"best_fitness_delta"``.
+        * ``n_pairs`` (int) – number of (generation_N, generation_{N+1})
+          pairs contributing to the correlation.
+        * ``pearson_r`` (float) – Pearson correlation coefficient; ``nan``
+          when fewer than 2 pairs or one of the series is constant.
+        * ``pearson_p`` (float) – two-sided p-value for ``pearson_r``;
+          ``nan`` when ``pearson_r`` is ``nan``.
+        * ``spearman_r`` (float) – Spearman rank correlation; ``nan`` when
+          fewer than 2 pairs or one of the series is constant.
+        * ``spearman_p`` (float) – two-sided p-value for ``spearman_r``.
+
+        Returns an empty DataFrame (with correct columns) when either
+        input is empty, missing required columns, or yields fewer than
+        2 generation pairs.
+    """
+    required_conserved = {"generation", "longest_conserved_run"}
+    required_df = {"generation", "fitness"}
+
+    if conserved_df.empty or not required_conserved.issubset(conserved_df.columns):
+        return pd.DataFrame(columns=CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS)
+    if df.empty or not required_df.issubset(df.columns):
+        return pd.DataFrame(columns=CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS)
+
+    # Per-generation longest conserved run (one scalar per generation).
+    gen_to_run: Dict[int, int] = {}
+    for gen, grp in conserved_df.groupby("generation"):
+        try:
+            gen_int = int(float(gen))
+        except (TypeError, ValueError):
+            continue
+        first_val = grp["longest_conserved_run"].iloc[0]
+        try:
+            gen_to_run[gen_int] = int(float(first_val))
+        except (TypeError, ValueError):
+            continue
+
+    if not gen_to_run:
+        return pd.DataFrame(columns=CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS)
+
+    # Per-generation mean and best fitness.
+    gen_to_mean: Dict[int, float] = {}
+    gen_to_best: Dict[int, float] = {}
+    for gen, grp in df.groupby("generation"):
+        try:
+            gen_int = int(float(gen))
+        except (TypeError, ValueError):
+            continue
+        fitness_vals = pd.to_numeric(grp["fitness"], errors="coerce").dropna()
+        if fitness_vals.empty:
+            continue
+        gen_to_mean[gen_int] = float(fitness_vals.mean())
+        gen_to_best[gen_int] = float(fitness_vals.max())
+
+    if not gen_to_mean:
+        return pd.DataFrame(columns=CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS)
+
+    sorted_gens = sorted(set(gen_to_run.keys()) & set(gen_to_mean.keys()))
+    if len(sorted_gens) < 2:
+        return pd.DataFrame(columns=CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS)
+
+    runs: List[float] = []
+    mean_deltas: List[float] = []
+    best_deltas: List[float] = []
+    for prev_gen, next_gen in zip(sorted_gens[:-1], sorted_gens[1:]):
+        runs.append(float(gen_to_run[prev_gen]))
+        mean_deltas.append(gen_to_mean[next_gen] - gen_to_mean[prev_gen])
+        best_deltas.append(gen_to_best[next_gen] - gen_to_best[prev_gen])
+
+    runs_arr = np.array(runs, dtype=float)
+
+    rows: List[Dict[str, Any]] = []
+    for metric_name, deltas in (
+        ("mean_fitness_delta", mean_deltas),
+        ("best_fitness_delta", best_deltas),
+    ):
+        deltas_arr = np.array(deltas, dtype=float)
+        n = int(deltas_arr.size)
+        rows.append(
+            {
+                "metric": metric_name,
+                "n_pairs": n,
+                **_safe_correlation(runs_arr, deltas_arr),
+            }
+        )
+
+    result_df = pd.DataFrame(rows, columns=CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS)
+    logger.info(
+        "compute_conserved_run_fitness_correlation: %d metric row(s) over %d generation pair(s)",
+        len(result_df),
+        len(runs),
+    )
+    return result_df
+
+
+def _safe_correlation(x: np.ndarray, y: np.ndarray) -> Dict[str, float]:
+    """Compute Pearson and Spearman correlations with NaN-safe degeneracy handling.
+
+    Returns ``nan`` for both r and p-value when either series has fewer
+    than 2 finite values or is constant, instead of raising the warnings
+    or errors that ``scipy.stats`` emits for degenerate inputs.
+    """
+    nan = float("nan")
+    if x.size < 2 or y.size < 2 or x.size != y.size:
+        return {"pearson_r": nan, "pearson_p": nan, "spearman_r": nan, "spearman_p": nan}
+    if not (np.all(np.isfinite(x)) and np.all(np.isfinite(y))):
+        return {"pearson_r": nan, "pearson_p": nan, "spearman_r": nan, "spearman_p": nan}
+    if float(np.var(x, ddof=0)) == 0.0 or float(np.var(y, ddof=0)) == 0.0:
+        return {"pearson_r": nan, "pearson_p": nan, "spearman_r": nan, "spearman_p": nan}
+
+    try:
+        pr, pp = scipy_stats.pearsonr(x, y)
+    except Exception:  # pragma: no cover - defensive
+        pr, pp = nan, nan
+    try:
+        sr, sp = scipy_stats.spearmanr(x, y)
+    except Exception:  # pragma: no cover - defensive
+        sr, sp = nan, nan
+    return {
+        "pearson_r": float(pr) if not pd.isna(pr) else nan,
+        "pearson_p": float(pp) if not pd.isna(pp) else nan,
+        "spearman_r": float(sr) if not pd.isna(sr) else nan,
+        "spearman_p": float(sp) if not pd.isna(sp) else nan,
+    }
 
 
 # ---------------------------------------------------------------------------
