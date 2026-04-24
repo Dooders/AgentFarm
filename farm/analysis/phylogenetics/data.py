@@ -55,7 +55,7 @@ def process_phylogenetics_data(data: Any, **kwargs: Any) -> PhylogeneticTree:
     # SQLAlchemy session duck-typed check
     if hasattr(data, "query"):
         try:
-            from farm.database.models import AgentModel  # noqa: PLC0415
+            from farm.database.models import AgentModel  # noqa: PLC0415  # local import is intentional
 
             agents = data.query(AgentModel).all()
             return build_phylogenetic_tree(agents, **kwargs)

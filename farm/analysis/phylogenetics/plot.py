@@ -137,7 +137,12 @@ def plot_phylogenetic_tree(
         # ------------------------------------------------------------------
         colour_map: Dict[str, str] = {}
         if color_by_lineage and tree.roots:
-            cmap = plt.cm.get_cmap("tab10", max(len(tree.roots), 1))  # type: ignore[attr-defined]
+            try:
+                import matplotlib
+                cmap = matplotlib.colormaps.get_cmap("tab10")
+            except AttributeError:
+                # matplotlib < 3.5 fallback
+                cmap = plt.cm.get_cmap("tab10")  # type: ignore[attr-defined]
             lineage_colour: Dict[str, Any] = {}
             for idx, root_id in enumerate(tree.roots):
                 lineage_colour[root_id] = cmap(idx % 10)
@@ -164,6 +169,7 @@ def plot_phylogenetic_tree(
             for nid in nodes_to_render:
                 colour_map[nid] = _get_lineage_colour(nid)
         else:
+            cmap = None
             default_colour = (0.2, 0.4, 0.8, 0.8)
             for nid in nodes_to_render:
                 colour_map[nid] = default_colour  # type: ignore[assignment]
@@ -220,11 +226,10 @@ def plot_phylogenetic_tree(
         ax.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
 
         # Legend: lineage colours
-        if color_by_lineage and tree.roots:
+        if color_by_lineage and tree.roots and cmap is not None:
             handles = []
-            cmap2 = plt.cm.get_cmap("tab10", max(len(tree.roots), 1))  # type: ignore[attr-defined]
             for idx, root_id in enumerate(tree.roots[:10]):  # cap legend entries
-                patch = mpatches.Patch(color=cmap2(idx % 10), label=f"Lineage: {root_id}")
+                patch = mpatches.Patch(color=cmap(idx % 10), label=f"Lineage: {root_id}")
                 handles.append(patch)
             if len(tree.roots) > 10:
                 handles.append(
