@@ -2440,7 +2440,7 @@ def _collect_parent_child_locus_changes(
         if not isinstance(child_cv, dict):
             continue
 
-        for parent_id in parent_ids_raw:
+        for parent_id in dict.fromkeys(parent_ids_raw):
             parent_id_str = str(parent_id)
             if parent_id_str not in id_to_chrom:
                 continue  # skip "seed" or missing parents
