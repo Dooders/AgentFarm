@@ -636,6 +636,10 @@ def compute_evolution_diversity_timeseries(
 
     Groups candidate evaluations by generation and applies
     :func:`compute_population_diversity` to each group.
+    When per-candidate evaluations are not available, falls back to
+    ``result.generation_summaries`` and derives a reduced
+    :class:`PopulationDiversitySummary` from each summary's
+    ``gene_statistics``.
 
     Parameters
     ----------
@@ -649,30 +653,62 @@ def compute_evolution_diversity_timeseries(
     compute_continuous_entropy:
         When ``True``, compute histogram entropy for continuous loci.
 
+    Notes
+    -----
+    The fallback ``generation_summaries`` path is intentionally limited because
+    generation summaries store aggregate gene statistics, not per-candidate
+    gene values:
+
+    * Continuous locus metrics available from summary aggregates:
+      ``mean``, ``std``, ``normalized_variance`` (when bounds are provided),
+      and ``coefficient_of_variation``.
+    * Metrics that require per-candidate distributions are unavailable in the
+      fallback path and returned as ``nan``/empty:
+      ``range_occupancy``, Shannon entropy, categorical diversity, and
+      heterozygosity.
+    * ``n_individuals`` is unknown in this path and set to ``0``.
+
     Returns
     -------
     list of dict
         Each element is ``{"generation": int, "diversity": PopulationDiversitySummary}``,
         sorted by generation in ascending order.
-        Returns an empty list when *result* contains no evaluations.
+        Returns an empty list when *result* contains neither evaluations nor
+        generation summaries.
     """
-    df = build_evolution_experiment_dataframe(result)
-    if df.empty:
+    if result.evaluations:
+        df = build_evolution_experiment_dataframe(result)
+        rows: List[Dict[str, Any]] = []
+        for gen, group in df.groupby("generation"):
+            summary = compute_population_diversity(
+                group.reset_index(drop=True),
+                gene_bounds=gene_bounds,
+                entropy_bins=entropy_bins,
+                compute_continuous_entropy=compute_continuous_entropy,
+            )
+            rows.append({"generation": int(gen), "diversity": summary})
+
+        rows.sort(key=lambda r: r["generation"])
+        logger.info(
+            "compute_evolution_diversity_timeseries: computed diversity for %d generation(s) from evaluations",
+            len(rows),
+        )
+        return rows
+
+    if not result.generation_summaries:
         return []
 
-    rows: List[Dict[str, Any]] = []
-    for gen, group in df.groupby("generation"):
-        summary = compute_population_diversity(
-            group.reset_index(drop=True),
+    rows = []
+    for generation_summary in result.generation_summaries:
+        diversity = _build_summary_diversity_from_generation_summary(
+            generation_summary,
             gene_bounds=gene_bounds,
-            entropy_bins=entropy_bins,
-            compute_continuous_entropy=compute_continuous_entropy,
         )
-        rows.append({"generation": int(gen), "diversity": summary})
+        rows.append({"generation": int(generation_summary.generation), "diversity": diversity})
 
     rows.sort(key=lambda r: r["generation"])
     logger.info(
-        "compute_evolution_diversity_timeseries: computed diversity for %d generation(s)",
+        "compute_evolution_diversity_timeseries: computed diversity for %d generation(s) from generation_summaries",
         len(rows),
     )
     return rows
@@ -1067,3 +1103,76 @@ def compute_selection_pressure_summary(
         n_collapsed,
     )
     return result_df
+
+
+def _build_summary_diversity_from_generation_summary(
+    generation_summary: Any,
+    gene_bounds: Optional[Mapping[str, Tuple[float, float]]] = None,
+) -> PopulationDiversitySummary:
+    """Build reduced diversity metrics from an EvolutionGenerationSummary.
+
+    This helper is used as a fallback when an evolution result has no
+    per-candidate evaluations. It relies on aggregate per-gene statistics
+    provided by ``generation_summary.gene_statistics``.
+    """
+    bounds_map: Mapping[str, Tuple[float, float]] = gene_bounds or {}
+    continuous_loci: Dict[str, ContinuousLocusDiversity] = {}
+
+    gene_statistics = generation_summary.gene_statistics or {}
+    for gene, stats in sorted(gene_statistics.items()):
+        if not isinstance(stats, dict):
+            continue
+        raw_mean = stats.get("mean")
+        raw_std = stats.get("std")
+        try:
+            mean_val = float(raw_mean)
+            std_val = float(raw_std)
+        except (TypeError, ValueError):
+            continue
+        if not (math.isfinite(mean_val) and math.isfinite(std_val)):
+            continue
+
+        var_val = std_val ** 2
+        bounds = bounds_map.get(gene)
+        if bounds is not None and bounds[0] < bounds[1]:
+            span = bounds[1] - bounds[0]
+            normalized_variance = var_val / (span ** 2) if span > 0.0 else float("nan")
+        else:
+            normalized_variance = float("nan")
+
+        coefficient_of_variation = std_val / abs(mean_val) if abs(mean_val) > 0.0 else float("nan")
+
+        continuous_loci[gene] = ContinuousLocusDiversity(
+            locus_name=gene,
+            n_individuals=0,
+            mean=mean_val,
+            std=std_val,
+            normalized_variance=normalized_variance,
+            coefficient_of_variation=coefficient_of_variation,
+            range_occupancy=float("nan"),
+            shannon_entropy=None,
+        )
+
+    norm_vars = [
+        locus.normalized_variance
+        for locus in continuous_loci.values()
+        if not math.isnan(locus.normalized_variance)
+    ]
+    mean_normalized_variance = float(np.mean(norm_vars)) if norm_vars else float("nan")
+
+    cvs = [
+        locus.coefficient_of_variation
+        for locus in continuous_loci.values()
+        if not math.isnan(locus.coefficient_of_variation)
+    ]
+    mean_coefficient_of_variation = float(np.mean(cvs)) if cvs else float("nan")
+
+    return PopulationDiversitySummary(
+        n_individuals=0,
+        continuous_loci=continuous_loci,
+        categorical_loci={},
+        mean_normalized_variance=mean_normalized_variance,
+        mean_coefficient_of_variation=mean_coefficient_of_variation,
+        mean_shannon_entropy=float("nan"),
+        mean_heterozygosity=float("nan"),
+    )
