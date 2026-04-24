@@ -34,7 +34,7 @@ _DEFAULT_MAX_DEPTH_LARGE = 6
 
 
 def plot_phylogenetic_tree(
-    tree: PhylogeneticTree,
+    df: PhylogeneticTree,
     ctx: AnalysisContext,
     *,
     max_depth: Optional[int] = None,
@@ -47,8 +47,9 @@ def plot_phylogenetic_tree(
 
     Parameters
     ----------
-    tree:
-        :class:`~farm.analysis.phylogenetics.compute.PhylogeneticTree` to plot.
+    df:
+        :class:`~farm.analysis.phylogenetics.compute.PhylogeneticTree` to plot
+        (parameter name ``df`` for the analysis framework wrapper).
     ctx:
         :class:`~farm.analysis.common.context.AnalysisContext` supplying the
         output directory and a logger.
@@ -71,7 +72,7 @@ def plot_phylogenetic_tree(
     pathlib.Path or None
         Path to the saved PNG file on success, ``None`` on failure.
     """
-    if not tree.nodes:
+    if not df.nodes:
         logger.warning("plot_phylogenetic_tree: tree is empty; skipping")
         return None
 
@@ -90,29 +91,29 @@ def plot_phylogenetic_tree(
         # 1. Determine which nodes to render (pruning)
         # ------------------------------------------------------------------
         effective_max_depth = max_depth
-        if effective_max_depth is None and len(tree.nodes) > max_nodes:
+        if effective_max_depth is None and len(df.nodes) > max_nodes:
             effective_max_depth = _DEFAULT_MAX_DEPTH_LARGE
 
         if effective_max_depth is not None:
             render_ids: Set[str] = {
                 nid
-                for nid, n in tree.nodes.items()
+                for nid, n in df.nodes.items()
                 if 0 <= n.depth <= effective_max_depth
             }
         else:
-            render_ids = set(tree.nodes.keys())
+            render_ids = set(df.nodes.keys())
 
         # Per-depth sampling when still too large
         if len(render_ids) > max_nodes:
             by_depth: Dict[int, List[str]] = defaultdict(list)
             for nid in sorted(render_ids):
-                by_depth[tree.nodes[nid].depth].append(nid)
+                by_depth[df.nodes[nid].depth].append(nid)
             per_level = max(1, max_nodes // max(1, len(by_depth)))
             render_ids = set()
             for depth_level in sorted(by_depth):
                 render_ids.update(sorted(by_depth[depth_level])[:per_level])
 
-        nodes_to_render = {nid: tree.nodes[nid] for nid in render_ids}
+        nodes_to_render = {nid: df.nodes[nid] for nid in render_ids}
 
         # ------------------------------------------------------------------
         # 2. Assign positions
@@ -136,7 +137,7 @@ def plot_phylogenetic_tree(
         # 3. Assign lineage colours
         # ------------------------------------------------------------------
         colour_map: Dict[str, str] = {}
-        if color_by_lineage and tree.roots:
+        if color_by_lineage and df.roots:
             try:
                 import matplotlib
                 cmap = matplotlib.colormaps.get_cmap("tab10")
@@ -144,7 +145,7 @@ def plot_phylogenetic_tree(
                 # matplotlib < 3.5 fallback
                 cmap = plt.cm.get_cmap("tab10")  # type: ignore[attr-defined]
             lineage_colour: Dict[str, Any] = {}
-            for idx, root_id in enumerate(tree.roots):
+            for idx, root_id in enumerate(df.roots):
                 lineage_colour[root_id] = cmap(idx % 10)
 
             def _get_lineage_colour(nid: str) -> Any:
@@ -162,7 +163,7 @@ def plot_phylogenetic_tree(
                         break
                     current = parents[0]
                 return lineage_colour.get(
-                    tree.roots[0] if tree.roots else list(nodes_to_render)[0],
+                    df.roots[0] if df.roots else list(nodes_to_render)[0],
                     (0.5, 0.5, 0.5, 1.0),
                 )
 
@@ -226,19 +227,19 @@ def plot_phylogenetic_tree(
         ax.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
 
         # Legend: lineage colours
-        if color_by_lineage and tree.roots and cmap is not None:
+        if color_by_lineage and df.roots and cmap is not None:
             handles = []
-            for idx, root_id in enumerate(tree.roots[:10]):  # cap legend entries
+            for idx, root_id in enumerate(df.roots[:10]):  # cap legend entries
                 patch = mpatches.Patch(color=cmap(idx % 10), label=f"Lineage: {root_id}")
                 handles.append(patch)
-            if len(tree.roots) > 10:
+            if len(df.roots) > 10:
                 handles.append(
-                    mpatches.Patch(color="white", label=f"… +{len(tree.roots) - 10} more")
+                    mpatches.Patch(color="white", label=f"… +{len(df.roots) - 10} more")
                 )
             ax.legend(handles=handles, loc="upper right", fontsize=7, framealpha=0.7)
 
         # DAG annotation
-        if tree.is_dag:
+        if df.is_dag:
             ax.text(
                 0.01,
                 0.01,
@@ -250,11 +251,11 @@ def plot_phylogenetic_tree(
             )
 
         # Pruning annotation
-        if len(nodes_to_render) < len(tree.nodes):
+        if len(nodes_to_render) < len(df.nodes):
             ax.text(
                 0.99,
                 0.01,
-                f"Showing {len(nodes_to_render)} of {len(tree.nodes)} nodes",
+                f"Showing {len(nodes_to_render)} of {len(df.nodes)} nodes",
                 transform=ax.transAxes,
                 fontsize=7,
                 color="gray",

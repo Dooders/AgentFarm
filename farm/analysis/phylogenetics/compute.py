@@ -321,13 +321,13 @@ class PhylogeneticTree:
         if not self.nodes:
             return "();"
 
-        # Build spanning-tree child map: only the first parent edge is used
+        # Build spanning-tree child map: first parent *present in this tree*
         spanning_children: Dict[str, List[str]] = defaultdict(list)
         for nid, node in sorted(self.nodes.items()):  # sorted for determinism
             if not node.is_root and node.parent_ids:
-                first_parent = node.parent_ids[0]
-                if first_parent in self.nodes:
-                    spanning_children[first_parent].append(nid)
+                parents_in_tree = [p for p in node.parent_ids if p in self.nodes]
+                if parents_in_tree:
+                    spanning_children[parents_in_tree[0]].append(nid)
 
         def _subtree(nid: str, visited: Set[str]) -> str:
             if nid in visited:

@@ -444,6 +444,21 @@ class TestNewickExport:
         # child should appear under p1's subtree (first parent)
         assert "child" in newick
 
+    def test_newick_skips_missing_first_parent_uses_second(self):
+        """When parent_ids[0] is absent but a later parent exists in-tree."""
+        from farm.analysis.phylogenetics.compute import PhylogeneticNode
+
+        nodes = {
+            "p2": PhylogeneticNode("p2", [], is_root=True, depth=0),
+            "child": PhylogeneticNode(
+                "child", ["missing_parent", "p2"], is_root=False, depth=1
+            ),
+        }
+        tree = PhylogeneticTree(nodes=nodes, roots=["p2"], is_dag=True)
+        newick = tree.to_newick()
+        assert "child" in newick
+        assert "p2" in newick
+
 
 # ---------------------------------------------------------------------------
 # Summary statistics
