@@ -23,7 +23,7 @@ class _PhylogeneticTreeValidator:
     framework validation step does not raise a ``TypeError``.
     """
 
-    def validate(self, data: object) -> None:  # noqa: D401
+    def validate(self, data: object) -> None:
         """Accept any :class:`PhylogeneticTree`; raise on ``None``."""
         if data is None:
             raise ValueError("process_phylogenetics_data returned None")

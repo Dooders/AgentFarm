@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL as SqlaURL
 from sqlalchemy.orm import Session
 
 from farm.database.models import AgentModel
@@ -82,7 +83,7 @@ def process_phylogenetics_data(data: Any, **kwargs: Any) -> PhylogeneticTree:
         logger.info(
             "process_phylogenetics_data: loading agent lineage from database %s", db_path
         )
-        engine = create_engine(f"sqlite:///{db_path}")
+        engine = create_engine(SqlaURL.create("sqlite", database=str(db_path)))
         try:
             with Session(engine) as session:
                 agents = session.query(AgentModel).all()
