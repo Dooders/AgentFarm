@@ -15,6 +15,10 @@ Features:
 - Fitness landscape: single-locus correlations and pairwise epistasis analysis
 - Wright-Fisher neutral drift simulator (seeded, per-allele trajectories)
 - Gene-flow / F_ST differentiation across configurable subpopulations
+- Adaptation signatures: realized mutation rate (per generation and per
+  locus), conserved-run detector with categorical fixation support,
+  conserved-run / fitness-improvement correlation, and sweep-candidate
+  identification
 
 Quick Start::
 
@@ -34,6 +38,11 @@ Quick Start::
     ...     compute_fst_pairwise,
     ...     compute_migration_counts,
     ...     compute_gene_flow_timeseries,
+    ...     compute_realized_mutation_rate,
+    ...     compute_realized_mutation_rate_per_locus,
+    ...     compute_conserved_runs,
+    ...     compute_conserved_run_fitness_correlation,
+    ...     compute_sweep_candidates,
     ... )
 """
 
@@ -66,6 +75,17 @@ from farm.analysis.genetics.compute import (
     MIGRATION_COLUMNS,
     compute_gene_flow_timeseries,
     GENE_FLOW_COLUMNS,
+    compute_realized_mutation_rate,
+    REALIZED_MUTATION_COLUMNS,
+    compute_realized_mutation_rate_per_locus,
+    REALIZED_MUTATION_PER_LOCUS_COLUMNS,
+    compute_conserved_runs,
+    CONSERVED_RUNS_COLUMNS,
+    CATEGORICAL_LOCUS_PREFIX,
+    compute_conserved_run_fitness_correlation,
+    CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS,
+    compute_sweep_candidates,
+    SWEEP_CANDIDATE_COLUMNS,
 )
 from farm.analysis.genetics.analyze import analyze_genetics
 from farm.analysis.genetics.module import genetics_module, GeneticsModule
@@ -106,6 +126,18 @@ __all__ = [
     "MIGRATION_COLUMNS",
     "compute_gene_flow_timeseries",
     "GENE_FLOW_COLUMNS",
+    # Adaptation signatures
+    "compute_realized_mutation_rate",
+    "REALIZED_MUTATION_COLUMNS",
+    "compute_realized_mutation_rate_per_locus",
+    "REALIZED_MUTATION_PER_LOCUS_COLUMNS",
+    "compute_conserved_runs",
+    "CONSERVED_RUNS_COLUMNS",
+    "CATEGORICAL_LOCUS_PREFIX",
+    "compute_conserved_run_fitness_correlation",
+    "CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS",
+    "compute_sweep_candidates",
+    "SWEEP_CANDIDATE_COLUMNS",
     # High-level analysis
     "analyze_genetics",
     "genetics_module",
