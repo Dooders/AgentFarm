@@ -24,7 +24,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from farm.analysis.phylogenetics.compute import (
-    PhylogeneticNode,
     PhylogeneticTree,
     PhylogeneticTreeSummary,
     build_phylogenetic_tree,
