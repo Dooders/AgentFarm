@@ -237,7 +237,7 @@ For detailed documentation and advanced usage:
 - [Core Architecture](docs/core_architecture.md)
 - [Hyperparameter Chromosome Design](docs/design/hyperparameter_chromosome.md)
 - [Devlog](docs/devlog/index.md)
-- [Latest Devlog: DNA-Style Hyperparameter Evolution Results](docs/devlog/2026-04-17-dna-hyperparameter-evolution.md)
+- [Latest Devlog: Evolving Hyperparameter Genomes in Foraging and Learning Agents](docs/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.md)
 - [Full Documentation Index](docs/README.md)
 
 ### GitHub Pages
