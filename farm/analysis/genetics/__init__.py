@@ -11,6 +11,7 @@ Features:
 - Evolution-experiment-backed population accessor (chromosome values, fitness)
 - Normalized DataFrame output for both sources
 - Genotypic diversity metrics: heterozygosity, Shannon entropy, per-locus stats
+- Allele-frequency trajectory tracking and selection-pressure detection
 
 Quick Start::
 
@@ -22,6 +23,8 @@ Quick Start::
     ...     compute_categorical_locus_diversity,
     ...     compute_population_diversity,
     ...     compute_evolution_diversity_timeseries,
+    ...     compute_allele_frequency_timeseries,
+    ...     compute_selection_pressure_summary,
     ... )
 """
 
@@ -36,6 +39,12 @@ from farm.analysis.genetics.compute import (
     compute_categorical_locus_diversity,
     compute_population_diversity,
     compute_evolution_diversity_timeseries,
+    compute_allele_frequency_timeseries,
+    compute_selection_pressure_summary,
+    ALLELE_MEAN,
+    ALLELE_VARIANCE,
+    ALLELE_FREQUENCY_COLUMNS,
+    SELECTION_PRESSURE_COLUMNS,
 )
 from farm.analysis.genetics.analyze import analyze_genetics
 from farm.analysis.genetics.module import genetics_module, GeneticsModule
@@ -54,6 +63,13 @@ __all__ = [
     "compute_categorical_locus_diversity",
     "compute_population_diversity",
     "compute_evolution_diversity_timeseries",
+    # Allele-frequency tracking and selection-pressure detection
+    "compute_allele_frequency_timeseries",
+    "compute_selection_pressure_summary",
+    "ALLELE_MEAN",
+    "ALLELE_VARIANCE",
+    "ALLELE_FREQUENCY_COLUMNS",
+    "SELECTION_PRESSURE_COLUMNS",
     # High-level analysis
     "analyze_genetics",
     "genetics_module",
