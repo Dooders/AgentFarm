@@ -15,6 +15,8 @@ Features:
 - Fitness landscape: single-locus correlations and pairwise epistasis analysis
 - Wright-Fisher neutral drift simulator (seeded, per-allele trajectories)
 - Gene-flow / F_ST differentiation across configurable subpopulations
+- Adaptation signatures: realized mutation rate, conserved-run detector, and
+  sweep-candidate identification
 
 Quick Start::
 
@@ -34,6 +36,9 @@ Quick Start::
     ...     compute_fst_pairwise,
     ...     compute_migration_counts,
     ...     compute_gene_flow_timeseries,
+    ...     compute_realized_mutation_rate,
+    ...     compute_conserved_runs,
+    ...     compute_sweep_candidates,
     ... )
 """
 
@@ -66,6 +71,12 @@ from farm.analysis.genetics.compute import (
     MIGRATION_COLUMNS,
     compute_gene_flow_timeseries,
     GENE_FLOW_COLUMNS,
+    compute_realized_mutation_rate,
+    REALIZED_MUTATION_COLUMNS,
+    compute_conserved_runs,
+    CONSERVED_RUNS_COLUMNS,
+    compute_sweep_candidates,
+    SWEEP_CANDIDATE_COLUMNS,
 )
 from farm.analysis.genetics.analyze import analyze_genetics
 from farm.analysis.genetics.module import genetics_module, GeneticsModule
@@ -106,6 +117,13 @@ __all__ = [
     "MIGRATION_COLUMNS",
     "compute_gene_flow_timeseries",
     "GENE_FLOW_COLUMNS",
+    # Adaptation signatures
+    "compute_realized_mutation_rate",
+    "REALIZED_MUTATION_COLUMNS",
+    "compute_conserved_runs",
+    "CONSERVED_RUNS_COLUMNS",
+    "compute_sweep_candidates",
+    "SWEEP_CANDIDATE_COLUMNS",
     # High-level analysis
     "analyze_genetics",
     "genetics_module",

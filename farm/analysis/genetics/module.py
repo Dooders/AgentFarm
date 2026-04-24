@@ -26,6 +26,9 @@ from farm.analysis.genetics.compute import (
     compute_fst_pairwise,
     compute_migration_counts,
     compute_gene_flow_timeseries,
+    compute_realized_mutation_rate,
+    compute_conserved_runs,
+    compute_sweep_candidates,
 )
 from farm.utils.logging import get_logger
 
@@ -107,6 +110,9 @@ class GeneticsModule(BaseAnalysisModule):
             "compute_fst_pairwise": make_analysis_function(compute_fst_pairwise),
             "compute_migration_counts": make_analysis_function(compute_migration_counts),
             "compute_gene_flow_timeseries": make_analysis_function(compute_gene_flow_timeseries),
+            "compute_realized_mutation_rate": make_analysis_function(compute_realized_mutation_rate),
+            "compute_conserved_runs": make_analysis_function(compute_conserved_runs),
+            "compute_sweep_candidates": make_analysis_function(compute_sweep_candidates),
         }
 
         self._groups = {
@@ -137,6 +143,11 @@ class GeneticsModule(BaseAnalysisModule):
                 self._functions["compute_fst_pairwise"],
                 self._functions["compute_migration_counts"],
                 self._functions["compute_gene_flow_timeseries"],
+            ],
+            "adaptation_signatures": [
+                self._functions["compute_realized_mutation_rate"],
+                self._functions["compute_conserved_runs"],
+                self._functions["compute_sweep_candidates"],
             ],
         }
 
