@@ -1,0 +1,29 @@
+<a href="#content" class="skip-link">Skip to content</a>
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="site-header__brand" href="{{ '/' | relative_url }}">
+      <img src="{{ '/assets/logo.svg' | relative_url }}" alt="" class="site-header__logo" width="28" height="28" />
+      <span class="site-header__title">{{ site.title }}</span>
+    </a>
+
+    <nav class="site-nav" aria-label="Primary">
+      <input type="checkbox" id="nav-toggle" class="site-nav__toggle" />
+      <label for="nav-toggle" class="site-nav__button" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </label>
+      <ul class="site-nav__list">
+        {% for link in site.nav_links %}
+          <li class="site-nav__item">
+            <a
+              class="site-nav__link{% if page.url contains link.url and link.url != '/' %} is-active{% endif %}"
+              href="{{ link.url | relative_url }}"
+              {% if link.external %}target="_blank" rel="noopener"{% endif %}
+            >
+              {{ link.title }}{% if link.external %}<span aria-hidden="true" class="site-nav__ext">↗</span>{% endif %}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </nav>
+  </div>
+</header>

@@ -1,0 +1,36 @@
+<footer class="site-footer">
+  <div class="container site-footer__inner">
+    <div class="site-footer__col">
+      <a class="site-footer__brand" href="{{ '/' | relative_url }}">
+        <img src="{{ '/assets/logo.svg' | relative_url }}" alt="" width="22" height="22" />
+        <strong>{{ site.title }}</strong>
+      </a>
+      <p class="site-footer__tagline">{{ site.tagline }}</p>
+    </div>
+
+    <div class="site-footer__col">
+      <h4>Project</h4>
+      <ul>
+        <li><a href="https://github.com/{{ site.repository }}" target="_blank" rel="noopener">GitHub repository</a></li>
+        <li><a href="https://github.com/{{ site.repository }}/issues" target="_blank" rel="noopener">Issues</a></li>
+        <li><a href="https://github.com/{{ site.repository }}/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a></li>
+        <li><a href="https://github.com/{{ site.repository }}/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+      </ul>
+    </div>
+
+    <div class="site-footer__col">
+      <h4>Documentation</h4>
+      <ul>
+        <li><a href="{{ '/README/' | relative_url }}">Documentation index</a></li>
+        <li><a href="{{ '/devlog/' | relative_url }}">Devlog</a></li>
+        <li><a href="{{ '/api_reference/' | relative_url }}">API reference</a></li>
+        <li><a href="{{ '/usage_examples/' | relative_url }}">Usage examples</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="container site-footer__bottom">
+    <span>&copy; {{ 'now' | date: "%Y" }} Dooders. Built with Jekyll &amp; GitHub Pages.</span>
+    <a href="https://github.com/{{ site.repository }}" target="_blank" rel="noopener">View source on GitHub</a>
+  </div>
+</footer>

@@ -1,4 +1,81 @@
-title: AgentFarm Docs
-description: Documentation and devlog for AgentFarm
-theme: minima
+title: AgentFarm
+tagline: A Python-first platform for agent-based simulation, reinforcement learning, and emergent-behavior research.
+description: >-
+  AgentFarm is an open-source simulation and analysis workbench for agent-based
+  modeling, reinforcement learning experiments, and complex adaptive systems
+  research from the Dooders project.
+url: "https://dooders.github.io"
+baseurl: "/AgentFarm"
+repository: Dooders/AgentFarm
+github_username: Dooders
+
 markdown: kramdown
+highlighter: rouge
+permalink: /:path/
+
+kramdown:
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    css_class: "highlight"
+
+defaults:
+  - scope:
+      path: ""
+      type: pages
+    values:
+      layout: default
+  - scope:
+      path: "devlog"
+    values:
+      layout: post
+
+plugins:
+  - jekyll-optional-front-matter
+  - jekyll-relative-links
+  - jekyll-titles-from-headings
+
+# Treat docs Markdown files as pages even when they have no YAML front matter.
+optional_front_matter:
+  remove_originals: true
+
+# Convert relative .md links between docs into proper rendered .html links so
+# in-page navigation works after the Jekyll build.
+relative_links:
+  enabled: true
+  collections: true
+
+titles_from_headings:
+  enabled: true
+  strip_title: false
+  collections: true
+
+collections:
+  devlog:
+    output: false
+
+# Top navigation links shown in the site header. URLs use the trailing-slash
+# permalinks Jekyll generates from optional-front-matter pages.
+nav_links:
+  - title: Docs
+    url: /README/
+  - title: Devlog
+    url: /devlog/
+  - title: Experiments
+    url: /experiments/
+  - title: API
+    url: /api_reference/
+  - title: GitHub
+    url: https://github.com/Dooders/AgentFarm
+    external: true
+
+include:
+  - README.md
+
+exclude:
+  - sample/
+  - "*.db"
+  - vendor/
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
+  - .jekyll-cache/
