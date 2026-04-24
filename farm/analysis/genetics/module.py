@@ -20,6 +20,10 @@ from farm.analysis.genetics.plot import (
 from farm.analysis.genetics.compute import (
     compute_fitness_gene_correlations,
     compute_pairwise_epistasis,
+    simulate_wright_fisher,
+    compute_fst_pairwise,
+    compute_migration_counts,
+    compute_gene_flow_timeseries,
 )
 
 
@@ -66,6 +70,10 @@ class GeneticsModule(BaseAnalysisModule):
             "compute_pairwise_epistasis": make_analysis_function(compute_pairwise_epistasis),
             "plot_marginal_fitness_effect": make_analysis_function(plot_marginal_fitness_effect),
             "plot_fitness_landscape_2d": make_analysis_function(plot_fitness_landscape_2d),
+            "simulate_wright_fisher": make_analysis_function(simulate_wright_fisher),
+            "compute_fst_pairwise": make_analysis_function(compute_fst_pairwise),
+            "compute_migration_counts": make_analysis_function(compute_migration_counts),
+            "compute_gene_flow_timeseries": make_analysis_function(compute_gene_flow_timeseries),
         }
 
         self._groups = {
@@ -90,6 +98,12 @@ class GeneticsModule(BaseAnalysisModule):
                 self._functions["compute_pairwise_epistasis"],
                 self._functions["plot_marginal_fitness_effect"],
                 self._functions["plot_fitness_landscape_2d"],
+            ],
+            "population_genetics": [
+                self._functions["simulate_wright_fisher"],
+                self._functions["compute_fst_pairwise"],
+                self._functions["compute_migration_counts"],
+                self._functions["compute_gene_flow_timeseries"],
             ],
         }
 

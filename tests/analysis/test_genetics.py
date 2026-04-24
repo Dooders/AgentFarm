@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from types import SimpleNamespace
+from typing import Optional
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -43,6 +44,14 @@ from farm.analysis.genetics.compute import (
     compute_pairwise_epistasis,
     FITNESS_GENE_CORRELATION_COLUMNS,
     PAIRWISE_EPISTASIS_COLUMNS,
+    simulate_wright_fisher,
+    WRIGHT_FISHER_COLUMNS,
+    compute_fst_pairwise,
+    FST_COLUMNS,
+    compute_migration_counts,
+    MIGRATION_COLUMNS,
+    compute_gene_flow_timeseries,
+    GENE_FLOW_COLUMNS,
 )
 from farm.analysis.genetics.utils import parse_parent_ids
 from farm.analysis.genetics.analyze import analyze_genetics
@@ -1766,3 +1775,648 @@ class TestComputePairwiseEpistasis:
             compute_pairwise_epistasis(df, min_samples=1)
         with pytest.raises(ValueError, match="min_gene_variance"):
             compute_pairwise_epistasis(df, min_gene_variance=-1.0)
+
+
+# ---------------------------------------------------------------------------
+# simulate_wright_fisher
+# ---------------------------------------------------------------------------
+
+
+def _make_two_allele_freqs(p: float = 0.5) -> dict:
+    return {"A": p, "B": 1.0 - p}
+
+
+class TestSimulateWrightFisher:
+    """Tests for simulate_wright_fisher."""
+
+    # --- Output shape and columns ---
+
+    def test_output_columns_correct(self):
+        result = simulate_wright_fisher({"A": 1.0}, n_effective=10, n_generations=5)
+        assert list(result.columns) == WRIGHT_FISHER_COLUMNS
+
+    def test_output_row_count(self):
+        result = simulate_wright_fisher(
+            _make_two_allele_freqs(), n_effective=10, n_generations=5
+        )
+        # (n_generations + 1) rows per allele
+        assert len(result) == 2 * 6
+
+    def test_generation_zero_matches_initial(self):
+        init = {"A": 0.3, "B": 0.7}
+        result = simulate_wright_fisher(init, n_effective=50, n_generations=3)
+        gen0 = result[result["generation"] == 0].set_index("allele")["frequency"]
+        assert abs(gen0["A"] - 0.3) < 1e-9
+        assert abs(gen0["B"] - 0.7) < 1e-9
+
+    def test_frequencies_sum_to_one_per_generation(self):
+        result = simulate_wright_fisher(
+            {"A": 0.4, "B": 0.4, "C": 0.2}, n_effective=100, n_generations=10, seed=0
+        )
+        for gen, grp in result.groupby("generation"):
+            total = grp["frequency"].sum()
+            assert abs(total - 1.0) < 1e-9, f"generation {gen}: sum={total}"
+
+    def test_frequencies_in_unit_interval(self):
+        result = simulate_wright_fisher(
+            _make_two_allele_freqs(0.5), n_effective=20, n_generations=20, seed=1
+        )
+        assert (result["frequency"] >= 0.0).all()
+        assert (result["frequency"] <= 1.0).all()
+
+    def test_zero_generations_returns_only_initial(self):
+        result = simulate_wright_fisher({"A": 0.6, "B": 0.4}, n_effective=50, n_generations=0)
+        assert set(result["generation"].unique()) == {0}
+        assert len(result) == 2
+
+    def test_single_allele_stays_fixed(self):
+        result = simulate_wright_fisher({"X": 1.0}, n_effective=100, n_generations=10, seed=42)
+        assert (result["frequency"] == 1.0).all()
+
+    # --- Determinism with seed ---
+
+    def test_seeded_runs_are_identical(self):
+        kwargs = dict(
+            initial_frequencies=_make_two_allele_freqs(0.3),
+            n_effective=50,
+            n_generations=10,
+        )
+        r1 = simulate_wright_fisher(**kwargs, seed=7)
+        r2 = simulate_wright_fisher(**kwargs, seed=7)
+        assert r1["frequency"].tolist() == r2["frequency"].tolist()
+
+    def test_different_seeds_differ(self):
+        kwargs = dict(
+            initial_frequencies=_make_two_allele_freqs(0.5),
+            n_effective=20,
+            n_generations=20,
+        )
+        r1 = simulate_wright_fisher(**kwargs, seed=0)
+        r2 = simulate_wright_fisher(**kwargs, seed=99)
+        # With high probability the trajectories will differ
+        assert r1["frequency"].tolist() != r2["frequency"].tolist()
+
+    # --- Statistical properties ---
+
+    def test_mean_trajectory_preserved(self):
+        """E[p(t)] = p(0) across many independent runs (neutral drift)."""
+        rng = np.random.default_rng(42)
+        p0 = 0.4
+        n_reps = 500
+        n_eff = 200
+        n_gen = 20
+        final_freqs = []
+        for s in range(n_reps):
+            r = simulate_wright_fisher(
+                {"A": p0, "B": 1.0 - p0},
+                n_effective=n_eff,
+                n_generations=n_gen,
+                seed=int(rng.integers(0, 10**6)),
+            )
+            last_gen = r[r["generation"] == n_gen]
+            freq_a = float(last_gen.loc[last_gen["allele"] == "A", "frequency"].iloc[0])
+            final_freqs.append(freq_a)
+        mean_final = float(np.mean(final_freqs))
+        # Mean should be close to p0; allow 3 SEM tolerance
+        sem = float(np.std(final_freqs)) / (n_reps ** 0.5)
+        assert abs(mean_final - p0) < 3 * sem, (
+            f"mean final frequency {mean_final:.4f} deviates too much from p0={p0}"
+        )
+
+    def test_variance_scales_with_population_size(self):
+        """Smaller N_e → greater drift variance."""
+        p0 = 0.5
+        n_gen = 30
+        n_reps = 300
+        results = {}
+        for n_eff in (10, 500):
+            final_freqs = []
+            for s in range(n_reps):
+                r = simulate_wright_fisher(
+                    {"A": p0, "B": 1.0 - p0},
+                    n_effective=n_eff,
+                    n_generations=n_gen,
+                    seed=s,
+                )
+                last = r[(r["generation"] == n_gen) & (r["allele"] == "A")]
+                final_freqs.append(float(last["frequency"].iloc[0]))
+            results[n_eff] = float(np.var(final_freqs))
+        assert results[10] > results[500], (
+            "smaller N_e should show higher variance: "
+            f"var(N=10)={results[10]:.4f}, var(N=500)={results[500]:.4f}"
+        )
+
+    # --- Input validation ---
+
+    def test_empty_frequencies_raises(self):
+        with pytest.raises(ValueError, match="initial_frequencies"):
+            simulate_wright_fisher({}, n_effective=10, n_generations=5)
+
+    def test_negative_frequency_raises(self):
+        with pytest.raises(ValueError, match=">= 0"):
+            simulate_wright_fisher({"A": -0.1, "B": 1.1}, n_effective=10, n_generations=5)
+
+    def test_frequencies_not_summing_to_one_raises(self):
+        with pytest.raises(ValueError, match="sum to 1.0"):
+            simulate_wright_fisher({"A": 0.3, "B": 0.3}, n_effective=10, n_generations=5)
+
+    def test_zero_n_effective_raises(self):
+        with pytest.raises(ValueError, match="n_effective"):
+            simulate_wright_fisher({"A": 1.0}, n_effective=0, n_generations=5)
+
+    def test_negative_n_generations_raises(self):
+        with pytest.raises(ValueError, match="n_generations"):
+            simulate_wright_fisher({"A": 1.0}, n_effective=10, n_generations=-1)
+
+
+# ---------------------------------------------------------------------------
+# compute_fst_pairwise
+# ---------------------------------------------------------------------------
+
+
+def _make_evolution_df_subpop(
+    n_per_subpop: int,
+    subpops: dict,  # {subpop_name: {gene: (lo, hi)}}
+    seed: int = 0,
+) -> pd.DataFrame:
+    """Build an evolution-style DataFrame with agent_type subpopulations.
+
+    Each subpop has distinct gene ranges to create differentiation.
+    """
+    rng = np.random.default_rng(seed)
+    rows = []
+    cand_idx = 0
+    for subpop, gene_ranges in subpops.items():
+        for _ in range(n_per_subpop):
+            chrom = {
+                gene: float(rng.uniform(lo, hi))
+                for gene, (lo, hi) in gene_ranges.items()
+            }
+            rows.append(
+                {
+                    "candidate_id": f"c{cand_idx}",
+                    "generation": 0,
+                    "fitness": 1.0,
+                    "parent_ids": [],
+                    "chromosome_values": chrom,
+                    "agent_type": subpop,
+                }
+            )
+            cand_idx += 1
+    return pd.DataFrame(rows)
+
+
+def _make_agent_df_subpop(
+    n_per_subpop: int,
+    subpops: dict,  # {subpop_name: {action: (lo, hi)}}
+    seed: int = 0,
+) -> pd.DataFrame:
+    """Build an agent genetics DataFrame with agent_type subpopulations."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    agent_idx = 0
+    for subpop, action_ranges in subpops.items():
+        for _ in range(n_per_subpop):
+            weights_raw = {a: float(rng.uniform(lo, hi)) for a, (lo, hi) in action_ranges.items()}
+            total = sum(weights_raw.values())
+            weights = {a: w / total for a, w in weights_raw.items()}
+            rows.append(
+                {
+                    "agent_id": f"a{agent_idx}",
+                    "agent_type": subpop,
+                    "generation": 0,
+                    "birth_time": 0,
+                    "death_time": None,
+                    "genome_id": f"::{agent_idx}",
+                    "parent_ids": [],
+                    "action_weights": weights,
+                }
+            )
+            agent_idx += 1
+    return pd.DataFrame(rows)
+
+
+class TestComputeFstPairwise:
+    """Tests for compute_fst_pairwise."""
+
+    # --- Output shape and columns ---
+
+    def test_output_columns_correct(self):
+        df = _make_evolution_df_subpop(
+            20, {"A": {"lr": (0.0, 0.1)}, "B": {"lr": (0.9, 1.0)}}
+        )
+        result = compute_fst_pairwise(df)
+        assert list(result.columns) == FST_COLUMNS
+
+    def test_empty_df_returns_empty(self):
+        result = compute_fst_pairwise(pd.DataFrame())
+        assert result.empty
+        assert list(result.columns) == FST_COLUMNS
+
+    def test_missing_subpop_col_returns_empty(self):
+        df = _make_evolution_df_subpop(10, {"A": {"lr": (0.0, 1.0)}})
+        result = compute_fst_pairwise(df, subpop_col="nonexistent")
+        assert result.empty
+
+    def test_single_subpopulation_returns_empty(self):
+        df = _make_evolution_df_subpop(20, {"A": {"lr": (0.0, 0.5)}})
+        result = compute_fst_pairwise(df)
+        assert result.empty
+
+    def test_no_locus_columns_returns_empty(self):
+        df = pd.DataFrame({"agent_type": ["A", "B", "A"], "other": [1, 2, 3]})
+        result = compute_fst_pairwise(df)
+        assert result.empty
+
+    # --- F_ST values for continuous loci ---
+
+    def test_isolated_subpops_high_fst_continuous(self):
+        """Subpopulations with completely non-overlapping gene ranges → high F_ST."""
+        df = _make_evolution_df_subpop(
+            100,
+            {"A": {"lr": (0.0, 0.01)}, "B": {"lr": (0.99, 1.0)}},
+            seed=0,
+        )
+        result = compute_fst_pairwise(df)
+        fst_vals = result[result["locus"] == "lr"]["fst"].values
+        assert len(fst_vals) == 1
+        assert fst_vals[0] > 0.9, f"expected high F_ST, got {fst_vals[0]:.4f}"
+
+    def test_fully_mixed_subpops_low_fst_continuous(self):
+        """Subpopulations drawn from the same distribution → F_ST ≈ 0."""
+        rng = np.random.default_rng(42)
+        vals = rng.uniform(0.0, 1.0, 200)
+        rows = [
+            {
+                "chromosome_values": {"lr": float(v)},
+                "agent_type": "A" if i < 100 else "B",
+                "generation": 0,
+            }
+            for i, v in enumerate(vals)
+        ]
+        df = pd.DataFrame(rows)
+        result = compute_fst_pairwise(df)
+        fst_vals = result[result["locus"] == "lr"]["fst"].values
+        assert len(fst_vals) == 1
+        assert fst_vals[0] < 0.05, f"expected ~0 F_ST for mixed pops, got {fst_vals[0]:.4f}"
+
+    # --- F_ST values for categorical loci ---
+
+    def test_isolated_subpops_high_fst_categorical(self):
+        """Subpopulations with completely different action preferences → high F_ST."""
+        n = 50
+        rows = []
+        for i in range(n):
+            rows.append(
+                {"agent_type": "A", "action_weights": {"move": 1.0, "gather": 0.0}, "generation": 0}
+            )
+        for i in range(n):
+            rows.append(
+                {"agent_type": "B", "action_weights": {"move": 0.0, "gather": 1.0}, "generation": 0}
+            )
+        df = pd.DataFrame(rows)
+        result = compute_fst_pairwise(df)
+        fst_row = result[result["locus"] == "action_weights"]
+        assert len(fst_row) == 1
+        assert float(fst_row["fst"].iloc[0]) > 0.9
+
+    def test_identical_subpops_zero_fst_categorical(self):
+        """Subpopulations with identical action distributions → F_ST == 0."""
+        n = 30
+        weights = {"move": 0.5, "gather": 0.5}
+        rows = (
+            [{"agent_type": "A", "action_weights": weights, "generation": 0}] * n
+            + [{"agent_type": "B", "action_weights": weights, "generation": 0}] * n
+        )
+        df = pd.DataFrame(rows)
+        result = compute_fst_pairwise(df)
+        fst_row = result[result["locus"] == "action_weights"]
+        assert len(fst_row) == 1
+        assert abs(float(fst_row["fst"].iloc[0])) < 1e-9
+
+    # --- F_ST range ---
+
+    def test_fst_in_unit_interval(self):
+        df = _make_evolution_df_subpop(
+            30,
+            {
+                "A": {"lr": (0.0, 0.5), "gamma": (0.8, 1.0)},
+                "B": {"lr": (0.5, 1.0), "gamma": (0.0, 0.2)},
+                "C": {"lr": (0.2, 0.7), "gamma": (0.3, 0.7)},
+            },
+            seed=5,
+        )
+        result = compute_fst_pairwise(df)
+        assert (result["fst"] >= 0.0).all()
+        assert (result["fst"] <= 1.0).all()
+
+    def test_three_subpops_produce_three_pairs(self):
+        df = _make_evolution_df_subpop(
+            20,
+            {
+                "A": {"lr": (0.0, 0.1)},
+                "B": {"lr": (0.45, 0.55)},
+                "C": {"lr": (0.9, 1.0)},
+            },
+            seed=7,
+        )
+        result = compute_fst_pairwise(df)
+        locus_result = result[result["locus"] == "lr"]
+        assert len(locus_result) == 3
+
+    def test_custom_subpop_col(self):
+        df = _make_evolution_df_subpop(20, {"A": {"lr": (0.0, 0.1)}, "B": {"lr": (0.9, 1.0)}})
+        df = df.rename(columns={"agent_type": "region"})
+        result = compute_fst_pairwise(df, subpop_col="region")
+        assert not result.empty
+        assert (result["fst"] > 0.0).any()
+
+
+# ---------------------------------------------------------------------------
+# compute_migration_counts
+# ---------------------------------------------------------------------------
+
+
+def _make_lineage_df(
+    n_agents: int = 20,
+    n_generations: int = 3,
+    migration_rate: float = 0.1,
+    seed: int = 0,
+) -> pd.DataFrame:
+    """Build a DataFrame that mimics lineage-based migration.
+
+    Agents in generation 0 are assigned to subpopulations A or B.
+    Each subsequent generation, offspring mostly inherit their parent's
+    subpopulation; a fraction ``migration_rate`` switches subpopulation.
+    """
+    rng = np.random.default_rng(seed)
+    rows = []
+    agent_idx = 0
+
+    # Generation 0: genesis agents, equally split
+    gen0_ids = []
+    for i in range(n_agents):
+        aid = f"g0_a{i}"
+        subpop = "A" if i < n_agents // 2 else "B"
+        rows.append(
+            {
+                "agent_id": aid,
+                "agent_type": subpop,
+                "generation": 0,
+                "parent_ids": [],
+                "action_weights": {"move": 0.5, "gather": 0.5},
+            }
+        )
+        gen0_ids.append((aid, subpop))
+
+    prev_gen = gen0_ids
+    for gen in range(1, n_generations + 1):
+        new_gen = []
+        for i in range(n_agents):
+            parent_aid, parent_subpop = prev_gen[rng.integers(0, len(prev_gen))]
+            # Occasionally migrate
+            if rng.random() < migration_rate:
+                child_subpop = "B" if parent_subpop == "A" else "A"
+            else:
+                child_subpop = parent_subpop
+            aid = f"g{gen}_a{i}"
+            rows.append(
+                {
+                    "agent_id": aid,
+                    "agent_type": child_subpop,
+                    "generation": gen,
+                    "parent_ids": [parent_aid],
+                    "action_weights": {"move": 0.5, "gather": 0.5},
+                }
+            )
+            new_gen.append((aid, child_subpop))
+        prev_gen = new_gen
+
+    return pd.DataFrame(rows)
+
+
+class TestComputeMigrationCounts:
+    """Tests for compute_migration_counts."""
+
+    def test_output_columns_correct(self):
+        df = _make_lineage_df()
+        result = compute_migration_counts(df)
+        assert list(result.columns) == MIGRATION_COLUMNS
+
+    def test_empty_df_returns_empty(self):
+        result = compute_migration_counts(pd.DataFrame())
+        assert result.empty
+        assert list(result.columns) == MIGRATION_COLUMNS
+
+    def test_missing_subpop_col_returns_empty(self):
+        df = _make_lineage_df()
+        result = compute_migration_counts(df, subpop_col="nonexistent")
+        assert result.empty
+
+    def test_missing_parent_ids_col_returns_empty(self):
+        df = pd.DataFrame({"agent_id": ["a1"], "agent_type": ["A"]})
+        result = compute_migration_counts(df)
+        assert result.empty
+
+    def test_genesis_agents_excluded(self):
+        """Genesis agents (empty parent_ids) must not appear in the result."""
+        df = _make_lineage_df(n_agents=10, n_generations=2)
+        result = compute_migration_counts(df)
+        # Generation-0 agents have no parents; none should appear in result
+        gen0_ids = set(df[df["generation"] == 0]["agent_id"])
+        assert len(set(result["agent_id"]) & gen0_ids) == 0
+
+    def test_zero_migration_rate_no_migrants(self):
+        """With migration_rate=0, no agents should be flagged as migrants."""
+        df = _make_lineage_df(n_agents=20, n_generations=3, migration_rate=0.0)
+        result = compute_migration_counts(df)
+        assert not result.empty
+        assert result["is_migrant"].sum() == 0
+
+    def test_full_migration_rate_all_migrants(self):
+        """With migration_rate=1.0, all offspring switch subpopulation."""
+        df = _make_lineage_df(n_agents=20, n_generations=2, migration_rate=1.0, seed=1)
+        result = compute_migration_counts(df)
+        assert not result.empty
+        assert result["is_migrant"].all()
+
+    def test_partial_migration_some_migrants(self):
+        df = _make_lineage_df(n_agents=40, n_generations=5, migration_rate=0.3, seed=3)
+        result = compute_migration_counts(df)
+        n_migrants = int(result["is_migrant"].sum())
+        n_non_migrants = int((~result["is_migrant"]).sum())
+        assert n_migrants > 0 and n_non_migrants > 0
+
+    def test_subpop_definition_column_reflects_subpop_col(self):
+        df = _make_lineage_df()
+        result = compute_migration_counts(df, subpop_col="agent_type")
+        assert (result["subpop_definition"] == "agent_type").all()
+
+    def test_candidate_id_column_supported(self):
+        """Supports candidate_id as the individual identifier (evolution DataFrames)."""
+        df = _make_lineage_df()
+        df = df.rename(columns={"agent_id": "candidate_id"})
+        result = compute_migration_counts(df)
+        assert not result.empty
+        assert "agent_id" in result.columns
+
+
+# ---------------------------------------------------------------------------
+# compute_gene_flow_timeseries
+# ---------------------------------------------------------------------------
+
+
+def _make_multigen_evolution_df(
+    n_gens: int = 5,
+    n_per_subpop_per_gen: int = 20,
+    gene_ranges_a: Optional[dict] = None,
+    gene_ranges_b: Optional[dict] = None,
+    migration_rate: float = 0.1,
+    seed: int = 0,
+) -> pd.DataFrame:
+    """Multi-generation evolution DataFrame with two subpopulations."""
+    if gene_ranges_a is None:
+        gene_ranges_a = {"lr": (0.0, 0.1), "gamma": (0.9, 1.0)}
+    if gene_ranges_b is None:
+        gene_ranges_b = {"lr": (0.9, 1.0), "gamma": (0.0, 0.1)}
+    rng = np.random.default_rng(seed)
+    rows = []
+    cand_idx = 0
+    prev_gen_info = {}  # cand_id -> agent_type
+
+    for gen in range(n_gens):
+        gen_info = {}
+        for subpop, gene_ranges in [("A", gene_ranges_a), ("B", gene_ranges_b)]:
+            for _ in range(n_per_subpop_per_gen):
+                cid = f"c{cand_idx}"
+                # Choose parent from previous generation
+                if gen == 0 or not prev_gen_info:
+                    parent_ids = []
+                    effective_subpop = subpop
+                else:
+                    prev_ids = list(prev_gen_info.keys())
+                    parent_id = prev_ids[rng.integers(0, len(prev_ids))]
+                    parent_type = prev_gen_info[parent_id]
+                    # Occasionally migrate
+                    if rng.random() < migration_rate:
+                        effective_subpop = "B" if parent_type == "A" else "A"
+                    else:
+                        effective_subpop = parent_type
+                    parent_ids = [parent_id]
+                # Gene values from this subpop's distribution
+                effective_ranges = gene_ranges_a if effective_subpop == "A" else gene_ranges_b
+                chrom = {g: float(rng.uniform(lo, hi)) for g, (lo, hi) in effective_ranges.items()}
+                rows.append(
+                    {
+                        "agent_id": cid,
+                        "agent_type": effective_subpop,
+                        "generation": gen,
+                        "parent_ids": parent_ids,
+                        "chromosome_values": chrom,
+                    }
+                )
+                gen_info[cid] = effective_subpop
+                cand_idx += 1
+        prev_gen_info = gen_info
+
+    return pd.DataFrame(rows)
+
+
+class TestComputeGeneFlowTimeseries:
+    """Tests for compute_gene_flow_timeseries."""
+
+    def test_output_columns_correct(self):
+        df = _make_multigen_evolution_df(n_gens=3)
+        result = compute_gene_flow_timeseries(df)
+        assert list(result.columns) == GENE_FLOW_COLUMNS
+
+    def test_empty_df_returns_empty(self):
+        result = compute_gene_flow_timeseries(pd.DataFrame())
+        assert result.empty
+        assert list(result.columns) == GENE_FLOW_COLUMNS
+
+    def test_missing_generation_col_returns_empty(self):
+        df = _make_multigen_evolution_df()
+        df = df.drop(columns=["generation"])
+        result = compute_gene_flow_timeseries(df)
+        assert result.empty
+
+    def test_missing_subpop_col_returns_empty(self):
+        df = _make_multigen_evolution_df()
+        result = compute_gene_flow_timeseries(df, subpop_col="nonexistent")
+        assert result.empty
+
+    def test_no_locus_columns_returns_empty(self):
+        df = _make_multigen_evolution_df()
+        df = df.drop(columns=["chromosome_values"])
+        result = compute_gene_flow_timeseries(df)
+        assert result.empty
+
+    def test_rows_per_generation(self):
+        n_gens = 4
+        df = _make_multigen_evolution_df(n_gens=n_gens, n_per_subpop_per_gen=20)
+        result = compute_gene_flow_timeseries(df)
+        assert not result.empty
+        # Exactly n_gens unique generations represented
+        assert result["generation"].nunique() == n_gens
+
+    def test_fst_in_unit_interval(self):
+        df = _make_multigen_evolution_df(n_gens=3)
+        result = compute_gene_flow_timeseries(df)
+        assert (result["fst"] >= 0.0).all()
+        assert (result["fst"] <= 1.0).all()
+
+    def test_n_migrants_non_negative_integers(self):
+        df = _make_multigen_evolution_df(n_gens=3, migration_rate=0.2)
+        result = compute_gene_flow_timeseries(df)
+        assert (result["n_migrants"] >= 0).all()
+        assert result["n_migrants"].dtype in (int, np.int64, np.int32, object)
+
+    def test_isolated_pops_high_fst_over_time(self):
+        """Isolated subpopulations with very different gene ranges → high F_ST every gen."""
+        df = _make_multigen_evolution_df(
+            n_gens=5,
+            n_per_subpop_per_gen=30,
+            gene_ranges_a={"lr": (0.0, 0.01)},
+            gene_ranges_b={"lr": (0.99, 1.0)},
+            migration_rate=0.0,
+            seed=11,
+        )
+        result = compute_gene_flow_timeseries(df)
+        lr_rows = result[result["locus"] == "lr"]
+        assert not lr_rows.empty
+        assert (lr_rows["fst"] > 0.9).all(), lr_rows["fst"].tolist()
+
+    def test_fully_mixed_pops_low_fst_over_time(self):
+        """Subpopulations drawn from the same gene distribution → F_ST ≈ 0."""
+        rng = np.random.default_rng(99)
+        n = 30
+        rows = []
+        for gen in range(4):
+            vals = rng.uniform(0.0, 1.0, n * 2)
+            for i, v in enumerate(vals):
+                rows.append(
+                    {
+                        "agent_type": "A" if i < n else "B",
+                        "generation": gen,
+                        "chromosome_values": {"lr": float(v)},
+                        "parent_ids": [],
+                    }
+                )
+        df = pd.DataFrame(rows)
+        result = compute_gene_flow_timeseries(df)
+        lr_rows = result[result["locus"] == "lr"]
+        assert not lr_rows.empty
+        assert (lr_rows["fst"] < 0.15).all(), lr_rows["fst"].tolist()
+
+    def test_migration_events_counted_per_generation(self):
+        """With migration, n_migrants > 0 in at least some generations."""
+        df = _make_multigen_evolution_df(
+            n_gens=4,
+            n_per_subpop_per_gen=30,
+            migration_rate=0.5,
+            seed=77,
+        )
+        result = compute_gene_flow_timeseries(df)
+        # At least some generations/pairs should show migrants
+        assert result["n_migrants"].sum() > 0
