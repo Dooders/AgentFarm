@@ -36,18 +36,19 @@ description: A Python-first platform for agent-based simulation, reinforcement l
         <span class="dot"></span><span class="dot"></span><span class="dot"></span>
         <span class="label">run_simulation.py</span>
       </div>
-<pre class="hero__code"><span class="tk-kw">from</span> farm.utils <span class="tk-kw">import</span> configure_logging, get_logger
-<span class="tk-kw">from</span> farm.core <span class="tk-kw">import</span> Environment, Simulation
+<pre class="hero__code"><span class="tk-kw">from</span> farm.config <span class="tk-kw">import</span> SimulationConfig
+<span class="tk-kw">from</span> farm.core.simulation <span class="tk-kw">import</span> run_simulation
 
-configure_logging(environment=<span class="tk-str">"development"</span>)
-log = get_logger(__name__)
-
-env = Environment.from_config(<span class="tk-str">"default_config.json"</span>)
-sim = Simulation(env, num_steps=<span class="tk-num">1000</span>)
+config = SimulationConfig.from_centralized_config(
+    environment=<span class="tk-str">"development"</span>
+)
 
 <span class="tk-cm"># Run, log, and persist a .db for later analysis</span>
-sim.run()
-log.info(<span class="tk-str">"simulation_complete"</span>, agents=<span class="tk-fn">len</span>(env.agents))
+env = run_simulation(
+    num_steps=config.max_steps,
+    config=config,
+    path=<span class="tk-str">"simulations"</span>,
+)
 </pre>
     </aside>
   </div>

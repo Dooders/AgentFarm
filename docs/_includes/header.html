@@ -8,10 +8,16 @@
 
     <nav class="site-nav" aria-label="Primary">
       <input type="checkbox" id="nav-toggle" class="site-nav__toggle" />
-      <label for="nav-toggle" class="site-nav__button" aria-label="Toggle navigation">
+      <label
+        for="nav-toggle"
+        class="site-nav__button"
+        aria-label="Toggle navigation"
+        tabindex="0"
+        aria-controls="site-nav-list"
+      >
         <span></span><span></span><span></span>
       </label>
-      <ul class="site-nav__list">
+      <ul id="site-nav-list" class="site-nav__list">
         {% for link in site.nav_links %}
           <li class="site-nav__item">
             <a
