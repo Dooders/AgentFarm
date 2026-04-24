@@ -13,6 +13,8 @@ Features:
 - Genotypic diversity metrics: heterozygosity, Shannon entropy, per-locus stats
 - Allele-frequency trajectory tracking and selection-pressure detection
 - Fitness landscape: single-locus correlations and pairwise epistasis analysis
+- Wright-Fisher neutral drift simulator (seeded, per-allele trajectories)
+- Gene-flow / F_ST differentiation across configurable subpopulations
 
 Quick Start::
 
@@ -28,6 +30,10 @@ Quick Start::
     ...     compute_selection_pressure_summary,
     ...     compute_fitness_gene_correlations,
     ...     compute_pairwise_epistasis,
+    ...     simulate_wright_fisher,
+    ...     compute_fst_pairwise,
+    ...     compute_migration_counts,
+    ...     compute_gene_flow_timeseries,
     ... )
 """
 
@@ -52,6 +58,14 @@ from farm.analysis.genetics.compute import (
     compute_pairwise_epistasis,
     FITNESS_GENE_CORRELATION_COLUMNS,
     PAIRWISE_EPISTASIS_COLUMNS,
+    simulate_wright_fisher,
+    WRIGHT_FISHER_COLUMNS,
+    compute_fst_pairwise,
+    FST_COLUMNS,
+    compute_migration_counts,
+    MIGRATION_COLUMNS,
+    compute_gene_flow_timeseries,
+    GENE_FLOW_COLUMNS,
 )
 from farm.analysis.genetics.analyze import analyze_genetics
 from farm.analysis.genetics.module import genetics_module, GeneticsModule
@@ -82,6 +96,16 @@ __all__ = [
     "compute_pairwise_epistasis",
     "FITNESS_GENE_CORRELATION_COLUMNS",
     "PAIRWISE_EPISTASIS_COLUMNS",
+    # Wright-Fisher neutral drift simulator
+    "simulate_wright_fisher",
+    "WRIGHT_FISHER_COLUMNS",
+    # Gene-flow / F_ST differentiation
+    "compute_fst_pairwise",
+    "FST_COLUMNS",
+    "compute_migration_counts",
+    "MIGRATION_COLUMNS",
+    "compute_gene_flow_timeseries",
+    "GENE_FLOW_COLUMNS",
     # High-level analysis
     "analyze_genetics",
     "genetics_module",
