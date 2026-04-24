@@ -14,6 +14,12 @@ from farm.analysis.genetics.analyze import analyze_genetics
 from farm.analysis.genetics.plot import (
     plot_generation_distribution,
     plot_fitness_over_generations,
+    plot_marginal_fitness_effect,
+    plot_fitness_landscape_2d,
+)
+from farm.analysis.genetics.compute import (
+    compute_fitness_gene_correlations,
+    compute_pairwise_epistasis,
 )
 
 
@@ -54,18 +60,36 @@ class GeneticsModule(BaseAnalysisModule):
             "analyze_genetics": make_analysis_function(analyze_genetics),
             "plot_generation_distribution": make_analysis_function(plot_generation_distribution),
             "plot_fitness_over_generations": make_analysis_function(plot_fitness_over_generations),
+            "compute_fitness_gene_correlations": make_analysis_function(
+                compute_fitness_gene_correlations
+            ),
+            "compute_pairwise_epistasis": make_analysis_function(compute_pairwise_epistasis),
+            "plot_marginal_fitness_effect": make_analysis_function(plot_marginal_fitness_effect),
+            "plot_fitness_landscape_2d": make_analysis_function(plot_fitness_landscape_2d),
         }
 
         self._groups = {
             "all": list(self._functions.values()),
-            "analysis": [self._functions["analyze_genetics"]],
+            "analysis": [
+                self._functions["analyze_genetics"],
+                self._functions["compute_fitness_gene_correlations"],
+                self._functions["compute_pairwise_epistasis"],
+            ],
             "plots": [
                 self._functions["plot_generation_distribution"],
                 self._functions["plot_fitness_over_generations"],
+                self._functions["plot_marginal_fitness_effect"],
+                self._functions["plot_fitness_landscape_2d"],
             ],
             "basic": [
                 self._functions["analyze_genetics"],
                 self._functions["plot_generation_distribution"],
+            ],
+            "fitness_landscape": [
+                self._functions["compute_fitness_gene_correlations"],
+                self._functions["compute_pairwise_epistasis"],
+                self._functions["plot_marginal_fitness_effect"],
+                self._functions["plot_fitness_landscape_2d"],
             ],
         }
 
