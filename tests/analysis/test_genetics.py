@@ -2370,7 +2370,8 @@ class TestComputeGeneFlowTimeseries:
         df = _make_multigen_evolution_df(n_gens=3, migration_rate=0.2)
         result = compute_gene_flow_timeseries(df)
         assert (result["n_migrants"] >= 0).all()
-        assert result["n_migrants"].dtype in (int, np.int64, np.int32, object)
+        # n_migrants should hold integer counts
+        assert np.issubdtype(result["n_migrants"].dtype, np.integer)
 
     def test_isolated_pops_high_fst_over_time(self):
         """Isolated subpopulations with very different gene ranges → high F_ST every gen."""

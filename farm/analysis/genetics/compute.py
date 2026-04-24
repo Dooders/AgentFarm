@@ -1786,8 +1786,8 @@ def simulate_wright_fisher(
       approximately ``p(0)·(1−p(0))/N_e`` per generation under the
       standard diffusion approximation.
     * The simulation uses ``numpy.random.Generator.multinomial``, which
-      guarantees reproducibility with the same *seed* across NumPy versions
-      that support the new-style Generator API (NumPy ≥ 1.17).
+      guarantees reproducibility with the same *seed* using NumPy's
+      new-style Generator API.
     """
     if not initial_frequencies:
         raise ValueError("simulate_wright_fisher: initial_frequencies must not be empty")
@@ -1955,7 +1955,7 @@ def _fst_categorical_pairwise(
 def _mean_allele_freqs(
     weight_vectors: List[Dict[str, float]],
 ) -> Dict[str, float]:
-    """Compute normalised mean allele frequencies from a list of weight dicts."""
+    """Compute normalized mean allele frequencies from a list of weight dicts."""
     if not weight_vectors:
         return {}
     all_actions = sorted({a for wv in weight_vectors for a in wv})
@@ -1977,7 +1977,7 @@ def compute_fst_pairwise(
 ) -> pd.DataFrame:
     """Compute pairwise F_ST differentiation per locus between subpopulation pairs.
 
-    Analyses both continuous loci (``chromosome_values`` column) and
+    Analyzes both continuous loci (``chromosome_values`` column) and
     categorical loci (``action_weights`` column) when present.
 
     **Continuous loci** (hyperparameter genes from ``chromosome_values``):
