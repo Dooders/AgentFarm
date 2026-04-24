@@ -102,8 +102,8 @@ def plot_fitness_over_generations(df: pd.DataFrame, ctx: AnalysisContext, **kwar
 
 def plot_marginal_fitness_effect(
     df: pd.DataFrame,
-    gene: str,
     ctx: AnalysisContext,
+    gene: Optional[str] = None,
     **kwargs: Any,
 ) -> Optional[Any]:
     """Scatter plot of gene value vs fitness with an OLS regression line.
@@ -118,7 +118,9 @@ def plot_marginal_fitness_effect(
         (dict) columns.  Typically produced by
         :func:`~farm.analysis.genetics.compute.build_evolution_experiment_dataframe`.
     gene:
-        Name of the gene to plot on the x-axis.
+        Name of the gene to plot on the x-axis. If omitted, the function logs
+        and returns ``None`` (for example when invoked via a group without
+        per-function kwargs).
     ctx:
         Analysis context supplying output paths and a logger.
 
@@ -129,6 +131,10 @@ def plot_marginal_fitness_effect(
     """
     if df.empty or "fitness" not in df.columns or "chromosome_values" not in df.columns:
         logger.warning("plot_marginal_fitness_effect: missing required columns")
+        return None
+
+    if not gene:
+        logger.warning("plot_marginal_fitness_effect: missing required gene name")
         return None
 
     try:
@@ -183,9 +189,9 @@ def plot_marginal_fitness_effect(
 
 def plot_fitness_landscape_2d(
     df: pd.DataFrame,
-    gene_i: str,
-    gene_j: str,
     ctx: AnalysisContext,
+    gene_i: Optional[str] = None,
+    gene_j: Optional[str] = None,
     plot_type: str = "scatter",
     **kwargs: Any,
 ) -> Optional[Any]:
@@ -196,9 +202,11 @@ def plot_fitness_landscape_2d(
     df:
         DataFrame with ``fitness`` and ``chromosome_values`` columns.
     gene_i:
-        Name of the gene for the x-axis.
+        Name of the gene for the x-axis. If omitted (with ``gene_j``), the
+        function logs and returns ``None``.
     gene_j:
-        Name of the gene for the y-axis.
+        Name of the gene for the y-axis. If omitted (with ``gene_i``), the
+        function logs and returns ``None``.
     ctx:
         Analysis context supplying output paths and a logger.
     plot_type:
@@ -213,6 +221,19 @@ def plot_fitness_landscape_2d(
     """
     if df.empty or "fitness" not in df.columns or "chromosome_values" not in df.columns:
         logger.warning("plot_fitness_landscape_2d: missing required columns")
+        return None
+
+    if plot_type not in {"scatter", "heatmap"}:
+        logger.warning(
+            "plot_fitness_landscape_2d: invalid plot_type %r; expected 'scatter' or 'heatmap'",
+            plot_type,
+        )
+        return None
+
+    if not gene_i or not gene_j:
+        logger.warning(
+            "plot_fitness_landscape_2d: missing required gene_i / gene_j names",
+        )
         return None
 
     try:
@@ -248,13 +269,6 @@ def plot_fitness_landscape_2d(
         fit_arr = np.array(fit_vals)
 
         fig, ax = plt.subplots(figsize=(8, 6))
-
-        if plot_type not in {"scatter", "heatmap"}:
-            logger.warning(
-                "plot_fitness_landscape_2d: invalid plot_type %r; expected 'scatter' or 'heatmap'",
-                plot_type,
-            )
-            return None
 
         if plot_type == "heatmap":
             bins = kwargs.get("bins", 20)
