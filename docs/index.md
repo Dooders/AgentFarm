@@ -16,4 +16,4 @@ Welcome to the documentation and development notes for AgentFarm.
 
 ## Latest Devlog
 
-- [DNA-Style Hyperparameter Evolution Results](devlog/2026-04-17-dna-hyperparameter-evolution.md)
+- [Evolving Hyperparameter Genomes in Foraging and Learning Agents](devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.md)
