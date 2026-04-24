@@ -6,7 +6,7 @@ Placeholder visualization functions for the genetics analysis module.
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 
 import pandas as pd
 

@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+import numpy as np
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -1397,9 +1398,6 @@ def _make_evolution_df(
 # ---------------------------------------------------------------------------
 # TestComputeFitnessGeneCorrelations
 # ---------------------------------------------------------------------------
-
-
-import numpy as np
 
 
 class TestComputeFitnessGeneCorrelations:

@@ -1307,7 +1307,8 @@ def _extract_gene_matrix(df: pd.DataFrame) -> pd.DataFrame:
 
     # Drop zero-variance gene columns (constant across all candidates)
     gene_cols = [c for c in matrix.columns if c != "fitness"]
-    varying = [c for c in gene_cols if matrix[c].std(ddof=0) > 0.0]
+    stds = matrix[gene_cols].std(ddof=0)
+    varying = stds[stds > 0.0].index.tolist()
     return matrix[["fitness"] + varying]
 
 
@@ -1609,7 +1610,9 @@ def compute_pairwise_epistasis(
                 interaction_p = float("nan")
 
         # R² of the full model
-        tss = float(np.dot(fitness - float(np.mean(fitness)), fitness - float(np.mean(fitness))))
+        fitness_mean = float(np.mean(fitness))
+        fitness_centered = fitness - fitness_mean
+        tss = float(np.dot(fitness_centered, fitness_centered))
         r2 = 1.0 - rss / tss if tss > 0.0 else float("nan")
 
         rows.append(
