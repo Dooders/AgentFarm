@@ -8,8 +8,9 @@ raw simulation data into a
 
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any
 
+from farm.database.models import AgentModel
 from farm.analysis.phylogenetics.compute import (
     PhylogeneticTree,
     build_phylogenetic_tree,
@@ -50,13 +51,28 @@ def process_phylogenetics_data(data: Any, **kwargs: Any) -> PhylogeneticTree:
         return data
 
     if isinstance(data, list):
-        return build_phylogenetic_tree_from_records(data, **kwargs)
+        if not data:
+            return PhylogeneticTree(nodes={}, roots=[], is_dag=False)
+
+        first_item = next((item for item in data if item is not None), None)
+        if first_item is None:
+            return PhylogeneticTree(nodes={}, roots=[], is_dag=False)
+
+        if isinstance(first_item, dict):
+            return build_phylogenetic_tree_from_records(data, **kwargs)
+
+        if hasattr(first_item, "agent_id"):
+            return build_phylogenetic_tree(data, **kwargs)
+
+        logger.warning(
+            "process_phylogenetics_data: unsupported list item type %s; returning empty tree",
+            type(first_item).__name__,
+        )
+        return PhylogeneticTree(nodes={}, roots=[], is_dag=False)
 
     # SQLAlchemy session duck-typed check
     if hasattr(data, "query"):
         try:
-            from farm.database.models import AgentModel  # noqa: PLC0415  # local import is intentional
-
             agents = data.query(AgentModel).all()
             return build_phylogenetic_tree(agents, **kwargs)
         except Exception as exc:

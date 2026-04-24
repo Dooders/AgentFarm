@@ -107,6 +107,20 @@ class TestSingleFounder:
         assert tree.nodes["a2"].depth == 1
         assert tree.nodes["a3"].depth == 2
 
+    def test_max_depth_prunes_without_unreachable_warning(self, caplog):
+        agents = [
+            _agent("a1", genome_id="::1", generation=0),
+            _agent("a2", genome_id="a1:1", generation=1),
+            _agent("a3", genome_id="a2:1", generation=2),
+        ]
+        with caplog.at_level("WARNING"):
+            tree = build_phylogenetic_tree(agents, max_depth=0)
+
+        assert tree.nodes["a1"].depth == 0
+        assert tree.nodes["a2"].depth == -1
+        assert tree.nodes["a3"].depth == -1
+        assert not any("unreachable node" in record.message for record in caplog.records)
+
     def test_branching(self):
         agents = [
             _agent("root", genome_id="::1"),
@@ -308,6 +322,22 @@ class TestBuildFromRecords:
         tree = build_phylogenetic_tree_from_records(records)
         # Falls back to "agent_id" key
         assert "a1" in tree.nodes
+
+    def test_invalid_numeric_fields_fallback_to_defaults(self):
+        records = [
+            {
+                "candidate_id": "a1",
+                "parent_ids": [],
+                "generation": "unknown",
+                "birth_time": "",
+                "death_time": "not-a-number",
+            }
+        ]
+        tree = build_phylogenetic_tree_from_records(records)
+        node = tree.nodes["a1"]
+        assert node.generation == -1
+        assert node.birth_time == -1
+        assert node.death_time is None
 
 
 # ---------------------------------------------------------------------------
@@ -527,6 +557,16 @@ class TestProcessPhylogeneticsData:
         tree = process_phylogenetics_data(records)
         assert isinstance(tree, PhylogeneticTree)
         assert "g0_c0" in tree.nodes
+
+    def test_list_of_agents_dispatches_to_agent_builder(self):
+        agents = [
+            _agent("a1", genome_id="::1", generation=0),
+            _agent("a2", genome_id="a1:1", generation=1),
+        ]
+        tree = process_phylogenetics_data(agents)
+        assert isinstance(tree, PhylogeneticTree)
+        assert "a1" in tree.nodes
+        assert tree.nodes["a2"].parent_ids == ["a1"]
 
     def test_passthrough_for_tree_instance(self):
         original = PhylogeneticTree(nodes={}, roots=[], is_dag=False)

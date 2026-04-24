@@ -375,16 +375,37 @@ def _build_tree_from_nodes(
     roots = sorted(nid for nid, n in node_map.items() if n.is_root)
 
     # Pass 2: BFS from roots to assign depths
+    for node in node_map.values():
+        node.depth = -1
+
     queue: deque[Tuple[str, int]] = deque()
     for r in roots:
         queue.append((r, 0))
         node_map[r].depth = 0
 
     visited: Set[str] = set(roots)
+    pruned_reachable: Set[str] = set()
+
+    def _mark_pruned_descendants(start_node_id: str) -> None:
+        """Mark descendants skipped due to max_depth as intentionally pruned."""
+        stack = [start_node_id]
+        local_seen: Set[str] = set()
+        while stack:
+            current_id = stack.pop()
+            if current_id in local_seen or current_id in visited:
+                continue
+            local_seen.add(current_id)
+            pruned_reachable.add(current_id)
+            stack.extend(node_map[current_id].children_ids)
+
     while queue:
         nid, depth = queue.popleft()
         node_map[nid].depth = depth
         if max_depth is not None and depth >= max_depth:
+            # These descendants are reachable but deliberately pruned from depth
+            # assignment for upper-tree analysis views.
+            for child_id in node_map[nid].children_ids:
+                _mark_pruned_descendants(child_id)
             continue
         for child_id in sorted(node_map[nid].children_ids):
             if child_id not in visited:
@@ -393,8 +414,7 @@ def _build_tree_from_nodes(
 
     # Nodes not reachable from any root (data integrity issue)
     for nid, node in node_map.items():
-        if nid not in visited:
-            node.depth = -1
+        if nid not in visited and nid not in pruned_reachable:
             logger.warning("phylogenetic_tree: unreachable node node_id=%s", nid)
 
     # Sort children for determinism
@@ -454,6 +474,37 @@ def build_phylogenetic_tree(
     -------
     PhylogeneticTree
     """
+    def _coerce_int(value: Any, *, default: int, field_name: str, node_id: str) -> int:
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "build_phylogenetic_tree: invalid %s=%r for node_id=%s; using default=%s",
+                field_name,
+                value,
+                node_id,
+                default,
+            )
+            return default
+
+    def _coerce_optional_int(
+        value: Any, *, field_name: str, node_id: str
+    ) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "build_phylogenetic_tree: invalid %s=%r for node_id=%s; using None",
+                field_name,
+                value,
+                node_id,
+            )
+            return None
+
     node_map: Dict[str, PhylogeneticNode] = {}
     for agent in agents:
         agent_id = str(agent.agent_id)
@@ -473,9 +524,15 @@ def build_phylogenetic_tree(
         node_map[agent_id] = PhylogeneticNode(
             node_id=agent_id,
             parent_ids=parent_ids,
-            generation=int(generation) if generation is not None else -1,
-            birth_time=int(birth_time) if birth_time is not None else -1,
-            death_time=int(death_time) if death_time is not None else None,
+            generation=_coerce_int(
+                generation, default=-1, field_name="generation", node_id=agent_id
+            ),
+            birth_time=_coerce_int(
+                birth_time, default=-1, field_name="birth_time", node_id=agent_id
+            ),
+            death_time=_coerce_optional_int(
+                death_time, field_name="death_time", node_id=agent_id
+            ),
         )
 
     return _build_tree_from_nodes(node_map, max_depth=max_depth)
@@ -515,6 +572,37 @@ def build_phylogenetic_tree_from_records(
     -------
     PhylogeneticTree
     """
+    def _coerce_int(value: Any, *, default: int, field_name: str, node_id: str) -> int:
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "build_phylogenetic_tree_from_records: invalid %s=%r for node_id=%s; using default=%s",
+                field_name,
+                value,
+                node_id,
+                default,
+            )
+            return default
+
+    def _coerce_optional_int(
+        value: Any, *, field_name: str, node_id: str
+    ) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "build_phylogenetic_tree_from_records: invalid %s=%r for node_id=%s; using None",
+                field_name,
+                value,
+                node_id,
+            )
+            return None
+
     node_map: Dict[str, PhylogeneticNode] = {}
 
     for record in records:
@@ -537,14 +625,23 @@ def build_phylogenetic_tree_from_records(
         else:
             parent_ids = []
 
-        generation_raw = record.get(generation_key, None)
-        generation = int(generation_raw) if generation_raw is not None else -1
-
-        birth_time_raw = record.get("birth_time", None)
-        birth_time = int(birth_time_raw) if birth_time_raw is not None else -1
-
-        death_time_raw = record.get("death_time", None)
-        death_time = int(death_time_raw) if death_time_raw is not None else None
+        generation = _coerce_int(
+            record.get(generation_key, None),
+            default=-1,
+            field_name=generation_key,
+            node_id=node_id,
+        )
+        birth_time = _coerce_int(
+            record.get("birth_time", None),
+            default=-1,
+            field_name="birth_time",
+            node_id=node_id,
+        )
+        death_time = _coerce_optional_int(
+            record.get("death_time", None),
+            field_name="death_time",
+            node_id=node_id,
+        )
 
         node_map[node_id] = PhylogeneticNode(
             node_id=node_id,
