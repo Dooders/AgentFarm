@@ -84,6 +84,7 @@ metrics = obs.get_metrics()
 - [Repositories](data/repositories.md) - Data storage and retrieval patterns
 - [Health Resource Analysis](health_resource_analysis.md) - Agent health and resource utilization analysis
 - [Experiment Analysis](experiment_analysis.md) - Tools for analyzing experiment results
+- [Genetics Analysis Module](genetics_analysis.md) - Genetics-specific analysis groups, plots, and reports
 
 ### AI & Learning
 - [Deep Q Learning](deep_q_learning.md) - Reinforcement learning implementation
@@ -108,6 +109,7 @@ Step-by-step guides for specific use cases:
 ### Analysis Techniques
 - [Analysis modules](analysis/modules/README.md) - Analysis module index (population, spatial, learning, etc.)
 - [Experiment Analysis](experiment_analysis.md) - Tools for analyzing experiment results
+- [Genetics Analysis Module](genetics_analysis.md) - Genetics-specific usage and API map
 - Comparative and behavioral analysis APIs live under `farm/analysis/`; see [Usage Examples](usage_examples.md) for patterns
 
 ### Experiments

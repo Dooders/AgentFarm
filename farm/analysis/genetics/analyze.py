@@ -139,7 +139,8 @@ def generate_genetics_report(
     Returns
     -------
     pathlib.Path or None
-        Path to the primary Markdown report, or ``None`` on failure.
+        Path to the primary written report (Markdown for ``"markdown"`` /
+        ``"both"``, HTML for ``"html"``), or ``None`` on failure.
     """
     if formats not in {"markdown", "html", "both"}:
         logger.warning(
@@ -247,6 +248,7 @@ def generate_genetics_report(
         # ------------------------------------------------------------------
         # Write HTML
         # ------------------------------------------------------------------
+        html_path: Optional[Path] = None
         if formats in ("html", "both"):
             html_path = ctx.get_output_file("genetics_report.html")
             try:
@@ -323,8 +325,13 @@ def generate_genetics_report(
                 logger.info("generate_genetics_report: wrote HTML report to %s", html_path)
             except Exception as exc:
                 logger.warning("generate_genetics_report: could not write HTML: %s", exc)
+                html_path = None
 
-        return md_path or ctx.get_output_file("genetics_report.md")
+        if formats == "html":
+            return html_path
+        if formats == "both":
+            return md_path or html_path
+        return md_path
 
     except Exception as exc:
         logger.warning("generate_genetics_report failed: %s", exc)

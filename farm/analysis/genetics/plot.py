@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import pandas as pd
 
@@ -797,6 +797,238 @@ def plot_wright_fisher_overlay(
         return None
 
 
+def _extract_lineage_graph(
+    df: pd.DataFrame,
+) -> Optional[Tuple[Dict[str, int], Dict[str, List[str]]]]:
+    """Extract node generations and parent relationships from a genetics frame."""
+    if df.empty or "generation" not in df.columns:
+        return None
+
+    id_col: Optional[str] = None
+    if "candidate_id" in df.columns:
+        id_col = "candidate_id"
+    elif "agent_id" in df.columns:
+        id_col = "agent_id"
+
+    if id_col is None:
+        return None
+
+    node_generation: Dict[str, int] = {}
+    node_parents: Dict[str, List[str]] = {}
+
+    for _, row in df.iterrows():
+        raw_id = row.get(id_col)
+        if raw_id is None:
+            continue
+        try:
+            gen_int = int(float(row["generation"]))
+        except (TypeError, ValueError):
+            continue
+
+        node_id = str(raw_id)
+        node_generation[node_id] = gen_int
+
+        parent_ids_raw = row.get("parent_ids")
+        if not isinstance(parent_ids_raw, (list, tuple)):
+            node_parents[node_id] = []
+            continue
+        parent_ids: List[str] = []
+        for parent_id in parent_ids_raw:
+            if parent_id in (None, "", "seed"):
+                continue
+            parent_ids.append(str(parent_id))
+        node_parents[node_id] = list(dict.fromkeys(parent_ids))
+
+    if not node_generation:
+        return None
+    return node_generation, node_parents
+
+
+def plot_phylogenetic_tree_basic(
+    df: pd.DataFrame,
+    ctx: AnalysisContext,
+    annotate_ids: bool = False,
+    **kwargs: Any,
+) -> Optional[Path]:
+    """Plot a full lineage tree using generation and parent-child links."""
+    graph = _extract_lineage_graph(df)
+    if graph is None:
+        logger.warning("plot_phylogenetic_tree_basic: DataFrame lacks lineage columns")
+        return None
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        node_generation, node_parents = graph
+        nodes_sorted = sorted(node_generation.keys(), key=lambda nid: (node_generation[nid], nid))
+        node_y = {nid: idx for idx, nid in enumerate(nodes_sorted)}
+
+        edges: List[Tuple[str, str]] = []
+        for child_id, parents in node_parents.items():
+            for parent_id in parents:
+                if parent_id in node_generation:
+                    edges.append((parent_id, child_id))
+
+        fig_height = max(4.0, min(18.0, 2.0 + len(nodes_sorted) * 0.12))
+        fig, ax = plt.subplots(figsize=(12, fig_height))
+
+        for parent_id, child_id in edges:
+            ax.plot(
+                [node_generation[parent_id], node_generation[child_id]],
+                [node_y[parent_id], node_y[child_id]],
+                color="#c7c7c7",
+                linewidth=0.8,
+                alpha=0.9,
+                zorder=1,
+            )
+
+        x_vals = [node_generation[node_id] for node_id in nodes_sorted]
+        y_vals = [node_y[node_id] for node_id in nodes_sorted]
+        ax.scatter(
+            x_vals,
+            y_vals,
+            c=x_vals,
+            cmap="viridis",
+            s=22,
+            edgecolors="black",
+            linewidths=0.2,
+            zorder=2,
+        )
+
+        if annotate_ids and len(nodes_sorted) <= 60:
+            for node_id in nodes_sorted:
+                ax.text(
+                    node_generation[node_id] + 0.03,
+                    node_y[node_id],
+                    node_id,
+                    fontsize=6,
+                    va="center",
+                )
+
+        ax.set_xlabel("Generation")
+        ax.set_ylabel("Lineage index")
+        ax.set_title(f"Phylogenetic tree (full) — {len(nodes_sorted)} nodes, {len(edges)} edges")
+        ax.grid(axis="x", alpha=0.2)
+        ax.set_ylim(-1, len(nodes_sorted))
+        fig.tight_layout()
+
+        output_file = ctx.get_output_file("genetics_phylogenetic_tree_basic.png")
+        fig.savefig(output_file, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info("Saved basic phylogenetic tree plot to %s", output_file)
+        return output_file
+    except Exception as exc:
+        logger.warning("plot_phylogenetic_tree_basic failed: %s", exc)
+        return None
+
+
+def plot_phylogenetic_tree_sampled(
+    df: pd.DataFrame,
+    ctx: AnalysisContext,
+    max_nodes: int = 120,
+    annotate_ids: bool = False,
+    **kwargs: Any,
+) -> Optional[Path]:
+    """Plot a sampled lineage tree for large populations."""
+    if max_nodes < 2:
+        logger.warning("plot_phylogenetic_tree_sampled: max_nodes must be >= 2")
+        return None
+
+    graph = _extract_lineage_graph(df)
+    if graph is None:
+        logger.warning("plot_phylogenetic_tree_sampled: DataFrame lacks lineage columns")
+        return None
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        node_generation, node_parents = graph
+        nodes_sorted = sorted(node_generation.keys(), key=lambda nid: (node_generation[nid], nid))
+        if not nodes_sorted:
+            return None
+
+        if len(nodes_sorted) <= max_nodes:
+            sampled_nodes = set(nodes_sorted)
+        else:
+            step = len(nodes_sorted) / float(max_nodes)
+            sampled_nodes = {
+                nodes_sorted[min(len(nodes_sorted) - 1, int(idx * step))]
+                for idx in range(max_nodes)
+            }
+            # Add direct parents of sampled nodes when present for context.
+            for node_id in list(sampled_nodes):
+                for parent_id in node_parents.get(node_id, []):
+                    if parent_id in node_generation:
+                        sampled_nodes.add(parent_id)
+
+        sampled_sorted = sorted(sampled_nodes, key=lambda nid: (node_generation[nid], nid))
+        node_y = {nid: idx for idx, nid in enumerate(sampled_sorted)}
+
+        edges: List[Tuple[str, str]] = []
+        for child_id in sampled_sorted:
+            for parent_id in node_parents.get(child_id, []):
+                if parent_id in sampled_nodes:
+                    edges.append((parent_id, child_id))
+
+        fig_height = max(4.0, min(16.0, 2.0 + len(sampled_sorted) * 0.11))
+        fig, ax = plt.subplots(figsize=(12, fig_height))
+
+        for parent_id, child_id in edges:
+            ax.plot(
+                [node_generation[parent_id], node_generation[child_id]],
+                [node_y[parent_id], node_y[child_id]],
+                color="#c7c7c7",
+                linewidth=0.8,
+                alpha=0.9,
+                zorder=1,
+            )
+
+        x_vals = [node_generation[node_id] for node_id in sampled_sorted]
+        y_vals = [node_y[node_id] for node_id in sampled_sorted]
+        ax.scatter(
+            x_vals,
+            y_vals,
+            c=x_vals,
+            cmap="plasma",
+            s=26,
+            edgecolors="black",
+            linewidths=0.2,
+            zorder=2,
+        )
+
+        if annotate_ids and len(sampled_sorted) <= 70:
+            for node_id in sampled_sorted:
+                ax.text(
+                    node_generation[node_id] + 0.03,
+                    node_y[node_id],
+                    node_id,
+                    fontsize=6,
+                    va="center",
+                )
+
+        ax.set_xlabel("Generation")
+        ax.set_ylabel("Sample lineage index")
+        ax.set_title(
+            f"Phylogenetic tree (sampled) — {len(sampled_sorted)} nodes, {len(edges)} edges"
+        )
+        ax.grid(axis="x", alpha=0.2)
+        ax.set_ylim(-1, len(sampled_sorted))
+        fig.tight_layout()
+
+        output_file = ctx.get_output_file("genetics_phylogenetic_tree_sampled.png")
+        fig.savefig(output_file, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        logger.info("Saved sampled phylogenetic tree plot to %s", output_file)
+        return output_file
+    except Exception as exc:
+        logger.warning("plot_phylogenetic_tree_sampled failed: %s", exc)
+        return None
+
+
 def plot_conserved_run_timeline(
     df: pd.DataFrame,
     ctx: AnalysisContext,
@@ -809,7 +1041,8 @@ def plot_conserved_run_timeline(
     Accepts the conserved-runs tidy DataFrame produced by
     :func:`~farm.analysis.genetics.compute.compute_conserved_runs` **or** a
     raw genetics DataFrame (with ``generation`` plus ``chromosome_values``
-    columns), deriving conserved runs internally when needed.
+    and/or ``action_weights`` columns), deriving conserved runs internally
+    when needed.
 
     For each locus a horizontal lane is drawn; a coloured block indicates a
     generation where the locus is conserved (variance below epsilon).
@@ -845,7 +1078,9 @@ def plot_conserved_run_timeline(
         conserved_cols = {"generation", "locus", "is_conserved"}
         if conserved_cols.issubset(df.columns):
             conserved_df = df
-        elif "generation" in df.columns and "chromosome_values" in df.columns:
+        elif "generation" in df.columns and (
+            "chromosome_values" in df.columns or "action_weights" in df.columns
+        ):
             from farm.analysis.genetics.compute import compute_conserved_runs
             conserved_df = compute_conserved_runs(df, epsilon=epsilon, min_run_length=min_run_length)
         else:

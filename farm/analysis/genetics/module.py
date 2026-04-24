@@ -22,6 +22,8 @@ from farm.analysis.genetics.plot import (
     plot_diversity_over_time,
     plot_wright_fisher_overlay,
     plot_conserved_run_timeline,
+    plot_phylogenetic_tree_basic,
+    plot_phylogenetic_tree_sampled,
 )
 from farm.analysis.genetics.compute import (
     compute_allele_frequency_timeseries,
@@ -175,6 +177,8 @@ class GeneticsModule(BaseAnalysisModule):
             "plot_diversity_over_time": make_analysis_function(plot_diversity_over_time),
             "plot_wright_fisher_overlay": make_analysis_function(plot_wright_fisher_overlay),
             "plot_conserved_run_timeline": make_analysis_function(plot_conserved_run_timeline),
+            "plot_phylogenetic_tree_basic": make_analysis_function(plot_phylogenetic_tree_basic),
+            "plot_phylogenetic_tree_sampled": make_analysis_function(plot_phylogenetic_tree_sampled),
             "simulate_wright_fisher": make_analysis_function(_simulate_wright_fisher_for_analysis),
             "compute_fst_pairwise": make_analysis_function(compute_fst_pairwise),
             "compute_migration_counts": make_analysis_function(compute_migration_counts),
@@ -206,6 +210,8 @@ class GeneticsModule(BaseAnalysisModule):
                 self._functions["plot_diversity_over_time"],
                 self._functions["plot_wright_fisher_overlay"],
                 self._functions["plot_conserved_run_timeline"],
+                self._functions["plot_phylogenetic_tree_basic"],
+                self._functions["plot_phylogenetic_tree_sampled"],
             ],
             "basic": [
                 self._functions["analyze_genetics"],
@@ -213,6 +219,7 @@ class GeneticsModule(BaseAnalysisModule):
             ],
             "report": [
                 self._functions["analyze_genetics"],
+                self._functions["plot_generation_distribution"],
                 self._functions["generate_genetics_report"],
             ],
             "fitness_landscape": [

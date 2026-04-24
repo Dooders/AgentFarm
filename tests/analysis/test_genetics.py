@@ -3455,6 +3455,8 @@ from farm.analysis.genetics.plot import (
     plot_allele_frequency_trajectories,
     plot_diversity_over_time,
     plot_wright_fisher_overlay,
+    plot_phylogenetic_tree_basic,
+    plot_phylogenetic_tree_sampled,
     plot_conserved_run_timeline,
 )
 
@@ -3510,9 +3512,12 @@ class TestGenerateGeneticsReport:
     def test_html_report_created(self, tmp_path):
         df = _make_simple_evolution_df()
         ctx = AnalysisContext(output_path=tmp_path)
-        generate_genetics_report(df, ctx, formats="html")
+        result = generate_genetics_report(df, ctx, formats="html")
         html_file = tmp_path / "genetics_report.html"
+        md_file = tmp_path / "genetics_report.md"
+        assert result == html_file
         assert html_file.exists()
+        assert not md_file.exists()
         content = html_file.read_text()
         assert "<html>" in content
         assert "Genetics Analysis Report" in content
@@ -3650,6 +3655,43 @@ class TestPlotConservedRunTimeline:
             result = plot_conserved_run_timeline(conserved_df, ctx)
             assert result is not None
 
+    def test_works_with_db_df(self, tmp_path):
+        df = _make_simple_db_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_conserved_run_timeline(df, ctx)
+        assert result is not None
+        assert Path(result).exists()
+
+
+class TestPlotPhylogeneticTrees:
+    """Tests for phylogenetic tree plotting helpers."""
+
+    def test_basic_tree_returns_path_on_valid_data(self, tmp_path):
+        df = _make_simple_evolution_df(n_gens=4, n_per_gen=6)
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_phylogenetic_tree_basic(df, ctx)
+        assert result is not None
+        assert Path(result).exists()
+
+    def test_sampled_tree_returns_path_on_valid_data(self, tmp_path):
+        df = _make_simple_evolution_df(n_gens=6, n_per_gen=12)
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_phylogenetic_tree_sampled(df, ctx, max_nodes=30)
+        assert result is not None
+        assert Path(result).exists()
+
+    def test_sampled_tree_invalid_max_nodes_returns_none(self, tmp_path):
+        df = _make_simple_evolution_df()
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_phylogenetic_tree_sampled(df, ctx, max_nodes=1)
+        assert result is None
+
+    def test_phylo_tree_returns_none_when_lineage_missing(self, tmp_path):
+        df = pd.DataFrame({"generation": [0, 1, 2], "fitness": [1.0, 2.0, 3.0]})
+        ctx = AnalysisContext(output_path=tmp_path)
+        result = plot_phylogenetic_tree_basic(df, ctx)
+        assert result is None
+
 
 # ---------------------------------------------------------------------------
 # End-to-end AnalysisService integration test
@@ -3704,6 +3746,90 @@ class TestGeneticsServiceIntegration:
         # A success or graceful empty result is acceptable; no unhandled exception
         assert result.error is None or isinstance(result.error, str)
 
+    @_pytest.mark.integration
+    def test_analysis_service_default_run_writes_report_and_plot_artifacts(self, tmp_path):
+        """Default genetics service run emits report and at least one chart."""
+        from farm.analysis.service import AnalysisService, AnalysisRequest
+        from farm.analysis.registry import registry
+
+        if "genetics" not in registry.get_module_names():
+            from farm.analysis.genetics.module import genetics_module
+            registry.register(genetics_module)
+
+        experiment_path = tmp_path / "experiment"
+        experiment_path.mkdir()
+        db_file = experiment_path / "simulation.db"
+        engine = create_engine(f"sqlite:///{db_file}")
+        Base.metadata.create_all(engine)
+        with Session(engine) as session:
+            session.add_all(
+                [
+                    AgentModel(
+                        agent_id="root_0",
+                        agent_type="SystemAgent",
+                        birth_time=0,
+                        genome_id="::1",
+                        generation=0,
+                        action_weights={"move": 1.0, "gather": 0.0},
+                    ),
+                    AgentModel(
+                        agent_id="root_1",
+                        agent_type="SystemAgent",
+                        birth_time=0,
+                        genome_id="::2",
+                        generation=0,
+                        action_weights={"move": 0.0, "gather": 1.0},
+                    ),
+                    AgentModel(
+                        agent_id="child_0",
+                        agent_type="SystemAgent",
+                        birth_time=5,
+                        genome_id="root_0:1",
+                        generation=1,
+                        action_weights={"move": 0.8, "gather": 0.2},
+                    ),
+                    AgentModel(
+                        agent_id="child_1",
+                        agent_type="SystemAgent",
+                        birth_time=6,
+                        genome_id="root_1:1",
+                        generation=1,
+                        action_weights={"move": 0.2, "gather": 0.8},
+                    ),
+                    AgentModel(
+                        agent_id="child_2",
+                        agent_type="SystemAgent",
+                        birth_time=10,
+                        genome_id="child_0:1",
+                        generation=2,
+                        action_weights={"move": 0.7, "gather": 0.3},
+                    ),
+                ]
+            )
+            session.commit()
+        engine.dispose()
+
+        output_path = tmp_path / "output"
+        config_mock = _MagicMock()
+        config_mock.get_analysis_module_paths.return_value = []
+        service = AnalysisService(config_service=config_mock, auto_register=False)
+
+        request = AnalysisRequest(
+            module_name="genetics",
+            experiment_path=experiment_path,
+            output_path=output_path,
+            group="all",
+        )
+        result = service.run(request)
+
+        assert result is not None
+        assert result.module_name == "genetics"
+        assert result.error is None
+        assert (output_path / "genetics_report.md").exists()
+        assert (output_path / "genetics_summary.json").exists()
+        # Default group includes generation distribution plot.
+        assert (output_path / "genetics_generation_distribution.png").exists()
+
     def test_genetics_module_registered_in_builtin_list(self):
         """Genetics module is present in the built-in registry list."""
         from farm.analysis.registry import _register_builtin_modules, registry, ModuleRegistry
@@ -3741,6 +3867,8 @@ class TestGeneticsServiceIntegration:
             "plot_allele_frequency_trajectories",
             "plot_diversity_over_time",
             "plot_wright_fisher_overlay",
+            "plot_phylogenetic_tree_basic",
+            "plot_phylogenetic_tree_sampled",
             "plot_conserved_run_timeline",
             "generate_genetics_report",
         ):

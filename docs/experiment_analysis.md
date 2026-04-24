@@ -103,6 +103,8 @@ Analyzes agent genomes, chromosomes, lineage, and population-level genetic
 statistics from simulation databases and evolution experiments.  This module
 integrates with the `AnalysisService` and can be invoked directly:
 
+See also the dedicated guide: [Genetics Analysis Module](genetics_analysis.md).
+
 ```python
 from pathlib import Path
 from farm.analysis.service import AnalysisService, AnalysisRequest
@@ -133,6 +135,7 @@ Key capabilities:
 - **Genetic diversity** – expected heterozygosity, Shannon entropy per locus
 - **Allele-frequency trajectories** – per-locus frequency timeseries
 - **Wright-Fisher overlay** – observed trajectories vs. neutral drift baseline
+- **Phylogenetic trees** – lineage graphs (full + sampled) from parent-child IDs
 - **Fitness landscapes** – single-locus correlations, pairwise epistasis, 2-D heatmap
 - **Conserved-run timeline** – detects loci fixed across consecutive generations
 - **Adaptation signatures** – realized mutation rates, sweep candidates
@@ -149,6 +152,8 @@ from farm.analysis.genetics.plot import (
     plot_allele_frequency_trajectories,
     plot_diversity_over_time,
     plot_wright_fisher_overlay,
+    plot_phylogenetic_tree_basic,
+    plot_phylogenetic_tree_sampled,
     plot_conserved_run_timeline,
     plot_fitness_landscape_2d,
 )
