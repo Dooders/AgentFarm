@@ -1167,9 +1167,11 @@ class TestComputeSelectionPressureSummary:
         df = _categorical_df(10, 20, lambda g, i: {"move": 0.5, "gather": 0.5})
         freq_df = compute_allele_frequency_timeseries(df)
         result = compute_selection_pressure_summary(freq_df, pop_size=20)
-        # All deltas are zero → mean_delta = 0, z_score = nan (drift_std also 0)
+        # All deltas are zero → mean_delta = 0, and with a Wright–Fisher drift
+        # baseline (pop_size provided), drift_std > 0 so z_score should be 0.0.
         for _, row in result.iterrows():
             assert not row["is_under_selection"]
+            assert row["z_score"] == pytest.approx(0.0)
 
     # --- Directional selection (clear signal) ---
 
