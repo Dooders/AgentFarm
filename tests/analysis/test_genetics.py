@@ -3337,14 +3337,14 @@ class TestGeneticsModuleAdaptationSignatures:
         for fn in adaptation_group:
             assert fn in all_group
 
-    def test_wrapped_sweep_candidates_invocable_with_default_pipeline(self):
+    def test_wrapped_sweep_candidates_invocable_with_default_pipeline(self, tmp_path):
         module = GeneticsModule()
         module.register_functions()
         fn = module.get_function("compute_sweep_candidates")
         assert fn is not None
 
         df = _make_gen_df(3, 5, lambda g, i: {"lr": 0.5, "gamma": float(i)})
-        ctx = AnalysisContext(output_path=Path("/tmp/agentfarm-test-output"))
+        ctx = AnalysisContext(output_path=tmp_path)
 
         result = fn(df, ctx)
 
@@ -3352,7 +3352,7 @@ class TestGeneticsModuleAdaptationSignatures:
         assert list(result.columns) == SWEEP_CANDIDATE_COLUMNS
         assert set(result["locus"]) == {"gamma", "lr"}
 
-    def test_wrapped_per_locus_mutation_invocable(self):
+    def test_wrapped_per_locus_mutation_invocable(self, tmp_path):
         module = GeneticsModule()
         module.register_functions()
         fn = module.get_function("compute_realized_mutation_rate_per_locus")
@@ -3361,7 +3361,7 @@ class TestGeneticsModuleAdaptationSignatures:
         df = _make_mutation_lineage_df(
             3, 4, {"lr": (0.0, 1.0), "gamma": (0.0, 1.0)}, lambda cv, rng: dict(cv)
         )
-        ctx = AnalysisContext(output_path=Path("/tmp/agentfarm-test-output"))
+        ctx = AnalysisContext(output_path=tmp_path)
 
         result = fn(df, ctx)
 
@@ -3369,7 +3369,7 @@ class TestGeneticsModuleAdaptationSignatures:
         assert list(result.columns) == REALIZED_MUTATION_PER_LOCUS_COLUMNS
         assert set(result["locus"]) == {"gamma", "lr"}
 
-    def test_wrapped_run_fitness_correlation_invocable_with_default_pipeline(self):
+    def test_wrapped_run_fitness_correlation_invocable_with_default_pipeline(self, tmp_path):
         module = GeneticsModule()
         module.register_functions()
         fn = module.get_function("compute_conserved_run_fitness_correlation")
@@ -3381,7 +3381,7 @@ class TestGeneticsModuleAdaptationSignatures:
             lambda g, i: {"lr": 0.5, "gamma": float(i) + 0.001 * g},
             lambda g, i: 0.1 * (g + 1) + 0.01 * i,
         )
-        ctx = AnalysisContext(output_path=Path("/tmp/agentfarm-test-output"))
+        ctx = AnalysisContext(output_path=tmp_path)
 
         result = fn(df, ctx)
 
@@ -3389,7 +3389,7 @@ class TestGeneticsModuleAdaptationSignatures:
         assert list(result.columns) == CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS
         assert set(result["metric"]) == {"mean_fitness_delta", "best_fitness_delta"}
 
-    def test_wrapped_run_fitness_correlation_uses_explicit_conserved_df(self):
+    def test_wrapped_run_fitness_correlation_uses_explicit_conserved_df(self, tmp_path):
         module = GeneticsModule()
         module.register_functions()
         fn = module.get_function("compute_conserved_run_fitness_correlation")
@@ -3403,14 +3403,14 @@ class TestGeneticsModuleAdaptationSignatures:
         )
         # Build conserved_df with non-default thresholds and pass explicitly.
         conserved_df = compute_conserved_runs(df, epsilon=1e-3, min_run_length=1)
-        ctx = AnalysisContext(output_path=Path("/tmp/agentfarm-test-output"))
+        ctx = AnalysisContext(output_path=tmp_path)
 
         result = fn(df, ctx, conserved_df=conserved_df)
 
         assert isinstance(result, pd.DataFrame)
         assert not result.empty
 
-    def test_wrapped_sweep_candidates_uses_explicit_intermediates(self):
+    def test_wrapped_sweep_candidates_uses_explicit_intermediates(self, tmp_path):
         module = GeneticsModule()
         module.register_functions()
         fn = module.get_function("compute_sweep_candidates")
@@ -3436,7 +3436,7 @@ class TestGeneticsModuleAdaptationSignatures:
             ],
             columns=SELECTION_PRESSURE_COLUMNS,
         )
-        ctx = AnalysisContext(output_path=Path("/tmp/agentfarm-test-output"))
+        ctx = AnalysisContext(output_path=tmp_path)
 
         result = fn(df, ctx, conserved_df=conserved_df, pressure_df=pressure_df)
 

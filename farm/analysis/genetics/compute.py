@@ -3040,14 +3040,15 @@ def compute_conserved_run_fitness_correlation(
     if not gen_to_mean:
         return pd.DataFrame(columns=CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS)
 
-    sorted_gens = sorted(set(gen_to_run.keys()) & set(gen_to_mean.keys()))
-    if len(sorted_gens) < 2:
+    common_gens = set(gen_to_run.keys()) & set(gen_to_mean.keys())
+    consecutive_pairs = [(gen, gen + 1) for gen in sorted(common_gens) if gen + 1 in common_gens]
+    if not consecutive_pairs:
         return pd.DataFrame(columns=CONSERVED_RUN_FITNESS_CORRELATION_COLUMNS)
 
     runs: List[float] = []
     mean_deltas: List[float] = []
     best_deltas: List[float] = []
-    for prev_gen, next_gen in zip(sorted_gens[:-1], sorted_gens[1:]):
+    for prev_gen, next_gen in consecutive_pairs:
         runs.append(float(gen_to_run[prev_gen]))
         mean_deltas.append(gen_to_mean[next_gen] - gen_to_mean[prev_gen])
         best_deltas.append(gen_to_best[next_gen] - gen_to_best[prev_gen])
@@ -3221,7 +3222,11 @@ def compute_sweep_candidates(
                 # For categorical loci: pick allele with largest |z_score|.
                 if has_allele_col and not locus_pgroup.empty:
                     abs_z = locus_pgroup["z_score"].abs()
-                    row = locus_pgroup.iloc[int(abs_z.argmax())]
+                    valid_abs_z = abs_z.dropna()
+                    if not valid_abs_z.empty:
+                        row = locus_pgroup.loc[valid_abs_z.idxmax()]
+                    else:
+                        row = locus_pgroup.iloc[0]
                 else:
                     row = locus_pgroup.iloc[0]
 
