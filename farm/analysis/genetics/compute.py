@@ -5,13 +5,16 @@ Core computation functions for the genetics analysis module, including the
 shared ``parse_parent_ids`` helper, population-level accessors for both
 simulation-database and evolution-experiment data sources, genotypic
 diversity metrics (heterozygosity, Shannon entropy, per-locus stats),
-allele-frequency trajectory tracking with selection-pressure detection, and
-fitness landscape analysis (single-locus correlations, pairwise epistasis).
+allele-frequency trajectory tracking with selection-pressure detection,
+fitness landscape analysis (single-locus correlations, pairwise epistasis),
+Wright-Fisher neutral-drift simulation, and gene-flow / F_ST differentiation
+across configurable subpopulations.
 """
 
 from __future__ import annotations
 
 import math
+from collections import Counter
 from itertools import combinations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TYPE_CHECKING
@@ -1714,5 +1717,652 @@ def compute_pairwise_epistasis(
         "compute_pairwise_epistasis: %d pair(s) tested; %d significant after BH correction",
         len(result_df),
         int(result_df["bh_rejected"].sum()),
+    )
+    return result_df
+
+
+# ---------------------------------------------------------------------------
+# Wright-Fisher neutral drift simulator
+# ---------------------------------------------------------------------------
+
+#: Columns produced by :func:`simulate_wright_fisher`.
+WRIGHT_FISHER_COLUMNS = ["generation", "allele", "frequency"]
+
+
+def simulate_wright_fisher(
+    initial_frequencies: Mapping[str, float],
+    n_effective: int,
+    n_generations: int,
+    seed: Optional[int] = None,
+) -> pd.DataFrame:
+    """Simulate allele-frequency drift under the Wright-Fisher model.
+
+    At each generation the allele counts are drawn from a multinomial
+    distribution parameterised by the current frequencies and the effective
+    population size ``N_e``.  The simulation is fully neutral — no selection,
+    mutation, or migration.  It is intended as a neutral baseline against
+    which observed allele-frequency trajectories can be compared.
+
+    Parameters
+    ----------
+    initial_frequencies:
+        Mapping from allele name to its initial frequency.  Values must be
+        non-negative and must sum to ``1.0`` within a tolerance of ``1e-6``.
+        At least one allele is required.
+    n_effective:
+        Effective population size *N_e*.  Must be ``>= 1``.
+    n_generations:
+        Number of generations to simulate beyond generation 0.  Must be
+        ``>= 0``.  Passing ``0`` returns only the initial frequencies.
+    seed:
+        Optional integer seed for the random number generator.  When
+        provided, the simulation is fully deterministic.
+
+    Returns
+    -------
+    pd.DataFrame
+        Tidy frame with columns defined in :data:`WRIGHT_FISHER_COLUMNS`:
+
+        * ``generation`` (int) – ``0`` to ``n_generations`` inclusive
+        * ``allele`` (str) – allele name from *initial_frequencies*
+        * ``frequency`` (float) – allele frequency in ``[0, 1]``
+
+        The returned frame contains
+        ``(n_generations + 1) * len(initial_frequencies)`` rows, sorted by
+        ``(allele, generation)``.
+
+    Raises
+    ------
+    ValueError
+        If *initial_frequencies* is empty, contains negative values, or
+        does not sum to approximately ``1.0``.
+        If *n_effective* ``< 1`` or *n_generations* ``< 0``.
+
+    Notes
+    -----
+    * The expected allele frequency is conserved across generations:
+      ``E[p(t)] = p(0)`` for all *t*.
+    * The variance of the allele frequency after *t* generations is
+      approximately ``p(0)·(1−p(0))/N_e`` per generation under the
+      standard diffusion approximation.
+    * The simulation uses ``numpy.random.Generator.multinomial``, which
+      guarantees reproducibility with the same *seed* using NumPy's
+      new-style Generator API.
+    """
+    if not initial_frequencies:
+        raise ValueError("simulate_wright_fisher: initial_frequencies must not be empty")
+
+    alleles = list(initial_frequencies.keys())
+    freqs = np.array([float(initial_frequencies[a]) for a in alleles], dtype=float)
+
+    if np.any(freqs < 0.0):
+        raise ValueError(
+            "simulate_wright_fisher: all initial frequencies must be >= 0"
+        )
+
+    total = float(np.sum(freqs))
+    if not math.isclose(total, 1.0, abs_tol=1e-6):
+        raise ValueError(
+            f"simulate_wright_fisher: initial frequencies must sum to 1.0, got {total}"
+        )
+
+    if n_effective < 1:
+        raise ValueError(
+            f"simulate_wright_fisher: n_effective must be >= 1, got {n_effective}"
+        )
+
+    if n_generations < 0:
+        raise ValueError(
+            f"simulate_wright_fisher: n_generations must be >= 0, got {n_generations}"
+        )
+
+    # Normalise to sum exactly to 1.0 (guard against accumulated floating-point error)
+    freqs = freqs / freqs.sum()
+
+    rng = np.random.default_rng(seed)
+
+    rows: List[Dict[str, Any]] = []
+
+    # Generation 0: record the initial frequencies
+    for allele, freq in zip(alleles, freqs):
+        rows.append({"generation": 0, "allele": allele, "frequency": float(freq)})
+
+    current_freqs = freqs.copy()
+
+    # Simulate generations 1 … n_generations
+    for gen in range(1, n_generations + 1):
+        counts = rng.multinomial(n_effective, current_freqs)
+        current_freqs = counts.astype(float) / float(n_effective)
+        for allele, freq in zip(alleles, current_freqs):
+            rows.append({"generation": gen, "allele": allele, "frequency": float(freq)})
+
+    result_df = (
+        pd.DataFrame(rows, columns=WRIGHT_FISHER_COLUMNS)
+        .sort_values(["allele", "generation"])
+        .reset_index(drop=True)
+    )
+    logger.info(
+        "simulate_wright_fisher: %d generation(s) simulated; N_e=%d; %d allele(s)",
+        n_generations,
+        n_effective,
+        len(alleles),
+    )
+    return result_df
+
+
+# ---------------------------------------------------------------------------
+# Gene-flow / F_ST differentiation across subpopulations
+# ---------------------------------------------------------------------------
+
+#: Columns produced by :func:`compute_fst_pairwise`.
+FST_COLUMNS = [
+    "locus",
+    "locus_type",
+    "subpopulation_a",
+    "subpopulation_b",
+    "n_a",
+    "n_b",
+    "fst",
+]
+
+#: Columns produced by :func:`compute_gene_flow_timeseries`.
+GENE_FLOW_COLUMNS = [
+    "generation",
+    "subpop_definition",
+    "locus",
+    "locus_type",
+    "subpopulation_a",
+    "subpopulation_b",
+    "fst",
+    "n_migrants",
+    "migration_data_available",
+]
+
+#: Columns produced by :func:`compute_migration_counts`.
+MIGRATION_COLUMNS = [
+    "agent_id",
+    "generation",
+    "subpop_definition",
+    "offspring_subpopulation",
+    "parent_subpopulation",
+    "is_migrant",
+]
+
+
+def _fst_continuous_pairwise(
+    vals_a: np.ndarray,
+    vals_b: np.ndarray,
+) -> float:
+    """Compute F_ST analog (η²) for a continuous trait between two groups.
+
+    Uses the variance-partitioning formula::
+
+        F_ST = V_B / V_T
+
+    where ``V_T`` is the total (pooled) variance and
+    ``V_B = V_T - V_W`` is the between-group variance component
+    (ANOVA decomposition: ``SST = SSW + SSB``).
+
+    Returns ``0.0`` when total variance is zero (monomorphic locus).
+    Result is clamped to ``[0.0, 1.0]``.
+    """
+    n_a, n_b = len(vals_a), len(vals_b)
+    all_vals = np.concatenate([vals_a, vals_b])
+    v_t = float(np.var(all_vals, ddof=0))
+    if v_t <= 0.0:
+        return 0.0
+    var_a = float(np.var(vals_a, ddof=0))
+    var_b = float(np.var(vals_b, ddof=0))
+    v_w = (n_a * var_a + n_b * var_b) / (n_a + n_b)
+    fst = float((v_t - v_w) / v_t)
+    return float(np.clip(fst, 0.0, 1.0))
+
+
+def _fst_categorical_pairwise(
+    freq_a: Mapping[str, float],
+    freq_b: Mapping[str, float],
+    n_a: int,
+    n_b: int,
+) -> float:
+    """Compute classical multi-allele F_ST between two subpopulations.
+
+    Uses the expected-heterozygosity formula::
+
+        F_ST = (H_T - H_S) / H_T
+
+    where ``H_T`` is the expected heterozygosity of the merged population
+    and ``H_S`` is the size-weighted mean within-subpopulation expected
+    heterozygosity.
+
+    Returns ``0.0`` when ``H_T == 0`` (all alleles fixed identically in both
+    subpopulations).  Result is clamped to ``[0.0, 1.0]``.
+    """
+    all_alleles = sorted(set(freq_a.keys()) | set(freq_b.keys()))
+    # Total allele frequencies (size-weighted)
+    freq_t = {
+        a: (n_a * freq_a.get(a, 0.0) + n_b * freq_b.get(a, 0.0)) / (n_a + n_b)
+        for a in all_alleles
+    }
+    h_t = 1.0 - sum(p * p for p in freq_t.values())
+    if h_t <= 0.0:
+        return 0.0
+    h_a = 1.0 - sum(p * p for p in freq_a.values())
+    h_b = 1.0 - sum(p * p for p in freq_b.values())
+    h_s = (n_a * h_a + n_b * h_b) / (n_a + n_b)
+    fst = float((h_t - h_s) / h_t)
+    return float(np.clip(fst, 0.0, 1.0))
+
+
+def _mean_allele_freqs(
+    weight_vectors: List[Dict[str, float]],
+) -> Dict[str, float]:
+    """Compute normalized mean allele frequencies from a list of weight dicts."""
+    if not weight_vectors:
+        return {}
+    all_actions = sorted({a for wv in weight_vectors for a in wv})
+    n = len(weight_vectors)
+    means: Dict[str, float] = {
+        a: sum(float(wv.get(a, 0.0)) for wv in weight_vectors) / n
+        for a in all_actions
+    }
+    total = sum(means.values())
+    if total > 0.0:
+        return {a: w / total for a, w in means.items()}
+    k = len(all_actions)
+    return {a: 1.0 / k for a in all_actions} if k > 0 else {}
+
+
+def compute_fst_pairwise(
+    df: pd.DataFrame,
+    subpop_col: str = "agent_type",
+) -> pd.DataFrame:
+    """Compute pairwise F_ST differentiation per locus between subpopulation pairs.
+
+    Analyzes both continuous loci (``chromosome_values`` column) and
+    categorical loci (``action_weights`` column) when present.
+
+    **Continuous loci** (hyperparameter genes from ``chromosome_values``):
+    Uses the variance-partitioning F_ST analog (η²)::
+
+        F_ST = V_B / V_T
+
+    where ``V_T`` is the total variance and ``V_B = V_T − V_W`` is the
+    between-group variance component.
+
+    **Categorical loci** (action weights):
+    Uses the heterozygosity-based G_ST estimator (Nei 1973)::
+
+        G_ST = (H_T − H_S) / H_T
+
+    where ``H_T`` and ``H_S`` are the expected heterozygosities of the total
+    and sub-populations respectively.
+
+    Parameters
+    ----------
+    df:
+        DataFrame with a *subpop_col* column and at least one of
+        ``chromosome_values`` (dict) or ``action_weights`` (dict).
+        Typically produced by :func:`build_agent_genetics_dataframe` or
+        :func:`build_evolution_experiment_dataframe`.
+    subpop_col:
+        Name of the column whose distinct values define subpopulations.
+        Default ``"agent_type"``.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per *(locus, subpopulation_a, subpopulation_b)* combination,
+        with columns defined in :data:`FST_COLUMNS`:
+
+        * ``locus`` (str)
+        * ``locus_type`` (str) – ``"continuous"`` or ``"categorical"``
+        * ``subpopulation_a`` (str)
+        * ``subpopulation_b`` (str)
+        * ``n_a`` (int) – individuals in subpopulation A
+        * ``n_b`` (int) – individuals in subpopulation B
+        * ``fst`` (float) – F_ST value in ``[0, 1]``
+
+        Returns an empty DataFrame (with correct columns) when the input is
+        insufficient (fewer than two non-null subpopulations, or no recognised
+        locus column).
+    """
+    has_continuous = "chromosome_values" in df.columns
+    has_categorical = "action_weights" in df.columns
+
+    if df.empty or subpop_col not in df.columns:
+        return pd.DataFrame(columns=FST_COLUMNS)
+
+    if not has_continuous and not has_categorical:
+        return pd.DataFrame(columns=FST_COLUMNS)
+
+    subpops = sorted(df[subpop_col].dropna().unique())
+    if len(subpops) < 2:
+        return pd.DataFrame(columns=FST_COLUMNS)
+
+    rows: List[Dict[str, Any]] = []
+
+    # ---- Continuous loci (chromosome_values) ----
+    if has_continuous:
+        gene_subpop_values: Dict[str, Dict[Any, List[float]]] = {}
+        for _, row in df.iterrows():
+            subpop = row[subpop_col]
+            if pd.isna(subpop):
+                continue
+            cv = row.get("chromosome_values")
+            if not isinstance(cv, dict):
+                continue
+            for gene, val in cv.items():
+                try:
+                    v = float(val)
+                except (TypeError, ValueError):
+                    continue
+                if not math.isfinite(v):
+                    continue
+                gene_subpop_values.setdefault(gene, {}).setdefault(subpop, []).append(v)
+
+        for gene, subpop_vals in sorted(gene_subpop_values.items()):
+            eligible = [sp for sp in subpops if sp in subpop_vals and len(subpop_vals[sp]) >= 1]
+            for sp_a, sp_b in combinations(eligible, 2):
+                vals_a = np.array(subpop_vals[sp_a], dtype=float)
+                vals_b = np.array(subpop_vals[sp_b], dtype=float)
+                rows.append(
+                    {
+                        "locus": gene,
+                        "locus_type": "continuous",
+                        "subpopulation_a": str(sp_a),
+                        "subpopulation_b": str(sp_b),
+                        "n_a": int(len(vals_a)),
+                        "n_b": int(len(vals_b)),
+                        "fst": _fst_continuous_pairwise(vals_a, vals_b),
+                    }
+                )
+
+    # ---- Categorical loci (action_weights) ----
+    if has_categorical:
+        subpop_weight_vectors: Dict[Any, List[Dict[str, float]]] = {}
+        for _, row in df.iterrows():
+            subpop = row[subpop_col]
+            if pd.isna(subpop):
+                continue
+            raw_wv = row.get("action_weights")
+            if not isinstance(raw_wv, dict) or len(raw_wv) == 0:
+                continue
+            sanitized: Dict[str, float] = {}
+            for action, raw_weight in raw_wv.items():
+                try:
+                    w = float(raw_weight)
+                except (TypeError, ValueError):
+                    continue
+                if math.isfinite(w):
+                    sanitized[action] = w
+            if sanitized:
+                subpop_weight_vectors.setdefault(subpop, []).append(sanitized)
+
+        eligible_cat = [sp for sp in subpops if sp in subpop_weight_vectors]
+        if len(eligible_cat) >= 2:
+            subpop_freq: Dict[Any, Dict[str, float]] = {
+                sp: _mean_allele_freqs(subpop_weight_vectors[sp])
+                for sp in eligible_cat
+            }
+            for sp_a, sp_b in combinations(eligible_cat, 2):
+                n_a = len(subpop_weight_vectors[sp_a])
+                n_b = len(subpop_weight_vectors[sp_b])
+                rows.append(
+                    {
+                        "locus": "action_weights",
+                        "locus_type": "categorical",
+                        "subpopulation_a": str(sp_a),
+                        "subpopulation_b": str(sp_b),
+                        "n_a": n_a,
+                        "n_b": n_b,
+                        "fst": _fst_categorical_pairwise(
+                            subpop_freq[sp_a], subpop_freq[sp_b], n_a, n_b
+                        ),
+                    }
+                )
+
+    if not rows:
+        return pd.DataFrame(columns=FST_COLUMNS)
+
+    result_df = pd.DataFrame(rows, columns=FST_COLUMNS)
+    logger.info(
+        "compute_fst_pairwise: %d locus–pair row(s) for %d subpopulation(s)",
+        len(result_df),
+        len(subpops),
+    )
+    return result_df
+
+
+def compute_migration_counts(
+    df: pd.DataFrame,
+    subpop_col: str = "agent_type",
+) -> pd.DataFrame:
+    """Track gene-flow events (migrations) between subpopulations.
+
+    An agent is classified as a *migrant* when at least one of its parents
+    belongs to a different subpopulation than the agent itself.  The parent's
+    subpopulation is the majority subpopulation among all recorded parents;
+    ties are broken by the first occurrence in ``parent_ids``.
+
+    Parameters
+    ----------
+    df:
+        DataFrame containing a *subpop_col* column, a ``parent_ids`` column,
+        and either an ``agent_id`` or ``candidate_id`` column.  Typically
+        produced by :func:`build_agent_genetics_dataframe` or
+        :func:`build_evolution_experiment_dataframe`.
+    subpop_col:
+        Column name whose distinct values define subpopulations.
+        Default ``"agent_type"``.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per agent that has at least one traceable parent, with
+        columns defined in :data:`MIGRATION_COLUMNS`:
+
+        * ``agent_id`` (str)
+        * ``generation`` (int or ``NaN``)
+        * ``subpop_definition`` (str) – the value of *subpop_col*
+        * ``offspring_subpopulation`` (str)
+        * ``parent_subpopulation`` (str) – majority subpopulation of parents
+        * ``is_migrant`` (bool) – ``True`` when
+          ``offspring_subpopulation != parent_subpopulation``
+
+        Returns an empty DataFrame (with correct columns) when required
+        columns are absent or no traceable parent relationships exist.
+    """
+    required = {subpop_col, "parent_ids"}
+    if df.empty or not required.issubset(df.columns):
+        return pd.DataFrame(columns=MIGRATION_COLUMNS)
+
+    # Determine the individual-identifier column
+    id_col: Optional[str] = None
+    for candidate in ("agent_id", "candidate_id"):
+        if candidate in df.columns:
+            id_col = candidate
+            break
+    if id_col is None:
+        return pd.DataFrame(columns=MIGRATION_COLUMNS)
+
+    # Build id -> subpopulation lookup
+    agent_subpop: Dict[str, str] = {}
+    for _, row in df.iterrows():
+        sp = row[subpop_col]
+        if not pd.isna(sp):
+            agent_subpop[str(row[id_col])] = str(sp)
+
+    rows: List[Dict[str, Any]] = []
+    for _, row in df.iterrows():
+        agent_id = str(row[id_col])
+        sp_val = row[subpop_col]
+        if pd.isna(sp_val):
+            continue
+        offspring_subpop = str(sp_val)
+
+        parent_ids = row.get("parent_ids", [])
+        if not isinstance(parent_ids, (list, tuple)) or len(parent_ids) == 0:
+            continue  # genesis agent – no parents to compare against
+
+        parent_subpops = [agent_subpop[pid] for pid in parent_ids if pid in agent_subpop]
+        if not parent_subpops:
+            continue  # parents not present in this DataFrame
+
+        counts = Counter(parent_subpops)
+        max_count = max(counts.values())
+        parent_subpop = next(sp for sp in parent_subpops if counts[sp] == max_count)
+
+        rows.append(
+            {
+                "agent_id": agent_id,
+                "generation": row.get("generation"),
+                "subpop_definition": subpop_col,
+                "offspring_subpopulation": offspring_subpop,
+                "parent_subpopulation": parent_subpop,
+                "is_migrant": offspring_subpop != parent_subpop,
+            }
+        )
+
+    if not rows:
+        return pd.DataFrame(columns=MIGRATION_COLUMNS)
+
+    result_df = pd.DataFrame(rows, columns=MIGRATION_COLUMNS)
+    n_migrants = int(result_df["is_migrant"].sum())
+    logger.info(
+        "compute_migration_counts: %d agent(s) tracked; %d migrant(s) (%s definition)",
+        len(result_df),
+        n_migrants,
+        subpop_col,
+    )
+    return result_df
+
+
+def compute_gene_flow_timeseries(
+    df: pd.DataFrame,
+    subpop_col: str = "agent_type",
+) -> pd.DataFrame:
+    """Compute per-generation F_ST differentiation and migration counts.
+
+    For each generation, computes pairwise F_ST between all subpopulations
+    (using :func:`compute_fst_pairwise` on the generation's subset) and
+    counts boundary-crossing migration events between each subpopulation pair
+    (using :func:`compute_migration_counts` on the full DataFrame).  Migration
+    counts are undirected: agents moving A→B and B→A are both included in the
+    A↔B count.
+
+    Parameters
+    ----------
+    df:
+        DataFrame with a ``generation`` column, a *subpop_col* column, and
+        at least one of ``chromosome_values`` or ``action_weights``.
+    subpop_col:
+        Column name whose distinct values define subpopulations.
+        Default ``"agent_type"``.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per *(generation, subpopulation_a, subpopulation_b, locus)*,
+        with columns defined in :data:`GENE_FLOW_COLUMNS`:
+
+        * ``generation`` (int)
+        * ``subpop_definition`` (str) – the value of *subpop_col*
+        * ``locus`` (str)
+        * ``locus_type`` (str)
+        * ``subpopulation_a`` (str)
+        * ``subpopulation_b`` (str)
+        * ``fst`` (float) – F_ST for this generation
+        * ``n_migrants`` (int or ``NaN``) – number of migration events this
+          generation where offspring crossed the A↔B boundary.  ``NaN`` when
+          migration cannot be computed because lineage columns are unavailable.
+        * ``migration_data_available`` (bool) – whether lineage columns were
+          present and migration counts are therefore computable.
+
+        Returns an empty DataFrame (with correct columns) when the input is
+        insufficient (missing required columns, fewer than two subpopulations,
+        or no recognised locus column).
+    """
+    if df.empty or "generation" not in df.columns or subpop_col not in df.columns:
+        return pd.DataFrame(columns=GENE_FLOW_COLUMNS)
+
+    has_loci = "chromosome_values" in df.columns or "action_weights" in df.columns
+    if not has_loci:
+        return pd.DataFrame(columns=GENE_FLOW_COLUMNS)
+
+    has_migration_columns = "parent_ids" in df.columns and (
+        "agent_id" in df.columns or "candidate_id" in df.columns
+    )
+    if has_migration_columns:
+        # Pre-compute migration events across all generations at once
+        migration_df = compute_migration_counts(df, subpop_col=subpop_col)
+    else:
+        migration_df = pd.DataFrame(columns=MIGRATION_COLUMNS)
+        logger.warning(
+            "compute_gene_flow_timeseries: migration counts unavailable because required "
+            "lineage columns are missing (need parent_ids plus agent_id/candidate_id)"
+        )
+
+    rows: List[Dict[str, Any]] = []
+
+    for gen, gen_group in df.groupby("generation"):
+        try:
+            gen_int = int(float(gen))
+        except (TypeError, ValueError):
+            continue
+
+        fst_df = compute_fst_pairwise(gen_group, subpop_col=subpop_col)
+        if fst_df.empty:
+            continue
+
+        # Subset migration events for this generation
+        if not migration_df.empty and "generation" in migration_df.columns:
+            gen_migrants = migration_df[migration_df["generation"] == gen]
+        else:
+            gen_migrants = pd.DataFrame()
+
+        for _, fst_row in fst_df.iterrows():
+            sp_a = str(fst_row["subpopulation_a"])
+            sp_b = str(fst_row["subpopulation_b"])
+
+            # Count agents that crossed the A↔B boundary this generation
+            if has_migration_columns and not gen_migrants.empty:
+                n_migrants = int(
+                    gen_migrants[
+                        gen_migrants["is_migrant"]
+                        & gen_migrants["offspring_subpopulation"].isin([sp_a, sp_b])
+                        & gen_migrants["parent_subpopulation"].isin([sp_a, sp_b])
+                    ].shape[0]
+                )
+            elif has_migration_columns:
+                n_migrants = 0
+            else:
+                n_migrants = float("nan")
+
+            rows.append(
+                {
+                    "generation": gen_int,
+                    "subpop_definition": subpop_col,
+                    "locus": fst_row["locus"],
+                    "locus_type": fst_row["locus_type"],
+                    "subpopulation_a": sp_a,
+                    "subpopulation_b": sp_b,
+                    "fst": float(fst_row["fst"]),
+                    "n_migrants": n_migrants,
+                    "migration_data_available": has_migration_columns,
+                }
+            )
+
+    if not rows:
+        return pd.DataFrame(columns=GENE_FLOW_COLUMNS)
+
+    result_df = (
+        pd.DataFrame(rows, columns=GENE_FLOW_COLUMNS)
+        .sort_values(["generation", "locus", "subpopulation_a", "subpopulation_b"])
+        .reset_index(drop=True)
+    )
+    logger.info(
+        "compute_gene_flow_timeseries: %d row(s) across %d generation(s)",
+        len(result_df),
+        result_df["generation"].nunique(),
     )
     return result_df

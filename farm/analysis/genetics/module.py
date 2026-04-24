@@ -6,6 +6,8 @@ discoverable via :class:`~farm.analysis.service.AnalysisService` and the
 module registry.
 """
 
+from typing import Any, Dict, Optional
+
 from farm.analysis.core import BaseAnalysisModule, SimpleDataProcessor, make_analysis_function
 from farm.analysis.validation import ColumnValidator, DataQualityValidator, CompositeValidator
 
@@ -20,7 +22,42 @@ from farm.analysis.genetics.plot import (
 from farm.analysis.genetics.compute import (
     compute_fitness_gene_correlations,
     compute_pairwise_epistasis,
+    simulate_wright_fisher,
+    compute_fst_pairwise,
+    compute_migration_counts,
+    compute_gene_flow_timeseries,
 )
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+def _simulate_wright_fisher_for_analysis(
+    df: Any,
+    initial_frequencies: Optional[Dict[str, float]] = None,
+    n_effective: Optional[int] = None,
+    n_generations: Optional[int] = None,
+    seed: Optional[int] = None,
+) -> Any:
+    """Adapter for module-run execution of Wright-Fisher simulation.
+
+    The analysis runner always calls registered functions with DataFrame-oriented
+    signatures. This adapter allows the Wright-Fisher simulator to be included
+    in groups safely while still requiring explicit simulation parameters.
+    """
+    _ = df  # Unused by design; simulation is parameter-driven.
+    if initial_frequencies is None or n_effective is None or n_generations is None:
+        logger.warning(
+            "simulate_wright_fisher skipped: provide initial_frequencies, "
+            "n_effective, and n_generations via analysis kwargs"
+        )
+        return None
+    return simulate_wright_fisher(
+        initial_frequencies=initial_frequencies,
+        n_effective=n_effective,
+        n_generations=n_generations,
+        seed=seed,
+    )
 
 
 class GeneticsModule(BaseAnalysisModule):
@@ -66,6 +103,10 @@ class GeneticsModule(BaseAnalysisModule):
             "compute_pairwise_epistasis": make_analysis_function(compute_pairwise_epistasis),
             "plot_marginal_fitness_effect": make_analysis_function(plot_marginal_fitness_effect),
             "plot_fitness_landscape_2d": make_analysis_function(plot_fitness_landscape_2d),
+            "simulate_wright_fisher": make_analysis_function(_simulate_wright_fisher_for_analysis),
+            "compute_fst_pairwise": make_analysis_function(compute_fst_pairwise),
+            "compute_migration_counts": make_analysis_function(compute_migration_counts),
+            "compute_gene_flow_timeseries": make_analysis_function(compute_gene_flow_timeseries),
         }
 
         self._groups = {
@@ -90,6 +131,12 @@ class GeneticsModule(BaseAnalysisModule):
                 self._functions["compute_pairwise_epistasis"],
                 self._functions["plot_marginal_fitness_effect"],
                 self._functions["plot_fitness_landscape_2d"],
+            ],
+            "population_genetics": [
+                self._functions["simulate_wright_fisher"],
+                self._functions["compute_fst_pairwise"],
+                self._functions["compute_migration_counts"],
+                self._functions["compute_gene_flow_timeseries"],
             ],
         }
 
