@@ -748,6 +748,25 @@ samp {
   content: " →";
 }
 
+/* Devlog index (and similar) lives inside `.prose`; beat `.prose ul` / `.prose h3` / `.prose p`. */
+.prose .posts {
+  margin: 0;
+  padding: 0;
+}
+.prose .posts li {
+  margin: 0;
+}
+.prose .post-card__title {
+  margin: 4px 0 6px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.prose .post-card__excerpt {
+  margin: 0;
+}
+
 /* CTA banner */
 .cta {
   text-align: center;
