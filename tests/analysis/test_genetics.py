@@ -409,6 +409,40 @@ class TestGeneticsModule:
         assert len(df) == 2
         assert set(AGENT_GENETICS_COLUMNS).issubset(df.columns)
 
+    def test_population_genetics_group_skips_wright_fisher_without_kwargs(self, tmp_path):
+        db_file = tmp_path / "simulation.db"
+        engine = create_engine(f"sqlite:///{db_file}")
+        Base.metadata.create_all(engine)
+        with Session(engine) as session:
+            session.add_all(
+                [
+                    AgentModel(
+                        agent_id="a1",
+                        agent_type="A",
+                        birth_time=0,
+                        genome_id="::1",
+                        generation=0,
+                        action_weights={"move": 1.0},
+                    ),
+                    AgentModel(
+                        agent_id="b1",
+                        agent_type="B",
+                        birth_time=0,
+                        genome_id="::1",
+                        generation=0,
+                        action_weights={"gather": 1.0},
+                    ),
+                ]
+            )
+            session.commit()
+        engine.dispose()
+
+        output_dir = tmp_path / "analysis_output"
+        out_path, df = genetics_module.run_analysis(tmp_path, output_dir, group="population_genetics")
+        assert out_path == output_dir
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+
 
 # ---------------------------------------------------------------------------
 # Diversity metrics
@@ -2368,9 +2402,11 @@ class TestComputeGeneFlowTimeseries:
     def test_n_migrants_non_negative_integers(self):
         df = _make_multigen_evolution_df(n_gens=3, migration_rate=0.2)
         result = compute_gene_flow_timeseries(df)
-        assert (result["n_migrants"] >= 0).all()
+        available = result[result["migration_data_available"]]
+        assert not available.empty
+        assert (available["n_migrants"] >= 0).all()
         # n_migrants should hold integer counts
-        assert np.issubdtype(result["n_migrants"].dtype, np.integer)
+        assert np.issubdtype(available["n_migrants"].dtype, np.integer)
 
     def test_isolated_pops_high_fst_over_time(self):
         """Isolated subpopulations with very different gene ranges → high F_ST every gen."""
@@ -2420,3 +2456,17 @@ class TestComputeGeneFlowTimeseries:
         result = compute_gene_flow_timeseries(df)
         # At least some generations/pairs should show migrants
         assert result["n_migrants"].sum() > 0
+
+    def test_missing_lineage_marks_migration_unavailable(self):
+        df = pd.DataFrame(
+            [
+                {"generation": 0, "agent_type": "A", "chromosome_values": {"lr": 0.1}},
+                {"generation": 0, "agent_type": "B", "chromosome_values": {"lr": 0.9}},
+                {"generation": 1, "agent_type": "A", "chromosome_values": {"lr": 0.2}},
+                {"generation": 1, "agent_type": "B", "chromosome_values": {"lr": 0.8}},
+            ]
+        )
+        result = compute_gene_flow_timeseries(df)
+        assert not result.empty
+        assert result["migration_data_available"].eq(False).all()
+        assert result["n_migrants"].isna().all()

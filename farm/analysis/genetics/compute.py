@@ -1875,6 +1875,7 @@ GENE_FLOW_COLUMNS = [
     "subpopulation_b",
     "fst",
     "n_migrants",
+    "migration_data_available",
 ]
 
 #: Columns produced by :func:`compute_migration_counts`.
@@ -2271,8 +2272,11 @@ def compute_gene_flow_timeseries(
         * ``subpopulation_a`` (str)
         * ``subpopulation_b`` (str)
         * ``fst`` (float) – F_ST for this generation
-        * ``n_migrants`` (int) – number of migration events this generation
-          where offspring crossed the A↔B boundary
+        * ``n_migrants`` (int or ``NaN``) – number of migration events this
+          generation where offspring crossed the A↔B boundary.  ``NaN`` when
+          migration cannot be computed because lineage columns are unavailable.
+        * ``migration_data_available`` (bool) – whether lineage columns were
+          present and migration counts are therefore computable.
 
         Returns an empty DataFrame (with correct columns) when the input is
         insufficient (missing required columns, fewer than two subpopulations,
@@ -2285,8 +2289,18 @@ def compute_gene_flow_timeseries(
     if not has_loci:
         return pd.DataFrame(columns=GENE_FLOW_COLUMNS)
 
-    # Pre-compute migration events across all generations at once
-    migration_df = compute_migration_counts(df, subpop_col=subpop_col)
+    has_migration_columns = "parent_ids" in df.columns and (
+        "agent_id" in df.columns or "candidate_id" in df.columns
+    )
+    if has_migration_columns:
+        # Pre-compute migration events across all generations at once
+        migration_df = compute_migration_counts(df, subpop_col=subpop_col)
+    else:
+        migration_df = pd.DataFrame(columns=MIGRATION_COLUMNS)
+        logger.warning(
+            "compute_gene_flow_timeseries: migration counts unavailable because required "
+            "lineage columns are missing (need parent_ids plus agent_id/candidate_id)"
+        )
 
     rows: List[Dict[str, Any]] = []
 
@@ -2311,7 +2325,7 @@ def compute_gene_flow_timeseries(
             sp_b = str(fst_row["subpopulation_b"])
 
             # Count agents that crossed the A↔B boundary this generation
-            if not gen_migrants.empty:
+            if has_migration_columns and not gen_migrants.empty:
                 n_migrants = int(
                     gen_migrants[
                         gen_migrants["is_migrant"]
@@ -2319,8 +2333,10 @@ def compute_gene_flow_timeseries(
                         & gen_migrants["parent_subpopulation"].isin([sp_a, sp_b])
                     ].shape[0]
                 )
-            else:
+            elif has_migration_columns:
                 n_migrants = 0
+            else:
+                n_migrants = float("nan")
 
             rows.append(
                 {
@@ -2332,6 +2348,7 @@ def compute_gene_flow_timeseries(
                     "subpopulation_b": sp_b,
                     "fst": float(fst_row["fst"]),
                     "n_migrants": n_migrants,
+                    "migration_data_available": has_migration_columns,
                 }
             )
 
