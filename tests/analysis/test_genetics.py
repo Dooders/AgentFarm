@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+import numpy as np
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -38,6 +39,10 @@ from farm.analysis.genetics.compute import (
     compute_evolution_diversity_timeseries,
     compute_population_diversity,
     compute_selection_pressure_summary,
+    compute_fitness_gene_correlations,
+    compute_pairwise_epistasis,
+    FITNESS_GENE_CORRELATION_COLUMNS,
+    PAIRWISE_EPISTASIS_COLUMNS,
 )
 from farm.analysis.genetics.utils import parse_parent_ids
 from farm.analysis.genetics.analyze import analyze_genetics
@@ -1345,3 +1350,419 @@ class TestComputeSelectionPressureSummary:
         n_low = int(result_low["is_under_selection"].sum())
         n_high = int(result_high["is_under_selection"].sum())
         assert n_low >= n_high  # higher threshold cannot flag more
+
+
+# ---------------------------------------------------------------------------
+# Helpers for fitness landscape tests
+# ---------------------------------------------------------------------------
+
+
+def _make_evolution_df(
+    n_candidates: int,
+    gene_specs: dict,
+    fitness_fn,
+    seed: int = 0,
+) -> pd.DataFrame:
+    """Build a synthetic evolution DataFrame.
+
+    Parameters
+    ----------
+    n_candidates:
+        Total number of candidate rows.
+    gene_specs:
+        ``{gene_name: (min_val, max_val)}`` defining uniform sampling bounds.
+    fitness_fn:
+        Callable ``(gene_dict) -> float``.
+    seed:
+        NumPy random seed for reproducibility.
+    """
+    rng = np.random.default_rng(seed)
+    rows = []
+    for i in range(n_candidates):
+        chrom = {
+            gene: float(rng.uniform(lo, hi))
+            for gene, (lo, hi) in gene_specs.items()
+        }
+        rows.append(
+            {
+                "candidate_id": f"c{i}",
+                "generation": i % 5,
+                "fitness": fitness_fn(chrom),
+                "parent_ids": ["seed"],
+                "chromosome_values": chrom,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# TestComputeFitnessGeneCorrelations
+# ---------------------------------------------------------------------------
+
+
+class TestComputeFitnessGeneCorrelations:
+    """Tests for compute_fitness_gene_correlations."""
+
+    def test_empty_df_returns_empty_with_correct_columns(self):
+        result = compute_fitness_gene_correlations(pd.DataFrame())
+        assert result.empty
+        assert list(result.columns) == FITNESS_GENE_CORRELATION_COLUMNS
+
+    def test_missing_columns_returns_empty(self):
+        df = pd.DataFrame({"fitness": [1.0, 2.0]})  # no chromosome_values
+        result = compute_fitness_gene_correlations(df)
+        assert result.empty
+
+    def test_output_columns_are_correct(self):
+        df = _make_evolution_df(50, {"lr": (0.0, 1.0)}, lambda g: g["lr"])
+        result = compute_fitness_gene_correlations(df)
+        assert list(result.columns) == FITNESS_GENE_CORRELATION_COLUMNS
+
+    def test_one_row_per_gene(self):
+        df = _make_evolution_df(
+            50,
+            {"lr": (0.0, 1.0), "gamma": (0.8, 1.0)},
+            lambda g: g["lr"] + g["gamma"],
+        )
+        result = compute_fitness_gene_correlations(df)
+        assert set(result["gene"]) == {"lr", "gamma"}
+
+    def test_known_linear_effect_recovered(self):
+        """fitness = 10 * lr + noise → high |pearson_r| for lr."""
+        rng = np.random.default_rng(42)
+        n = 200
+        lr_vals = rng.uniform(0.0, 1.0, n)
+        noise = rng.normal(0, 0.1, n)
+        fitness = 10.0 * lr_vals + noise
+
+        rows = [
+            {
+                "candidate_id": f"c{i}",
+                "generation": 0,
+                "fitness": float(fitness[i]),
+                "parent_ids": ["seed"],
+                "chromosome_values": {"lr": float(lr_vals[i])},
+            }
+            for i in range(n)
+        ]
+        df = pd.DataFrame(rows)
+        result = compute_fitness_gene_correlations(df)
+        assert len(result) == 1
+        row = result.iloc[0]
+        assert row["gene"] == "lr"
+        assert row["pearson_r"] > 0.9, f"Expected strong positive correlation, got {row['pearson_r']}"
+        assert row["ols_slope"] > 8.0, f"Expected slope ~10, got {row['ols_slope']}"
+        assert row["ols_p"] < 1e-10
+
+    def test_noise_only_not_significant_after_bh(self):
+        """Pure noise → no gene should survive BH correction."""
+        rng = np.random.default_rng(7)
+        n = 100
+        lr_vals = rng.uniform(0.0, 1.0, n)
+        gamma_vals = rng.uniform(0.8, 1.0, n)
+        fitness = rng.normal(0, 1.0, n)  # completely independent
+
+        rows = [
+            {
+                "candidate_id": f"c{i}",
+                "generation": 0,
+                "fitness": float(fitness[i]),
+                "parent_ids": ["seed"],
+                "chromosome_values": {
+                    "lr": float(lr_vals[i]),
+                    "gamma": float(gamma_vals[i]),
+                },
+            }
+            for i in range(n)
+        ]
+        df = pd.DataFrame(rows)
+        result = compute_fitness_gene_correlations(df)
+        # With pure noise, BH should reject nothing at α=0.05
+        assert not result["bh_rejected"].any(), (
+            f"Expected no BH rejections for pure noise, got {result['bh_rejected'].sum()}"
+        )
+
+    def test_sorted_by_descending_effect_size(self):
+        df = _make_evolution_df(
+            100,
+            {"strong": (0.0, 1.0), "weak": (0.0, 1.0)},
+            lambda g: 10 * g["strong"] + 0.1 * g["weak"],
+        )
+        result = compute_fitness_gene_correlations(df)
+        assert len(result) >= 2
+        effect_sizes = result["effect_size"].tolist()
+        assert effect_sizes == sorted(effect_sizes, reverse=True)
+
+    def test_ci_bounds_present_and_ordered(self):
+        df = _make_evolution_df(50, {"lr": (0.0, 1.0)}, lambda g: 5 * g["lr"])
+        result = compute_fitness_gene_correlations(df)
+        row = result.iloc[0]
+        assert row["ci_lower"] < row["ols_slope"] < row["ci_upper"]
+
+    def test_min_samples_filter(self):
+        """Genes with fewer than min_samples rows should be skipped."""
+        df = _make_evolution_df(5, {"lr": (0.0, 1.0)}, lambda g: g["lr"])
+        result = compute_fitness_gene_correlations(df, min_samples=10)
+        assert result.empty
+
+    def test_constant_gene_excluded(self):
+        """Zero-variance genes must not appear in results."""
+        rows = [
+            {
+                "candidate_id": f"c{i}",
+                "generation": 0,
+                "fitness": float(i),
+                "parent_ids": ["seed"],
+                "chromosome_values": {"lr": 0.5, "gamma": float(i) / 50},
+            }
+            for i in range(50)
+        ]
+        df = pd.DataFrame(rows)
+        result = compute_fitness_gene_correlations(df)
+        assert "lr" not in result["gene"].values
+
+    def test_bh_rejected_column_is_bool(self):
+        df = _make_evolution_df(50, {"lr": (0.0, 1.0)}, lambda g: g["lr"])
+        result = compute_fitness_gene_correlations(df)
+        assert result["bh_rejected"].dtype == bool or result["bh_rejected"].isin([True, False]).all()
+
+    def test_missing_gene_values_use_complete_cases_per_gene(self):
+        rows = [
+            {
+                "candidate_id": "c0",
+                "generation": 0,
+                "fitness": 1.0,
+                "parent_ids": ["seed"],
+                "chromosome_values": {"a": 1.0, "b": 1.0},
+            },
+            {
+                "candidate_id": "c1",
+                "generation": 0,
+                "fitness": 2.0,
+                "parent_ids": ["seed"],
+                "chromosome_values": {"a": 2.0},
+            },
+            {
+                "candidate_id": "c2",
+                "generation": 0,
+                "fitness": 3.0,
+                "parent_ids": ["seed"],
+                "chromosome_values": {"b": 3.0},
+            },
+            {
+                "candidate_id": "c3",
+                "generation": 0,
+                "fitness": 4.0,
+                "parent_ids": ["seed"],
+                "chromosome_values": {"a": 4.0, "b": 4.0},
+            },
+            {
+                "candidate_id": "c4",
+                "generation": 0,
+                "fitness": 5.0,
+                "parent_ids": ["seed"],
+                "chromosome_values": {"a": 5.0},
+            },
+        ]
+        df = pd.DataFrame(rows)
+        result = compute_fitness_gene_correlations(df, min_samples=3)
+
+        assert set(result["gene"]) == {"a", "b"}
+        n_samples_by_gene = dict(zip(result["gene"], result["n_samples"]))
+        assert n_samples_by_gene["a"] == 4
+        assert n_samples_by_gene["b"] == 3
+        assert result["pearson_r"].notna().all()
+        assert result["ols_p"].notna().all()
+
+    def test_invalid_parameters_raise(self):
+        df = _make_evolution_df(20, {"lr": (0.0, 1.0)}, lambda g: g["lr"])
+        with pytest.raises(ValueError, match="alpha"):
+            compute_fitness_gene_correlations(df, alpha=0.0)
+        with pytest.raises(ValueError, match="min_samples"):
+            compute_fitness_gene_correlations(df, min_samples=1)
+        with pytest.raises(ValueError, match="confidence_level"):
+            compute_fitness_gene_correlations(df, confidence_level=1.0)
+
+
+# ---------------------------------------------------------------------------
+# TestComputePairwiseEpistasis
+# ---------------------------------------------------------------------------
+
+
+class TestComputePairwiseEpistasis:
+    """Tests for compute_pairwise_epistasis."""
+
+    def test_empty_df_returns_empty_with_correct_columns(self):
+        result = compute_pairwise_epistasis(pd.DataFrame())
+        assert result.empty
+        assert list(result.columns) == PAIRWISE_EPISTASIS_COLUMNS
+
+    def test_single_gene_returns_empty(self):
+        df = _make_evolution_df(50, {"lr": (0.0, 1.0)}, lambda g: g["lr"])
+        result = compute_pairwise_epistasis(df)
+        assert result.empty
+
+    def test_output_columns_are_correct(self):
+        df = _make_evolution_df(
+            50,
+            {"lr": (0.0, 1.0), "gamma": (0.8, 1.0)},
+            lambda g: g["lr"] * g["gamma"],
+        )
+        result = compute_pairwise_epistasis(df, min_samples=20)
+        assert list(result.columns) == PAIRWISE_EPISTASIS_COLUMNS
+
+    def test_known_interaction_recovered(self):
+        """fitness = 5 * lr * gamma → large |interaction_coef| for lr × gamma."""
+        rng = np.random.default_rng(99)
+        n = 300
+        lr_vals = rng.uniform(0.0, 1.0, n)
+        gamma_vals = rng.uniform(0.0, 1.0, n)
+        noise = rng.normal(0, 0.05, n)
+        fitness = 5.0 * lr_vals * gamma_vals + noise
+
+        rows = [
+            {
+                "candidate_id": f"c{i}",
+                "generation": 0,
+                "fitness": float(fitness[i]),
+                "parent_ids": ["seed"],
+                "chromosome_values": {
+                    "lr": float(lr_vals[i]),
+                    "gamma": float(gamma_vals[i]),
+                },
+            }
+            for i in range(n)
+        ]
+        df = pd.DataFrame(rows)
+        result = compute_pairwise_epistasis(df, min_samples=20)
+        assert len(result) == 1
+        row = result.iloc[0]
+        assert abs(row["interaction_coef"]) > 3.0, (
+            f"Expected interaction ~5, got {row['interaction_coef']}"
+        )
+        assert row["interaction_p"] < 1e-5
+
+    def test_pure_noise_no_significant_hits_after_bh(self):
+        """Pure additive noise → no pair significant after BH correction."""
+        rng = np.random.default_rng(13)
+        n = 200
+        lr_vals = rng.uniform(0.0, 1.0, n)
+        gamma_vals = rng.uniform(0.8, 1.0, n)
+        epsilon_vals = rng.uniform(0.9, 1.0, n)
+        fitness = rng.normal(0, 1.0, n)  # independent of all genes
+
+        rows = [
+            {
+                "candidate_id": f"c{i}",
+                "generation": 0,
+                "fitness": float(fitness[i]),
+                "parent_ids": ["seed"],
+                "chromosome_values": {
+                    "lr": float(lr_vals[i]),
+                    "gamma": float(gamma_vals[i]),
+                    "epsilon": float(epsilon_vals[i]),
+                },
+            }
+            for i in range(n)
+        ]
+        df = pd.DataFrame(rows)
+        result = compute_pairwise_epistasis(df, min_samples=20)
+        # Pure noise: BH should not reject any interaction
+        assert not result["bh_rejected"].any(), (
+            f"Expected no BH rejections for pure noise, got {result['bh_rejected'].sum()}"
+        )
+
+    def test_sorted_by_descending_absolute_interaction(self):
+        rng = np.random.default_rng(55)
+        n = 200
+        a = rng.uniform(0, 1, n)
+        b = rng.uniform(0, 1, n)
+        c = rng.uniform(0, 1, n)
+        # Strong a*b interaction, no a*c or b*c
+        fitness = 10 * a * b + 0.5 * c + rng.normal(0, 0.1, n)
+
+        rows = [
+            {
+                "candidate_id": f"c{i}",
+                "generation": 0,
+                "fitness": float(fitness[i]),
+                "parent_ids": ["seed"],
+                "chromosome_values": {
+                    "a": float(a[i]),
+                    "b": float(b[i]),
+                    "c": float(c[i]),
+                },
+            }
+            for i in range(n)
+        ]
+        df = pd.DataFrame(rows)
+        result = compute_pairwise_epistasis(df, min_samples=20)
+        assert len(result) >= 1
+        abs_coefs = result["interaction_coef"].abs().tolist()
+        assert abs_coefs == sorted(abs_coefs, reverse=True)
+
+    def test_min_samples_filter(self):
+        df = _make_evolution_df(
+            15,
+            {"lr": (0.0, 1.0), "gamma": (0.8, 1.0)},
+            lambda g: g["lr"] * g["gamma"],
+        )
+        result = compute_pairwise_epistasis(df, min_samples=20)
+        assert result.empty
+
+    def test_bh_column_is_bool(self):
+        df = _make_evolution_df(
+            60,
+            {"lr": (0.0, 1.0), "gamma": (0.8, 1.0)},
+            lambda g: g["lr"] * g["gamma"],
+        )
+        result = compute_pairwise_epistasis(df, min_samples=20)
+        if not result.empty:
+            assert result["bh_rejected"].isin([True, False]).all()
+
+    def test_three_genes_produces_three_pairs(self):
+        df = _make_evolution_df(
+            60,
+            {"a": (0.0, 1.0), "b": (0.0, 1.0), "c": (0.0, 1.0)},
+            lambda g: g["a"] + g["b"] + g["c"],
+        )
+        result = compute_pairwise_epistasis(df, min_samples=20)
+        assert len(result) == 3
+
+    def test_pairwise_uses_complete_cases_when_gene_values_missing(self):
+        rng = np.random.default_rng(101)
+        rows = []
+        for i in range(30):
+            a = float(rng.uniform(0.0, 1.0))
+            b = float(rng.uniform(0.0, 1.0))
+            fitness = 4.0 * a * b
+            chrom = {"a": a, "b": b} if i % 2 == 0 else {"a": a}
+            rows.append(
+                {
+                    "candidate_id": f"c{i}",
+                    "generation": 0,
+                    "fitness": fitness,
+                    "parent_ids": ["seed"],
+                    "chromosome_values": chrom,
+                }
+            )
+
+        df = pd.DataFrame(rows)
+        result = compute_pairwise_epistasis(df, min_samples=10)
+
+        assert len(result) == 1
+        assert int(result.iloc[0]["n_samples"]) == 15
+        assert pd.notna(result.iloc[0]["interaction_p"])
+
+    def test_invalid_parameters_raise(self):
+        df = _make_evolution_df(
+            60,
+            {"lr": (0.0, 1.0), "gamma": (0.8, 1.0)},
+            lambda g: g["lr"] * g["gamma"],
+        )
+        with pytest.raises(ValueError, match="alpha"):
+            compute_pairwise_epistasis(df, alpha=1.5)
+        with pytest.raises(ValueError, match="min_samples"):
+            compute_pairwise_epistasis(df, min_samples=1)
+        with pytest.raises(ValueError, match="min_gene_variance"):
+            compute_pairwise_epistasis(df, min_gene_variance=-1.0)

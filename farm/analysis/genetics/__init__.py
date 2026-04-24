@@ -12,6 +12,7 @@ Features:
 - Normalized DataFrame output for both sources
 - Genotypic diversity metrics: heterozygosity, Shannon entropy, per-locus stats
 - Allele-frequency trajectory tracking and selection-pressure detection
+- Fitness landscape: single-locus correlations and pairwise epistasis analysis
 
 Quick Start::
 
@@ -25,6 +26,8 @@ Quick Start::
     ...     compute_evolution_diversity_timeseries,
     ...     compute_allele_frequency_timeseries,
     ...     compute_selection_pressure_summary,
+    ...     compute_fitness_gene_correlations,
+    ...     compute_pairwise_epistasis,
     ... )
 """
 
@@ -45,6 +48,10 @@ from farm.analysis.genetics.compute import (
     ALLELE_VARIANCE,
     ALLELE_FREQUENCY_COLUMNS,
     SELECTION_PRESSURE_COLUMNS,
+    compute_fitness_gene_correlations,
+    compute_pairwise_epistasis,
+    FITNESS_GENE_CORRELATION_COLUMNS,
+    PAIRWISE_EPISTASIS_COLUMNS,
 )
 from farm.analysis.genetics.analyze import analyze_genetics
 from farm.analysis.genetics.module import genetics_module, GeneticsModule
@@ -70,6 +77,11 @@ __all__ = [
     "ALLELE_VARIANCE",
     "ALLELE_FREQUENCY_COLUMNS",
     "SELECTION_PRESSURE_COLUMNS",
+    # Fitness landscape correlations and epistasis
+    "compute_fitness_gene_correlations",
+    "compute_pairwise_epistasis",
+    "FITNESS_GENE_CORRELATION_COLUMNS",
+    "PAIRWISE_EPISTASIS_COLUMNS",
     # High-level analysis
     "analyze_genetics",
     "genetics_module",
