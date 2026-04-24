@@ -2151,7 +2151,6 @@ def _make_lineage_df(
     """
     rng = np.random.default_rng(seed)
     rows = []
-    agent_idx = 0
 
     # Generation 0: genesis agents, equally split
     gen0_ids = []
