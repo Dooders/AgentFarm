@@ -6,11 +6,28 @@ module registry.
 """
 
 from farm.analysis.core import BaseAnalysisModule, SimpleDataProcessor, make_analysis_function
-from farm.analysis.validation import ColumnValidator, DataQualityValidator, CompositeValidator
 
+from farm.analysis.phylogenetics.compute import PhylogeneticTree
 from farm.analysis.phylogenetics.data import process_phylogenetics_data
 from farm.analysis.phylogenetics.analyze import analyze_phylogenetics
 from farm.analysis.phylogenetics.plot import plot_phylogenetic_tree
+
+
+class _PhylogeneticTreeValidator:
+    """Minimal validator for :class:`PhylogeneticTree` objects.
+
+    The standard :class:`~farm.analysis.validation.ColumnValidator` and
+    :class:`~farm.analysis.validation.DataQualityValidator` assume a
+    :class:`pandas.DataFrame`.  This lightweight replacement accepts any
+    :class:`PhylogeneticTree` (even empty ones) so that the analysis
+    framework validation step does not raise a ``TypeError``.
+    """
+
+    def validate(self, data: object) -> None:  # noqa: D401
+        """Accept any :class:`PhylogeneticTree`; raise on ``None``."""
+        if data is None:
+            raise ValueError("process_phylogenetics_data returned None")
+        # PhylogeneticTree objects are always acceptable (even empty trees).
 
 
 class PhylogeneticsModule(BaseAnalysisModule):
@@ -33,13 +50,7 @@ class PhylogeneticsModule(BaseAnalysisModule):
             ),
         )
 
-        validator = CompositeValidator(
-            [
-                ColumnValidator(required_columns=[], column_types={}),
-                DataQualityValidator(min_rows=0),
-            ]
-        )
-        self.set_validator(validator)
+        self.set_validator(_PhylogeneticTreeValidator())
 
     def register_functions(self) -> None:
         """Register all phylogenetics analysis functions."""

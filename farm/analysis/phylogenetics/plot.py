@@ -81,7 +81,6 @@ def plot_phylogenetic_tree(
         matplotlib.use("Agg")  # non-interactive backend for server/test contexts
         import matplotlib.pyplot as plt
         import matplotlib.patches as mpatches
-        from matplotlib.lines import Line2D
     except ImportError as exc:
         logger.warning("plot_phylogenetic_tree: matplotlib not available: %s", exc)
         return None
@@ -101,7 +100,11 @@ def plot_phylogenetic_tree(
                 if 0 <= n.depth <= effective_max_depth
             }
         else:
-            render_ids = set(df.nodes.keys())
+            render_ids = {
+                nid
+                for nid, n in df.nodes.items()
+                if n.depth >= 0
+            }
 
         # Per-depth sampling when still too large
         if len(render_ids) > max_nodes:

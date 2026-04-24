@@ -544,6 +544,7 @@ def build_phylogenetic_tree_from_records(
     id_key: str = "candidate_id",
     parent_ids_key: str = "parent_ids",
     generation_key: str = "generation",
+    max_depth: Optional[int] = None,
 ) -> PhylogeneticTree:
     """Build a phylogenetic tree/DAG from evolution-lineage JSON records.
 
@@ -567,6 +568,9 @@ def build_phylogenetic_tree_from_records(
         Key for the parent ID list.  Defaults to ``"parent_ids"``.
     generation_key:
         Key for the generation number.  Defaults to ``"generation"``.
+    max_depth:
+        Maximum BFS depth to assign.  Nodes beyond this depth are marked as
+        pruned (``depth == -1``).  ``None`` means unlimited.
 
     Returns
     -------
@@ -651,4 +655,4 @@ def build_phylogenetic_tree_from_records(
             death_time=death_time,
         )
 
-    return _build_tree_from_nodes(node_map)
+    return _build_tree_from_nodes(node_map, max_depth=max_depth)
