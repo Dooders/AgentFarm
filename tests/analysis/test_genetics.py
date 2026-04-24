@@ -1526,6 +1526,63 @@ class TestComputeFitnessGeneCorrelations:
         result = compute_fitness_gene_correlations(df)
         assert result["bh_rejected"].dtype == bool or result["bh_rejected"].isin([True, False]).all()
 
+    def test_missing_gene_values_use_complete_cases_per_gene(self):
+        rows = [
+            {
+                "candidate_id": "c0",
+                "generation": 0,
+                "fitness": 1.0,
+                "parent_ids": ["seed"],
+                "chromosome_values": {"a": 1.0, "b": 1.0},
+            },
+            {
+                "candidate_id": "c1",
+                "generation": 0,
+                "fitness": 2.0,
+                "parent_ids": ["seed"],
+                "chromosome_values": {"a": 2.0},
+            },
+            {
+                "candidate_id": "c2",
+                "generation": 0,
+                "fitness": 3.0,
+                "parent_ids": ["seed"],
+                "chromosome_values": {"b": 3.0},
+            },
+            {
+                "candidate_id": "c3",
+                "generation": 0,
+                "fitness": 4.0,
+                "parent_ids": ["seed"],
+                "chromosome_values": {"a": 4.0, "b": 4.0},
+            },
+            {
+                "candidate_id": "c4",
+                "generation": 0,
+                "fitness": 5.0,
+                "parent_ids": ["seed"],
+                "chromosome_values": {"a": 5.0},
+            },
+        ]
+        df = pd.DataFrame(rows)
+        result = compute_fitness_gene_correlations(df, min_samples=3)
+
+        assert set(result["gene"]) == {"a", "b"}
+        n_samples_by_gene = dict(zip(result["gene"], result["n_samples"]))
+        assert n_samples_by_gene["a"] == 4
+        assert n_samples_by_gene["b"] == 3
+        assert result["pearson_r"].notna().all()
+        assert result["ols_p"].notna().all()
+
+    def test_invalid_parameters_raise(self):
+        df = _make_evolution_df(20, {"lr": (0.0, 1.0)}, lambda g: g["lr"])
+        with pytest.raises(ValueError, match="alpha"):
+            compute_fitness_gene_correlations(df, alpha=0.0)
+        with pytest.raises(ValueError, match="min_samples"):
+            compute_fitness_gene_correlations(df, min_samples=1)
+        with pytest.raises(ValueError, match="confidence_level"):
+            compute_fitness_gene_correlations(df, confidence_level=1.0)
+
 
 # ---------------------------------------------------------------------------
 # TestComputePairwiseEpistasis
@@ -1671,3 +1728,41 @@ class TestComputePairwiseEpistasis:
         )
         result = compute_pairwise_epistasis(df, min_samples=20)
         assert len(result) == 3
+
+    def test_pairwise_uses_complete_cases_when_gene_values_missing(self):
+        rng = np.random.default_rng(101)
+        rows = []
+        for i in range(30):
+            a = float(rng.uniform(0.0, 1.0))
+            b = float(rng.uniform(0.0, 1.0))
+            fitness = 4.0 * a * b
+            chrom = {"a": a, "b": b} if i % 2 == 0 else {"a": a}
+            rows.append(
+                {
+                    "candidate_id": f"c{i}",
+                    "generation": 0,
+                    "fitness": fitness,
+                    "parent_ids": ["seed"],
+                    "chromosome_values": chrom,
+                }
+            )
+
+        df = pd.DataFrame(rows)
+        result = compute_pairwise_epistasis(df, min_samples=10)
+
+        assert len(result) == 1
+        assert int(result.iloc[0]["n_samples"]) == 15
+        assert pd.notna(result.iloc[0]["interaction_p"])
+
+    def test_invalid_parameters_raise(self):
+        df = _make_evolution_df(
+            60,
+            {"lr": (0.0, 1.0), "gamma": (0.8, 1.0)},
+            lambda g: g["lr"] * g["gamma"],
+        )
+        with pytest.raises(ValueError, match="alpha"):
+            compute_pairwise_epistasis(df, alpha=1.5)
+        with pytest.raises(ValueError, match="min_samples"):
+            compute_pairwise_epistasis(df, min_samples=1)
+        with pytest.raises(ValueError, match="min_gene_variance"):
+            compute_pairwise_epistasis(df, min_gene_variance=-1.0)

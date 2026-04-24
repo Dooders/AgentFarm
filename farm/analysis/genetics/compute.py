@@ -12,11 +12,13 @@ fitness landscape analysis (single-locus correlations, pairwise epistasis).
 from __future__ import annotations
 
 import math
+from itertools import combinations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+from scipy import stats as scipy_stats
 
 from farm.analysis.genetics.utils import parse_parent_ids
 from farm.utils.logging import get_logger
@@ -1334,16 +1336,8 @@ def _bh_correction(p_values: List[float], alpha: float = 0.05) -> List[bool]:
 
     # Pair (p_value, original_index) and sort by p
     indexed = sorted(enumerate(p_values), key=lambda x: x[1])
-    rejected = [False] * m
 
-    # BH step-up procedure: reject H_(i) if p_(i) ≤ (i/m) * alpha
-    for rank, (orig_idx, p) in enumerate(indexed, start=1):
-        if p <= (rank / m) * alpha:
-            rejected[orig_idx] = True
-
-    # BH is a step-up procedure: once we find the largest k such that
-    # p_(k) ≤ (k/m)*alpha, all i ≤ k are rejected.
-    # Re-implement properly:
+    # BH step-up procedure: find largest k such that p_(k) <= (k/m) * alpha
     last_rejected_rank = 0
     for rank, (_, p) in enumerate(indexed, start=1):
         if p <= (rank / m) * alpha:
@@ -1355,6 +1349,30 @@ def _bh_correction(p_values: List[float], alpha: float = 0.05) -> List[bool]:
             rejected[orig_idx] = True
 
     return rejected
+
+
+def _validate_fitness_landscape_params(
+    alpha: float,
+    min_samples: int,
+    confidence_level: Optional[float] = None,
+    min_gene_variance: Optional[float] = None,
+) -> None:
+    """Validate common parameters for fitness-landscape computations."""
+    if not (0.0 < alpha <= 1.0):
+        raise ValueError(f"alpha must be in (0, 1], got {alpha}")
+
+    if min_samples < 2:
+        raise ValueError(f"min_samples must be >= 2, got {min_samples}")
+
+    if confidence_level is not None and not (0.0 < confidence_level < 1.0):
+        raise ValueError(
+            f"confidence_level must be in (0, 1), got {confidence_level}"
+        )
+
+    if min_gene_variance is not None and min_gene_variance < 0.0:
+        raise ValueError(
+            f"min_gene_variance must be >= 0, got {min_gene_variance}"
+        )
 
 
 def compute_fitness_gene_correlations(
@@ -1411,13 +1429,17 @@ def compute_fitness_gene_correlations(
       the generational non-independence.
     * With small ``n`` (< ~30) the *t*-distribution CI is approximate.
     """
-    from scipy import stats as _stats
+    _validate_fitness_landscape_params(
+        alpha=alpha,
+        min_samples=min_samples,
+        confidence_level=confidence_level,
+    )
 
     matrix = _extract_gene_matrix(df)
     if matrix.empty:
         return pd.DataFrame(columns=FITNESS_GENE_CORRELATION_COLUMNS)
 
-    fitness = matrix["fitness"].values
+    fitness = matrix["fitness"].values.astype(float)
     gene_cols = [c for c in matrix.columns if c != "fitness"]
 
     if not gene_cols:
@@ -1425,24 +1447,34 @@ def compute_fitness_gene_correlations(
 
     rows: List[Dict[str, Any]] = []
     for gene in gene_cols:
-        gene_vals = matrix[gene].values
-        n = len(gene_vals)
+        gene_vals = matrix[gene].values.astype(float)
+        valid_mask = np.isfinite(fitness) & np.isfinite(gene_vals)
+        n = int(valid_mask.sum())
         if n < min_samples:
             continue
 
+        gene_valid = gene_vals[valid_mask]
+        fitness_valid = fitness[valid_mask]
+
+        # Per-gene masking can reduce variance to zero; skip these degenerate fits.
+        if float(np.std(gene_valid, ddof=0)) <= 0.0:
+            continue
+
         # --- Pearson ---
-        pr, pp = _stats.pearsonr(gene_vals, fitness)
+        pr, pp = scipy_stats.pearsonr(gene_valid, fitness_valid)
 
         # --- Spearman ---
-        sr, sp = _stats.spearmanr(gene_vals, fitness)
+        sr, sp = scipy_stats.spearmanr(gene_valid, fitness_valid)
 
         # --- OLS simple regression ---
-        slope, intercept, r_value, ols_p, std_err = _stats.linregress(gene_vals, fitness)
+        slope, intercept, r_value, ols_p, std_err = scipy_stats.linregress(
+            gene_valid, fitness_valid
+        )
         r2 = float(r_value ** 2)
 
         # CI on slope using t-distribution (df = n - 2)
         if n > 2:
-            t_crit = _stats.t.ppf((1 + confidence_level) / 2, df=n - 2)
+            t_crit = scipy_stats.t.ppf((1 + confidence_level) / 2, df=n - 2)
             ci_lower = float(slope - t_crit * std_err)
             ci_upper = float(slope + t_crit * std_err)
         else:
@@ -1473,12 +1505,18 @@ def compute_fitness_gene_correlations(
 
     result_df = pd.DataFrame(rows, columns=FITNESS_GENE_CORRELATION_COLUMNS)
 
-    # Benjamini–Hochberg correction on OLS p-values
-    bh_mask = _bh_correction(result_df["ols_p"].tolist(), alpha=alpha)
-    result_df["bh_rejected"] = bh_mask
+    # Benjamini–Hochberg correction on finite OLS p-values
+    valid_ols_mask = result_df["ols_p"].notna() & np.isfinite(result_df["ols_p"])
+    if valid_ols_mask.any():
+        bh_mask = _bh_correction(
+            result_df.loc[valid_ols_mask, "ols_p"].tolist(), alpha=alpha
+        )
+        result_df.loc[valid_ols_mask, "bh_rejected"] = bh_mask
 
     # Sort by descending effect size
-    result_df = result_df.sort_values("effect_size", ascending=False).reset_index(drop=True)
+    result_df = result_df.sort_values(
+        "effect_size", ascending=False, na_position="last"
+    ).reset_index(drop=True)
 
     logger.info(
         "compute_fitness_gene_correlations: %d gene(s) tested; %d significant after BH correction",
@@ -1538,21 +1576,31 @@ def compute_pairwise_epistasis(
       genes the BH correction becomes conservative.  Consider Holm or other
       corrections for very large gene sets.
     """
-    from itertools import combinations
-    from scipy import stats as _stats
+    _validate_fitness_landscape_params(
+        alpha=alpha,
+        min_samples=min_samples,
+        min_gene_variance=min_gene_variance,
+    )
 
     matrix = _extract_gene_matrix(df)
     if matrix.empty:
         return pd.DataFrame(columns=PAIRWISE_EPISTASIS_COLUMNS)
 
-    fitness = matrix["fitness"].values
+    fitness = matrix["fitness"].values.astype(float)
     gene_cols = [c for c in matrix.columns if c != "fitness"]
 
     if len(gene_cols) < 2:
         return pd.DataFrame(columns=PAIRWISE_EPISTASIS_COLUMNS)
 
     # Further filter genes with sufficient variance
-    varying = [g for g in gene_cols if float(matrix[g].var(ddof=0)) >= min_gene_variance]
+    varying = [
+        g
+        for g in gene_cols
+        if (
+            matrix[g].notna().any()
+            and float(matrix[g].dropna().var(ddof=0)) >= min_gene_variance
+        )
+    ]
     if len(varying) < 2:
         return pd.DataFrame(columns=PAIRWISE_EPISTASIS_COLUMNS)
 
@@ -1561,10 +1609,15 @@ def compute_pairwise_epistasis(
     for gene_i, gene_j in combinations(varying, 2):
         gi = matrix[gene_i].values.astype(float)
         gj = matrix[gene_j].values.astype(float)
-        n = len(gi)
+        valid_mask = np.isfinite(fitness) & np.isfinite(gi) & np.isfinite(gj)
+        n = int(valid_mask.sum())
 
         if n < min_samples:
             continue
+
+        gi = gi[valid_mask]
+        gj = gj[valid_mask]
+        fitness_valid = fitness[valid_mask]
 
         interaction = gi * gj
 
@@ -1573,7 +1626,7 @@ def compute_pairwise_epistasis(
 
         # OLS via numpy least-squares
         try:
-            coeffs, residuals_ss, rank, _ = np.linalg.lstsq(X, fitness, rcond=None)
+            coeffs, residuals_ss, rank, _ = np.linalg.lstsq(X, fitness_valid, rcond=None)
         except np.linalg.LinAlgError:
             continue
 
@@ -1585,7 +1638,7 @@ def compute_pairwise_epistasis(
 
         # Compute residual variance and standard errors
         predicted = X @ coeffs
-        resid = fitness - predicted
+        resid = fitness_valid - predicted
         rss = float(np.dot(resid, resid))
         df_resid = n - 4  # n observations - 4 parameters
 
@@ -1605,13 +1658,13 @@ def compute_pairwise_epistasis(
             se_ij = math.sqrt(float(var_coeffs[3]))
             if se_ij > 0.0:
                 t_stat = beta_ij / se_ij
-                interaction_p = float(2.0 * _stats.t.sf(abs(t_stat), df=df_resid))
+                interaction_p = float(2.0 * scipy_stats.t.sf(abs(t_stat), df=df_resid))
             else:
                 interaction_p = float("nan")
 
         # R² of the full model
-        fitness_mean = float(np.mean(fitness))
-        fitness_centered = fitness - fitness_mean
+        fitness_mean = float(np.mean(fitness_valid))
+        fitness_centered = fitness_valid - fitness_mean
         tss = float(np.dot(fitness_centered, fitness_centered))
         r2 = 1.0 - rss / tss if tss > 0.0 else float("nan")
 
@@ -1635,7 +1688,7 @@ def compute_pairwise_epistasis(
     result_df = pd.DataFrame(rows, columns=PAIRWISE_EPISTASIS_COLUMNS)
 
     # BH correction on interaction p-values (drop NaN for correction)
-    valid_mask = result_df["interaction_p"].notna()
+    valid_mask = result_df["interaction_p"].notna() & np.isfinite(result_df["interaction_p"])
     valid_ps = result_df.loc[valid_mask, "interaction_p"].tolist()
     bh_valid = _bh_correction(valid_ps, alpha=alpha)
     result_df.loc[valid_mask, "bh_rejected"] = bh_valid

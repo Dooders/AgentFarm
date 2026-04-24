@@ -6,6 +6,7 @@ Placeholder visualization functions for the genetics analysis module.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 import pandas as pd
@@ -14,6 +15,14 @@ from farm.analysis.common.context import AnalysisContext
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+_SAFE_OUTPUT_TOKEN_RE = re.compile(r"[^0-9A-Za-z_.-]+")
+
+
+def _sanitize_output_token(value: str) -> str:
+    """Normalize arbitrary labels into filesystem-safe filename fragments."""
+    sanitized = _SAFE_OUTPUT_TOKEN_RE.sub("_", value).strip("_")
+    return sanitized or "unknown"
 
 
 def plot_generation_distribution(df: pd.DataFrame, ctx: AnalysisContext, **kwargs: Any) -> Optional[Any]:
@@ -161,7 +170,7 @@ def plot_marginal_fitness_effect(
         ax.set_title(f"Marginal fitness effect: {gene}")
         ax.legend()
 
-        safe_gene = gene.replace("/", "_")
+        safe_gene = _sanitize_output_token(gene)
         output_file = ctx.get_output_file(f"genetics_marginal_{safe_gene}.png")
         fig.savefig(output_file, dpi=150, bbox_inches="tight")
         plt.close(fig)
@@ -240,6 +249,13 @@ def plot_fitness_landscape_2d(
 
         fig, ax = plt.subplots(figsize=(8, 6))
 
+        if plot_type not in {"scatter", "heatmap"}:
+            logger.warning(
+                "plot_fitness_landscape_2d: invalid plot_type %r; expected 'scatter' or 'heatmap'",
+                plot_type,
+            )
+            return None
+
         if plot_type == "heatmap":
             bins = kwargs.get("bins", 20)
             h, xedges, yedges = np.histogram2d(xi_arr, xj_arr, bins=bins)
@@ -263,8 +279,8 @@ def plot_fitness_landscape_2d(
         ax.set_ylabel(gene_j)
         ax.set_title(f"Fitness landscape: {gene_i} × {gene_j}")
 
-        safe_i = gene_i.replace("/", "_")
-        safe_j = gene_j.replace("/", "_")
+        safe_i = _sanitize_output_token(gene_i)
+        safe_j = _sanitize_output_token(gene_j)
         output_file = ctx.get_output_file(f"genetics_landscape_{safe_i}_x_{safe_j}.png")
         fig.savefig(output_file, dpi=150, bbox_inches="tight")
         plt.close(fig)
