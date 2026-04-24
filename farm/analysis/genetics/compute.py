@@ -777,8 +777,8 @@ def compute_allele_frequency_timeseries(
         * ``action_weights``: column of ``{action_name: weight}`` dicts
           (e.g. from :func:`build_agent_genetics_dataframe`).
 
-        Rows with a non-numeric or ``NaN`` ``generation`` value are silently
-        skipped.
+        Rows with a non-numeric, non-finite, or non-integer ``generation``
+        value are skipped.
     gene_bounds:
         Accepted for API symmetry with other ``compute_*`` helpers; not
         used in the current implementation.
@@ -820,11 +820,18 @@ def compute_allele_frequency_timeseries(
 
     rows: List[Dict[str, Any]] = []
 
+    skipped_generation_rows = 0
+
     for gen, group in df.groupby("generation"):
         try:
-            gen_int = int(gen)
+            gen_float = float(gen)
         except (TypeError, ValueError):
+            skipped_generation_rows += len(group)
             continue
+        if not math.isfinite(gen_float) or not gen_float.is_integer():
+            skipped_generation_rows += len(group)
+            continue
+        gen_int = int(gen_float)
 
         # --- Continuous loci: chromosome_values ---
         if has_continuous:
@@ -873,11 +880,24 @@ def compute_allele_frequency_timeseries(
 
         # --- Categorical loci: action_weights ---
         if has_categorical:
-            weight_vectors = [
-                wv
-                for wv in group["action_weights"]
-                if isinstance(wv, dict) and len(wv) > 0
-            ]
+            weight_vectors: List[Dict[str, float]] = []
+            skipped_weight_values = 0
+            for raw_wv in group["action_weights"]:
+                if not isinstance(raw_wv, dict) or len(raw_wv) == 0:
+                    continue
+                sanitized: Dict[str, float] = {}
+                for action, raw_weight in raw_wv.items():
+                    try:
+                        numeric_weight = float(raw_weight)
+                    except (TypeError, ValueError):
+                        skipped_weight_values += 1
+                        continue
+                    if not math.isfinite(numeric_weight):
+                        skipped_weight_values += 1
+                        continue
+                    sanitized[action] = numeric_weight
+                if sanitized:
+                    weight_vectors.append(sanitized)
             if weight_vectors:
                 n_cat = len(weight_vectors)
                 all_actions = sorted({a for wv in weight_vectors for a in wv})
@@ -902,6 +922,12 @@ def compute_allele_frequency_timeseries(
                             "n_individuals": n_cat,
                         }
                     )
+            if skipped_weight_values:
+                logger.warning(
+                    "compute_allele_frequency_timeseries: skipped %d non-finite/non-numeric action_weights value(s) in generation %d",
+                    skipped_weight_values,
+                    gen_int,
+                )
 
     if not rows:
         return pd.DataFrame(columns=ALLELE_FREQUENCY_COLUMNS)
@@ -913,6 +939,11 @@ def compute_allele_frequency_timeseries(
         len(result_df),
         result_df["generation"].nunique(),
     )
+    if skipped_generation_rows:
+        logger.warning(
+            "compute_allele_frequency_timeseries: skipped %d row(s) with non-integer generation values",
+            skipped_generation_rows,
+        )
     return result_df
 
 
@@ -944,6 +975,7 @@ def compute_selection_pressure_summary(
         Absolute z-score above which a (locus, allele) pair is flagged with
         ``is_under_selection = True``.  Default ``2.0`` (≈ 95th percentile
         under a standard normal).
+        Must be finite and non-negative.
 
     Returns
     -------
@@ -978,6 +1010,11 @@ def compute_selection_pressure_summary(
 
         Returns an empty DataFrame (with correct columns) when *freq_df* is
         empty or missing required columns.
+
+    Raises
+    ------
+    ValueError
+        If ``significance_threshold`` is non-finite or negative.
 
     Notes
     -----
@@ -1014,14 +1051,20 @@ def compute_selection_pressure_summary(
     required = {"generation", "locus", "allele", "frequency", "locus_type"}
     if freq_df.empty or not required.issubset(freq_df.columns):
         return pd.DataFrame(columns=SELECTION_PRESSURE_COLUMNS)
+    if not math.isfinite(significance_threshold) or significance_threshold < 0.0:
+        raise ValueError(
+            "compute_selection_pressure_summary: significance_threshold must be finite and >= 0"
+        )
 
     summary_rows: List[Dict[str, Any]] = []
 
-    for (locus, allele), group in freq_df.groupby(["locus", "allele"], sort=False):
+    for (locus, allele, locus_type), group in freq_df.groupby(
+        ["locus", "allele", "locus_type"], sort=False
+    ):
         group_sorted = group.sort_values("generation")
         freqs = group_sorted["frequency"].tolist()
         gens = group_sorted["generation"].tolist()
-        locus_type = str(group_sorted["locus_type"].iloc[0])
+        locus_type = str(locus_type)
         n_gen = len(freqs)
 
         cumulative_shift: float = freqs[-1] - freqs[0] if n_gen >= 2 else float("nan")

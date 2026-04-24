@@ -906,6 +906,29 @@ class TestComputeAlleleFrequencyTimeseries:
         result = compute_allele_frequency_timeseries(df)
         assert result.empty
 
+    def test_non_integer_generation_values_are_skipped(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0.1, 0.9, 1.1, 1.9],
+                "chromosome_values": [{"lr": 0.1}, {"lr": 0.2}, {"lr": 0.3}, {"lr": 0.4}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        assert result.empty
+
+    def test_integer_like_float_generation_values_are_accepted(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0.0, 0.0, 1.0, 1.0],
+                "chromosome_values": [{"lr": 0.1}, {"lr": 0.3}, {"lr": 0.5}, {"lr": 0.7}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        mean_rows = result[result["allele"] == ALLELE_MEAN]
+        assert sorted(mean_rows["generation"].tolist()) == [0, 1]
+        assert mean_rows[mean_rows["generation"] == 0]["frequency"].iloc[0] == pytest.approx(0.2)
+        assert mean_rows[mean_rows["generation"] == 1]["frequency"].iloc[0] == pytest.approx(0.6)
+
     def test_no_recognised_locus_columns_returns_empty(self):
         df = pd.DataFrame({"generation": [0, 1], "fitness": [1.0, 2.0]})
         result = compute_allele_frequency_timeseries(df)
@@ -1053,6 +1076,20 @@ class TestComputeAlleleFrequencyTimeseries:
         result = compute_allele_frequency_timeseries(df)
         assert result.iloc[0]["n_individuals"] == 2
 
+    def test_categorical_non_numeric_weights_are_skipped(self):
+        df = pd.DataFrame(
+            {
+                "generation": [0, 0],
+                "action_weights": [{"move": 1.0}, {"move": "bad", "gather": 0.5}],
+            }
+        )
+        result = compute_allele_frequency_timeseries(df)
+        move_row = result[result["allele"] == "move"].iloc[0]
+        gather_row = result[result["allele"] == "gather"].iloc[0]
+        assert move_row["frequency"] == pytest.approx(2 / 3)
+        assert gather_row["frequency"] == pytest.approx(1 / 3)
+        assert move_row["n_individuals"] == 2
+
     # --- Both column types present ---
 
     def test_both_locus_types_present(self):
@@ -1087,6 +1124,18 @@ class TestComputeSelectionPressureSummary:
         df = pd.DataFrame({"generation": [0], "locus": ["lr"], "allele": [ALLELE_MEAN]})
         result = compute_selection_pressure_summary(df)
         assert result.empty
+
+    def test_negative_significance_threshold_raises(self):
+        df = _continuous_df(3, 3, "lr", lambda g, i: 0.1 + 0.01 * g)
+        freq_df = compute_allele_frequency_timeseries(df)
+        with pytest.raises(ValueError, match="significance_threshold"):
+            compute_selection_pressure_summary(freq_df, significance_threshold=-0.5)
+
+    def test_non_finite_significance_threshold_raises(self):
+        df = _continuous_df(3, 3, "lr", lambda g, i: 0.1 + 0.01 * g)
+        freq_df = compute_allele_frequency_timeseries(df)
+        with pytest.raises(ValueError, match="significance_threshold"):
+            compute_selection_pressure_summary(freq_df, significance_threshold=float("nan"))
 
     def test_output_columns_are_correct(self):
         df = _continuous_df(4, 5, "lr", lambda g, i: 0.1 + 0.01 * g)
