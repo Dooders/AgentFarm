@@ -1989,9 +1989,9 @@ def compute_fst_pairwise(
     between-group variance component.
 
     **Categorical loci** (action weights):
-    Uses the classical multi-allele Wright–Cockerham F_ST::
+    Uses the heterozygosity-based G_ST estimator (Nei 1973)::
 
-        F_ST = (H_T − H_S) / H_T
+        G_ST = (H_T − H_S) / H_T
 
     where ``H_T`` and ``H_S`` are the expected heterozygosities of the total
     and sub-populations respectively.
@@ -2140,8 +2140,8 @@ def compute_migration_counts(
 
     An agent is classified as a *migrant* when at least one of its parents
     belongs to a different subpopulation than the agent itself.  The parent's
-    subpopulation is the majority subpopulation among all recorded parents
-    (tie broken by first occurrence).
+    subpopulation is the majority subpopulation among all recorded parents;
+    ties are broken by the first occurrence in ``parent_ids``.
 
     Parameters
     ----------
@@ -2207,7 +2207,9 @@ def compute_migration_counts(
         if not parent_subpops:
             continue  # parents not present in this DataFrame
 
-        parent_subpop = Counter(parent_subpops).most_common(1)[0][0]
+        counts = Counter(parent_subpops)
+        max_count = max(counts.values())
+        parent_subpop = next(sp for sp in parent_subpops if counts[sp] == max_count)
 
         rows.append(
             {
@@ -2242,8 +2244,10 @@ def compute_gene_flow_timeseries(
 
     For each generation, computes pairwise F_ST between all subpopulations
     (using :func:`compute_fst_pairwise` on the generation's subset) and
-    counts directed migration events between each subpopulation pair (using
-    :func:`compute_migration_counts` on the full DataFrame).
+    counts boundary-crossing migration events between each subpopulation pair
+    (using :func:`compute_migration_counts` on the full DataFrame).  Migration
+    counts are undirected: agents moving A→B and B→A are both included in the
+    A↔B count.
 
     Parameters
     ----------
