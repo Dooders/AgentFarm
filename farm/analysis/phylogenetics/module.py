@@ -7,7 +7,6 @@ module registry.
 
 from farm.analysis.core import BaseAnalysisModule, SimpleDataProcessor, make_analysis_function
 
-from farm.analysis.phylogenetics.compute import PhylogeneticTree
 from farm.analysis.phylogenetics.data import process_phylogenetics_data
 from farm.analysis.phylogenetics.analyze import analyze_phylogenetics
 from farm.analysis.phylogenetics.plot import plot_phylogenetic_tree
