@@ -7,6 +7,7 @@ Placeholder visualization functions for the genetics analysis module.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any, Optional
 
 import pandas as pd
@@ -105,7 +106,7 @@ def plot_marginal_fitness_effect(
     ctx: AnalysisContext,
     gene: Optional[str] = None,
     **kwargs: Any,
-) -> Optional[Any]:
+) -> Optional[Path]:
     """Scatter plot of gene value vs fitness with an OLS regression line.
 
     Visualises the marginal effect of a single gene on fitness across all
@@ -126,7 +127,7 @@ def plot_marginal_fitness_effect(
 
     Returns
     -------
-    str or None
+    Path or None
         Path to the saved PNG file, or ``None`` on error / missing data.
     """
     if df.empty or "fitness" not in df.columns or "chromosome_values" not in df.columns:
@@ -194,7 +195,7 @@ def plot_fitness_landscape_2d(
     gene_j: Optional[str] = None,
     plot_type: str = "scatter",
     **kwargs: Any,
-) -> Optional[Any]:
+) -> Optional[Path]:
     """2D scatter or heatmap of two genes coloured by fitness.
 
     Parameters
@@ -216,7 +217,7 @@ def plot_fitness_landscape_2d(
 
     Returns
     -------
-    str or None
+    Path or None
         Path to the saved PNG file, or ``None`` on error / missing data.
     """
     if df.empty or "fitness" not in df.columns or "chromosome_values" not in df.columns:

@@ -1322,7 +1322,7 @@ def _bh_correction(p_values: List[float], alpha: float = 0.05) -> List[bool]:
     p_values:
         Raw p-values, one per hypothesis.
     alpha:
-        Family-wise false-discovery-rate threshold.  Default ``0.05``.
+        False discovery rate threshold.  Default ``0.05``.
 
     Returns
     -------
@@ -1693,10 +1693,21 @@ def compute_pairwise_epistasis(
     bh_valid = _bh_correction(valid_ps, alpha=alpha)
     result_df.loc[valid_mask, "bh_rejected"] = bh_valid
 
-    # Sort by descending absolute interaction coefficient
-    result_df = result_df.reindex(
-        result_df["interaction_coef"].abs().sort_values(ascending=False).index
-    ).reset_index(drop=True)
+    # Sort primarily by scale-invariant statistical evidence (BH rejection, then
+    # raw interaction p-value), using absolute interaction coefficient only as a
+    # tie-breaker.  Sorting by raw coefficient magnitude is misleading because
+    # coefficients are scale-dependent (e.g. learning_rate spans orders of
+    # magnitude while gamma is in [0, 1]).
+    result_df = (
+        result_df.assign(_abs_interaction_coef=result_df["interaction_coef"].abs())
+        .sort_values(
+            by=["bh_rejected", "interaction_p", "_abs_interaction_coef"],
+            ascending=[False, True, False],
+            na_position="last",
+        )
+        .drop(columns=["_abs_interaction_coef"])
+        .reset_index(drop=True)
+    )
 
     logger.info(
         "compute_pairwise_epistasis: %d pair(s) tested; %d significant after BH correction",
