@@ -1299,7 +1299,8 @@ def _extract_gene_matrix(df: pd.DataFrame) -> pd.DataFrame:
             try:
                 entry[gene] = float(val)
             except (TypeError, ValueError):
-                pass
+                # Ignore non-numeric gene values; retain other valid loci for this row.
+                continue
         rows.append(entry)
 
     if not rows:
