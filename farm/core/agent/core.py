@@ -89,7 +89,7 @@ def compute_effective_reproduction_cost(agent: Any, base_cost: float) -> float:
                 pop = len(alive_objects)
                 extra += global_coeff * base_cost * (pop / global_k)
             except Exception:
-                pass
+                pass  # Population source may be transient/unavailable; skip adjustment.
 
     return base_cost + extra
 
