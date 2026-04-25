@@ -3853,10 +3853,9 @@ class TestGeneticsServiceIntegration:
 
     def test_genetics_module_registered_in_builtin_list(self):
         """Genetics module is present in the built-in registry list."""
-        from farm.analysis.registry import _register_builtin_modules, registry, ModuleRegistry
+        from farm.analysis.registry import _register_builtin_modules, registry
 
         # Use a fresh registry to avoid side effects
-        temp_registry = ModuleRegistry()
         original = registry._modules.copy()
         try:
             registry.clear()
