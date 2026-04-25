@@ -235,7 +235,7 @@ def generate_genetics_report(
             ]
             for gen_key in sorted(
                 (k for k in stats["generation_counts"].keys() if str(k).lstrip("-").isdigit()),
-                key=lambda x: int(x),
+                key=int,
             ):
                 lines.append(f"| {gen_key} | {stats['generation_counts'][gen_key]} |")
 
