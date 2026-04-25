@@ -40,6 +40,17 @@ _DEFAULT_MAX_NODES = 300
 _DEFAULT_MAX_DEPTH_LARGE = 6
 
 
+def _get_cmap(name: str) -> Any:
+    """Return a matplotlib colormap by name, compatible with matplotlib ≥3.5 and older."""
+    import matplotlib
+    import matplotlib.pyplot as plt  # noqa: F401 (needed for plt.cm fallback)
+
+    try:
+        return matplotlib.colormaps.get_cmap(name)
+    except AttributeError:
+        return plt.cm.get_cmap(name)  # type: ignore[attr-defined]
+
+
 def plot_phylogenetic_tree(
     df: PhylogeneticTree,
     ctx: AnalysisContext,
@@ -148,12 +159,7 @@ def plot_phylogenetic_tree(
         # ------------------------------------------------------------------
         colour_map: Dict[str, str] = {}
         if color_by_lineage and df.roots:
-            try:
-                import matplotlib
-                cmap = matplotlib.colormaps.get_cmap("tab10")
-            except AttributeError:
-                # matplotlib < 3.5 fallback
-                cmap = plt.cm.get_cmap("tab10")  # type: ignore[attr-defined]
+            cmap = _get_cmap("tab10")
             lineage_colour: Dict[str, Any] = {}
             for idx, root_id in enumerate(df.roots):
                 lineage_colour[root_id] = cmap(idx % 10)
@@ -417,10 +423,7 @@ def plot_intrinsic_lineage_tree(
                 use_gene_colouring = True
                 v_min = min(gene_values.values())
                 v_max = max(gene_values.values())
-                try:
-                    cmap = matplotlib.colormaps.get_cmap("viridis")
-                except AttributeError:
-                    cmap = plt.cm.get_cmap("viridis")  # type: ignore[attr-defined]
+                cmap = _get_cmap("viridis")
                 if v_max > v_min:
                     norm = mcolors.Normalize(vmin=v_min, vmax=v_max)
                 else:
@@ -434,10 +437,7 @@ def plot_intrinsic_lineage_tree(
 
         if not use_gene_colouring:
             if color_by_lineage and df.roots:
-                try:
-                    _cmap = matplotlib.colormaps.get_cmap("tab10")
-                except AttributeError:
-                    _cmap = plt.cm.get_cmap("tab10")  # type: ignore[attr-defined]
+                _cmap = _get_cmap("tab10")
                 lineage_colour: Dict[str, Any] = {}
                 for idx, root_id in enumerate(df.roots):
                     lineage_colour[root_id] = _cmap(idx % 10)

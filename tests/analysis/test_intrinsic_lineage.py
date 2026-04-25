@@ -174,7 +174,10 @@ class TestFlattenSnapshots:
             _make_snapshot(100, [_make_agent("a1", [], chromosome={"learning_rate": 0.02})]),
         ]
         records = flatten_snapshots_to_agent_records(snaps)
-        assert records[0]["chromosome"]["learning_rate"] == pytest.approx(0.02)
+        lr = records[0]["chromosome"]["learning_rate"]
+        assert lr == pytest.approx(0.02)
+        # Confirm the initial value (0.01) was overwritten, not retained
+        assert lr != pytest.approx(0.01)
 
     def test_parent_ids_normalised(self):
         snaps = [_make_snapshot(0, [_make_agent("a1", ["p1", "p2"])])]
