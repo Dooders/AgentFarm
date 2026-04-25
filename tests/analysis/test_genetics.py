@@ -67,9 +67,17 @@ from farm.analysis.genetics.compute import (
 )
 from farm.analysis.genetics.utils import parse_parent_ids
 from farm.analysis.common.context import AnalysisContext
-from farm.analysis.genetics.analyze import analyze_genetics
+from farm.analysis.genetics.analyze import analyze_genetics, generate_genetics_report
 from farm.analysis.genetics.data import process_genetics_data
 from farm.analysis.genetics.module import GeneticsModule, genetics_module
+from farm.analysis.genetics.plot import (
+    plot_allele_frequency_trajectories,
+    plot_conserved_run_timeline,
+    plot_diversity_over_time,
+    plot_phylogenetic_tree_basic,
+    plot_phylogenetic_tree_sampled,
+    plot_wright_fisher_overlay,
+)
 from farm.database.models import AgentModel, Base
 
 
@@ -3450,17 +3458,6 @@ class TestGeneticsModuleAdaptationSignatures:
 # ---------------------------------------------------------------------------
 
 
-from farm.analysis.genetics.analyze import generate_genetics_report
-from farm.analysis.genetics.plot import (
-    plot_allele_frequency_trajectories,
-    plot_diversity_over_time,
-    plot_wright_fisher_overlay,
-    plot_phylogenetic_tree_basic,
-    plot_phylogenetic_tree_sampled,
-    plot_conserved_run_timeline,
-)
-
-
 def _make_simple_evolution_df(n_gens: int = 3, n_per_gen: int = 4) -> pd.DataFrame:
     """Build a minimal evolution DataFrame for plotting tests."""
     rows = []
@@ -3488,7 +3485,7 @@ def _make_simple_db_df(n_gens: int = 3, n_per_gen: int = 4) -> pd.DataFrame:
                 "generation": gen,
                 "birth_time": gen * 5 + i,
                 "death_time": None,
-                "genome_id": f"::1",
+                "genome_id": "::1",
                 "parent_ids": [],
                 "action_weights": {"move": 0.5 + i * 0.05, "gather": 0.5 - i * 0.05},
             })
@@ -3698,14 +3695,10 @@ class TestPlotPhylogeneticTrees:
 # ---------------------------------------------------------------------------
 
 
-import pytest as _pytest
-from unittest.mock import MagicMock as _MagicMock
-
-
 class TestGeneticsServiceIntegration:
     """End-to-end integration test for AnalysisService with the genetics module."""
 
-    @_pytest.mark.integration
+    @pytest.mark.integration
     def test_analysis_service_run_produces_outputs(self, tmp_path):
         """AnalysisService.run(AnalysisRequest(module_name='genetics', ...)) produces charts + report."""
         from farm.analysis.service import AnalysisService, AnalysisRequest
@@ -3746,7 +3739,7 @@ class TestGeneticsServiceIntegration:
             session.commit()
         engine.dispose()
 
-        config_mock = _MagicMock()
+        config_mock = MagicMock()
         config_mock.get_analysis_module_paths.return_value = []
 
         output_path = tmp_path / "output"
@@ -3767,7 +3760,7 @@ class TestGeneticsServiceIntegration:
         # A success or graceful empty result is acceptable; no unhandled exception
         assert result.error is None or isinstance(result.error, str)
 
-    @_pytest.mark.integration
+    @pytest.mark.integration
     def test_analysis_service_default_run_writes_report_and_plot_artifacts(self, tmp_path):
         """Default genetics service run emits report and at least one chart."""
         from farm.analysis.service import AnalysisService, AnalysisRequest
@@ -3831,7 +3824,7 @@ class TestGeneticsServiceIntegration:
         engine.dispose()
 
         output_path = tmp_path / "output"
-        config_mock = _MagicMock()
+        config_mock = MagicMock()
         config_mock.get_analysis_module_paths.return_value = []
         service = AnalysisService(config_service=config_mock, auto_register=False)
 
