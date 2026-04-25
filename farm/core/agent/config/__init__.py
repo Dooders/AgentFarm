@@ -8,6 +8,7 @@ from .component_configs import (
     MovementConfig,
     PerceptionConfig,
     ReproductionConfig,
+    ReproductionPressureConfig,
     ResourceConfig,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "CombatConfig",
     "PerceptionConfig",
     "ReproductionConfig",
+    "ReproductionPressureConfig",
     "DecisionConfig",
 ]

@@ -23,6 +23,12 @@ from farm.runners.evolution_experiment import (
     EvolutionGenerationSummary,
     EvolutionSelectionMethod,
 )
+from farm.runners.intrinsic_evolution_experiment import (
+    IntrinsicEvolutionExperiment,
+    IntrinsicEvolutionExperimentConfig,
+    IntrinsicEvolutionPolicy,
+    IntrinsicEvolutionResult,
+)
 
 __all__ = [
     "DEFAULT_PER_GENE_RATE_MULTIPLIERS",
@@ -42,4 +48,8 @@ __all__ = [
     "EvolutionFitnessMetric",
     "EvolutionGenerationSummary",
     "EvolutionSelectionMethod",
+    "IntrinsicEvolutionExperiment",
+    "IntrinsicEvolutionExperimentConfig",
+    "IntrinsicEvolutionPolicy",
+    "IntrinsicEvolutionResult",
 ]

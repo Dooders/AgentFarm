@@ -323,5 +323,295 @@ class TestRunnerOrchestration(unittest.TestCase):
         self.assertEqual(result.num_steps_completed, 1)
 
 
+class TestReproductionPressureConfig(unittest.TestCase):
+    """Tests for the ReproductionPressureConfig dataclass."""
+
+    def test_defaults_are_all_zero(self):
+        from farm.core.agent.config.component_configs import ReproductionPressureConfig
+
+        cfg = ReproductionPressureConfig()
+        self.assertEqual(cfg.local_density_coefficient, 0.0)
+        self.assertEqual(cfg.global_carrying_capacity, 0)
+        self.assertEqual(cfg.global_carrying_capacity_coefficient, 0.0)
+
+    def test_custom_values_round_trip(self):
+        from farm.core.agent.config.component_configs import ReproductionPressureConfig
+
+        cfg = ReproductionPressureConfig(
+            local_density_radius=10.0,
+            local_density_coefficient=1.5,
+            global_carrying_capacity=200,
+            global_carrying_capacity_coefficient=0.8,
+        )
+        self.assertEqual(cfg.local_density_radius, 10.0)
+        self.assertEqual(cfg.local_density_coefficient, 1.5)
+        self.assertEqual(cfg.global_carrying_capacity, 200)
+        self.assertEqual(cfg.global_carrying_capacity_coefficient, 0.8)
+
+
+class TestSelectionPressurePresets(unittest.TestCase):
+    """Tests for the selection_pressure preset knob on IntrinsicEvolutionPolicy."""
+
+    def test_none_preset_string_sets_zero_coefficients(self):
+        policy = IntrinsicEvolutionPolicy(selection_pressure="none")
+        self.assertEqual(policy.reproduction_pressure.local_density_coefficient, 0.0)
+        self.assertEqual(policy.reproduction_pressure.global_carrying_capacity_coefficient, 0.0)
+
+    def test_low_preset_string(self):
+        policy = IntrinsicEvolutionPolicy(selection_pressure="low")
+        self.assertGreater(policy.reproduction_pressure.local_density_coefficient, 0.0)
+
+    def test_medium_preset_string(self):
+        policy = IntrinsicEvolutionPolicy(selection_pressure="medium")
+        p = policy.reproduction_pressure
+        self.assertGreater(p.local_density_coefficient, 0.0)
+        self.assertGreater(p.global_carrying_capacity, 0)
+
+    def test_high_preset_string(self):
+        policy = IntrinsicEvolutionPolicy(selection_pressure="high")
+        p = policy.reproduction_pressure
+        self.assertGreater(p.local_density_coefficient, 0.0)
+        self.assertGreater(p.global_carrying_capacity, 0)
+
+    def test_low_pressure_less_than_high(self):
+        low = IntrinsicEvolutionPolicy(selection_pressure="low")
+        high = IntrinsicEvolutionPolicy(selection_pressure="high")
+        self.assertLess(
+            low.reproduction_pressure.local_density_coefficient,
+            high.reproduction_pressure.local_density_coefficient,
+        )
+
+    def test_float_zero_equals_none_preset(self):
+        p_float = IntrinsicEvolutionPolicy(selection_pressure=0.0)
+        p_none = IntrinsicEvolutionPolicy(selection_pressure="none")
+        self.assertEqual(
+            p_float.reproduction_pressure.local_density_coefficient,
+            p_none.reproduction_pressure.local_density_coefficient,
+        )
+
+    def test_float_one_equals_high_preset(self):
+        p_float = IntrinsicEvolutionPolicy(selection_pressure=1.0)
+        p_high = IntrinsicEvolutionPolicy(selection_pressure="high")
+        self.assertEqual(
+            p_float.reproduction_pressure.local_density_coefficient,
+            p_high.reproduction_pressure.local_density_coefficient,
+        )
+
+    def test_float_out_of_range_raises(self):
+        with self.assertRaises(ValueError):
+            IntrinsicEvolutionPolicy(selection_pressure=1.5)
+        with self.assertRaises(ValueError):
+            IntrinsicEvolutionPolicy(selection_pressure=-0.1)
+
+    def test_unknown_preset_string_raises(self):
+        with self.assertRaises(ValueError):
+            IntrinsicEvolutionPolicy(selection_pressure="ultra")
+
+    def test_default_no_selection_pressure(self):
+        """Default policy has zero density-dependent cost."""
+        policy = IntrinsicEvolutionPolicy()
+        self.assertIsNone(policy.selection_pressure)
+        self.assertEqual(policy.reproduction_pressure.local_density_coefficient, 0.0)
+
+    def test_explicit_reproduction_pressure_respected_when_no_preset(self):
+        """When selection_pressure=None, explicit reproduction_pressure is used."""
+        from farm.core.agent.config.component_configs import ReproductionPressureConfig
+
+        custom = ReproductionPressureConfig(local_density_coefficient=3.0)
+        policy = IntrinsicEvolutionPolicy(reproduction_pressure=custom)
+        self.assertEqual(policy.reproduction_pressure.local_density_coefficient, 3.0)
+
+
+class TestEffectiveReproductionCost(unittest.TestCase):
+    """Tests for compute_effective_reproduction_cost."""
+
+    def _make_agent_with_env(self, n_nearby: int = 0, pop: int = 10):
+        """Build a minimal agent with a fake environment for cost computation."""
+        from farm.core.agent.config.component_configs import ReproductionPressureConfig
+        from farm.runners.intrinsic_evolution_experiment import IntrinsicEvolutionPolicy
+
+        pressure = ReproductionPressureConfig(
+            local_density_radius=5.0,
+            local_density_coefficient=1.0,
+            global_carrying_capacity=100,
+            global_carrying_capacity_coefficient=0.5,
+        )
+        policy = IntrinsicEvolutionPolicy(reproduction_pressure=pressure)
+
+        agent = SimpleNamespace(position=(0.0, 0.0))
+        # Build fake nearby agents (includes self as the first item so that the
+        # 'a is not agent' filter in compute_effective_reproduction_cost
+        # correctly yields n_nearby neighbours).
+        nearby_agents = [SimpleNamespace() for _ in range(n_nearby + 1)]
+        nearby_agents[0] = agent  # first slot is self
+
+        alive = [SimpleNamespace() for _ in range(pop)]
+
+        env = SimpleNamespace(
+            intrinsic_evolution_policy=policy,
+            get_nearby_agents=lambda pos, radius: nearby_agents,
+            alive_agent_objects=alive,
+        )
+        agent.environment = env
+        return agent
+
+    def test_zero_pressure_returns_base_cost(self):
+        from farm.core.agent.core import compute_effective_reproduction_cost
+
+        policy = IntrinsicEvolutionPolicy(selection_pressure="none")
+        agent = SimpleNamespace(
+            position=(0.0, 0.0),
+            environment=SimpleNamespace(
+                intrinsic_evolution_policy=policy,
+                get_nearby_agents=lambda pos, r: [],
+                alive_agent_objects=[],
+            ),
+        )
+        cost = compute_effective_reproduction_cost(agent, base_cost=5.0)
+        self.assertEqual(cost, 5.0)
+
+    def test_local_density_increases_cost(self):
+        from farm.core.agent.core import compute_effective_reproduction_cost
+
+        agent = self._make_agent_with_env(n_nearby=3, pop=10)
+        cost = compute_effective_reproduction_cost(agent, base_cost=5.0)
+        # 5.0 + 1.0*3 + 0.5*5.0*(10/100) = 5.0 + 3.0 + 0.25 = 8.25
+        self.assertGreater(cost, 5.0)
+        self.assertAlmostEqual(cost, 5.0 + 1.0 * 3 + 0.5 * 5.0 * (10 / 100), places=6)
+
+    def test_no_environment_returns_base_cost(self):
+        from farm.core.agent.core import compute_effective_reproduction_cost
+
+        agent = SimpleNamespace(environment=None)
+        self.assertEqual(compute_effective_reproduction_cost(agent, 5.0), 5.0)
+
+    def test_no_policy_returns_base_cost(self):
+        from farm.core.agent.core import compute_effective_reproduction_cost
+
+        agent = SimpleNamespace(
+            environment=SimpleNamespace(intrinsic_evolution_policy=None)
+        )
+        self.assertEqual(compute_effective_reproduction_cost(agent, 5.0), 5.0)
+
+    def test_disabled_policy_returns_base_cost(self):
+        from farm.core.agent.core import compute_effective_reproduction_cost
+
+        policy = IntrinsicEvolutionPolicy(enabled=False)
+        agent = SimpleNamespace(
+            environment=SimpleNamespace(intrinsic_evolution_policy=policy)
+        )
+        self.assertEqual(compute_effective_reproduction_cost(agent, 5.0), 5.0)
+
+    def test_carrying_capacity_term_alone(self):
+        from farm.core.agent.config.component_configs import ReproductionPressureConfig
+        from farm.core.agent.core import compute_effective_reproduction_cost
+
+        pressure = ReproductionPressureConfig(
+            local_density_coefficient=0.0,
+            global_carrying_capacity=50,
+            global_carrying_capacity_coefficient=1.0,
+        )
+        policy = IntrinsicEvolutionPolicy(reproduction_pressure=pressure)
+        pop_count = [SimpleNamespace()] * 25  # pop / K = 0.5
+        agent = SimpleNamespace(
+            position=(0.0, 0.0),
+            environment=SimpleNamespace(
+                intrinsic_evolution_policy=policy,
+                get_nearby_agents=lambda pos, r: [],
+                alive_agent_objects=pop_count,
+            ),
+        )
+        cost = compute_effective_reproduction_cost(agent, base_cost=10.0)
+        # 10.0 + 1.0 * 10.0 * (25/50) = 10.0 + 5.0 = 15.0
+        self.assertAlmostEqual(cost, 15.0, places=6)
+
+
+class TestTrajectoryTelemetryFields(unittest.TestCase):
+    """Tests for the new selection-pressure telemetry in trajectory records."""
+
+    def _stub_run_simulation(self, num_agents: int = 4, num_steps: int = 3):
+        agents = [_make_fake_agent(0.01) for _ in range(num_agents)]
+
+        # Add get_component stub so telemetry computation works.
+        def _make_get_component(rc):
+            def _get_component(name):
+                return rc if name == "reproduction" else None
+            return _get_component
+
+        for agent in agents:
+            repro_cfg = SimpleNamespace(offspring_cost=5.0)
+            repro_comp = SimpleNamespace(config=repro_cfg)
+            agent.get_component = _make_get_component(repro_comp)
+            agent.position = (0.0, 0.0)
+            agent.environment = None  # No density adjustment for simple test
+
+        env = _FakeEnvironment(agents)
+
+        def _side_effect(*args, **kwargs):
+            on_environment_ready = kwargs.get("on_environment_ready")
+            on_step_end = kwargs.get("on_step_end")
+            if on_environment_ready is not None:
+                on_environment_ready(env)
+            for step in range(num_steps):
+                env.time = step + 1
+                if on_step_end is not None:
+                    on_step_end(env, step)
+            env.time += 1
+            return env
+
+        return _side_effect, env
+
+    def test_trajectory_records_contain_telemetry_fields(self):
+        side_effect, _env = self._stub_run_simulation(num_agents=3, num_steps=3)
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=3,
+                snapshot_interval=3,
+                output_dir=output_dir,
+                seed=5,
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+            traj_path = os.path.join(output_dir, "intrinsic_gene_trajectory.jsonl")
+            with open(traj_path, encoding="utf-8") as fh:
+                lines = [json.loads(line) for line in fh if line.strip()]
+
+        # Step 0 record (from on_environment_ready) has no extra fields.
+        step0 = lines[0]
+        self.assertIn("step", step0)
+        # Step 1+ records must carry the new telemetry fields.
+        for record in lines[1:]:
+            self.assertIn("mean_reproduction_cost", record)
+            self.assertIn("realized_birth_rate", record)
+            self.assertIn("realized_death_rate", record)
+            self.assertIn("effective_selection_strength", record)
+
+    def test_stable_population_has_zero_birth_and_death_rates(self):
+        """When population is unchanged between steps, rates should be 0."""
+        side_effect, _env = self._stub_run_simulation(num_agents=3, num_steps=2)
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=2,
+                snapshot_interval=5,
+                output_dir=output_dir,
+                seed=9,
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+            traj_path = os.path.join(output_dir, "intrinsic_gene_trajectory.jsonl")
+            with open(traj_path, encoding="utf-8") as fh:
+                lines = [json.loads(line) for line in fh if line.strip()]
+
+        for record in lines[1:]:  # skip step 0
+            self.assertAlmostEqual(record["realized_birth_rate"], 0.0)
+            self.assertAlmostEqual(record["realized_death_rate"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

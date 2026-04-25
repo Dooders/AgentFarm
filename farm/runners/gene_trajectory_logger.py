@@ -53,12 +53,20 @@ class GeneTrajectoryLogger:
                 encoding="utf-8",
             )
 
-    def snapshot(self, environment: Any, step: int) -> None:
+    def snapshot(self, environment: Any, step: int, extra_fields: Optional[Dict[str, Any]] = None) -> None:
         """Record the chromosome distribution at ``step``.
 
         Always appends a one-line aggregate record to the trajectory file.
         Additionally appends a full per-agent snapshot when
         ``step % snapshot_interval == 0`` (so step 0 is always captured).
+
+        Args:
+            environment: The live environment object.
+            step: The current simulation step number.
+            extra_fields: Optional dict of additional key/value pairs to merge
+                into the trajectory record (e.g. telemetry computed by the
+                runner such as ``mean_reproduction_cost`` or
+                ``realized_birth_rate``).
         """
         if self._trajectory_handle is None:
             return
@@ -76,6 +84,15 @@ class GeneTrajectoryLogger:
             "n_with_chromosome": len(chromosomes),
             "gene_stats": gene_stats,
         }
+        if extra_fields:
+            _RESERVED_TRAJECTORY_KEYS = {"step", "n_alive", "n_with_chromosome", "gene_stats"}
+            collisions = _RESERVED_TRAJECTORY_KEYS & extra_fields.keys()
+            if collisions:
+                raise ValueError(
+                    f"extra_fields contains reserved trajectory key(s): {sorted(collisions)}. "
+                    "Use a different name or nest telemetry under a sub-dict."
+                )
+            trajectory_record.update(extra_fields)
         self._trajectory_handle.write(json.dumps(trajectory_record) + "\n")
 
         if self._snapshot_handle is not None and step % self._snapshot_interval == 0:

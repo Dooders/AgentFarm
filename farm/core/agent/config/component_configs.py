@@ -103,6 +103,41 @@ class ReproductionConfig:
 
 
 @dataclass(frozen=True)
+class ReproductionPressureConfig:
+    """Configuration for density-dependent reproduction cost.
+
+    When attached to an :class:`IntrinsicEvolutionPolicy` (via the
+    ``reproduction_pressure`` field), the effective offspring cost is
+    increased by:
+
+    - ``local_density_coefficient * n_neighbors`` where *n_neighbors* is
+      the number of alive agents within ``local_density_radius`` of the
+      reproducing agent.
+    - ``global_carrying_capacity_coefficient * base_cost * (pop / K)``
+      where *pop* is the current total alive population and *K* is
+      ``global_carrying_capacity``.  This term is only applied when
+      ``global_carrying_capacity > 0``.
+
+    Setting all coefficients to zero (the default) disables
+    density-dependent costs and matches legacy behaviour exactly.
+    """
+
+    local_density_radius: float = 5.0
+    """Radius (in environment units) used to count local neighbours."""
+
+    local_density_coefficient: float = 0.0
+    """Extra resource cost per local neighbour within ``local_density_radius``."""
+
+    global_carrying_capacity: int = 0
+    """Population size treated as the carrying capacity *K*.
+    Zero disables the global component entirely."""
+
+    global_carrying_capacity_coefficient: float = 0.0
+    """Scale factor for the global ``pop / K`` cost term.
+    The extra cost added is ``global_carrying_capacity_coefficient * base_cost * (pop / K)``."""
+
+
+@dataclass(frozen=True)
 class RewardConfig:
     """Configuration for reward calculation and tracking."""
     
