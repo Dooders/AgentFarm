@@ -160,10 +160,18 @@ def flatten_snapshots_to_agent_records(
     if not snapshots:
         return []
 
-    # Collect steps in sorted order
-    steps: List[int] = sorted(
-        {int(s.get("step", 0)) for s in snapshots if isinstance(s.get("step"), (int, float))}
-    )
+    # Collect steps in sorted order, accepting int/float/numeric-string values
+    steps_set: set[int] = set()
+    for s in snapshots:
+        raw = s.get("step", 0)
+        try:
+            steps_set.add(int(raw))
+        except (TypeError, ValueError):
+            logger.warning(
+                "flatten_snapshots_to_agent_records: skipping snapshot with invalid step value: %r",
+                raw,
+            )
+    steps: List[int] = sorted(steps_set)
     if not steps:
         return []
 
@@ -177,7 +185,15 @@ def flatten_snapshots_to_agent_records(
     # Index snapshots by step
     snap_by_step: Dict[int, Dict[str, Any]] = {}
     for snap in snapshots:
-        s = int(snap.get("step", 0))
+        raw = snap.get("step", 0)
+        try:
+            s = int(raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                "flatten_snapshots_to_agent_records: skipping snapshot with invalid step value: %r",
+                raw,
+            )
+            continue
         snap_by_step[s] = snap
 
     # Per-agent tracking: first_step, last_step, last_record
@@ -321,12 +337,24 @@ def compute_surviving_lineage_count_over_time(
     if not snapshots or not tree.nodes:
         return []
 
+    valid_snapshots: List[Tuple[int, Dict[str, Any]]] = []
+    for snap in snapshots:
+        raw = snap.get("step", 0)
+        try:
+            step_val = int(raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                "compute_surviving_lineage_count_over_time: skipping snapshot with invalid step value: %r",
+                raw,
+            )
+            continue
+        valid_snapshots.append((step_val, snap))
+
     result: List[Tuple[int, int]] = []
-    for snap in sorted(snapshots, key=lambda s: int(s.get("step", 0))):
-        step = int(snap.get("step", 0))
+    for step_val, snap in sorted(valid_snapshots, key=lambda item: item[0]):
         agents_at_step = snap.get("agents", [])
         if not isinstance(agents_at_step, list):
-            result.append((step, 0))
+            result.append((step_val, 0))
             continue
 
         founders_seen: set[str] = set()
@@ -341,7 +369,7 @@ def compute_surviving_lineage_count_over_time(
             if founder is not None:
                 founders_seen.add(founder)
 
-        result.append((step, len(founders_seen)))
+        result.append((step_val, len(founders_seen)))
 
     return result
 
@@ -373,12 +401,24 @@ def compute_lineage_depth_over_time(
     if not snapshots or not tree.nodes:
         return []
 
+    valid_snapshots_depth: List[Tuple[int, Dict[str, Any]]] = []
+    for snap in snapshots:
+        raw = snap.get("step", 0)
+        try:
+            step_val = int(raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                "compute_lineage_depth_over_time: skipping snapshot with invalid step value: %r",
+                raw,
+            )
+            continue
+        valid_snapshots_depth.append((step_val, snap))
+
     result: List[Tuple[int, int, float]] = []
-    for snap in sorted(snapshots, key=lambda s: int(s.get("step", 0))):
-        step = int(snap.get("step", 0))
+    for step_val, snap in sorted(valid_snapshots_depth, key=lambda item: item[0]):
         agents_at_step = snap.get("agents", [])
         if not isinstance(agents_at_step, list):
-            result.append((step, 0, 0.0))
+            result.append((step_val, 0, 0.0))
             continue
 
         depths: List[int] = []
@@ -391,9 +431,9 @@ def compute_lineage_depth_over_time(
                 depths.append(node.depth)
 
         if depths:
-            result.append((step, max(depths), sum(depths) / len(depths)))
+            result.append((step_val, max(depths), sum(depths) / len(depths)))
         else:
-            result.append((step, 0, 0.0))
+            result.append((step_val, 0, 0.0))
 
     return result
 
@@ -415,8 +455,43 @@ def extract_chromosomes_from_snapshots(
         **last** snapshot in which the agent appeared (most recent chromosome).
     """
     chromosomes: Dict[str, Dict[str, float]] = {}
-    for snap in sorted(snapshots, key=lambda s: int(s.get("step", 0))):
-        for agent in snap.get("agents", []):
+    ordered_snapshots: List[Tuple[int, int, Dict[str, Any]]] = []
+
+    for index, snap in enumerate(snapshots):
+        if not isinstance(snap, dict):
+            logger.warning(
+                "extract_chromosomes_from_snapshots: skipping malformed snapshot at index %s:"
+                " expected dict, got %s",
+                index,
+                type(snap).__name__,
+            )
+            continue
+
+        raw_step = snap.get("step", 0)
+        try:
+            step = int(raw_step)
+        except (TypeError, ValueError):
+            logger.warning(
+                "extract_chromosomes_from_snapshots: skipping snapshot at index %s with"
+                " non-numeric step %r",
+                index,
+                raw_step,
+            )
+            continue
+
+        ordered_snapshots.append((step, index, snap))
+
+    for _, _, snap in sorted(ordered_snapshots, key=lambda item: (item[0], item[1])):
+        agents = snap.get("agents", [])
+        if not isinstance(agents, list):
+            logger.warning(
+                "extract_chromosomes_from_snapshots: skipping agents for snapshot step %r:"
+                " expected list, got %s",
+                snap.get("step"),
+                type(agents).__name__,
+            )
+            continue
+        for agent in agents:
             if not isinstance(agent, dict):
                 continue
             agent_id = agent.get("agent_id")
@@ -431,6 +506,26 @@ def extract_chromosomes_from_snapshots(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def trace_to_founder(tree: PhylogeneticTree, node_id: str) -> Optional[str]:
+    """Walk up the single-parent projection of *tree* and return the founder id.
+
+    Parameters
+    ----------
+    tree:
+        A :class:`~farm.analysis.phylogenetics.compute.PhylogeneticTree`
+        built from intrinsic snapshot data.
+    node_id:
+        The id of the agent whose founder should be found.
+
+    Returns
+    -------
+    str or None
+        The id of the root ancestor (founder) of *node_id*, or ``None`` when
+        *node_id* is not present in the tree.
+    """
+    return _trace_to_founder(tree, node_id)
 
 
 def _trace_to_founder(tree: PhylogeneticTree, node_id: str) -> Optional[str]:

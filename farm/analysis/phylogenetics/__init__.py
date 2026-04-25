@@ -64,6 +64,7 @@ from farm.analysis.phylogenetics.intrinsic_loader import (
     compute_surviving_lineage_count_over_time,
     compute_lineage_depth_over_time,
     extract_chromosomes_from_snapshots,
+    trace_to_founder,
 )
 
 __all__ = [
@@ -86,6 +87,7 @@ __all__ = [
     "compute_surviving_lineage_count_over_time",
     "compute_lineage_depth_over_time",
     "extract_chromosomes_from_snapshots",
+    "trace_to_founder",
     # Module
     "PhylogeneticsModule",
     "phylogenetics_module",

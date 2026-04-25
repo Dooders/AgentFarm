@@ -181,7 +181,7 @@ def _render_layered_dendrogram_figure(
         ax.text(
             0.01,
             0.01,
-            "DAG (dual-parent reproduction; single-parent edges shown)",
+            "DAG (dual-parent reproduction; all edges shown)",
             transform=ax.transAxes,
             fontsize=7,
             color="gray",
@@ -350,7 +350,9 @@ def plot_intrinsic_lineage_tree(
     chromosomes:
         Mapping of ``agent_id`` → ``{gene_name: value, ...}`` produced by
         :func:`~farm.analysis.phylogenetics.intrinsic_loader.extract_chromosomes_from_snapshots`.
-        Required when ``gene`` is set.
+        Used for gene-based colouring when ``gene`` is set; if omitted or if
+        the requested gene value is unavailable for a node, the plot falls
+        back to founder-lineage colouring.
     max_depth:
         Maximum depth level to render.
     max_nodes:
@@ -415,6 +417,18 @@ def plot_intrinsic_lineage_tree(
                     else:
                         colour_map[nid] = default_gene_colour
                 gene_colorbar = (gcmap, gnorm, gene)
+            else:
+                logger.warning(
+                    "plot_intrinsic_lineage_tree: gene %r not found in chromosomes;"
+                    " falling back to founder-lineage colouring",
+                    gene,
+                )
+        elif gene and chromosomes is None:
+            logger.warning(
+                "plot_intrinsic_lineage_tree: gene %r provided but chromosomes is None;"
+                " falling back to founder-lineage colouring",
+                gene,
+            )
 
         if not use_gene_colouring:
             if color_by_lineage and df.roots:
