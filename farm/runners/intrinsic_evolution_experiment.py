@@ -90,6 +90,11 @@ def _preset_or_scale_to_pressure_config(
                 f"{list(_SELECTION_PRESSURE_PRESETS)}; got {selection_pressure!r}."
             )
         return _SELECTION_PRESSURE_PRESETS[selection_pressure]
+    if isinstance(selection_pressure, bool):
+        raise TypeError(
+            f"selection_pressure must be a str preset or float in [0, 1]; "
+            f"got {type(selection_pressure).__name__!r}."
+        )
     if isinstance(selection_pressure, (int, float)):
         scale = float(selection_pressure)
         if not 0.0 <= scale <= 1.0:
@@ -319,6 +324,10 @@ class IntrinsicEvolutionExperiment:
         # Track agent IDs from the previous step to compute birth/death rates.
         prev_agent_ids: set = set()
 
+        def _agent_telemetry_key(agent: Any) -> tuple:
+            """Stable per-agent key: string id when set, else object identity."""
+            return (getattr(agent, "agent_id", None), id(agent))
+
         def _capture_current_state(environment: Any, step: int) -> None:
             """Capture the same state we emit to the trajectory logger.
 
@@ -358,7 +367,7 @@ class IntrinsicEvolutionExperiment:
             """
 
             alive_agents = list(environment.alive_agent_objects)
-            current_ids = {getattr(a, "agent_id", None) for a in alive_agents}
+            current_ids = {_agent_telemetry_key(a) for a in alive_agents}
 
             prev_pop = len(prev_ids)
             births = len(current_ids - prev_ids)
@@ -407,7 +416,7 @@ class IntrinsicEvolutionExperiment:
             seed_population_diversity(environment, policy, rng)
             # At step 0 there is no previous step, so birth/death rates are 0.
             alive_agents = list(environment.alive_agent_objects)
-            prev_agent_ids = {getattr(a, "agent_id", None) for a in alive_agents}
+            prev_agent_ids = {_agent_telemetry_key(a) for a in alive_agents}
             gene_logger.snapshot(environment, step=0)
             _capture_current_state(environment, step=0)
 
@@ -416,7 +425,7 @@ class IntrinsicEvolutionExperiment:
             logical_step = step + 1
             extra = _compute_step_telemetry(environment, prev_agent_ids)
             alive_agents = list(environment.alive_agent_objects)
-            prev_agent_ids = {getattr(a, "agent_id", None) for a in alive_agents}
+            prev_agent_ids = {_agent_telemetry_key(a) for a in alive_agents}
             gene_logger.snapshot(environment, step=logical_step, extra_fields=extra)
             _capture_current_state(environment, step=logical_step)
 
