@@ -85,6 +85,13 @@ class GeneTrajectoryLogger:
             "gene_stats": gene_stats,
         }
         if extra_fields:
+            _RESERVED_TRAJECTORY_KEYS = {"step", "n_alive", "n_with_chromosome", "gene_stats"}
+            collisions = _RESERVED_TRAJECTORY_KEYS & extra_fields.keys()
+            if collisions:
+                raise ValueError(
+                    f"extra_fields contains reserved trajectory key(s): {sorted(collisions)}. "
+                    "Use a different name or nest telemetry under a sub-dict."
+                )
             trajectory_record.update(extra_fields)
         self._trajectory_handle.write(json.dumps(trajectory_record) + "\n")
 

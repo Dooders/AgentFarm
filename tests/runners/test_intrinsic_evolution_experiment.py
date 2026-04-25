@@ -423,7 +423,7 @@ class TestSelectionPressurePresets(unittest.TestCase):
 
 
 class TestEffectiveReproductionCost(unittest.TestCase):
-    """Tests for _compute_effective_reproduction_cost."""
+    """Tests for compute_effective_reproduction_cost."""
 
     def _make_agent_with_env(self, n_nearby: int = 0, pop: int = 10):
         """Build a minimal agent with a fake environment for cost computation."""
@@ -440,7 +440,7 @@ class TestEffectiveReproductionCost(unittest.TestCase):
 
         agent = SimpleNamespace(position=(0.0, 0.0))
         # Build fake nearby agents (includes self as the first item so that the
-        # 'a is not agent' filter in _compute_effective_reproduction_cost
+        # 'a is not agent' filter in compute_effective_reproduction_cost
         # correctly yields n_nearby neighbours).
         nearby_agents = [SimpleNamespace() for _ in range(n_nearby + 1)]
         nearby_agents[0] = agent  # first slot is self
@@ -456,7 +456,7 @@ class TestEffectiveReproductionCost(unittest.TestCase):
         return agent
 
     def test_zero_pressure_returns_base_cost(self):
-        from farm.core.agent.core import _compute_effective_reproduction_cost
+        from farm.core.agent.core import compute_effective_reproduction_cost
 
         policy = IntrinsicEvolutionPolicy(selection_pressure="none")
         agent = SimpleNamespace(
@@ -467,44 +467,44 @@ class TestEffectiveReproductionCost(unittest.TestCase):
                 alive_agent_objects=[],
             ),
         )
-        cost = _compute_effective_reproduction_cost(agent, base_cost=5.0)
+        cost = compute_effective_reproduction_cost(agent, base_cost=5.0)
         self.assertEqual(cost, 5.0)
 
     def test_local_density_increases_cost(self):
-        from farm.core.agent.core import _compute_effective_reproduction_cost
+        from farm.core.agent.core import compute_effective_reproduction_cost
 
         agent = self._make_agent_with_env(n_nearby=3, pop=10)
-        cost = _compute_effective_reproduction_cost(agent, base_cost=5.0)
+        cost = compute_effective_reproduction_cost(agent, base_cost=5.0)
         # 5.0 + 1.0*3 + 0.5*5.0*(10/100) = 5.0 + 3.0 + 0.25 = 8.25
         self.assertGreater(cost, 5.0)
         self.assertAlmostEqual(cost, 5.0 + 1.0 * 3 + 0.5 * 5.0 * (10 / 100), places=6)
 
     def test_no_environment_returns_base_cost(self):
-        from farm.core.agent.core import _compute_effective_reproduction_cost
+        from farm.core.agent.core import compute_effective_reproduction_cost
 
         agent = SimpleNamespace(environment=None)
-        self.assertEqual(_compute_effective_reproduction_cost(agent, 5.0), 5.0)
+        self.assertEqual(compute_effective_reproduction_cost(agent, 5.0), 5.0)
 
     def test_no_policy_returns_base_cost(self):
-        from farm.core.agent.core import _compute_effective_reproduction_cost
+        from farm.core.agent.core import compute_effective_reproduction_cost
 
         agent = SimpleNamespace(
             environment=SimpleNamespace(intrinsic_evolution_policy=None)
         )
-        self.assertEqual(_compute_effective_reproduction_cost(agent, 5.0), 5.0)
+        self.assertEqual(compute_effective_reproduction_cost(agent, 5.0), 5.0)
 
     def test_disabled_policy_returns_base_cost(self):
-        from farm.core.agent.core import _compute_effective_reproduction_cost
+        from farm.core.agent.core import compute_effective_reproduction_cost
 
         policy = IntrinsicEvolutionPolicy(enabled=False)
         agent = SimpleNamespace(
             environment=SimpleNamespace(intrinsic_evolution_policy=policy)
         )
-        self.assertEqual(_compute_effective_reproduction_cost(agent, 5.0), 5.0)
+        self.assertEqual(compute_effective_reproduction_cost(agent, 5.0), 5.0)
 
     def test_carrying_capacity_term_alone(self):
         from farm.core.agent.config.component_configs import ReproductionPressureConfig
-        from farm.core.agent.core import _compute_effective_reproduction_cost
+        from farm.core.agent.core import compute_effective_reproduction_cost
 
         pressure = ReproductionPressureConfig(
             local_density_coefficient=0.0,
@@ -521,7 +521,7 @@ class TestEffectiveReproductionCost(unittest.TestCase):
                 alive_agent_objects=pop_count,
             ),
         )
-        cost = _compute_effective_reproduction_cost(agent, base_cost=10.0)
+        cost = compute_effective_reproduction_cost(agent, base_cost=10.0)
         # 10.0 + 1.0 * 10.0 * (25/50) = 10.0 + 5.0 = 15.0
         self.assertAlmostEqual(cost, 15.0, places=6)
 

@@ -278,7 +278,7 @@ policy = IntrinsicEvolutionPolicy(
 A float `0.0` equals `"none"` (no density cost) and `1.0` equals `"high"`.
 Intermediate values scale the `"high"` preset's coefficients linearly.
 
-| Preset | `local_density_coefficient` | `global_carrying_capacity` | `global_cc_coefficient` |
+| Preset | `local_density_coefficient` | `global_carrying_capacity` | `global_carrying_capacity_coefficient` |
 | --- | --- | --- | --- |
 | `"none"` | 0.0 | 0 (disabled) | 0.0 |
 | `"low"` | 0.5 | 0 (disabled) | 0.0 |
@@ -317,8 +317,9 @@ default to zero, so the default config (and any policy without
 
 ### Telemetry
 
-When density-dependent costs are active, per-step trajectory records in
-`intrinsic_gene_trajectory.jsonl` include four new fields:
+Per-step trajectory records in `intrinsic_gene_trajectory.jsonl` always include
+four selection-pressure telemetry fields (values are 0 when density-dependent
+costs are disabled, since all agents share an identical base cost):
 
 | Field | Meaning |
 | --- | --- |

@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from farm.config import SimulationConfig
 from farm.core.agent.config.component_configs import ReproductionPressureConfig
-from farm.core.agent.core import _compute_effective_reproduction_cost
+from farm.core.agent.core import compute_effective_reproduction_cost
 from farm.core.hyperparameter_chromosome import (
     BoundaryMode,
     CrossoverMode,
@@ -376,18 +376,26 @@ class IntrinsicEvolutionExperiment:
             realized_birth_rate = births / prev_pop if prev_pop > 0 else 0.0
             realized_death_rate = deaths / prev_pop if prev_pop > 0 else 0.0
 
-            # Per-agent effective reproduction costs for alive agents.
+            # Per-agent effective reproduction costs — only computed when at
+            # least one pressure coefficient is non-zero, to avoid O(N) spatial
+            # neighbour queries on every step when pressure is disabled.
+            pressure = getattr(policy, "reproduction_pressure", None)
+            pressure_active = pressure is not None and (
+                getattr(pressure, "local_density_coefficient", 0.0) > 0.0
+                or getattr(pressure, "global_carrying_capacity_coefficient", 0.0) > 0.0
+            )
             effective_costs: List[float] = []
-            for agent in alive_agents:
-                repro_comp = (
-                    agent.get_component("reproduction")
-                    if callable(getattr(agent, "get_component", None))
-                    else None
-                )
-                if repro_comp is None:
-                    continue
-                base = getattr(getattr(repro_comp, "config", None), "offspring_cost", 0.0)
-                effective_costs.append(_compute_effective_reproduction_cost(agent, base))
+            if pressure_active:
+                for agent in alive_agents:
+                    repro_comp = (
+                        agent.get_component("reproduction")
+                        if callable(getattr(agent, "get_component", None))
+                        else None
+                    )
+                    if repro_comp is None:
+                        continue
+                    base = getattr(getattr(repro_comp, "config", None), "offspring_cost", 0.0)
+                    effective_costs.append(compute_effective_reproduction_cost(agent, base))
 
             if effective_costs:
                 import statistics

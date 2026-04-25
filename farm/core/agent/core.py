@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _compute_effective_reproduction_cost(agent: Any, base_cost: float) -> float:
+def compute_effective_reproduction_cost(agent: Any, base_cost: float) -> float:
     """Return the density-adjusted reproduction cost for *agent*.
 
     When the agent's environment carries an enabled
@@ -86,7 +86,7 @@ def _compute_effective_reproduction_cost(agent: Any, base_cost: float) -> float:
         alive_objects = getattr(env, "alive_agent_objects", None)
         if alive_objects is not None:
             try:
-                pop = len(list(alive_objects))
+                pop = len(alive_objects)
                 extra += global_coeff * base_cost * (pop / global_k)
             except Exception:
                 pass
@@ -849,7 +849,7 @@ class AgentCore:
 
         resource_comp = self.get_component("resource")
         base_cost = repro_comp.config.offspring_cost
-        offspring_cost = _compute_effective_reproduction_cost(self, base_cost)
+        offspring_cost = compute_effective_reproduction_cost(self, base_cost)
 
         # Store initial resources for logging
         initial_resources = self.resource_level
