@@ -12,12 +12,18 @@ from farm.analysis.core import BaseAnalysisModule, SimpleDataProcessor, make_ana
 from farm.analysis.validation import ColumnValidator, DataQualityValidator, CompositeValidator
 
 from farm.analysis.genetics.data import process_genetics_data
-from farm.analysis.genetics.analyze import analyze_genetics
+from farm.analysis.genetics.analyze import analyze_genetics, generate_genetics_report
 from farm.analysis.genetics.plot import (
     plot_generation_distribution,
     plot_fitness_over_generations,
     plot_marginal_fitness_effect,
     plot_fitness_landscape_2d,
+    plot_allele_frequency_trajectories,
+    plot_diversity_over_time,
+    plot_wright_fisher_overlay,
+    plot_conserved_run_timeline,
+    plot_phylogenetic_tree_basic,
+    plot_phylogenetic_tree_sampled,
 )
 from farm.analysis.genetics.compute import (
     compute_allele_frequency_timeseries,
@@ -156,6 +162,7 @@ class GeneticsModule(BaseAnalysisModule):
 
         self._functions = {
             "analyze_genetics": make_analysis_function(analyze_genetics),
+            "generate_genetics_report": make_analysis_function(generate_genetics_report),
             "plot_generation_distribution": make_analysis_function(plot_generation_distribution),
             "plot_fitness_over_generations": make_analysis_function(plot_fitness_over_generations),
             "compute_fitness_gene_correlations": make_analysis_function(
@@ -164,6 +171,14 @@ class GeneticsModule(BaseAnalysisModule):
             "compute_pairwise_epistasis": make_analysis_function(compute_pairwise_epistasis),
             "plot_marginal_fitness_effect": make_analysis_function(plot_marginal_fitness_effect),
             "plot_fitness_landscape_2d": make_analysis_function(plot_fitness_landscape_2d),
+            "plot_allele_frequency_trajectories": make_analysis_function(
+                plot_allele_frequency_trajectories
+            ),
+            "plot_diversity_over_time": make_analysis_function(plot_diversity_over_time),
+            "plot_wright_fisher_overlay": make_analysis_function(plot_wright_fisher_overlay),
+            "plot_conserved_run_timeline": make_analysis_function(plot_conserved_run_timeline),
+            "plot_phylogenetic_tree_basic": make_analysis_function(plot_phylogenetic_tree_basic),
+            "plot_phylogenetic_tree_sampled": make_analysis_function(plot_phylogenetic_tree_sampled),
             "simulate_wright_fisher": make_analysis_function(_simulate_wright_fisher_for_analysis),
             "compute_fst_pairwise": make_analysis_function(compute_fst_pairwise),
             "compute_migration_counts": make_analysis_function(compute_migration_counts),
@@ -191,10 +206,21 @@ class GeneticsModule(BaseAnalysisModule):
                 self._functions["plot_fitness_over_generations"],
                 self._functions["plot_marginal_fitness_effect"],
                 self._functions["plot_fitness_landscape_2d"],
+                self._functions["plot_allele_frequency_trajectories"],
+                self._functions["plot_diversity_over_time"],
+                self._functions["plot_wright_fisher_overlay"],
+                self._functions["plot_conserved_run_timeline"],
+                self._functions["plot_phylogenetic_tree_basic"],
+                self._functions["plot_phylogenetic_tree_sampled"],
             ],
             "basic": [
                 self._functions["analyze_genetics"],
                 self._functions["plot_generation_distribution"],
+            ],
+            "report": [
+                self._functions["analyze_genetics"],
+                self._functions["plot_generation_distribution"],
+                self._functions["generate_genetics_report"],
             ],
             "fitness_landscape": [
                 self._functions["compute_fitness_gene_correlations"],

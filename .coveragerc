@@ -42,6 +42,9 @@ omit =
     farm/analysis/genesis/analyze.py
     farm/analysis/genesis/compute.py
     farm/analysis/genesis/plot.py
+    # Genetics plotting (matplotlib); exercised by tests/analysis/test_genetics.py
+    # but omitted from the aggregate gate like other analysis plot modules.
+    farm/analysis/genetics/plot.py
     farm/analysis/learning/data.py
     farm/analysis/protocols.py
     farm/analysis/social_behavior/analyze.py

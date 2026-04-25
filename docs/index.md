@@ -109,6 +109,7 @@ env = run_simulation(
           Repository-backed databases, behavioral clustering, causal analysis, and experiment-level comparisons.
         </p>
         <a class="feature__link" href="{{ '/features/data_system/' | relative_url }}">Data system</a>
+        <a class="feature__link" href="{{ '/genetics_analysis/' | relative_url }}">Genetics analysis module</a>
       </div>
 
       <div class="feature">

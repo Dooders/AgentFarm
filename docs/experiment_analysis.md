@@ -97,6 +97,75 @@ analyze_reward_efficiency(data: pd.DataFrame)
 reward_efficiency_pipeline(db_path: str)
 ```
 
+### 7. Evolutionary / Genetics Analysis (`farm/analysis/genetics/`)
+
+Analyzes agent genomes, chromosomes, lineage, and population-level genetic
+statistics from simulation databases and evolution experiments.  This module
+integrates with the `AnalysisService` and can be invoked directly:
+
+See also the dedicated guide: [Genetics Analysis Module](genetics_analysis.md).
+
+> **Note:** The path-based `AnalysisService` workflow (shown below) loads
+> genetics data from a `simulation.db` SQLite file inside `experiment_path`.
+> Evolution-experiment results that are not backed by a simulation DB must be
+> passed as an in-memory `pd.DataFrame` directly to the lower-level APIs
+> (e.g. `analyze_genetics`, `generate_genetics_report`) rather than via the
+> path-based service call.
+
+```python
+from pathlib import Path
+from farm.analysis.service import AnalysisService, AnalysisRequest
+from farm.core.services import EnvConfigService
+
+service = AnalysisService(EnvConfigService())
+
+# Full genetics analysis — experiment_path must contain simulation.db
+result = service.run(AnalysisRequest(
+    module_name="genetics",
+    experiment_path=Path("data/experiment_001"),
+    output_path=Path("results/genetics"),
+))
+
+# Only plots
+result = service.run(AnalysisRequest(
+    module_name="genetics",
+    experiment_path=Path("data/experiment_001"),
+    output_path=Path("results/genetics"),
+    group="plots",   # Options: "all", "analysis", "plots", "basic",
+                     #          "report", "fitness_landscape",
+                     #          "population_genetics", "adaptation_signatures"
+))
+```
+
+Key capabilities:
+
+- **Genetic diversity** – expected heterozygosity, Shannon entropy per locus
+- **Allele-frequency trajectories** – per-locus frequency timeseries
+- **Wright-Fisher overlay** – observed trajectories vs. neutral drift baseline
+- **Phylogenetic trees** – lineage graphs (full + sampled) from parent-child IDs
+- **Fitness landscapes** – single-locus correlations, pairwise epistasis, 2-D heatmap
+- **Conserved-run timeline** – detects loci fixed across consecutive generations
+- **Adaptation signatures** – realized mutation rates, sweep candidates
+- **Population genetics** – F_ST differentiation, migration counts, gene-flow timeseries
+- **Summary report** – Markdown (+ optional HTML) report via `generate_genetics_report`
+
+Key functions:
+```python
+from farm.analysis.genetics import (
+    analyze_genetics,              # population-level summary statistics
+    generate_genetics_report,     # Markdown/HTML summary report
+)
+from farm.analysis.genetics.plot import (
+    plot_allele_frequency_trajectories,
+    plot_diversity_over_time,
+    plot_wright_fisher_overlay,
+    plot_phylogenetic_tree_basic,
+    plot_phylogenetic_tree_sampled,
+    plot_conserved_run_timeline,
+    plot_fitness_landscape_2d,
+)
+```
+
 ## Usage Examples
 
 ### Basic Comparative Analysis
@@ -172,22 +241,17 @@ Planned analysis capabilities:
    - Resource flow networks
    - Information propagation
 
-2. **Evolutionary Analysis**
-   - Genetic diversity metrics
-   - Adaptation rates
-   - Fitness landscapes
-
-3. **Environmental Impact**
+2. **Environmental Impact**
    - Resource depletion patterns
    - Carrying capacity analysis
    - Sustainability metrics
 
-4. **Agent Behavior**
+3. **Agent Behavior**
    - Decision tree analysis
    - Strategy classification
    - Behavioral clustering
 
-5. **Performance Optimization**
+4. **Performance Optimization**
    - Bottleneck identification
    - Resource utilization
    - System efficiency metrics
