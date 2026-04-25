@@ -150,6 +150,8 @@ print(f"Final mean LR: {result.final_gene_statistics['learning_rate']['mean']}")
 | `coparent_strategy` | `"nearest_alive_same_type"` | Either `nearest_alive_same_type` or `random_alive_same_type`. Both filter to alive agents of the same `agent_type`. |
 | `coparent_max_radius` | `None` | Optional spatial cap on the co-parent search; `None` is unbounded. |
 | `seed` | `None` | Optional RNG seed. Falls back to `IntrinsicEvolutionExperimentConfig.seed`. |
+| `selection_pressure` | `None` | Convenience knob for density-dependent cost. Accepts `"none"`, `"low"`, `"medium"`, `"high"` or a float in *[0, 1]*. Overrides `reproduction_pressure` when set. |
+| `reproduction_pressure` | `ReproductionPressureConfig()` | Fine-grained density-dependent cost config (all zero by default). Ignored when `selection_pressure` is set. |
 
 If no eligible co-parent exists when crossover is enabled, reproduction
 silently falls back to mutation-only inheritance. This is the only way
@@ -253,21 +255,100 @@ enums serialized to plain strings so it round-trips cleanly:
   represented by a single agent. Statistical power is low until lineages
   expand. Seed diversity is intentionally aggressive (`mutation_rate=1.0`
   by default) to spread the initial population.
-- **No selection-pressure knob yet.** Reproduction cost is fixed by the
-  agent's `ReproductionConfig`; density-dependent costs and explicit
-  speciation are out of scope for v1.
 - **Crossover requires same `agent_type`.** Cross-type pollination is not
   supported. Co-parent selection always filters to identical
   `agent_type`.
 
+## Selection pressure
+
+The runner exposes two ways to strengthen (or weaken) selection without
+touching the underlying simulation's ecology:
+
+### Quick start: `selection_pressure` preset
+
+Set `selection_pressure` on `IntrinsicEvolutionPolicy` to a named preset or
+a float in *[0, 1]*:
+
+```python
+policy = IntrinsicEvolutionPolicy(
+    selection_pressure="medium",  # "none", "low", "medium", "high" or float
+)
+```
+
+A float `0.0` equals `"none"` (no density cost) and `1.0` equals `"high"`.
+Intermediate values scale the `"high"` preset's coefficients linearly.
+
+| Preset | `local_density_coefficient` | `global_carrying_capacity` | `global_cc_coefficient` |
+| --- | --- | --- | --- |
+| `"none"` | 0.0 | 0 (disabled) | 0.0 |
+| `"low"` | 0.5 | 0 (disabled) | 0.0 |
+| `"medium"` | 1.0 | 100 | 0.5 |
+| `"high"` | 2.0 | 100 | 1.0 |
+
+### Fine-grained: `ReproductionPressureConfig`
+
+For more control, set `reproduction_pressure` explicitly (ignored when
+`selection_pressure` is also set):
+
+```python
+from farm.core.agent.config.component_configs import ReproductionPressureConfig
+
+policy = IntrinsicEvolutionPolicy(
+    reproduction_pressure=ReproductionPressureConfig(
+        local_density_radius=8.0,          # cells around the parent to count
+        local_density_coefficient=1.5,     # extra resource cost per neighbour
+        global_carrying_capacity=150,      # K
+        global_carrying_capacity_coefficient=0.8,
+    ),
+)
+```
+
+The effective offspring cost for an agent at reproduction time is:
+
+```
+effective_cost = base_cost
+               + local_density_coefficient * n_neighbours_within_radius
+               + global_carrying_capacity_coefficient * base_cost * (pop / K)
+```
+
+`K` is only applied when `global_carrying_capacity > 0`.  All coefficients
+default to zero, so the default config (and any policy without
+`selection_pressure`) matches legacy behaviour exactly.
+
+### Telemetry
+
+When density-dependent costs are active, per-step trajectory records in
+`intrinsic_gene_trajectory.jsonl` include four new fields:
+
+| Field | Meaning |
+| --- | --- |
+| `mean_reproduction_cost` | Mean effective cost across alive agents at this step. |
+| `realized_birth_rate` | `births / prev_population` (0 at step 0). |
+| `realized_death_rate` | `deaths / prev_population` (0 at step 0). |
+| `effective_selection_strength` | Coefficient of variation (std/mean) of per-agent effective costs; a proxy for the opportunity for selection. Zero when all agents face identical costs. |
+
+Example trajectory record with pressure active:
+
+```json
+{
+  "step": 42,
+  "n_alive": 28,
+  "n_with_chromosome": 28,
+  "gene_stats": { "learning_rate": { ... }, ... },
+  "mean_reproduction_cost": 7.4,
+  "realized_birth_rate": 0.071,
+  "realized_death_rate": 0.036,
+  "effective_selection_strength": 0.12
+}
+```
+
 ## Out of scope (for now)
 
-- Density-dependent reproduction cost / explicit selection-pressure knobs.
 - Lineage tree visualization. The snapshot file makes this a notebook job.
 - Speciation / niche detection.
 
 ## Testing
 
-- [`tests/runners/test_intrinsic_evolution_experiment.py`](../../tests/runners/test_intrinsic_evolution_experiment.py): policy / config validation, `seed_population_diversity`, runner orchestration with mocked `run_simulation`, artifact persistence.
+- [`tests/runners/test_intrinsic_evolution_experiment.py`](../../tests/runners/test_intrinsic_evolution_experiment.py): policy / config validation, `seed_population_diversity`, runner orchestration with mocked `run_simulation`, artifact persistence, `ReproductionPressureConfig` validation, `selection_pressure` presets (none/low/medium/high/float), `_compute_effective_reproduction_cost` unit tests, trajectory telemetry field presence, and zero birth/death rates for stable populations.
 - [`tests/core/agent/test_reproduce_chromosome_policy.py`](../../tests/core/agent/test_reproduce_chromosome_policy.py): no-policy passthrough, mutation path, co-parent selection (nearest, random, radius, type-filter, alive-filter), crossover end-to-end.
 - [`tests/test_agent_reproduction_hyperparameters.py`](../../tests/test_agent_reproduction_hyperparameters.py): updated to assert the new contract (no policy = inheritance unchanged).

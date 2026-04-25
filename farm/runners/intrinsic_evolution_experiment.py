@@ -16,9 +16,11 @@ import json
 import os
 import random
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from farm.config import SimulationConfig
+from farm.core.agent.config.component_configs import ReproductionPressureConfig
+from farm.core.agent.core import _compute_effective_reproduction_cost
 from farm.core.hyperparameter_chromosome import (
     BoundaryMode,
     CrossoverMode,
@@ -36,6 +38,76 @@ logger = get_logger(__name__)
 
 
 CoparentStrategy = Literal["nearest_alive_same_type", "random_alive_same_type"]
+SelectionPressurePreset = Literal["none", "low", "medium", "high"]
+
+# ── Preset definitions ────────────────────────────────────────────────────────
+# Each preset maps to a ReproductionPressureConfig with sensible defaults that
+# give progressively stronger selection without requiring the user to tune raw
+# coefficients.  "none" is the identity (no density cost).
+
+_SELECTION_PRESSURE_PRESETS: Dict[str, ReproductionPressureConfig] = {
+    "none": ReproductionPressureConfig(
+        local_density_radius=5.0,
+        local_density_coefficient=0.0,
+        global_carrying_capacity=0,
+        global_carrying_capacity_coefficient=0.0,
+    ),
+    "low": ReproductionPressureConfig(
+        local_density_radius=5.0,
+        local_density_coefficient=0.5,
+        global_carrying_capacity=0,
+        global_carrying_capacity_coefficient=0.0,
+    ),
+    "medium": ReproductionPressureConfig(
+        local_density_radius=5.0,
+        local_density_coefficient=1.0,
+        global_carrying_capacity=100,
+        global_carrying_capacity_coefficient=0.5,
+    ),
+    "high": ReproductionPressureConfig(
+        local_density_radius=5.0,
+        local_density_coefficient=2.0,
+        global_carrying_capacity=100,
+        global_carrying_capacity_coefficient=1.0,
+    ),
+}
+
+
+def _preset_or_scale_to_pressure_config(
+    selection_pressure: Any,
+) -> ReproductionPressureConfig:
+    """Derive a :class:`ReproductionPressureConfig` from a preset name or scale.
+
+    - A ``str`` must be one of ``"none"``, ``"low"``, ``"medium"``, ``"high"``
+      and maps to the corresponding preset.
+    - A ``float`` in *[0, 1]* is treated as a linear scale factor applied to
+      the ``"high"`` preset's coefficients.
+    """
+    if isinstance(selection_pressure, str):
+        if selection_pressure not in _SELECTION_PRESSURE_PRESETS:
+            raise ValueError(
+                f"selection_pressure preset must be one of "
+                f"{list(_SELECTION_PRESSURE_PRESETS)}; got {selection_pressure!r}."
+            )
+        return _SELECTION_PRESSURE_PRESETS[selection_pressure]
+    if isinstance(selection_pressure, (int, float)):
+        scale = float(selection_pressure)
+        if not 0.0 <= scale <= 1.0:
+            raise ValueError(
+                "selection_pressure as a float must be in [0, 1]; "
+                f"got {scale}."
+            )
+        high = _SELECTION_PRESSURE_PRESETS["high"]
+        return ReproductionPressureConfig(
+            local_density_radius=high.local_density_radius,
+            local_density_coefficient=high.local_density_coefficient * scale,
+            global_carrying_capacity=high.global_carrying_capacity,
+            global_carrying_capacity_coefficient=high.global_carrying_capacity_coefficient * scale,
+        )
+    raise TypeError(
+        f"selection_pressure must be a str preset or float in [0, 1]; "
+        f"got {type(selection_pressure).__name__!r}."
+    )
 
 
 @dataclass(frozen=True)
@@ -73,6 +145,15 @@ class IntrinsicEvolutionPolicy:
             ``None`` means unbounded.
         seed: Optional seed for the policy's RNG; when ``None`` the runner
             seeds from its own configured seed.
+        selection_pressure: Convenience knob that sets density-dependent
+            reproduction costs.  Accepts a named preset (``"none"``,
+            ``"low"``, ``"medium"``, ``"high"``) or a float in *[0, 1]*
+            that scales the ``"high"`` preset's coefficients.  When set,
+            ``reproduction_pressure`` is derived automatically and any
+            explicit ``reproduction_pressure`` value is ignored.  When
+            ``None`` (default), ``reproduction_pressure`` is used as-is.
+        reproduction_pressure: Fine-grained density-dependent cost config.
+            Ignored when ``selection_pressure`` is not ``None``.
     """
 
     enabled: bool = True
@@ -91,6 +172,10 @@ class IntrinsicEvolutionPolicy:
     coparent_strategy: CoparentStrategy = "nearest_alive_same_type"
     coparent_max_radius: Optional[float] = None
     seed: Optional[int] = None
+    selection_pressure: Union[SelectionPressurePreset, float, None] = None
+    reproduction_pressure: ReproductionPressureConfig = field(
+        default_factory=ReproductionPressureConfig
+    )
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.mutation_rate <= 1.0:
@@ -117,6 +202,10 @@ class IntrinsicEvolutionPolicy:
             raise ValueError(
                 "coparent_strategy must be 'nearest_alive_same_type' or 'random_alive_same_type'."
             )
+        # Derive reproduction_pressure from the selection_pressure preset/scale when set.
+        if self.selection_pressure is not None:
+            derived = _preset_or_scale_to_pressure_config(self.selection_pressure)
+            object.__setattr__(self, "reproduction_pressure", derived)
 
 
 @dataclass(frozen=True)
@@ -227,6 +316,9 @@ class IntrinsicEvolutionExperiment:
         latest_population = 0
         latest_gene_statistics: Dict[str, Dict[str, float]] = {}
 
+        # Track agent IDs from the previous step to compute birth/death rates.
+        prev_agent_ids: set = set()
+
         def _capture_current_state(environment: Any, step: int) -> None:
             """Capture the same state we emit to the trajectory logger.
 
@@ -248,16 +340,84 @@ class IntrinsicEvolutionExperiment:
                 evolvable_only=True,
             )
 
+        def _compute_step_telemetry(
+            environment: Any, prev_ids: set
+        ) -> Dict[str, Any]:
+            """Compute selection-pressure telemetry for the current step.
+
+            Returns a dict of extra fields for the trajectory record:
+            - ``mean_reproduction_cost``: average effective reproduction cost
+              over alive agents (using the current density).
+            - ``realized_birth_rate``: births / previous population (0 when
+              the previous population was 0).
+            - ``realized_death_rate``: deaths / previous population (0 when
+              the previous population was 0).
+            - ``effective_selection_strength``: coefficient of variation (std /
+              mean) of per-agent effective reproduction costs; a proxy for the
+              opportunity-for-selection imposed by density-dependent costs.
+            """
+
+            alive_agents = list(environment.alive_agent_objects)
+            current_ids = {getattr(a, "agent_id", None) for a in alive_agents}
+
+            prev_pop = len(prev_ids)
+            births = len(current_ids - prev_ids)
+            deaths = len(prev_ids - current_ids)
+
+            realized_birth_rate = births / prev_pop if prev_pop > 0 else 0.0
+            realized_death_rate = deaths / prev_pop if prev_pop > 0 else 0.0
+
+            # Per-agent effective reproduction costs for alive agents.
+            effective_costs: List[float] = []
+            for agent in alive_agents:
+                repro_comp = (
+                    agent.get_component("reproduction")
+                    if callable(getattr(agent, "get_component", None))
+                    else None
+                )
+                if repro_comp is None:
+                    continue
+                base = getattr(getattr(repro_comp, "config", None), "offspring_cost", 0.0)
+                effective_costs.append(_compute_effective_reproduction_cost(agent, base))
+
+            if effective_costs:
+                import statistics
+
+                mean_cost = statistics.mean(effective_costs)
+                if len(effective_costs) > 1 and mean_cost > 0:
+                    std_cost = statistics.stdev(effective_costs)
+                    sel_strength = std_cost / mean_cost
+                else:
+                    sel_strength = 0.0
+            else:
+                mean_cost = 0.0
+                sel_strength = 0.0
+
+            return {
+                "mean_reproduction_cost": mean_cost,
+                "realized_birth_rate": realized_birth_rate,
+                "realized_death_rate": realized_death_rate,
+                "effective_selection_strength": sel_strength,
+            }
+
         def _on_environment_ready(environment: Any) -> None:
+            nonlocal prev_agent_ids
             environment.intrinsic_evolution_policy = policy
             environment.intrinsic_evolution_rng = rng
             seed_population_diversity(environment, policy, rng)
+            # At step 0 there is no previous step, so birth/death rates are 0.
+            alive_agents = list(environment.alive_agent_objects)
+            prev_agent_ids = {getattr(a, "agent_id", None) for a in alive_agents}
             gene_logger.snapshot(environment, step=0)
             _capture_current_state(environment, step=0)
 
         def _on_step_end(environment: Any, step: int) -> None:
+            nonlocal prev_agent_ids
             logical_step = step + 1
-            gene_logger.snapshot(environment, step=logical_step)
+            extra = _compute_step_telemetry(environment, prev_agent_ids)
+            alive_agents = list(environment.alive_agent_objects)
+            prev_agent_ids = {getattr(a, "agent_id", None) for a in alive_agents}
+            gene_logger.snapshot(environment, step=logical_step, extra_fields=extra)
             _capture_current_state(environment, step=logical_step)
 
         try:

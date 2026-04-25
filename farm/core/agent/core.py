@@ -9,7 +9,7 @@ logic for reward calculation, lifecycle management, and orchestration.
 import math
 import random as _module_random
 from copy import deepcopy
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import torch
 
@@ -35,6 +35,63 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+
+
+def _compute_effective_reproduction_cost(agent: Any, base_cost: float) -> float:
+    """Return the density-adjusted reproduction cost for *agent*.
+
+    When the agent's environment carries an enabled
+    ``intrinsic_evolution_policy`` whose ``reproduction_pressure`` config has
+    non-zero coefficients, the effective cost is:
+
+    .. code-block:: text
+
+        effective = base_cost
+                  + local_density_coefficient * n_local_neighbours
+                  + global_carrying_capacity_coefficient * base_cost * (pop / K)
+
+    The second term is only included when ``global_carrying_capacity > 0``.
+    When no policy / pressure config is present, *base_cost* is returned
+    unchanged, preserving backward compatibility.
+    """
+    env = getattr(agent, "environment", None)
+    if env is None:
+        return base_cost
+    policy = getattr(env, "intrinsic_evolution_policy", None)
+    if policy is None or not getattr(policy, "enabled", False):
+        return base_cost
+    pressure = getattr(policy, "reproduction_pressure", None)
+    if pressure is None:
+        return base_cost
+
+    extra = 0.0
+
+    # Local density term
+    local_coeff = getattr(pressure, "local_density_coefficient", 0.0)
+    local_radius = getattr(pressure, "local_density_radius", 0.0)
+    if local_coeff > 0.0 and local_radius > 0.0:
+        get_nearby = getattr(env, "get_nearby_agents", None)
+        if callable(get_nearby):
+            try:
+                nearby = get_nearby(agent.position, local_radius)
+                n_neighbours = sum(1 for a in nearby if a is not agent)
+                extra += local_coeff * n_neighbours
+            except Exception:
+                pass  # Spatial index may not be initialised yet; skip silently.
+
+    # Global carrying-capacity term
+    global_k = getattr(pressure, "global_carrying_capacity", 0)
+    global_coeff = getattr(pressure, "global_carrying_capacity_coefficient", 0.0)
+    if global_k > 0 and global_coeff > 0.0:
+        alive_objects = getattr(env, "alive_agent_objects", None)
+        if alive_objects is not None:
+            try:
+                pop = len(list(alive_objects))
+                extra += global_coeff * base_cost * (pop / global_k)
+            except Exception:
+                pass
+
+    return base_cost + extra
 
 
 class AgentCore:
@@ -765,6 +822,13 @@ class AgentCore:
         Checks if agent can reproduce, deducts resources, creates offspring
         using the factory pattern, and adds it to the environment.
 
+        When the environment carries an enabled ``intrinsic_evolution_policy``
+        with a ``reproduction_pressure`` config, the effective reproduction
+        cost is increased by density-dependent terms (local neighbour count
+        and/or global population fraction relative to carrying capacity).
+        The resource deduction uses the effective cost, so agents at high
+        density face a real resource barrier and reproduce less often.
+
         Returns:
             bool: True if reproduction succeeded, False otherwise
         """
@@ -773,7 +837,9 @@ class AgentCore:
         if not repro_comp:
             return False
 
-        # Check if agent can afford reproduction
+        # First-pass affordability check using the base cost.  This preserves
+        # the existing API contract; the final remove() below uses the
+        # (potentially higher) density-adjusted effective cost.
         if not repro_comp.can_reproduce():
             return False
 
@@ -781,16 +847,18 @@ class AgentCore:
         if not self.environment:
             return False
 
+        resource_comp = self.get_component("resource")
+        base_cost = repro_comp.config.offspring_cost
+        offspring_cost = _compute_effective_reproduction_cost(self, base_cost)
+
         # Store initial resources for logging
         initial_resources = self.resource_level
 
-        resource_comp = self.get_component("resource")
-        offspring_cost = repro_comp.config.offspring_cost
         resource_deducted = False
         offspring_id: Optional[str] = None
 
         try:
-            # Deduct reproduction cost
+            # Deduct reproduction cost (remove() returns False if insufficient).
             if resource_comp:
                 if not resource_comp.remove(offspring_cost):
                     return False
