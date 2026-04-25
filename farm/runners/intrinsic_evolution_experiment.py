@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from farm.config import SimulationConfig
 from farm.core.agent.config.component_configs import ReproductionPressureConfig
+from farm.core.agent.core import _compute_effective_reproduction_cost
 from farm.core.hyperparameter_chromosome import (
     BoundaryMode,
     CrossoverMode,
@@ -355,7 +356,6 @@ class IntrinsicEvolutionExperiment:
               mean) of per-agent effective reproduction costs; a proxy for the
               opportunity-for-selection imposed by density-dependent costs.
             """
-            from farm.core.agent.core import _compute_effective_reproduction_cost  # local import to avoid circularity
 
             alive_agents = list(environment.alive_agent_objects)
             current_ids = {getattr(a, "agent_id", None) for a in alive_agents}

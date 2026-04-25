@@ -439,9 +439,11 @@ class TestEffectiveReproductionCost(unittest.TestCase):
         policy = IntrinsicEvolutionPolicy(reproduction_pressure=pressure)
 
         agent = SimpleNamespace(position=(0.0, 0.0))
-        # Build fake nearby agents (excluding self via 'a is not agent')
-        nearby_agents = [SimpleNamespace() for _ in range(n_nearby + 1)]  # +1 self
-        nearby_agents[0] = agent  # first is self
+        # Build fake nearby agents (includes self as the first item so that the
+        # 'a is not agent' filter in _compute_effective_reproduction_cost
+        # correctly yields n_nearby neighbours).
+        nearby_agents = [SimpleNamespace() for _ in range(n_nearby + 1)]
+        nearby_agents[0] = agent  # first slot is self
 
         alive = [SimpleNamespace() for _ in range(pop)]
 
@@ -531,10 +533,15 @@ class TestTrajectoryTelemetryFields(unittest.TestCase):
         agents = [_make_fake_agent(0.01) for _ in range(num_agents)]
 
         # Add get_component stub so telemetry computation works.
+        def _make_get_component(rc):
+            def _get_component(name):
+                return rc if name == "reproduction" else None
+            return _get_component
+
         for agent in agents:
             repro_cfg = SimpleNamespace(offspring_cost=5.0)
             repro_comp = SimpleNamespace(config=repro_cfg)
-            agent.get_component = lambda name, rc=repro_comp: rc if name == "reproduction" else None
+            agent.get_component = _make_get_component(repro_comp)
             agent.position = (0.0, 0.0)
             agent.environment = None  # No density adjustment for simple test
 
