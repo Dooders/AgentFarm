@@ -343,9 +343,66 @@ Example trajectory record with pressure active:
 }
 ```
 
+## Lineage tree visualization
+
+The `intrinsic_gene_snapshots.jsonl` artifact contains everything needed to
+reconstruct a full lineage DAG for any intrinsic run.  The
+`farm.analysis.phylogenetics` module provides a first-class loader and plot
+helper.
+
+### Quick start
+
+```python
+from farm.analysis.phylogenetics import (
+    build_intrinsic_lineage_dag,
+    extract_chromosomes_from_snapshots,
+    load_intrinsic_snapshots,
+    compute_surviving_lineage_count_over_time,
+    compute_lineage_depth_over_time,
+    plot_intrinsic_lineage_tree,
+)
+from farm.analysis.common.context import AnalysisContext
+import pathlib
+
+# Build the lineage DAG from a run directory (or direct file path)
+tree = build_intrinsic_lineage_dag("experiments/my_intrinsic_run")
+
+# Summary statistics
+s = tree.summary()
+print(f"Nodes: {s.num_nodes}, max depth: {s.max_depth}, is_dag: {tree.is_dag}")
+
+# Per-step surviving-lineage count and depth
+snaps = load_intrinsic_snapshots("experiments/my_intrinsic_run")
+lineage_counts  = compute_surviving_lineage_count_over_time(tree, snaps)
+depth_over_time = compute_lineage_depth_over_time(tree, snaps)
+
+# Plot – colour nodes by learning_rate chromosome value
+chromosomes = extract_chromosomes_from_snapshots(snaps)
+ctx = AnalysisContext(output_path=pathlib.Path("experiments/my_intrinsic_run"))
+plot_intrinsic_lineage_tree(tree, ctx, gene="learning_rate", chromosomes=chromosomes)
+```
+
+See [`notebooks/intrinsic_lineage_tree.ipynb`](../../notebooks/intrinsic_lineage_tree.ipynb)
+for a full walkthrough including synthetic fixture data that runs without a
+real experiment on disk.
+
+### API reference
+
+| Function | Description |
+| --- | --- |
+| `load_intrinsic_snapshots(path)` | Parse JSONL; return list of step dicts. |
+| `flatten_snapshots_to_agent_records(snaps)` | Deduplicate agents; infer `birth_time` / `death_time`. |
+| `build_intrinsic_lineage_dag(path)` | One-stop loader → DAG builder. |
+| `extract_chromosomes_from_snapshots(snaps)` | `agent_id → chromosome` dict (last-seen values). |
+| `compute_surviving_lineage_count_over_time(tree, snaps)` | List of `(step, count)` tuples. |
+| `compute_lineage_depth_over_time(tree, snaps)` | List of `(step, max_depth, mean_depth)` tuples. |
+| `plot_intrinsic_lineage_tree(tree, ctx, *, gene, chromosomes, …)` | Layered dendrogram; optional gene-value colouring. |
+
+The `PhylogeneticTree` object returned by `build_intrinsic_lineage_dag` also
+supports `.to_json()` and `.to_newick()` export for external tree viewers.
+
 ## Out of scope (for now)
 
-- Lineage tree visualization. The snapshot file makes this a notebook job.
 - Speciation / niche detection.
 
 ## Testing
@@ -353,3 +410,4 @@ Example trajectory record with pressure active:
 - [`tests/runners/test_intrinsic_evolution_experiment.py`](../../tests/runners/test_intrinsic_evolution_experiment.py): policy / config validation, `seed_population_diversity`, runner orchestration with mocked `run_simulation`, artifact persistence, `ReproductionPressureConfig` validation, `selection_pressure` presets (none/low/medium/high/float), `_compute_effective_reproduction_cost` unit tests, trajectory telemetry field presence, and zero birth/death rates for stable populations.
 - [`tests/core/agent/test_reproduce_chromosome_policy.py`](../../tests/core/agent/test_reproduce_chromosome_policy.py): no-policy passthrough, mutation path, co-parent selection (nearest, random, radius, type-filter, alive-filter), crossover end-to-end.
 - [`tests/test_agent_reproduction_hyperparameters.py`](../../tests/test_agent_reproduction_hyperparameters.py): updated to assert the new contract (no policy = inheritance unchanged).
+- [`tests/analysis/test_intrinsic_lineage.py`](../../tests/analysis/test_intrinsic_lineage.py): `load_intrinsic_snapshots`, `flatten_snapshots_to_agent_records`, `build_intrinsic_lineage_dag`, `compute_surviving_lineage_count_over_time`, `compute_lineage_depth_over_time`, `extract_chromosomes_from_snapshots`, `plot_intrinsic_lineage_tree` (with and without gene colouring).
