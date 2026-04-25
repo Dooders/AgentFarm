@@ -12,6 +12,7 @@ Visualization functions for the genetics analysis module covering:
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -502,11 +503,14 @@ def plot_diversity_over_time(
                 for locus, locus_df in cats.groupby("locus"):
                     freqs = locus_df["frequency"].values
                     freqs = freqs[np.isfinite(freqs)]
-                    if freqs.sum() > 0:
+                    if freqs.size == 0 or freqs.sum() <= 0:
+                        het_vals_gen.append(float("nan"))
+                        ent_vals_gen.append(float("nan"))
+                    else:
                         freqs = freqs / freqs.sum()
-                    het_vals_gen.append(1.0 - float(np.sum(freqs ** 2)))
-                    nonzero = freqs[freqs > 0]
-                    ent_vals_gen.append(float(-np.sum(nonzero * np.log(nonzero))))
+                        het_vals_gen.append(1.0 - float(np.sum(freqs ** 2)))
+                        nonzero = freqs[freqs > 0]
+                        ent_vals_gen.append(float(-np.sum(nonzero * np.log(nonzero))))
                 generations.append(int(gen))
                 heterozygosity_vals.append(float(np.mean(het_vals_gen)) if het_vals_gen else float("nan"))
                 entropy_vals.append(float(np.mean(ent_vals_gen)) if ent_vals_gen else float("nan"))
@@ -520,7 +524,10 @@ def plot_diversity_over_time(
                     gen_int = int(float(gen))
                 except (TypeError, ValueError):
                     continue
-                diversity = compute_population_diversity(gen_df.reset_index(drop=True))
+                diversity = compute_population_diversity(
+                    gen_df.reset_index(drop=True),
+                    compute_continuous_entropy=True,
+                )
                 generations.append(gen_int)
                 heterozygosity_vals.append(diversity.mean_heterozygosity)
                 entropy_vals.append(diversity.mean_shannon_entropy)
@@ -653,11 +660,12 @@ def plot_wright_fisher_overlay(
             return None
 
         gens_sorted = sorted(freq_df["generation"].unique())
-        # Use generation span + 1 so the WF run covers the same number of steps
-        # as the observed data (e.g. generations [0, 1, 2] → n_gens=3).
-        n_gens = n_generations if n_generations is not None else (max(gens_sorted) - min(gens_sorted) + 1)
-        if n_gens <= 0:
-            logger.warning("plot_wright_fisher_overlay: need at least 2 generations")
+        # simulate_wright_fisher returns generations 0..n_generations inclusive;
+        # use (span - 1) drift steps so the last simulated row aligns with max(observed).
+        span = max(gens_sorted) - min(gens_sorted) + 1
+        n_gens = n_generations if n_generations is not None else max(0, span - 1)
+        if span < 2:
+            logger.warning("plot_wright_fisher_overlay: need at least 2 distinct generations for WF overlay")
             return None
 
         # Infer N_e from first generation count if not provided
@@ -829,6 +837,12 @@ def _extract_lineage_graph(
         node_generation[node_id] = gen_int
 
         parent_ids_raw = row.get("parent_ids")
+        if isinstance(parent_ids_raw, str):
+            try:
+                parsed = ast.literal_eval(parent_ids_raw)
+            except (ValueError, SyntaxError):
+                parsed = None
+            parent_ids_raw = parsed if isinstance(parsed, (list, tuple)) else []
         if not isinstance(parent_ids_raw, (list, tuple)):
             node_parents[node_id] = []
             continue
@@ -1107,14 +1121,55 @@ def plot_conserved_run_timeline(
         cmap_not_conserved = "#e0e0e0"
 
         locus_to_y = {locus: i for i, locus in enumerate(loci)}
+        has_run_id = "run_id" in conserved_df.columns
 
-        for _, row in conserved_df.iterrows():
-            locus = row["locus"]
-            gen = row["generation"]
-            is_conserved = bool(row["is_conserved"])
+        def _row_in_qualifying_run(row: pd.Series) -> bool:
+            if has_run_id:
+                if pd.isna(row.get("run_id")):
+                    return False
+                if "run_length" in conserved_df.columns:
+                    rl = row.get("run_length")
+                    if pd.isna(rl) or int(rl) < int(min_run_length):
+                        return False
+                return True
+            return bool(row["is_conserved"])
+
+        for locus in loci:
+            sub = conserved_df[conserved_df["locus"] == locus].sort_values("generation")
             y = locus_to_y[locus]
-            color = cmap_conserved if is_conserved else cmap_not_conserved
-            ax.barh(y, 1, left=gen, height=0.7, color=color, edgecolor="none", align="center")
+            run_start: Optional[int] = None
+            run_len = 0
+            run_conserved: Optional[bool] = None
+            prev_gen: Optional[int] = None
+
+            def _flush_run() -> None:
+                nonlocal run_start, run_len, run_conserved
+                if run_start is None or run_len <= 0 or run_conserved is None:
+                    return
+                c = cmap_conserved if run_conserved else cmap_not_conserved
+                ax.barh(y, run_len, left=run_start, height=0.7, color=c, edgecolor="none", align="center")
+
+            for _, row in sub.iterrows():
+                try:
+                    gen = int(float(row["generation"]))
+                except (TypeError, ValueError):
+                    continue
+                conserved_block = _row_in_qualifying_run(row)
+                extend = (
+                    prev_gen is not None
+                    and gen == prev_gen + 1
+                    and conserved_block == run_conserved
+                    and run_start is not None
+                )
+                if extend:
+                    run_len += 1
+                else:
+                    _flush_run()
+                    run_start = gen
+                    run_len = 1
+                    run_conserved = conserved_block
+                prev_gen = gen
+            _flush_run()
 
         ax.set_yticks(list(locus_to_y.values()))
         ax.set_yticklabels(loci, fontsize=8)

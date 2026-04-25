@@ -48,7 +48,10 @@ def analyze_genetics(df: pd.DataFrame) -> Dict[str, Any]:
 
     # --- DB-backed frame ---
     if "generation" in df.columns:
-        result["generation_counts"] = df["generation"].value_counts().to_dict()
+        # JSON keys must be native int (numpy int64 is not accepted by json.dumps).
+        result["generation_counts"] = {
+            int(k): int(v) for k, v in df["generation"].value_counts().items()
+        }
         result["max_generation"] = int(df["generation"].max())
         result["mean_generation"] = float(df["generation"].mean())
 
@@ -303,8 +306,8 @@ def generate_genetics_report(
                         continue
                     elif stripped == "---":
                         html_body_parts.append("<hr/>")
-                    elif stripped.startswith("_") and stripped.endswith("_"):
-                        html_body_parts.append(f"<em>{html_lib.escape(stripped.strip('_'))}</em>")
+                    elif len(stripped) >= 2 and stripped[0] == "_" and stripped[-1] == "_":
+                        html_body_parts.append(f"<em>{html_lib.escape(stripped[1:-1])}</em>")
                     elif stripped:
                         html_body_parts.append(f"<p>{html_lib.escape(stripped)}</p>")
                     i += 1
