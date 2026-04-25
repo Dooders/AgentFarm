@@ -170,8 +170,17 @@ def generate_genetics_report(
                     return obj.tolist()
                 raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
-            # Convert dict keys to str so that NumPy integer keys are safe too.
-            safe_stats = {str(k): v for k, v in stats.items()}
+            # Convert dict keys to str so that NumPy integer keys are safe for
+            # JSON serialization.  Log a warning if any key wasn't already a str
+            # so that unexpected schema changes are visible during debugging.
+            safe_stats: Dict[str, Any] = {}
+            for k, v in stats.items():
+                if not isinstance(k, str):
+                    logger.debug(
+                        "generate_genetics_report: converting non-string stats key %r (%s) to str",
+                        k, type(k).__name__,
+                    )
+                safe_stats[str(k)] = v
             with open(json_path, "w", encoding="utf-8") as fh:
                 json.dump(safe_stats, fh, indent=2, default=_json_default)
         except Exception as exc:
