@@ -17,6 +17,11 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+import matplotlib
+
+matplotlib.use("Agg")  # Set non-interactive backend before any pyplot import
+import matplotlib.pyplot as plt  # noqa: E402 – must follow backend selection
+
 import pandas as pd
 
 from farm.analysis.common.context import AnalysisContext
@@ -49,8 +54,6 @@ def plot_generation_distribution(df: pd.DataFrame, ctx: AnalysisContext, **kwarg
         return None
 
     try:
-        import matplotlib.pyplot as plt
-
         gen_counts = df["generation"].value_counts().sort_index()
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.bar(gen_counts.index.astype(str), gen_counts.values)
@@ -84,8 +87,6 @@ def plot_fitness_over_generations(df: pd.DataFrame, ctx: AnalysisContext, **kwar
         return None
 
     try:
-        import matplotlib.pyplot as plt
-
         gen_grouped = df.groupby("generation")["fitness"]
         mean_fitness = gen_grouped.mean()
         best_fitness = gen_grouped.max()
@@ -146,7 +147,6 @@ def plot_marginal_fitness_effect(
         return None
 
     try:
-        import matplotlib.pyplot as plt
         from scipy import stats as _stats
 
         gene_vals = []
@@ -245,7 +245,6 @@ def plot_fitness_landscape_2d(
         return None
 
     try:
-        import matplotlib.pyplot as plt
         import numpy as np
 
         xi_vals, xj_vals, fit_vals = [], [], []
@@ -376,10 +375,6 @@ def plot_allele_frequency_trajectories(
         return None
 
     try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
         from farm.analysis.genetics.compute import ALLELE_MEAN
 
         # Determine loci to plot
@@ -475,9 +470,6 @@ def plot_diversity_over_time(
         return None
 
     try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
         import numpy as np
 
         generations: List[int] = []
@@ -629,9 +621,6 @@ def plot_wright_fisher_overlay(
         return None
 
     try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
         import numpy as np
         from farm.analysis.genetics.compute import (
             ALLELE_MEAN,
@@ -660,13 +649,15 @@ def plot_wright_fisher_overlay(
             return None
 
         gens_sorted = sorted(freq_df["generation"].unique())
-        # simulate_wright_fisher returns generations 0..n_generations inclusive;
-        # use (span - 1) drift steps so the last simulated row aligns with max(observed).
-        span = max(gens_sorted) - min(gens_sorted) + 1
-        n_gens = n_generations if n_generations is not None else max(0, span - 1)
-        if span < 2:
+        observed_generation_count = len(gens_sorted)
+        if observed_generation_count < 2:
             logger.warning("plot_wright_fisher_overlay: need at least 2 distinct generations for WF overlay")
             return None
+
+        # `simulate_wright_fisher(..., n_generations=...)` expects the number of
+        # generations beyond generation 0, so observed generations [0, 1, 2]
+        # correspond to n_gens=2.
+        n_gens = n_generations if n_generations is not None else (max(gens_sorted) - min(gens_sorted))
 
         # Infer N_e from first generation count if not provided
         if n_effective is None:
@@ -871,10 +862,6 @@ def plot_phylogenetic_tree_basic(
         return None
 
     try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
         node_generation, node_parents = graph
         nodes_sorted = sorted(node_generation.keys(), key=lambda nid: (node_generation[nid], nid))
         node_y = {nid: idx for idx, nid in enumerate(nodes_sorted)}
@@ -956,10 +943,6 @@ def plot_phylogenetic_tree_sampled(
         return None
 
     try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
         node_generation, node_parents = graph
         nodes_sorted = sorted(node_generation.keys(), key=lambda nid: (node_generation[nid], nid))
         if not nodes_sorted:
@@ -1082,9 +1065,6 @@ def plot_conserved_run_timeline(
         return None
 
     try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
         import matplotlib.patches as mpatches
         import numpy as np
 

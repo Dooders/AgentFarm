@@ -3554,7 +3554,7 @@ class TestGenerateGeneticsReport:
         assert "Generation" in content
 
 
-class TestPlotAllelFrequencyTrajectories:
+class TestPlotAlleleFrequencyTrajectories:
     """Tests for plot_allele_frequency_trajectories."""
 
     def test_returns_path_on_valid_data(self, tmp_path):
@@ -3716,14 +3716,35 @@ class TestGeneticsServiceIntegration:
             from farm.analysis.genetics.module import genetics_module
             registry.register(genetics_module)
 
-        # Build a minimal fixture experiment directory with a genetics CSV
+        # Build a minimal fixture experiment directory with simulation.db so
+        # that process_genetics_data()'s path-based loader can find it.
         experiment_path = tmp_path / "experiment"
         experiment_path.mkdir()
 
-        # Write fixture CSV that the data processor can load
-        df_fixture = _make_simple_evolution_df(n_gens=3, n_per_gen=4)
-        fixture_csv = experiment_path / "genetics_data.csv"
-        df_fixture.to_csv(fixture_csv, index=False)
+        db_file = experiment_path / "simulation.db"
+        engine = create_engine(f"sqlite:///{db_file}")
+        Base.metadata.create_all(engine)
+        with Session(engine) as session:
+            session.add_all([
+                AgentModel(
+                    agent_id="a0",
+                    agent_type="SystemAgent",
+                    birth_time=0,
+                    genome_id="::1",
+                    generation=0,
+                    action_weights={"move": 1.0, "gather": 0.0},
+                ),
+                AgentModel(
+                    agent_id="a1",
+                    agent_type="SystemAgent",
+                    birth_time=5,
+                    genome_id="a0:1",
+                    generation=1,
+                    action_weights={"move": 0.8, "gather": 0.2},
+                ),
+            ])
+            session.commit()
+        engine.dispose()
 
         config_mock = _MagicMock()
         config_mock.get_analysis_module_paths.return_value = []
@@ -3845,7 +3866,9 @@ class TestGeneticsServiceIntegration:
             )
             assert count > 0
         finally:
-            # Restore
+            # Restore exactly: clear any modules added during the test, then
+            # re-populate with the original snapshot to avoid state leaks.
+            registry.clear()
             registry._modules.update(original)
 
     def test_genetics_module_function_groups(self):

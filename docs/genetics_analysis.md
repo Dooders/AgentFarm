@@ -2,12 +2,13 @@
 
 The genetics analysis module lives under `farm/analysis/genetics/` and is exposed through `AnalysisService` as `module_name="genetics"`.
 
-It supports two input sources:
+## Input Sources
 
-- Simulation database data (agent generation, lineage, action weights)
-- Evolution experiment data (candidate lineage, chromosome values, fitness)
+The module supports two distinct input sources.  It is important to understand which path applies to your use case:
 
-## Quick Start
+### 1. Simulation database (`simulation.db`)
+
+When an `experiment_path` containing a `simulation.db` SQLite file is passed to `AnalysisService`, the data processor loads agent records (generation, lineage, action weights) from that database automatically.
 
 ```python
 from pathlib import Path
@@ -16,15 +17,33 @@ from farm.core.services import EnvConfigService
 
 service = AnalysisService(EnvConfigService())
 
-# Default run (group="all")
+# Requires experiment_path / "simulation.db" to exist
 result = service.run(
     AnalysisRequest(
         module_name="genetics",
-        experiment_path=Path("data/experiment_001"),
+        experiment_path=Path("data/experiment_001"),  # must contain simulation.db
         output_path=Path("results/genetics"),
     )
 )
 ```
+
+### 2. Evolution-experiment data (in-memory)
+
+Evolution-experiment results (`EvolutionExperimentResult` objects or plain `pd.DataFrame` values) do **not** reside on disk in a format the path-based loader recognises.  Pass them directly to the lower-level analysis APIs instead of going through `AnalysisService` with a path:
+
+```python
+import pandas as pd
+from farm.analysis.common.context import AnalysisContext
+from farm.analysis.genetics.analyze import analyze_genetics, generate_genetics_report
+
+# df is a DataFrame produced by build_evolution_experiment_dataframe()
+# or assembled from EvolutionExperimentResult data.
+ctx = AnalysisContext(output_path=Path("results/genetics"))
+stats = analyze_genetics(df)
+report_path = generate_genetics_report(df, ctx)
+```
+
+## Quick Start (simulation.db path)
 
 Run specific function groups:
 

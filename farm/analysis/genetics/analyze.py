@@ -159,8 +159,21 @@ def generate_genetics_report(
         # ------------------------------------------------------------------
         json_path = ctx.get_output_file("genetics_summary.json")
         try:
+            def _json_default(obj: Any) -> Any:
+                """Convert NumPy scalars and other non-serializable types to native Python."""
+                import numpy as np  # local import to avoid hard dep at module level
+                if isinstance(obj, (np.integer,)):
+                    return int(obj)
+                if isinstance(obj, (np.floating,)):
+                    return float(obj)
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+            # Convert dict keys to str so that NumPy integer keys are safe too.
+            safe_stats = {str(k): v for k, v in stats.items()}
             with open(json_path, "w", encoding="utf-8") as fh:
-                json.dump(stats, fh, indent=2)
+                json.dump(safe_stats, fh, indent=2, default=_json_default)
         except Exception as exc:
             logger.warning("generate_genetics_report: could not write JSON summary: %s", exc)
 

@@ -105,6 +105,13 @@ integrates with the `AnalysisService` and can be invoked directly:
 
 See also the dedicated guide: [Genetics Analysis Module](genetics_analysis.md).
 
+> **Note:** The path-based `AnalysisService` workflow (shown below) loads
+> genetics data from a `simulation.db` SQLite file inside `experiment_path`.
+> Evolution-experiment results that are not backed by a simulation DB must be
+> passed as an in-memory `pd.DataFrame` directly to the lower-level APIs
+> (e.g. `analyze_genetics`, `generate_genetics_report`) rather than via the
+> path-based service call.
+
 ```python
 from pathlib import Path
 from farm.analysis.service import AnalysisService, AnalysisRequest
@@ -112,7 +119,7 @@ from farm.core.services import EnvConfigService
 
 service = AnalysisService(EnvConfigService())
 
-# Full genetics analysis (charts + report)
+# Full genetics analysis — experiment_path must contain simulation.db
 result = service.run(AnalysisRequest(
     module_name="genetics",
     experiment_path=Path("data/experiment_001"),
