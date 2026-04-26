@@ -618,7 +618,9 @@ def compute_niche_correlation(
                     try:
                         vals.append(float(v))
                     except (TypeError, ValueError):
-                        pass
+                        # Non-numeric values are intentionally ignored when
+                        # computing per-field means for heterogeneous records.
+                        continue
             return float(sum(vals) / len(vals)) if vals else None
 
         agent_ids = [_get(a, agent_id_key) for a in members]
