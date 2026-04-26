@@ -1,8 +1,8 @@
-# Intrinsic Evolution Experiment — Results (5000 steps)
+# Intrinsic Evolution Experiment — Results (10000 steps)
 
 This run exercises
 [`IntrinsicEvolutionExperiment`](../../farm/runners/intrinsic_evolution_experiment.py)
-end-to-end: a single 5000-step simulation in which every agent carries its
+end-to-end: a single 10000-step simulation in which every agent carries its
 own [`HyperparameterChromosome`](../../farm/core/hyperparameter_chromosome.py),
 crossover with a co-parent is enabled, and selection emerges from the shared
 resource environment under the `"low"` density-dependent reproduction-cost
@@ -13,8 +13,8 @@ preset.
 | Setting | Value |
 | --- | --- |
 | Environment | `development` |
-| Steps | 5000 |
-| Snapshot interval | 100 |
+| Steps | 10000 |
+| Snapshot interval | 200 |
 | Seed | 42 |
 | Crossover | uniform, nearest alive same-type co-parent |
 | Mutation | gaussian, rate 0.15, scale 0.10, reflect boundary |
@@ -26,33 +26,35 @@ CLI:
 
 ```bash
 PYTHONHASHSEED=0 python scripts/run_intrinsic_evolution_experiment.py \
-    --num-steps 5000 --snapshot-interval 100 \
+    --num-steps 10000 --snapshot-interval 200 \
     --output-dir experiments/intrinsic_evolution \
     --crossover --selection-pressure low --seed 42
 ```
 
-Wall-clock: 299 s end-to-end.
+Wall-clock: 581 s end-to-end (≈17 steps/s).
 
 ## Headline results
 
 - **Population**: 30 → peak 77 (around step 100) → settled to a noisy
-  steady state of ~28 alive (mean 28.1, final 27).
-- **Births / deaths**: ~5 births / ~5 deaths per 1000 steps (mean rates
-  ≈ 9.7e-4); the run is firmly in a turnover regime, not extinction.
-- **Surviving founder lineages**: 30 → **9** (70 % founder extinction;
-  versus only 43 % at 600 steps — selection is actually working).
+  steady state of ~28 alive (mean 27.5, final 28).
+- **Births / deaths**: ~0.78 birth / death per 1000 steps (mean rates
+  ≈ 7.8e-4 and 7.6e-4); roughly balanced turnover.
+- **Surviving founder lineages**: 30 → **7** (77 % founder extinction —
+  vs. 70 % at 5000 steps and 43 % at 600 steps; selection keeps
+  compounding).
 - **Gene means (initial → final)**:
-  - `learning_rate` 0.260 → **0.205** (-0.055; clear directional drop)
-  - `gamma` 0.809 → 0.827 (+0.018)
-  - `epsilon_decay` 0.846 → 0.818 (-0.028)
+  - `learning_rate` 0.260 → 0.253 (-0.007; back near origin after a dip
+    around step 3000)
+  - `gamma` 0.809 → **0.846** (+0.038; sustained directional rise)
+  - `epsilon_decay` 0.846 → 0.830 (-0.016)
   - `memory_size` 2000 → 2000 (locked, evolvable=False)
-- **Speciation index**: peaked ~0.60 between steps 2000 and 3000; mean
-  0.43; final 0.38 — sustained sub-population structure rather than the
-  briefly-flaring pattern seen at 600 steps.
-- **Niches**: GMM detects **k = 4** clusters at step 5000 with sizes
-  {13, 8, 4, 2} and silhouette 0.38.
-- **Lineage depth**: max 3 (briefly) and 2 (durably), mean 0.81 at
-  the final snapshot — multi-generation ancestry, not just F1.
+- **Speciation index**: peaked ~0.60 around steps 2400 and 6000; mean
+  0.46; **final 0.48**. The polymorphism is durable, not a transient.
+- **Niches**: GMM detects **k = 4** clusters at step 10000 with sizes
+  {12, 6, 6, 4} and silhouette 0.48 — the cleanest cluster structure
+  produced by any run length so far.
+- **Lineage depth**: max **4**, mean **1.29** at the final snapshot —
+  great-great-grandchildren survive.
 
 ## Visualisations
 
@@ -63,94 +65,105 @@ All plots are produced by
 
 ![population dynamics](analysis/population_dynamics.png)
 
-The early boom-and-crash (population briefly hits 77 around step 100, then
-collapses to ~25) gives way to a long stationary phase around 25–35 alive
-agents. Births and deaths interleave throughout, and the
-selection-strength CV oscillates between 0.10 and 0.35 with notable peaks
-around steps 1500 and 4500.
+Same early boom-and-crash pattern as the 600/5000-step runs (population
+briefly hits 77 around step 100, then collapses to ~28). The remaining
+~9900 steps are a long stationary turnover regime around 25–35 alive.
+The selection-strength CV (bottom panel) shows recurring bursts up to
+0.40 (notably around step 6000), well above the steady-state ~0.15 — a
+sign that density-dependent reproduction cost is non-trivially structured
+across the population.
 
 ### Gene trajectories (per-step mean ± std)
 
 ![gene trajectories](analysis/gene_trajectories.png)
 
-`learning_rate` exhibits a slow downward drift across the full run
-(0.26 → 0.20). `gamma` shows a transient dip between steps ~1500 and
-~3300 followed by a recovery. `epsilon_decay` drifts moderately downward.
-The shrinking std bands around step 3300 onwards correspond to several
-high-`gamma`, high-LR lineages dying out.
+`gamma` exhibits a transient dip between steps ~1500 and ~3300 (a
+high-`gamma` cluster temporarily expands then dies out, briefly tightening
+the std band) followed by a sustained rise to 0.85 — the cleanest
+directional gene-mean signal in the run. `learning_rate` mean cycles
+between 0.20 and 0.30 without converging. `epsilon_decay` drifts modestly
+downward.
 
 ### Per-snapshot gene-value distributions
 
 ![gene distribution history](analysis/gene_distribution_history.png)
 
-`learning_rate` distributions become progressively concentrated in the
-0.05–0.30 band; `gamma` distributions tighten significantly after step
-~3300 once the high-`gamma` outlier lineages are gone.
+`gamma` violins narrow significantly after step ~3300; `learning_rate`
+keeps a wide bimodal distribution throughout the run, consistent with
+the persistent multi-cluster structure.
 
 ### Speciation index over time
 
 ![speciation index](analysis/speciation_index.png)
 
-After an early dip during the boom-crash homogenisation (steps 300–700,
-index ≈ 0.10), the index climbs steadily to ~0.60 between steps 2000 and
-3000, then settles around 0.40–0.50. This is a population that has
-fragmented into multiple coexisting clusters and stayed that way.
+After the early boom-crash dip (steps 300–700), the index climbs steadily
+and stays in the 0.40–0.60 band for the remaining ~9000 steps. Two clear
+peaks (~step 2400 and ~step 6000) reach 0.60. The population maintains
+4 niches throughout — this is the durable polymorphic equilibrium the
+runner is designed to expose.
 
 ### Cluster persistence
 
 ![cluster persistence](analysis/cluster_lineage_sizes.png)
 
-The early dominant cluster `c0` collapses post-boom. New clusters
-(`c4`, `c9`, `c10`, `c11`) emerge and persist for thousands of steps;
-`c1` and `c4` are the dominant survivors at run end.
+Many clusters appear, peak, and decline; `c2`, `c6`, `c7`, `c8` are the
+durable survivors that coexist for the second half of the run. Cluster
+turnover is itself a feature: some niches are stable, others displace
+each other.
 
 ### Chromosome-space scatter (GMM clustering)
 
 Step 0 (post seed-mutation pass):
 ![cluster step 0](analysis/speciation_clusters_step0.png)
 
-Step 2500 (mid-run):
-![cluster step 2500](analysis/speciation_clusters_step2500.png)
-
-Step 5000 (final):
+Step 5000 (mid-run):
 ![cluster step 5000](analysis/speciation_clusters_step5000.png)
 
-The final scatter shows 4 distinct clusters separated along PC1 (57 % of
-variance), with silhouette 0.38 — a stable polymorphic equilibrium.
+Step 10000 (final):
+![cluster step 10000](analysis/speciation_clusters_step10000.png)
+
+The final scatter shows 4 well-separated clusters (silhouette 0.48)
+along PC1 (59 % of variance) and PC2 (32 % of variance) — **a
+qualitatively cleaner separation than at 5000 steps** (0.38).
 
 ### Lineage tree (coloured by `learning_rate`)
 
 ![lineage tree](analysis/intrinsic_lineage_tree.png)
 
-DAG (because crossover gives two parents) over 175 unique agents.
-Most of the tree is concentrated at depths 0–1, with a handful of
-depth-2 grandchildren and a single depth-3 great-grandchild visible.
+DAG (because crossover gives two parents) over 197 unique agents. The
+tree extends to depth 4 — at least one great-great-grandchild
+reproduced — with a sparse but visible tail of depth-2 and depth-3
+lineages.
 
 ### Lineage summary
 
 ![lineage summary](analysis/lineage_summary.png)
 
-Surviving founder lineages decline monotonically from 30 to 9 — this is
-the cleanest signal that selection is working: 70 % of founders left no
-descendants by step 5000. Mean lineage depth rises from 0 to ~0.8 as
-multi-generation lineages establish themselves.
+Surviving founder lineages decline monotonically from 30 to 7 — the
+extinction curve flattens after step ~5500. Mean lineage depth grows
+steadily from 0 to 1.3, and the max depth ratchets up from 2 to 4 as the
+run progresses.
 
 ## Interpretation
 
-- **Selection is unambiguous at this scale.** The 600-step pilot showed
-  ambiguous gene drift; at 5000 steps, the directional drop in
-  `learning_rate` (0.26 → 0.20), the founder extinction rate (70 %), and
-  the persistent 4-cluster structure all point to genuine intra-sim
-  selection rather than neutral drift.
-- **The system supports a polymorphic equilibrium.** GMM-BIC keeps
-  picking k > 1 from step 1000 onward; the final population genuinely
-  splits into 4 niches in chromosome space. This is the "frequency-
-  dependent dynamics" the runner docs describe: no single learning rate
-  wins, multiple coexist.
-- **Population dynamics decouple from gene dynamics in the steady state.**
-  After the early boom-crash, alive count is roughly stationary while
-  genes keep drifting. This is exactly the regime that a between-sim
-  `EvolutionExperiment` cannot observe.
+- **Selection compounds with run length.** Founder extinction was 43 % at
+  600 steps, 70 % at 5000 steps, and 77 % at 10000 steps. The cleanest
+  signal is the founder-survival curve.
+- **Polymorphism is durable, not a transient.** Speciation index sits in
+  0.40–0.60 for ~9000 steps; GMM-BIC consistently picks k = 4. The
+  population is genuinely structured into stable sub-populations.
+- **`gamma` shows the strongest directional drift.** Mean `gamma` rises
+  ~0.04 across the run — small in absolute terms but consistent with
+  weak directional selection on top of strong frequency-dependent
+  pressure.
+- **Lineage depth is meaningful.** The DAG reaches depth 4, meaning
+  multi-generation lineages are surviving and reproducing — not just
+  founder F1 children. Mean depth 1.29 vs 0.81 at 5000 steps shows
+  generation turnover is real.
+- **The 600/5000/10000-step trio gives a useful runtime/insight curve.**
+  The 600-step run was barely informative; 5000 was clearly polymorphic;
+  10000 makes the structure visually clean and provides the deepest
+  lineage signal.
 
 For longer / heavier-pressure runs, increase `--num-steps` further or
 pass `--selection-pressure high` (or a numeric scale) to apply stronger
@@ -172,8 +185,8 @@ experiments/intrinsic_evolution/
 │   ├── lineage_summary.png
 │   ├── population_dynamics.png
 │   ├── speciation_clusters_step0.png
-│   ├── speciation_clusters_step2500.png
 │   ├── speciation_clusters_step5000.png
+│   ├── speciation_clusters_step10000.png
 │   └── speciation_index.png
 ├── cluster_lineage.jsonl
 ├── intrinsic_evolution_metadata.json
