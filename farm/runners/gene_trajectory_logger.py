@@ -15,9 +15,9 @@ Writes append-only JSONL files alongside other run artifacts:
   snapshot step with fields ``step``, ``cluster_id``, ``centroid``, ``size``,
   and ``parent_cluster_id``.
 
-All three files are no-ops when ``output_dir`` is ``None``, allowing the
-logger to be used unconditionally inside the runner regardless of whether the
-user asked for persisted artifacts.
+When ``output_dir`` is ``None``, JSONL files are not written; speciation
+state is still updated in memory when ``enable_speciation=True``, allowing
+the runner to use the logger unconditionally regardless of persisted artifacts.
 """
 
 from __future__ import annotations
@@ -38,8 +38,9 @@ class GeneTrajectoryLogger:
     Parameters
     ----------
     output_dir:
-        Directory in which to write the JSONL files.  When ``None`` all I/O
-        is suppressed and the logger becomes a no-op.
+        Directory in which to write the JSONL files.  When ``None``, file
+        I/O is suppressed; ``snapshot`` still updates in-memory speciation
+        when ``enable_speciation=True``.
     snapshot_interval:
         Write a full per-agent snapshot every this many steps.  Step 0 is
         always captured.  Must be at least 1.
@@ -128,9 +129,6 @@ class GeneTrajectoryLogger:
                 runner such as ``mean_reproduction_cost`` or
                 ``realized_birth_rate``).
         """
-        if self._trajectory_handle is None:
-            return
-
         alive_agents = list(environment.alive_agent_objects)
         chromosomes: List[HyperparameterChromosome] = [
             agent.hyperparameter_chromosome
@@ -141,9 +139,12 @@ class GeneTrajectoryLogger:
 
         is_snapshot_step = step % self._snapshot_interval == 0
 
-        # Run speciation at snapshot steps when enabled
+        # Run speciation at snapshot steps when enabled (even if trajectory file I/O is off).
         if self._enable_speciation and is_snapshot_step:
             self._update_speciation(chromosomes, step)
+
+        if self._trajectory_handle is None:
+            return
 
         trajectory_record: Dict[str, Any] = {
             "step": step,
@@ -224,6 +225,8 @@ class GeneTrajectoryLogger:
 
         if not chromosomes:
             self._cached_speciation_index = 0.0
+            self._prev_cluster_records = []
+            self._cluster_id_counter = 0
             return
 
         # Extract evolvable gene dicts

@@ -44,7 +44,6 @@ those fields are present in the agent records.
 from __future__ import annotations
 
 import math
-import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
