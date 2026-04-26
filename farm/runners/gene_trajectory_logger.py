@@ -155,10 +155,9 @@ class GeneTrajectoryLogger:
             trajectory_record["speciation_index"] = self._cached_speciation_index
 
         if extra_fields:
-            _RESERVED_TRAJECTORY_KEYS = {
-                "step", "n_alive", "n_with_chromosome", "gene_stats",
-                "speciation_index",
-            }
+            _RESERVED_TRAJECTORY_KEYS = {"step", "n_alive", "n_with_chromosome", "gene_stats"}
+            if self._enable_speciation:
+                _RESERVED_TRAJECTORY_KEYS = _RESERVED_TRAJECTORY_KEYS | {"speciation_index"}
             collisions = _RESERVED_TRAJECTORY_KEYS & extra_fields.keys()
             if collisions:
                 raise ValueError(
@@ -271,7 +270,7 @@ class GeneTrajectoryLogger:
             # Non-fatal: log and keep previous cached value
             import warnings
             warnings.warn(
-                f"GeneTrajectoryLogger: speciation update failed at step {step}: {exc}",
+                f"GeneTrajectoryLogger: speciation update failed at step {step}: {exc!r}",
                 RuntimeWarning,
                 stacklevel=4,
             )

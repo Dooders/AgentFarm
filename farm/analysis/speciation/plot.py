@@ -104,6 +104,8 @@ def plot_chromosome_space_clusters(
         return None
 
     n_genes = X.shape[1]
+    # Track whether a fitted PCA object is available for centroid projection
+    _pca = None
 
     # Dimensionality reduction when needed
     if n_genes > 2:
@@ -111,13 +113,14 @@ def plot_chromosome_space_clusters(
             from sklearn.decomposition import PCA
 
             n_components = 2
-            pca = PCA(n_components=n_components, random_state=0)
-            X_2d: np.ndarray = pca.fit_transform(X)
-            explained = pca.explained_variance_ratio_
+            _pca = PCA(n_components=n_components, random_state=0)
+            X_2d: np.ndarray = _pca.fit_transform(X)
+            explained = _pca.explained_variance_ratio_
             xlabel = f"PC1 ({explained[0] * 100:.1f}% var)"
             ylabel = f"PC2 ({explained[1] * 100:.1f}% var)"
         except Exception as exc:
             logger.warning("plot_chromosome_space_clusters: PCA failed (%s); using first 2 genes", exc)
+            _pca = None
             X_2d = X[:, :2]
             xlabel = gene_names[0] if len(gene_names) > 0 else "gene_0"
             ylabel = gene_names[1] if len(gene_names) > 1 else "gene_1"
@@ -162,8 +165,11 @@ def plot_chromosome_space_clusters(
             if lbl >= 0 and lbl < len(cluster_result.centroids):
                 cx = cluster_result.centroids[lbl]
                 cx_vec = np.array([cx.get(g, 0.0) for g in gene_names], dtype=float)
-                if n_genes > 2:
-                    cx_2d = pca.transform(cx_vec.reshape(1, -1))[0]  # type: ignore[possibly-undefined]
+                if n_genes > 2 and _pca is not None:
+                    cx_2d = _pca.transform(cx_vec.reshape(1, -1))[0]
+                elif n_genes > 2:
+                    # PCA failed during setup; fall back to first two genes
+                    cx_2d = cx_vec[:2]
                 elif n_genes == 2:
                     cx_2d = cx_vec
                 else:

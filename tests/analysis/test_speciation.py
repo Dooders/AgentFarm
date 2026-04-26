@@ -220,13 +220,13 @@ class TestMatchClustersGreedy:
     def test_known_fixture_split_across_snapshots(self):
         """Full persistence scenario: start with 1 cluster, split into 2."""
         # Snapshot 0: one cluster
-        r0, ctr = match_clusters_greedy([], [{"lr": 0.05}], [30], ["lr"], step=0)
+        r0, ctr0 = match_clusters_greedy([], [{"lr": 0.05}], [30], ["lr"], step=0)
         assert r0[0].cluster_id == "c0"
 
         # Snapshot 100: split into two distinct clusters
-        r1, ctr = match_clusters_greedy(
+        r1, _ctr1 = match_clusters_greedy(
             r0, [{"lr": 0.01}, {"lr": 0.1}], [15, 15], ["lr"], step=100,
-            id_counter_start=ctr
+            id_counter_start=ctr0,
         )
         ids_100 = {r.cluster_id for r in r1}
         # "c0" should match one of them (closest to old centroid 0.05);
@@ -510,7 +510,7 @@ class TestGeneTrajectoryLoggerSpeciation:
             GeneTrajectoryLogger(None, snapshot_interval=1, speciation_algorithm="bad")
 
     def test_speciation_index_reserved_key_in_extra_fields(self, tmp_path):
-        """Passing speciation_index via extra_fields should raise ValueError."""
+        """Passing speciation_index via extra_fields should raise ValueError when speciation enabled."""
         from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
 
         logger = GeneTrajectoryLogger(str(tmp_path), snapshot_interval=1, enable_speciation=True)
@@ -518,6 +518,20 @@ class TestGeneTrajectoryLoggerSpeciation:
         with pytest.raises(ValueError, match="speciation_index"):
             logger.snapshot(env, step=0, extra_fields={"speciation_index": 0.5})
         logger.close()
+
+    def test_speciation_index_not_reserved_when_disabled(self, tmp_path):
+        """When speciation is disabled, speciation_index can be used as a custom field."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        logger = GeneTrajectoryLogger(str(tmp_path), snapshot_interval=1, enable_speciation=False)
+        env = _FakeEnvironment([_make_fake_agent()])
+        # Should NOT raise – speciation_index is only reserved when enable_speciation=True
+        logger.snapshot(env, step=0, extra_fields={"speciation_index": 0.42})
+        logger.close()
+
+        traj_path = tmp_path / "intrinsic_gene_trajectory.jsonl"
+        rec = json.loads(traj_path.read_text().splitlines()[0])
+        assert rec["speciation_index"] == pytest.approx(0.42)
 
 
 # ---------------------------------------------------------------------------
