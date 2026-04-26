@@ -399,6 +399,8 @@ def plot_intrinsic_lineage_tree(
                     try:
                         gene_values[nid] = float(val)
                     except (TypeError, ValueError):
+                        # Non-numeric/malformed gene values are expected in some records;
+                        # skip them so colouring uses only valid numeric values.
                         pass
 
             if gene_values:
