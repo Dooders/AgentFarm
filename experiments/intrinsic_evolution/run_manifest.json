@@ -3,8 +3,8 @@
   "args": {
     "environment": "development",
     "profile": null,
-    "num_steps": 600,
-    "snapshot_interval": 25,
+    "num_steps": 5000,
+    "snapshot_interval": 100,
     "seed": 42,
     "output_dir": "experiments/intrinsic_evolution",
     "mutation_rate": 0.15,
