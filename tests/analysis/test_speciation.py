@@ -17,7 +17,6 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List
-from unittest.mock import patch
 
 import pytest
 
