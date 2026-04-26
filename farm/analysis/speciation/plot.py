@@ -8,7 +8,7 @@ applied automatically when the number of evolvable genes exceeds 2.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 import matplotlib
 
