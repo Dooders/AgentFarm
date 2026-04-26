@@ -1,0 +1,121 @@
+{
+  "num_steps_completed": 600,
+  "final_population": 28,
+  "snapshot_interval": 25,
+  "policy": {
+    "enabled": true,
+    "seed_initial_diversity": true,
+    "seed_mutation_rate": 1.0,
+    "seed_mutation_scale": 0.25,
+    "mutation_rate": 0.15,
+    "mutation_scale": 0.1,
+    "mutation_mode": "gaussian",
+    "boundary_mode": "reflect",
+    "interior_bias_fraction": 0.001,
+    "crossover_enabled": true,
+    "crossover_mode": "uniform",
+    "blend_alpha": 0.5,
+    "num_crossover_points": 2,
+    "coparent_strategy": "nearest_alive_same_type",
+    "coparent_max_radius": null,
+    "seed": 42,
+    "selection_pressure": "low",
+    "reproduction_pressure": {
+      "local_density_radius": 5.0,
+      "local_density_coefficient": 0.5,
+      "global_carrying_capacity": 0,
+      "global_carrying_capacity_coefficient": 0.0
+    }
+  },
+  "seed": 42,
+  "initial_population": 30,
+  "peak_population": 77,
+  "mean_population": 35.45091514143095,
+  "final_population_observed": 28,
+  "speciation_index_final": 0.25519612429798194,
+  "speciation_index_max": 0.5650414823510629,
+  "speciation_index_mean": 0.2713823030738979,
+  "birth_rate_mean": 0.0023458700369923453,
+  "death_rate_mean": 0.0023691712545419203,
+  "per_gene_initial_mean": {
+    "learning_rate": 0.26014206789206057,
+    "gamma": 0.8089304054571481,
+    "epsilon_decay": 0.8459330421541135,
+    "memory_size": 2000.0
+  },
+  "per_gene_final_mean": {
+    "learning_rate": 0.2767391145242981,
+    "gamma": 0.7950079226472786,
+    "epsilon_decay": 0.8473744802885829,
+    "memory_size": 2000.0
+  },
+  "per_gene_shift": {
+    "learning_rate": 0.016597046632237544,
+    "gamma": -0.013922482809869519,
+    "epsilon_decay": 0.0014414381344693972,
+    "memory_size": 0.0
+  },
+  "unique_clusters_observed": 10,
+  "surviving_lineages_final": 17,
+  "founder_lineage_count_initial": 30,
+  "max_lineage_depth_final": 1,
+  "mean_lineage_depth_final": 0.42857142857142855,
+  "niche_correlation_last_snapshot": {
+    "1": [
+      {
+        "cluster_id": 0,
+        "size": 28,
+        "mean_x": null,
+        "mean_y": null,
+        "mean_energy": null,
+        "mean_reproduction_cost": null,
+        "agent_ids": [
+          "agent_d255d7dea2",
+          "agent_0621c711af",
+          "agent_af4f2116b1",
+          "agent_4ca4964bb9",
+          "agent_82cf3f64a6",
+          "agent_e91f50a96c",
+          "agent_2a829d3573",
+          "agent_b6e622b4f6",
+          "agent_cb1b26b649",
+          "agent_10036aff09",
+          "agent_abfdb7e390",
+          "agent_fd6689c348",
+          "agent_13b783557c",
+          "agent_52ef9d5558",
+          "agent_9768e0ed93",
+          "agent_0c1f8948a8",
+          "agent_e6bbe8328c",
+          "agent_7905615ef3",
+          "agent_8e8c51b52f",
+          "agent_582592d733",
+          "agent_1be906cdd0",
+          "agent_85d9d890f8",
+          "agent_4c51962b9e",
+          "agent_959a70d5d7",
+          "agent_d58a80dbbf",
+          "agent_df6f278904",
+          "agent_d606d9ed83",
+          "agent_27c98308a3"
+        ]
+      }
+    ]
+  },
+  "artifacts": {
+    "gene_trajectories": "experiments/intrinsic_evolution/analysis/gene_trajectories.png",
+    "gene_distribution_history": "experiments/intrinsic_evolution/analysis/gene_distribution_history.png",
+    "population_dynamics": "experiments/intrinsic_evolution/analysis/population_dynamics.png",
+    "speciation_index": "experiments/intrinsic_evolution/analysis/speciation_index.png",
+    "cluster_lineage_sizes": "experiments/intrinsic_evolution/analysis/cluster_lineage_sizes.png",
+    "chromosome_space_scatters": [
+      "experiments/intrinsic_evolution/analysis/speciation_clusters_step0.png",
+      "experiments/intrinsic_evolution/analysis/speciation_clusters_step300.png",
+      "experiments/intrinsic_evolution/analysis/speciation_clusters_step600.png"
+    ],
+    "lineage_tree_nodes": 91,
+    "lineage_tree_max_depth": 2,
+    "lineage_tree": "experiments/intrinsic_evolution/analysis/intrinsic_lineage_tree.png",
+    "lineage_summary": "experiments/intrinsic_evolution/analysis/lineage_summary.png"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "elapsed_seconds": 55.403,
+  "num_steps_completed": 600,
+  "final_population": 28,
+  "final_gene_statistics": {
+    "learning_rate": {
+      "mean": 0.2767391145242981,
+      "median": 0.2576271013057442,
+      "std": 0.18799940402884263,
+      "min": 0.04529873821390773,
+      "max": 0.7565408035502058,
+      "at_min_count": 0.0,
+      "at_max_count": 0.0,
+      "boundary_fraction": 0.0
+    },
+    "gamma": {
+      "mean": 0.7950079226472786,
+      "median": 0.8263690274826332,
+      "std": 0.14754285477799944,
+      "min": 0.19954571646263597,
+      "max": 0.9624499676510705,
+      "at_min_count": 0.0,
+      "at_max_count": 0.0,
+      "boundary_fraction": 0.0
+    },
+    "epsilon_decay": {
+      "mean": 0.8473744802885829,
+      "median": 0.8683492453482538,
+      "std": 0.10169671894060744,
+      "min": 0.6344039811128217,
+      "max": 0.9810066745018101,
+      "at_min_count": 0.0,
+      "at_max_count": 0.0,
+      "boundary_fraction": 0.0
+    }
+  },
+  "output_dir": "experiments/intrinsic_evolution"
+}

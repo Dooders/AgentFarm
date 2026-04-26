@@ -1,0 +1,30 @@
+{
+  "script": "scripts/run_intrinsic_evolution_experiment.py",
+  "args": {
+    "environment": "development",
+    "profile": null,
+    "num_steps": 600,
+    "snapshot_interval": 25,
+    "seed": 42,
+    "output_dir": "experiments/intrinsic_evolution",
+    "mutation_rate": 0.15,
+    "mutation_scale": 0.1,
+    "mutation_mode": "gaussian",
+    "boundary_mode": "reflect",
+    "interior_bias_fraction": 0.001,
+    "no_seed_diversity": false,
+    "seed_mutation_rate": 1.0,
+    "seed_mutation_scale": 0.25,
+    "crossover": true,
+    "crossover_mode": "uniform",
+    "blend_alpha": 0.5,
+    "num_crossover_points": 2,
+    "coparent_strategy": "nearest_alive_same_type",
+    "coparent_max_radius": null,
+    "selection_pressure": "low",
+    "enable_speciation": true,
+    "speciation_algorithm": "gmm",
+    "speciation_max_k": 4,
+    "log_level": "INFO"
+  }
+}
