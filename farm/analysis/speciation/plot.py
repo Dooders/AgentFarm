@@ -111,6 +111,12 @@ def plot_chromosome_space_clusters(
         return None
 
     n_genes = X.shape[1]
+    if n_genes == 0:
+        logger.warning(
+            "plot_chromosome_space_clusters: no gene dimensions available; skipping"
+        )
+        return None
+
     # Track whether a fitted PCA object is available for centroid projection
     _pca = None
 
@@ -188,7 +194,13 @@ def plot_chromosome_space_clusters(
                 )
 
         # Optional agent-ID annotations for small populations
-        if agent_ids is not None and len(agent_ids) <= 30:
+        if agent_ids is not None and len(agent_ids) != X_2d.shape[0]:
+            logger.warning(
+                "plot_chromosome_space_clusters: agent_ids length (%d) != population (%d); skipping annotations",
+                len(agent_ids),
+                X_2d.shape[0],
+            )
+        elif agent_ids is not None and len(agent_ids) <= 30:
             for idx, aid in enumerate(agent_ids):
                 ax.annotate(str(aid), (X_2d[idx, 0], X_2d[idx, 1]),
                             fontsize=6, alpha=0.6, ha="left", va="bottom")

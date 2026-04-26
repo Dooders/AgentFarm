@@ -244,27 +244,33 @@ class GeneTrajectoryLogger:
             self._cached_speciation_index = compute_speciation_index(result)
 
             # Persist cluster lineage
-            if result.k > 0:
-                new_records, self._cluster_id_counter = match_clusters_greedy(
-                    self._prev_cluster_records,
-                    result.centroids,
-                    result.sizes,
-                    result.gene_names,
-                    step,
-                    id_counter_start=self._cluster_id_counter,
-                )
-                self._prev_cluster_records = new_records
+            if result.k == 0:
+                # No clusters (e.g. DBSCAN all-noise snapshot): reset lineage
+                # state so later clusters are treated as new founding lineages.
+                self._prev_cluster_records = []
+                self._cluster_id_counter = 0
+                return
 
-                if self._cluster_lineage_handle is not None:
-                    for rec in new_records:
-                        row: Dict[str, Any] = {
-                            "step": rec.step,
-                            "cluster_id": rec.cluster_id,
-                            "centroid": rec.centroid,
-                            "size": rec.size,
-                            "parent_cluster_id": rec.parent_cluster_id,
-                        }
-                        self._cluster_lineage_handle.write(json.dumps(row) + "\n")
+            new_records, self._cluster_id_counter = match_clusters_greedy(
+                self._prev_cluster_records,
+                result.centroids,
+                result.sizes,
+                result.gene_names,
+                step,
+                id_counter_start=self._cluster_id_counter,
+            )
+            self._prev_cluster_records = new_records
+
+            if self._cluster_lineage_handle is not None:
+                for rec in new_records:
+                    row: Dict[str, Any] = {
+                        "step": rec.step,
+                        "cluster_id": rec.cluster_id,
+                        "centroid": rec.centroid,
+                        "size": rec.size,
+                        "parent_cluster_id": rec.parent_cluster_id,
+                    }
+                    self._cluster_lineage_handle.write(json.dumps(row) + "\n")
         except Exception as exc:
             # Non-fatal: log and keep previous cached value
             import warnings

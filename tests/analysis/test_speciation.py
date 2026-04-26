@@ -529,6 +529,45 @@ class TestGeneTrajectoryLoggerSpeciation:
         rec = json.loads(traj_path.read_text().splitlines()[0])
         assert rec["speciation_index"] == pytest.approx(0.42)
 
+    def test_dbscan_all_noise_snapshot_resets_lineage(self, tmp_path):
+        """All-noise DBSCAN snapshots should reset lineage state."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        logger = GeneTrajectoryLogger(
+            str(tmp_path),
+            snapshot_interval=1,
+            enable_speciation=True,
+            speciation_algorithm="dbscan",
+        )
+
+        # Step 0: one dense cluster near lr ~= 0.01
+        env_cluster_1 = _FakeEnvironment(
+            [_make_fake_agent(lr=0.01), _make_fake_agent(lr=0.011), _make_fake_agent(lr=0.012)]
+        )
+        logger.snapshot(env_cluster_1, step=0)
+
+        # Step 1: spread-out points -> DBSCAN labels all as noise.
+        env_all_noise = _FakeEnvironment(
+            [_make_fake_agent(lr=0.001), _make_fake_agent(lr=0.3), _make_fake_agent(lr=0.9)]
+        )
+        logger.snapshot(env_all_noise, step=1)
+
+        # Step 2: cluster reappears; should be treated as a new founding lineage.
+        env_cluster_2 = _FakeEnvironment(
+            [_make_fake_agent(lr=0.01), _make_fake_agent(lr=0.011), _make_fake_agent(lr=0.012)]
+        )
+        logger.snapshot(env_cluster_2, step=2)
+        logger.close()
+
+        lineage_path = tmp_path / "cluster_lineage.jsonl"
+        rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
+
+        step_0_rows = [row for row in rows if row["step"] == 0]
+        step_2_rows = [row for row in rows if row["step"] == 2]
+        assert len(step_0_rows) == 1
+        assert len(step_2_rows) == 1
+        assert step_2_rows[0]["parent_cluster_id"] is None
+
 
 # ---------------------------------------------------------------------------
 # plot_chromosome_space_clusters
@@ -591,4 +630,26 @@ class TestPlotChromosomeSpaceClusters:
         result = detect_clusters_dbscan(chromosomes, eps=0.04, min_samples=3)
         ctx = self._ctx(tmp_path)
         out = plot_chromosome_space_clusters(chromosomes, result, ctx)
+        assert out is not None
+
+    def test_zero_gene_dimensions_returns_none(self, tmp_path):
+        result = ClusterResult(
+            algorithm="gmm",
+            k=1,
+            labels=[0],
+            centroids=[{}],
+            sizes=[1],
+            gene_names=[],
+            silhouette_score=0.0,
+            bic_scores={1: 0.0},
+        )
+        ctx = self._ctx(tmp_path)
+        out = plot_chromosome_space_clusters([{}], result, ctx)
+        assert out is None
+
+    def test_agent_id_annotation_length_mismatch_does_not_fail(self, tmp_path):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        result = detect_clusters_gmm(chromosomes, max_k=3, seed=0)
+        ctx = self._ctx(tmp_path)
+        out = plot_chromosome_space_clusters(chromosomes, result, ctx, agent_ids=["a0"])
         assert out is not None
