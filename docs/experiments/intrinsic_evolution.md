@@ -415,9 +415,8 @@ The `farm.analysis.speciation` module detects and tracks this structure.
 
 ### Enabling speciation tracking at run time
 
-Pass `enable_speciation=True` to `GeneTrajectoryLogger` (or the corresponding
-`IntrinsicEvolutionExperimentConfig` knob) to activate per-snapshot cluster
-detection:
+Pass `enable_speciation=True` to `GeneTrajectoryLogger` to activate
+per-snapshot cluster detection:
 
 ```python
 from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger

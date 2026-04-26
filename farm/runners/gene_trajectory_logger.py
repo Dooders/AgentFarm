@@ -77,6 +77,15 @@ class GeneTrajectoryLogger:
             raise ValueError("snapshot_interval must be at least 1.")
         if speciation_algorithm not in ("gmm", "dbscan"):
             raise ValueError("speciation_algorithm must be 'gmm' or 'dbscan'.")
+
+        if enable_speciation:
+            try:
+                import sklearn  # noqa: F401
+            except ImportError as exc:
+                raise ImportError(
+                    "GeneTrajectoryLogger: enable_speciation=True requires scikit-learn. "
+                    "Install it with: pip install scikit-learn"
+                ) from exc
         self._output_dir = output_dir
         self._snapshot_interval = snapshot_interval
         self._enable_speciation = enable_speciation
@@ -203,25 +212,12 @@ class GeneTrajectoryLogger:
         Writes cluster lineage records to ``cluster_lineage.jsonl`` when an
         output directory is configured.
         """
-        try:
-            from farm.analysis.speciation.compute import (
-                ClusterLineageRecord,
-                compute_speciation_index,
-                detect_clusters_dbscan,
-                detect_clusters_gmm,
-                match_clusters_greedy,
-            )
-        except ImportError as exc:
-            # scikit-learn may not be installed; degrade gracefully
-            import warnings
-            warnings.warn(
-                f"GeneTrajectoryLogger: speciation disabled – could not import "
-                f"speciation module ({exc}). Install scikit-learn to enable it.",
-                RuntimeWarning,
-                stacklevel=4,
-            )
-            self._enable_speciation = False
-            return
+        from farm.analysis.speciation.compute import (
+            compute_speciation_index,
+            detect_clusters_dbscan,
+            detect_clusters_gmm,
+            match_clusters_greedy,
+        )
 
         if not chromosomes:
             self._cached_speciation_index = 0.0

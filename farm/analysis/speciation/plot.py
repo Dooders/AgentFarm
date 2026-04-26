@@ -66,7 +66,8 @@ def plot_chromosome_space_clusters(
         title.
     projection:
         Dimensionality reduction method.  Currently only ``"pca"`` is
-        supported.  Ignored when the number of genes is ≤ 2.
+        supported; passing any other value raises :exc:`ValueError`.
+        Ignored when the number of genes is ≤ 2.
     output_filename:
         Custom output filename (without directory).  Defaults to
         ``"speciation_clusters_step{step}.png"`` or
@@ -86,6 +87,12 @@ def plot_chromosome_space_clusters(
     if not chromosomes:
         logger.warning("plot_chromosome_space_clusters: no chromosomes provided; skipping plot")
         return None
+
+    if projection != "pca":
+        raise ValueError(
+            f"plot_chromosome_space_clusters: unsupported projection {projection!r}. "
+            "Only 'pca' is currently supported."
+        )
 
     # Build feature matrix
     gene_names = cluster_result.gene_names

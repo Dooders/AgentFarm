@@ -37,7 +37,7 @@ Niche correlation
 :func:`compute_niche_correlation` accepts the per-snapshot agent list (as
 emitted by :class:`~farm.runners.gene_trajectory_logger.GeneTrajectoryLogger`)
 together with a :class:`ClusterResult` and returns per-cluster summary dicts
-containing mean spatial position, mean energy, and mean reproduction rate when
+containing mean spatial position, mean energy, and mean reproduction cost when
 those fields are present in the agent records.
 """
 
@@ -213,8 +213,8 @@ def detect_clusters_gmm(
     the same ``seed``.
 
     When fewer than ``max_k`` distinct chromosomes are present, ``max_k`` is
-    capped automatically.  When zero chromosomes are provided a single-cluster
-    trivial result is returned.
+    capped automatically.  When zero chromosomes are provided an empty
+    (``k=0``) trivial result with no labels or centroids is returned.
 
     Parameters
     ----------
@@ -249,7 +249,7 @@ def detect_clusters_gmm(
             bic_scores={},
         )
 
-    # Cap max_k to number of distinct agents to avoid degenerate GMM fits
+    # Cap max_k to the total number of agents to avoid degenerate GMM fits
     effective_max_k = min(max_k, n_agents)
 
     bic_scores: Dict[int, float] = {}

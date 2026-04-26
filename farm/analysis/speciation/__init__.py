@@ -15,7 +15,7 @@ Features
 - **Speciation index**: silhouette-based scalar in ``[0, 1]`` collapsed from
   a :class:`~farm.analysis.speciation.compute.ClusterResult`.
 - **Niche correlation**: per-cluster mean spatial position, energy, and
-  reproduction rate.
+  reproduction cost.
 - **Plot helper**: PCA/scatter of agents in chromosome space coloured by
   detected cluster.
 
