@@ -81,9 +81,10 @@ signal.
 | Module | Purpose |
 | --- | --- |
 | [`farm/runners/intrinsic_evolution_experiment.py`](../../farm/runners/intrinsic_evolution_experiment.py) | `IntrinsicEvolutionPolicy`, `IntrinsicEvolutionExperimentConfig`, `IntrinsicEvolutionResult`, `seed_population_diversity()`, `IntrinsicEvolutionExperiment` |
-| [`farm/runners/gene_trajectory_logger.py`](../../farm/runners/gene_trajectory_logger.py) | `GeneTrajectoryLogger`: writes per-step aggregates and periodic full snapshots |
+| [`farm/runners/gene_trajectory_logger.py`](../../farm/runners/gene_trajectory_logger.py) | `GeneTrajectoryLogger`: writes per-step aggregates, periodic full snapshots, and (optionally) per-step speciation index + `cluster_lineage.jsonl` |
 | [`farm/core/agent/core.py`](../../farm/core/agent/core.py) | `AgentCore._derive_child_chromosome` and `_select_coparent` (called from `reproduce`) |
 | [`farm/core/simulation.py`](../../farm/core/simulation.py) | `run_simulation(..., on_environment_ready, on_step_end)` callback hooks the runner uses |
+| [`farm/analysis/speciation/`](../../farm/analysis/speciation/) | `detect_clusters_gmm`, `detect_clusters_dbscan`, `match_clusters_greedy`, `compute_speciation_index`, `compute_niche_correlation`, `plot_chromosome_space_clusters` |
 
 ## Quick start
 
@@ -403,7 +404,125 @@ supports `.to_json()` and `.to_newick()` export for external tree viewers.
 
 ## Out of scope (for now)
 
-- Speciation / niche detection.
+- Nothing previously listed here is out of scope; speciation / niche detection
+  is now implemented (see `farm/analysis/speciation/`).
+
+## Speciation and niche detection
+
+Frequency-dependent dynamics naturally produce multimodal gene distributions
+(e.g., a high-LR explorer cluster coexisting with a low-LR exploiter cluster).
+The `farm.analysis.speciation` module detects and tracks this structure.
+
+### Enabling speciation tracking at run time
+
+Pass `enable_speciation=True` to `GeneTrajectoryLogger` (or the corresponding
+`IntrinsicEvolutionExperimentConfig` knob) to activate per-snapshot cluster
+detection:
+
+```python
+from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+# Inside the experiment runner (or standalone usage):
+logger = GeneTrajectoryLogger(
+    output_dir="experiments/my_run",
+    snapshot_interval=100,
+    enable_speciation=True,       # default: False
+    speciation_algorithm="gmm",   # "gmm" (BIC-selected k) or "dbscan"
+    speciation_max_k=5,           # max components to try for GMM
+    speciation_seed=42,           # for reproducibility
+)
+```
+
+When enabled:
+
+- Every `intrinsic_gene_trajectory.jsonl` record gains a `speciation_index`
+  field (float in `[0, 1]`).  `0.0` means the population is a single cluster;
+  values approaching `1.0` indicate well-separated sub-populations.  The index
+  is re-computed at every snapshot step and held constant between snapshots.
+- A new `cluster_lineage.jsonl` file is written alongside the existing
+  artifacts.  Each line has the fields `step`, `cluster_id` (stable across
+  snapshots), `centroid`, `size`, and `parent_cluster_id`.
+
+### Offline cluster analysis
+
+```python
+from farm.analysis.speciation import (
+    detect_clusters_gmm,
+    detect_clusters_dbscan,
+    match_clusters_greedy,
+    compute_speciation_index,
+    compute_niche_correlation,
+    plot_chromosome_space_clusters,
+)
+from farm.analysis.phylogenetics import load_intrinsic_snapshots, extract_chromosomes_from_snapshots
+from farm.analysis.common.context import AnalysisContext
+import pathlib
+
+# Load snapshot data
+snapshots = load_intrinsic_snapshots("experiments/my_run")
+
+# Detect clusters at a chosen snapshot step
+last_snap = snapshots[-1]
+chrom_dicts = [a["chromosome"] for a in last_snap["agents"]]
+
+# GMM-BIC approach (primary)
+result = detect_clusters_gmm(chrom_dicts, max_k=5, seed=42)
+print(f"Detected k={result.k} clusters, speciation index={compute_speciation_index(result):.3f}")
+
+# DBSCAN baseline
+result_db = detect_clusters_dbscan(chrom_dicts, eps=0.05, min_samples=3)
+
+# Niche correlation (spatial / resource stats per cluster)
+agents_at_step = last_snap["agents"]
+niche = compute_niche_correlation(result, agents_at_step)
+for cluster in niche:
+    print(f"Cluster {cluster['cluster_id']}: n={cluster['size']}, "
+          f"mean_x={cluster['mean_x']}, mean_energy={cluster['mean_energy']}")
+
+# PCA scatter plot
+ctx = AnalysisContext(output_path=pathlib.Path("experiments/my_run"))
+plot_chromosome_space_clusters(chrom_dicts, result, ctx, step=last_snap["step"])
+```
+
+### Cluster persistence across snapshots
+
+The `match_clusters_greedy` function assigns stable string IDs (e.g., `"c0"`,
+`"c1"`) to clusters detected at consecutive snapshots by greedily matching
+cluster centroids at minimum Euclidean distance.
+
+```python
+prev_records = []
+id_counter = 0
+
+for snap in snapshots:
+    chrom_dicts = [a["chromosome"] for a in snap["agents"]]
+    result = detect_clusters_gmm(chrom_dicts, max_k=5, seed=42)
+    new_records, id_counter = match_clusters_greedy(
+        prev_records,
+        result.centroids,
+        result.sizes,
+        result.gene_names,
+        step=snap["step"],
+        id_counter_start=id_counter,
+    )
+    prev_records = new_records
+    for rec in new_records:
+        print(f"step={rec.step} cluster={rec.cluster_id} "
+              f"parent={rec.parent_cluster_id} size={rec.size}")
+```
+
+### API reference
+
+| Symbol | Description |
+| --- | --- |
+| `detect_clusters_gmm(chromosomes, *, max_k, seed)` | GMM with BIC-selected k; returns `ClusterResult`. |
+| `detect_clusters_dbscan(chromosomes, *, eps, min_samples)` | DBSCAN baseline; returns `ClusterResult`. |
+| `match_clusters_greedy(prev, centroids, sizes, gene_names, step, …)` | Greedy centroid matcher; returns `(records, next_counter)`. |
+| `compute_speciation_index(cluster_result)` | Silhouette-based scalar in `[0, 1]`. |
+| `compute_niche_correlation(cluster_result, agents, …)` | Per-cluster spatial / resource means. |
+| `plot_chromosome_space_clusters(chromosomes, result, ctx, …)` | PCA / scatter plot coloured by cluster. |
+| `ClusterResult` | Dataclass: `algorithm`, `k`, `labels`, `centroids`, `sizes`, `gene_names`, `silhouette_score`, `bic_scores`. |
+| `ClusterLineageRecord` | Dataclass: `step`, `cluster_id`, `centroid`, `size`, `parent_cluster_id`, `gene_stats`. |
 
 ## Testing
 
@@ -411,3 +530,4 @@ supports `.to_json()` and `.to_newick()` export for external tree viewers.
 - [`tests/core/agent/test_reproduce_chromosome_policy.py`](../../tests/core/agent/test_reproduce_chromosome_policy.py): no-policy passthrough, mutation path, co-parent selection (nearest, random, radius, type-filter, alive-filter), crossover end-to-end.
 - [`tests/test_agent_reproduction_hyperparameters.py`](../../tests/test_agent_reproduction_hyperparameters.py): updated to assert the new contract (no policy = inheritance unchanged).
 - [`tests/analysis/test_intrinsic_lineage.py`](../../tests/analysis/test_intrinsic_lineage.py): `load_intrinsic_snapshots`, `flatten_snapshots_to_agent_records`, `build_intrinsic_lineage_dag`, `compute_surviving_lineage_count_over_time`, `compute_lineage_depth_over_time`, `extract_chromosomes_from_snapshots`, `plot_intrinsic_lineage_tree` (with and without gene colouring).
+- [`tests/analysis/test_speciation.py`](../../tests/analysis/test_speciation.py): `detect_clusters_gmm` (empty/single/bimodal, determinism, gene-name override), `detect_clusters_dbscan`, `match_clusters_greedy` (stable IDs, new-ID allocation, known-fixture split), `compute_speciation_index`, `compute_niche_correlation` (per-cluster means, noise exclusion), `GeneTrajectoryLogger` speciation integration (trajectory field, `cluster_lineage.jsonl`, stable caching between snapshot steps), `plot_chromosome_space_clusters` (2-gene, 1-gene, 3-gene/PCA, DBSCAN, custom filename).

@@ -1,18 +1,23 @@
 """Per-step chromosome telemetry for intrinsic-evolution simulations.
 
-Writes two append-only JSONL files alongside other run artifacts:
+Writes append-only JSONL files alongside other run artifacts:
 
 - ``intrinsic_gene_trajectory.jsonl`` -- one record per step containing
   aggregate per-gene statistics over alive agents.  Compact and cheap to
-  append every step.
+  append every step.  When speciation tracking is enabled, each record also
+  contains a ``speciation_index`` scalar.
 - ``intrinsic_gene_snapshots.jsonl`` -- one record every
   ``snapshot_interval`` steps containing each alive agent's full chromosome
   values.  Supports lineage analysis offline; bounded cost via the
   configurable cadence.
+- ``cluster_lineage.jsonl`` -- written only when speciation tracking is
+  enabled (``enable_speciation=True``).  One record per detected cluster per
+  snapshot step with fields ``step``, ``cluster_id``, ``centroid``, ``size``,
+  and ``parent_cluster_id``.
 
-Both files are no-ops when ``output_dir`` is ``None``, allowing the logger to
-be used unconditionally inside the runner regardless of whether the user asked
-for persisted artifacts.
+All three files are no-ops when ``output_dir`` is ``None``, allowing the
+logger to be used unconditionally inside the runner regardless of whether the
+user asked for persisted artifacts.
 """
 
 from __future__ import annotations
@@ -28,18 +33,65 @@ from farm.core.hyperparameter_chromosome import (
 
 
 class GeneTrajectoryLogger:
-    """Buffered JSONL logger for chromosome distributions and snapshots."""
+    """Buffered JSONL logger for chromosome distributions and snapshots.
+
+    Parameters
+    ----------
+    output_dir:
+        Directory in which to write the JSONL files.  When ``None`` all I/O
+        is suppressed and the logger becomes a no-op.
+    snapshot_interval:
+        Write a full per-agent snapshot every this many steps.  Step 0 is
+        always captured.  Must be at least 1.
+    enable_speciation:
+        When ``True``, run cluster detection at every snapshot step and
+        include a ``speciation_index`` field in every trajectory record.
+        Also writes ``cluster_lineage.jsonl``.  Default ``False``.
+    speciation_algorithm:
+        Which cluster-detection algorithm to use.  ``"gmm"`` (default) runs
+        Gaussian Mixture Models with BIC-selected ``k``; ``"dbscan"`` runs
+        density-based clustering.
+    speciation_max_k:
+        Maximum number of clusters to try when ``speciation_algorithm="gmm"``.
+        Default 5.
+    speciation_seed:
+        Integer random seed for reproducible cluster detection.  Default 0.
+    """
 
     TRAJECTORY_FILENAME = "intrinsic_gene_trajectory.jsonl"
     SNAPSHOT_FILENAME = "intrinsic_gene_snapshots.jsonl"
+    CLUSTER_LINEAGE_FILENAME = "cluster_lineage.jsonl"
 
-    def __init__(self, output_dir: Optional[str], snapshot_interval: int) -> None:
+    def __init__(
+        self,
+        output_dir: Optional[str],
+        snapshot_interval: int,
+        *,
+        enable_speciation: bool = False,
+        speciation_algorithm: str = "gmm",
+        speciation_max_k: int = 5,
+        speciation_seed: int = 0,
+    ) -> None:
         if snapshot_interval < 1:
             raise ValueError("snapshot_interval must be at least 1.")
+        if speciation_algorithm not in ("gmm", "dbscan"):
+            raise ValueError("speciation_algorithm must be 'gmm' or 'dbscan'.")
         self._output_dir = output_dir
         self._snapshot_interval = snapshot_interval
+        self._enable_speciation = enable_speciation
+        self._speciation_algorithm = speciation_algorithm
+        self._speciation_max_k = speciation_max_k
+        self._speciation_seed = speciation_seed
+
         self._trajectory_handle: Optional[TextIO] = None
         self._snapshot_handle: Optional[TextIO] = None
+        self._cluster_lineage_handle: Optional[TextIO] = None
+
+        # Cached speciation state between snapshot steps
+        self._cached_speciation_index: float = 0.0
+        self._prev_cluster_records: List[Any] = []  # List[ClusterLineageRecord]
+        self._cluster_id_counter: int = 0
+
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
             self._trajectory_handle = open(
@@ -52,11 +104,19 @@ class GeneTrajectoryLogger:
                 "w",
                 encoding="utf-8",
             )
+            if enable_speciation:
+                self._cluster_lineage_handle = open(
+                    os.path.join(output_dir, self.CLUSTER_LINEAGE_FILENAME),
+                    "w",
+                    encoding="utf-8",
+                )
 
     def snapshot(self, environment: Any, step: int, extra_fields: Optional[Dict[str, Any]] = None) -> None:
         """Record the chromosome distribution at ``step``.
 
         Always appends a one-line aggregate record to the trajectory file.
+        When speciation tracking is enabled the record includes a
+        ``speciation_index`` field updated at every snapshot step.
         Additionally appends a full per-agent snapshot when
         ``step % snapshot_interval == 0`` (so step 0 is always captured).
 
@@ -78,14 +138,27 @@ class GeneTrajectoryLogger:
             if getattr(agent, "hyperparameter_chromosome", None) is not None
         ]
         gene_stats = compute_gene_statistics(chromosomes, evolvable_only=True)
+
+        is_snapshot_step = step % self._snapshot_interval == 0
+
+        # Run speciation at snapshot steps when enabled
+        if self._enable_speciation and is_snapshot_step:
+            self._update_speciation(chromosomes, step)
+
         trajectory_record: Dict[str, Any] = {
             "step": step,
             "n_alive": len(alive_agents),
             "n_with_chromosome": len(chromosomes),
             "gene_stats": gene_stats,
         }
+        if self._enable_speciation:
+            trajectory_record["speciation_index"] = self._cached_speciation_index
+
         if extra_fields:
-            _RESERVED_TRAJECTORY_KEYS = {"step", "n_alive", "n_with_chromosome", "gene_stats"}
+            _RESERVED_TRAJECTORY_KEYS = {
+                "step", "n_alive", "n_with_chromosome", "gene_stats",
+                "speciation_index",
+            }
             collisions = _RESERVED_TRAJECTORY_KEYS & extra_fields.keys()
             if collisions:
                 raise ValueError(
@@ -95,7 +168,7 @@ class GeneTrajectoryLogger:
             trajectory_record.update(extra_fields)
         self._trajectory_handle.write(json.dumps(trajectory_record) + "\n")
 
-        if self._snapshot_handle is not None and step % self._snapshot_interval == 0:
+        if self._snapshot_handle is not None and is_snapshot_step:
             agents_payload: List[Dict[str, Any]] = []
             for agent in alive_agents:
                 chromosome = getattr(agent, "hyperparameter_chromosome", None)
@@ -115,9 +188,97 @@ class GeneTrajectoryLogger:
             snapshot_record = {"step": step, "agents": agents_payload}
             self._snapshot_handle.write(json.dumps(snapshot_record) + "\n")
 
+    # ------------------------------------------------------------------
+    # Speciation helpers
+    # ------------------------------------------------------------------
+
+    def _update_speciation(
+        self,
+        chromosomes: List[HyperparameterChromosome],
+        step: int,
+    ) -> None:
+        """Run cluster detection and update cached speciation state.
+
+        Called at every snapshot step when ``enable_speciation=True``.
+        Writes cluster lineage records to ``cluster_lineage.jsonl`` when an
+        output directory is configured.
+        """
+        try:
+            from farm.analysis.speciation.compute import (
+                ClusterLineageRecord,
+                compute_speciation_index,
+                detect_clusters_dbscan,
+                detect_clusters_gmm,
+                match_clusters_greedy,
+            )
+        except ImportError as exc:
+            # scikit-learn may not be installed; degrade gracefully
+            import warnings
+            warnings.warn(
+                f"GeneTrajectoryLogger: speciation disabled – could not import "
+                f"speciation module ({exc}). Install scikit-learn to enable it.",
+                RuntimeWarning,
+                stacklevel=4,
+            )
+            self._enable_speciation = False
+            return
+
+        if not chromosomes:
+            self._cached_speciation_index = 0.0
+            return
+
+        # Extract evolvable gene dicts
+        chrom_dicts = [
+            {gene.name: gene.value for gene in c.genes if gene.evolvable}
+            for c in chromosomes
+        ]
+
+        try:
+            if self._speciation_algorithm == "gmm":
+                result = detect_clusters_gmm(
+                    chrom_dicts,
+                    max_k=self._speciation_max_k,
+                    seed=self._speciation_seed,
+                )
+            else:
+                result = detect_clusters_dbscan(chrom_dicts)
+
+            self._cached_speciation_index = compute_speciation_index(result)
+
+            # Persist cluster lineage
+            if result.k > 0:
+                new_records, self._cluster_id_counter = match_clusters_greedy(
+                    self._prev_cluster_records,
+                    result.centroids,
+                    result.sizes,
+                    result.gene_names,
+                    step,
+                    id_counter_start=self._cluster_id_counter,
+                )
+                self._prev_cluster_records = new_records
+
+                if self._cluster_lineage_handle is not None:
+                    for rec in new_records:
+                        row: Dict[str, Any] = {
+                            "step": rec.step,
+                            "cluster_id": rec.cluster_id,
+                            "centroid": rec.centroid,
+                            "size": rec.size,
+                            "parent_cluster_id": rec.parent_cluster_id,
+                        }
+                        self._cluster_lineage_handle.write(json.dumps(row) + "\n")
+        except Exception as exc:
+            # Non-fatal: log and keep previous cached value
+            import warnings
+            warnings.warn(
+                f"GeneTrajectoryLogger: speciation update failed at step {step}: {exc}",
+                RuntimeWarning,
+                stacklevel=4,
+            )
+
     def close(self) -> None:
-        """Flush and close both file handles; safe to call multiple times."""
-        for attr in ("_trajectory_handle", "_snapshot_handle"):
+        """Flush and close all file handles; safe to call multiple times."""
+        for attr in ("_trajectory_handle", "_snapshot_handle", "_cluster_lineage_handle"):
             handle = getattr(self, attr)
             if handle is not None:
                 try:
