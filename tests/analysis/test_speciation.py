@@ -13,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List
@@ -44,7 +45,6 @@ def _make_chromosomes(values: List[Dict[str, float]]) -> List[Dict[str, float]]:
 
 def _bimodal_chromosomes(n_per_cluster: int = 20) -> List[Dict[str, float]]:
     """Two well-separated clusters: low-LR exploiters + high-LR explorers."""
-    import random
     rng = random.Random(42)
     low_cluster = [
         {"learning_rate": rng.gauss(0.01, 0.002), "gamma": rng.gauss(0.99, 0.005)}
@@ -669,7 +669,6 @@ def _mixed_scale_chromosomes(n_per_cluster: int = 30, seed: int = 42) -> List[Di
     Without scaling the ``budget`` dimension dominates Euclidean distances.
     With standard/robust scaling both features contribute equally.
     """
-    import random
     rng = random.Random(seed)
     cluster_a = [
         {"lr": rng.gauss(0.005, 0.001), "budget": rng.gauss(1500.0, 80.0)}
