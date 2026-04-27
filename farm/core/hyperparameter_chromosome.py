@@ -379,9 +379,9 @@ _EPSILON_DECAY_GENE_MIN = math.ldexp(1.0, -1074)
 
 
 # Default hyperparameter loci.
-# learning_rate, gamma, and epsilon_decay are enabled for evolution; memory_size
-# remains a fixed placeholder documenting the extension path while keeping integer
-# rounding concerns separate from the continuous-gene evolution phase.
+# learning_rate, gamma, epsilon_decay, and memory_size are all evolvable.
+# memory_size is projected to integer config fields via rounding with a bounds
+# safety check in ``apply_chromosome_to_learning_config``.
 DEFAULT_HYPERPARAMETER_GENES: Tuple[HyperparameterGene, ...] = (
     HyperparameterGene(
         name="learning_rate",
@@ -417,7 +417,7 @@ DEFAULT_HYPERPARAMETER_GENES: Tuple[HyperparameterGene, ...] = (
         min_value=1.0,
         max_value=1_000_000.0,
         default=10000.0,
-        evolvable=False,
+        evolvable=True,
     ),
 )
 
@@ -966,11 +966,23 @@ def apply_chromosome_to_learning_config(
         constructing offspring so module initialization sees the evolved settings.
     """
     updates: Dict[str, Any] = {}
+    genes_by_name = {gene.name: gene for gene in chromosome.genes}
     for gene in chromosome.genes:
         if hasattr(learning_config, gene.name):
             current_value = getattr(learning_config, gene.name)
             if isinstance(current_value, int):
-                updates[gene.name] = int(round(gene.value))
+                projected_value = int(round(gene.value))
+                projected_float = float(projected_value)
+                source_gene = genes_by_name[gene.name]
+                if (
+                    projected_float < source_gene.min_value
+                    or projected_float > source_gene.max_value
+                ):
+                    raise ValueError(
+                        f"Rounded projected value for '{gene.name}' is outside bounds: "
+                        f"{projected_value} not in [{source_gene.min_value}, {source_gene.max_value}]."
+                    )
+                updates[gene.name] = projected_value
             else:
                 updates[gene.name] = gene.value
 

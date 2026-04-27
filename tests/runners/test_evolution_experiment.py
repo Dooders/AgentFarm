@@ -230,6 +230,7 @@ class TestEvolutionExperiment(unittest.TestCase):
         # (at its min boundary) incurs a penalty, keeping the expected values simple.
         base_config.learning.gamma = 0.5
         base_config.learning.epsilon_decay = 0.5
+        base_config.learning.memory_size = 500_000
         config = EvolutionExperimentConfig(
             num_generations=1,
             population_size=3,
@@ -1300,8 +1301,7 @@ class TestBoundaryOccupancyMetrics(unittest.TestCase):
             self.assertIn("learning_rate", summary.boundary_occupancy)
             self.assertIn("gamma", summary.boundary_occupancy)
             self.assertIn("epsilon_decay", summary.boundary_occupancy)
-            # Non-evolvable genes should not appear.
-            self.assertNotIn("memory_size", summary.boundary_occupancy)
+            self.assertIn("memory_size", summary.boundary_occupancy)
             # Values must be fractions in [0, 1].
             for gene_name, frac in summary.boundary_occupancy.items():
                 self.assertGreaterEqual(frac, 0.0, msg=f"{gene_name} fraction < 0")
@@ -1324,7 +1324,7 @@ class TestBoundaryOccupancyMetrics(unittest.TestCase):
             )
         )
         gen_stats = result.generation_summaries[0].gene_statistics
-        self.assertNotIn("memory_size", gen_stats)
+        self.assertIn("memory_size", gen_stats)
         for gene_name, stats in gen_stats.items():
             self.assertIn("at_min_count", stats, msg=f"at_min_count missing for {gene_name}")
             self.assertIn("at_max_count", stats, msg=f"at_max_count missing for {gene_name}")

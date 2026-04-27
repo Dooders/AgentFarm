@@ -1,0 +1,151 @@
+{
+  "num_steps_completed": 10000,
+  "final_population": 28,
+  "snapshot_interval": 200,
+  "policy": {
+    "enabled": true,
+    "seed_initial_diversity": true,
+    "seed_mutation_rate": 1.0,
+    "seed_mutation_scale": 0.25,
+    "mutation_rate": 0.15,
+    "mutation_scale": 0.1,
+    "mutation_mode": "gaussian",
+    "boundary_mode": "reflect",
+    "interior_bias_fraction": 0.001,
+    "crossover_enabled": true,
+    "crossover_mode": "uniform",
+    "blend_alpha": 0.5,
+    "num_crossover_points": 2,
+    "coparent_strategy": "nearest_alive_same_type",
+    "coparent_max_radius": null,
+    "seed": 42,
+    "selection_pressure": "low",
+    "reproduction_pressure": {
+      "local_density_radius": 5.0,
+      "local_density_coefficient": 0.5,
+      "global_carrying_capacity": 0,
+      "global_carrying_capacity_coefficient": 0.0
+    }
+  },
+  "seed": 42,
+  "initial_population": 30,
+  "peak_population": 77,
+  "mean_population": 27.537046295370462,
+  "final_population_observed": 28,
+  "speciation_index_final": 0.7746864404735101,
+  "speciation_index_max": 0.8442774149616092,
+  "speciation_index_mean": 0.7057255632794144,
+  "birth_rate_mean": 0.0007782733180665696,
+  "death_rate_mean": 0.0007554158730578246,
+  "per_gene_initial_mean": {
+    "learning_rate": 0.1899726847381285,
+    "gamma": 0.8113581251878894,
+    "epsilon_decay": 0.7841402501390786,
+    "memory_size": 253840.27325314208
+  },
+  "per_gene_final_mean": {
+    "learning_rate": 0.15914902832775968,
+    "gamma": 0.8668804268511942,
+    "epsilon_decay": 0.7424778297079223,
+    "memory_size": 213060.38407137137
+  },
+  "per_gene_shift": {
+    "learning_rate": -0.030823656410368827,
+    "gamma": 0.05552230166330474,
+    "epsilon_decay": -0.04166242043115631,
+    "memory_size": -40779.889181770704
+  },
+  "unique_clusters_observed": 8,
+  "surviving_lineages_final": 7,
+  "founder_lineage_count_initial": 30,
+  "max_lineage_depth_final": 4,
+  "mean_lineage_depth_final": 1.2857142857142858,
+  "niche_correlation_last_snapshot": {
+    "4": [
+      {
+        "cluster_id": 0,
+        "size": 6,
+        "mean_x": null,
+        "mean_y": null,
+        "mean_energy": null,
+        "mean_reproduction_cost": null,
+        "agent_ids": [
+          "agent_d255d7dea2",
+          "agent_ada62b2803",
+          "agent_c92321ed06",
+          "agent_a723833ecb",
+          "agent_f9a338d3df",
+          "agent_d7ebbc56e5"
+        ]
+      },
+      {
+        "cluster_id": 1,
+        "size": 11,
+        "mean_x": null,
+        "mean_y": null,
+        "mean_energy": null,
+        "mean_reproduction_cost": null,
+        "agent_ids": [
+          "agent_4ca4964bb9",
+          "agent_52ef9d5558",
+          "agent_e6bbe8328c",
+          "agent_c8907ab7fa",
+          "agent_971dd1712a",
+          "agent_4ace25f6d7",
+          "agent_d0592e65be",
+          "agent_e53e1fcb0c",
+          "agent_32e1423418",
+          "agent_db903b010c",
+          "agent_65a790f991"
+        ]
+      },
+      {
+        "cluster_id": 2,
+        "size": 6,
+        "mean_x": null,
+        "mean_y": null,
+        "mean_energy": null,
+        "mean_reproduction_cost": null,
+        "agent_ids": [
+          "agent_e91f50a96c",
+          "agent_bd7ea2622a",
+          "agent_4791ecd1e1",
+          "agent_00476c79e5",
+          "agent_29b078563e",
+          "agent_e1f3bb3de8"
+        ]
+      },
+      {
+        "cluster_id": 3,
+        "size": 5,
+        "mean_x": null,
+        "mean_y": null,
+        "mean_energy": null,
+        "mean_reproduction_cost": null,
+        "agent_ids": [
+          "agent_7cbe7cba76",
+          "agent_41c0988657",
+          "agent_4eea3ca25c",
+          "agent_db726d4029",
+          "agent_741fd23d9d"
+        ]
+      }
+    ]
+  },
+  "artifacts": {
+    "gene_trajectories": "experiments/intrinsic_evolution_memorysize_20260426_1645/analysis/gene_trajectories.png",
+    "gene_distribution_history": "experiments/intrinsic_evolution_memorysize_20260426_1645/analysis/gene_distribution_history.png",
+    "population_dynamics": "experiments/intrinsic_evolution_memorysize_20260426_1645/analysis/population_dynamics.png",
+    "speciation_index": "experiments/intrinsic_evolution_memorysize_20260426_1645/analysis/speciation_index.png",
+    "cluster_lineage_sizes": "experiments/intrinsic_evolution_memorysize_20260426_1645/analysis/cluster_lineage_sizes.png",
+    "chromosome_space_scatters": [
+      "experiments/intrinsic_evolution_memorysize_20260426_1645/analysis/speciation_clusters_step0.png",
+      "experiments/intrinsic_evolution_memorysize_20260426_1645/analysis/speciation_clusters_step5000.png",
+      "experiments/intrinsic_evolution_memorysize_20260426_1645/analysis/speciation_clusters_step10000.png"
+    ],
+    "lineage_tree_nodes": 197,
+    "lineage_tree_max_depth": 4,
+    "lineage_tree": "experiments/intrinsic_evolution_memorysize_20260426_1645/analysis/intrinsic_lineage_tree.png",
+    "lineage_summary": "experiments/intrinsic_evolution_memorysize_20260426_1645/analysis/lineage_summary.png"
+  }
+}
