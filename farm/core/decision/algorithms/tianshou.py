@@ -520,8 +520,9 @@ class TianshouWrapper(RLAlgorithm):
                             q_values = self.q_layers(x)
                         else:
                             q_values = self.q_layers(obs)
-                        
-                        return q_values
+
+                        # Tianshou DQNPolicy expects model(obs, state, info) -> (logits, state).
+                        return q_values, state
 
                 # Create adaptive Q-network
                 q_net = AdaptiveQNet(self.observation_shape, self.num_actions, self.algorithm_config["device"])
@@ -1085,6 +1086,7 @@ class TianshouWrapper(RLAlgorithm):
         try:
             # Convert batch to Tianshou format
             import torch
+            from tianshou.data import Batch
 
             if len(self.replay_buffer) >= self.batch_size:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
@@ -1104,22 +1106,31 @@ class TianshouWrapper(RLAlgorithm):
                 next_states = torch.tensor(next_states_np, dtype=torch.float32)
                 dones = torch.tensor(dones_np, dtype=torch.float32)
 
-                # Create batch dictionary compatible with RolloutBatchProtocol
-                tianshou_batch = {
-                    "obs": states,
-                    "act": actions,
-                    "rew": rewards,
-                    "obs_next": next_states,
-                    "done": dones,
+                # Use Tianshou Batch so policy.learn can access attributes like batch.info.
+                tianshou_batch = Batch(
+                    obs=states,
+                    act=actions,
+                    rew=rewards,
+                    obs_next=next_states,
+                    done=dones,
                     # Tianshou policies that support PER consume this key to
                     # importance-weight per-sample losses.
-                    "weight": torch.tensor(is_weights, dtype=torch.float32),
-                    "terminated": dones,  # Required by RolloutBatchProtocol
-                    "truncated": torch.zeros_like(
-                        dones
-                    ),  # Required by RolloutBatchProtocol
-                    "info": [{}] * len(dones),  # Required by RolloutBatchProtocol
-                }
+                    weight=torch.tensor(is_weights, dtype=torch.float32),
+                    terminated=dones,  # Required by RolloutBatchProtocol
+                    truncated=torch.zeros_like(dones),  # Required by RolloutBatchProtocol
+                    info=Batch(),
+                )
+
+                if self.algorithm_name == "DQN":
+                    # DQNPolicy.learn expects precomputed one-step return targets.
+                    with torch.no_grad():
+                        target_model = getattr(self.policy, "model_old", self.policy.model)
+                        next_q_values = target_model(next_states)
+                        if isinstance(next_q_values, tuple):
+                            next_q_values = next_q_values[0]
+                        next_max_q = next_q_values.max(dim=1)[0]
+                        gamma = float(self.algorithm_config.get("gamma", 0.99))
+                        tianshou_batch.returns = rewards + (1.0 - dones) * gamma * next_max_q
 
                 # Train the policy
                 result = self.policy.learn(
