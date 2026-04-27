@@ -70,6 +70,15 @@ class GeneTrajectoryLogger:
         clustering.  One of ``"none"`` (default, no scaling), ``"standard"``
         (z-score), or ``"robust"`` (median/IQR).  Scaling is recommended when
         genes have widely different numeric ranges.
+    speciation_dbscan_auto_tune:
+        When ``True`` and ``speciation_algorithm="dbscan"``, ``eps`` and
+        ``min_samples`` are estimated automatically from each snapshot's
+        chromosome distribution using the k-NN distance percentile heuristic.
+        The chosen parameters are recorded in ``cluster_lineage.jsonl`` rows
+        under the ``"dbscan_params"`` key for reproducibility.  Default ``False``.
+    speciation_dbscan_auto_tune_percentile:
+        Percentile (0–100) of the k-NN distance distribution used to estimate
+        ``eps`` when ``speciation_dbscan_auto_tune=True``.  Default 90.
     """
 
     TRAJECTORY_FILENAME = "intrinsic_gene_trajectory.jsonl"
@@ -86,6 +95,8 @@ class GeneTrajectoryLogger:
         speciation_max_k: int = 5,
         speciation_seed: int = 0,
         speciation_scaler: str = "none",
+        speciation_dbscan_auto_tune: bool = False,
+        speciation_dbscan_auto_tune_percentile: float = 90.0,
     ) -> None:
         if snapshot_interval < 1:
             raise ValueError("snapshot_interval must be at least 1.")
@@ -95,6 +106,11 @@ class GeneTrajectoryLogger:
             raise ValueError(
                 f"speciation_scaler must be one of {VALID_SCALERS!r}; "
                 f"got {speciation_scaler!r}."
+            )
+        if not 0.0 <= speciation_dbscan_auto_tune_percentile <= 100.0:
+            raise ValueError(
+                "speciation_dbscan_auto_tune_percentile must be in [0, 100]; "
+                f"got {speciation_dbscan_auto_tune_percentile!r}."
             )
 
         if enable_speciation:
@@ -112,6 +128,8 @@ class GeneTrajectoryLogger:
         self._speciation_max_k = speciation_max_k
         self._speciation_seed = speciation_seed
         self._speciation_scaler = speciation_scaler
+        self._speciation_dbscan_auto_tune = speciation_dbscan_auto_tune
+        self._speciation_dbscan_auto_tune_percentile = speciation_dbscan_auto_tune_percentile
 
         self._trajectory_handle: Optional[TextIO] = None
         self._snapshot_handle: Optional[TextIO] = None
@@ -256,6 +274,8 @@ class GeneTrajectoryLogger:
                 result = detect_clusters_dbscan(
                     chrom_dicts,
                     scaler=self._speciation_scaler,
+                    auto_tune=self._speciation_dbscan_auto_tune,
+                    auto_tune_percentile=self._speciation_dbscan_auto_tune_percentile,
                 )
 
             self._cached_speciation_index = compute_speciation_index(result)
@@ -287,6 +307,7 @@ class GeneTrajectoryLogger:
                         "size": rec.size,
                         "parent_cluster_id": rec.parent_cluster_id,
                         "scaler": result.scaler,
+                        "dbscan_params": result.dbscan_params,
                     }
                     self._cluster_lineage_handle.write(json.dumps(row) + "\n")
         except Exception as exc:

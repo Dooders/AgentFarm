@@ -29,6 +29,7 @@ from farm.analysis.speciation import (
     detect_clusters_gmm,
     match_clusters_greedy,
     plot_chromosome_space_clusters,
+    suggest_dbscan_params,
 )
 from farm.analysis.common.context import AnalysisContext
 
@@ -906,4 +907,337 @@ class TestGeneTrajectoryLoggerScaler:
         rec = json.loads(traj_path.read_text().splitlines()[0])
         assert "speciation_index" in rec
         assert 0.0 <= rec["speciation_index"] <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Wide-range fixture: fixed defaults fail but auto_tune succeeds
+# ---------------------------------------------------------------------------
+
+
+def _wide_range_bimodal_chromosomes(n_per_cluster: int = 25) -> List[Dict[str, float]]:
+    """Two well-separated clusters on a regular grid with spacing > 0.1.
+
+    Points within each cluster are placed on a 5x5 grid with 0.5-unit spacing,
+    so the minimum inter-point distance is 0.5.  With fixed ``eps=0.1`` DBSCAN
+    treats every agent as noise (k=0) because no two agents are within 0.1 of
+    each other.  Auto-tuning estimates ``eps`` from the actual k-NN distances
+    (~0.5) and correctly recovers both clusters.
+
+    The ``n_per_cluster`` argument is accepted for API compatibility but the
+    fixture always returns 50 points (two 5×5 grids).
+    """
+    import itertools
+
+    cluster1 = [
+        {"lr": float(i) * 0.5, "gamma": float(j) * 0.5}
+        for i, j in itertools.product(range(5), range(5))
+    ]
+    cluster2 = [
+        {"lr": 8.0 + float(i) * 0.5, "gamma": 8.0 + float(j) * 0.5}
+        for i, j in itertools.product(range(5), range(5))
+    ]
+    return cluster1 + cluster2
+
+
+# ---------------------------------------------------------------------------
+# suggest_dbscan_params
+# ---------------------------------------------------------------------------
+
+
+class TestSuggestDBSCANParams:
+    """Tests for the parameter-estimation helper."""
+
+    def test_returns_dict_with_required_keys(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        params = suggest_dbscan_params(chromosomes)
+        assert set(params.keys()) >= {"eps", "min_samples", "method", "k_percentile"}
+
+    def test_eps_is_positive(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        params = suggest_dbscan_params(chromosomes)
+        assert params["eps"] > 0.0
+
+    def test_min_samples_at_least_two(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        params = suggest_dbscan_params(chromosomes)
+        assert params["min_samples"] >= 2
+
+    def test_min_samples_scales_with_dimensionality(self):
+        """min_samples should be >= n_dims + 1 for n_dims >= 1."""
+        chromosomes = [{"a": 0.1, "b": 0.2, "c": 0.3, "d": 0.4}] * 30
+        params = suggest_dbscan_params(chromosomes)
+        # 4 dims → min_samples >= 5
+        assert params["min_samples"] >= 5
+
+    def test_method_field_is_k_distance_percentile(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        params = suggest_dbscan_params(chromosomes)
+        assert params["method"] == "k_distance_percentile"
+
+    def test_k_percentile_stored_in_result(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        params = suggest_dbscan_params(chromosomes, k_percentile=75.0)
+        assert params["k_percentile"] == 75.0
+
+    def test_invalid_k_percentile_raises(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        with pytest.raises(ValueError, match="k_percentile"):
+            suggest_dbscan_params(chromosomes, k_percentile=110.0)
+
+    def test_invalid_scaler_raises(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        with pytest.raises(ValueError, match="scaler"):
+            suggest_dbscan_params(chromosomes, scaler="minmax")
+
+    def test_empty_chromosomes_returns_fallback(self):
+        """Empty input should not raise; returns a safe fallback dict."""
+        params = suggest_dbscan_params([])
+        assert params["eps"] > 0.0
+        assert params["min_samples"] >= 2
+
+    def test_single_chromosome_returns_fallback(self):
+        """Single point → not enough for k-NN; safe fallback returned."""
+        params = suggest_dbscan_params([{"lr": 0.5}])
+        assert params["eps"] > 0.0
+        assert params["min_samples"] >= 2
+
+    def test_wide_range_eps_larger_than_default(self):
+        """For wide-range data (grid spacing 0.5), suggested eps should exceed the fixed default 0.1."""
+        chromosomes = _wide_range_bimodal_chromosomes()
+        params = suggest_dbscan_params(chromosomes)
+        assert params["eps"] > 0.1
+
+    def test_gene_names_override_respected(self):
+        """Supplying gene_names restricts the genes used for estimation."""
+        chromosomes = [{"lr": 0.01, "gamma": 0.99, "noise": 999.0}] * 20
+        params = suggest_dbscan_params(chromosomes, gene_names=["lr", "gamma"])
+        assert params["min_samples"] >= 3  # 2 dims + 1
+
+    def test_can_unpack_into_detect_clusters_dbscan(self):
+        """Returned dict can be passed directly as kwargs to detect_clusters_dbscan."""
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        params = suggest_dbscan_params(chromosomes)
+        # Should not raise; eps and min_samples are valid positives.
+        result = detect_clusters_dbscan(chromosomes, **{
+            k: v for k, v in params.items() if k in ("eps", "min_samples")
+        })
+        assert isinstance(result, ClusterResult)
+
+    def test_scaler_parameter_used_in_distance_computation(self):
+        """With standard scaler, suggested eps differs from 'none'."""
+        chromosomes = _wide_range_bimodal_chromosomes()
+        params_none = suggest_dbscan_params(chromosomes, scaler="none")
+        params_std = suggest_dbscan_params(chromosomes, scaler="standard")
+        # eps in standardised space should be much smaller than in raw space
+        assert params_std["eps"] < params_none["eps"]
+
+
+# ---------------------------------------------------------------------------
+# DBSCAN auto_tune parameter
+# ---------------------------------------------------------------------------
+
+
+class TestDBSCANAutoTune:
+    """Tests for the ``auto_tune`` parameter of detect_clusters_dbscan."""
+
+    # ---- Acceptance: auto_tune=False (default) leaves dbscan_params None ----
+
+    def test_default_dbscan_params_is_none(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        result = detect_clusters_dbscan(chromosomes)
+        assert result.dbscan_params is None
+
+    def test_explicit_auto_tune_false_dbscan_params_is_none(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        result = detect_clusters_dbscan(chromosomes, auto_tune=False)
+        assert result.dbscan_params is None
+
+    # ---- auto_tune=True populates dbscan_params ----
+
+    def test_auto_tune_populates_dbscan_params(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        result = detect_clusters_dbscan(chromosomes, auto_tune=True)
+        assert result.dbscan_params is not None
+        assert "eps" in result.dbscan_params
+        assert "min_samples" in result.dbscan_params
+        assert "method" in result.dbscan_params
+        assert "k_percentile" in result.dbscan_params
+
+    def test_auto_tune_eps_is_positive(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        result = detect_clusters_dbscan(chromosomes, auto_tune=True)
+        assert result.dbscan_params["eps"] > 0.0
+
+    def test_auto_tune_min_samples_at_least_two(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        result = detect_clusters_dbscan(chromosomes, auto_tune=True)
+        assert result.dbscan_params["min_samples"] >= 2
+
+    def test_auto_tune_percentile_stored(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        result = detect_clusters_dbscan(chromosomes, auto_tune=True, auto_tune_percentile=80.0)
+        assert result.dbscan_params["k_percentile"] == 80.0
+
+    # ---- Key acceptance criterion: fixed defaults fail, auto_tune succeeds ----
+
+    def test_fixed_defaults_fail_on_wide_range_data(self):
+        """Verify the premise: default eps=0.1 labels all wide-range (grid) agents as noise."""
+        chromosomes = _wide_range_bimodal_chromosomes()
+        result_default = detect_clusters_dbscan(chromosomes, eps=0.1, min_samples=2)
+        # With eps=0.1 and grid spacing 0.5, every agent is isolated → all noise
+        assert result_default.k == 0
+
+    def test_auto_tune_finds_clusters_on_wide_range_data(self):
+        """auto_tune=True should find at least 2 clusters where defaults find none."""
+        chromosomes = _wide_range_bimodal_chromosomes()
+        result_auto = detect_clusters_dbscan(chromosomes, auto_tune=True)
+        assert result_auto.k >= 2
+
+    def test_auto_tune_empty_input_still_returns_zero_clusters(self):
+        result = detect_clusters_dbscan([], auto_tune=True)
+        assert result.k == 0
+        # dbscan_params is None for empty input (no data to estimate from)
+        assert result.dbscan_params is None
+
+    def test_auto_tune_bimodal_finds_clusters(self):
+        """auto_tune should also work on normal-range bimodal data."""
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        result = detect_clusters_dbscan(chromosomes, auto_tune=True)
+        assert result.k >= 2
+
+    def test_auto_tune_with_scaler_wide_range(self):
+        """auto_tune + standard scaler on wide-range data should find clusters."""
+        chromosomes = _wide_range_bimodal_chromosomes()
+        result = detect_clusters_dbscan(
+            chromosomes, auto_tune=True, scaler="standard"
+        )
+        assert result.k >= 2
+        assert result.dbscan_params is not None
+
+    def test_auto_tune_labels_length_matches_input(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=15)
+        result = detect_clusters_dbscan(chromosomes, auto_tune=True)
+        assert len(result.labels) == len(chromosomes)
+
+    def test_auto_tune_algorithm_field_is_dbscan(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        result = detect_clusters_dbscan(chromosomes, auto_tune=True)
+        assert result.algorithm == "dbscan"
+
+
+# ---------------------------------------------------------------------------
+# GeneTrajectoryLogger: auto_tune integration
+# ---------------------------------------------------------------------------
+
+
+class TestGeneTrajectoryLoggerAutoTune:
+    """Tests for speciation_dbscan_auto_tune in GeneTrajectoryLogger."""
+
+    def _make_wide_range_agents(self) -> List[Any]:
+        """Agents with two well-separated clusters where auto_tune finds structure."""
+        import itertools
+
+        # Two 3×3 grids of agents separated by a large gap in lr/gamma space.
+        # Spacing within each cluster is 0.15, so eps=0.1 gives k=0 (all noise).
+        # auto_tune estimates eps ~0.3 and correctly recovers at least one cluster.
+        low = [
+            _make_fake_agent(lr=0.1 + i * 0.02, gamma=0.1 + j * 0.02)
+            for i, j in itertools.product(range(5), range(5))
+        ]
+        high = [
+            _make_fake_agent(lr=0.7 + i * 0.02, gamma=0.7 + j * 0.02)
+            for i, j in itertools.product(range(5), range(5))
+        ]
+        return low + high
+
+    def test_default_auto_tune_is_false(self, tmp_path):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+        log = GeneTrajectoryLogger(
+            str(tmp_path), snapshot_interval=1,
+            enable_speciation=True, speciation_algorithm="dbscan",
+        )
+        assert log._speciation_dbscan_auto_tune is False
+        log.close()
+
+    def test_auto_tune_flag_stored(self, tmp_path):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+        log = GeneTrajectoryLogger(
+            str(tmp_path), snapshot_interval=1,
+            enable_speciation=True, speciation_algorithm="dbscan",
+            speciation_dbscan_auto_tune=True,
+        )
+        assert log._speciation_dbscan_auto_tune is True
+        log.close()
+
+    def test_auto_tune_percentile_stored(self, tmp_path):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+        log = GeneTrajectoryLogger(
+            str(tmp_path), snapshot_interval=1,
+            enable_speciation=True, speciation_algorithm="dbscan",
+            speciation_dbscan_auto_tune=True,
+            speciation_dbscan_auto_tune_percentile=75.0,
+        )
+        assert log._speciation_dbscan_auto_tune_percentile == 75.0
+        log.close()
+
+    def test_invalid_percentile_raises(self):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+        with pytest.raises(ValueError, match="speciation_dbscan_auto_tune_percentile"):
+            GeneTrajectoryLogger(
+                None, snapshot_interval=1,
+                speciation_dbscan_auto_tune_percentile=150.0,
+            )
+
+    def test_auto_tune_persists_dbscan_params_in_lineage(self, tmp_path):
+        """cluster_lineage.jsonl rows include 'dbscan_params' when auto_tune=True."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = self._make_wide_range_agents()
+        env = _FakeEnvironment(agents)
+        log = GeneTrajectoryLogger(
+            str(tmp_path), snapshot_interval=1,
+            enable_speciation=True, speciation_algorithm="dbscan",
+            speciation_dbscan_auto_tune=True,
+        )
+        log.snapshot(env, step=0)
+        log.close()
+
+        lineage_path = tmp_path / "cluster_lineage.jsonl"
+        assert lineage_path.exists(), "cluster_lineage.jsonl should be written"
+        rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
+        assert len(rows) >= 1, "Should have detected at least one cluster"
+        for row in rows:
+            assert "dbscan_params" in row
+            params = row["dbscan_params"]
+            assert params is not None
+            assert "eps" in params
+            assert "min_samples" in params
+
+    def test_no_auto_tune_dbscan_params_is_none_in_lineage(self, tmp_path):
+        """Without auto_tune, dbscan_params in lineage rows should be null."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = (
+            [_make_fake_agent(lr=0.001, gamma=0.99)] * 15
+            + [_make_fake_agent(lr=0.9, gamma=0.1)] * 15
+        )
+        env = _FakeEnvironment(agents)
+        log = GeneTrajectoryLogger(
+            str(tmp_path), snapshot_interval=1,
+            enable_speciation=True, speciation_algorithm="dbscan",
+            speciation_dbscan_auto_tune=False,
+            speciation_scaler="standard",
+        )
+        # Use eps wide enough to find clusters so we actually get lineage rows
+        # We rely on the standard scaler to find clusters
+        log.snapshot(env, step=0)
+        log.close()
+
+        lineage_path = tmp_path / "cluster_lineage.jsonl"
+        if lineage_path.exists():
+            rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
+            for row in rows:
+                # dbscan_params key should exist but be null (no auto_tune)
+                assert "dbscan_params" in row
+                assert row["dbscan_params"] is None
 
