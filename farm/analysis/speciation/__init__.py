@@ -42,6 +42,7 @@ fixtures and persistence across snapshots.
 from farm.analysis.speciation.compute import (
     ClusterResult,
     ClusterLineageRecord,
+    VALID_SCALERS,
     detect_clusters_gmm,
     detect_clusters_dbscan,
     match_clusters_greedy,
@@ -54,6 +55,8 @@ __all__ = [
     # Data structures
     "ClusterResult",
     "ClusterLineageRecord",
+    # Configuration constants
+    "VALID_SCALERS",
     # Cluster detection
     "detect_clusters_gmm",
     "detect_clusters_dbscan",

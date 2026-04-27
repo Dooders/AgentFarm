@@ -54,6 +54,13 @@ from farm.utils.logging import get_logger
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
+# Scaler constants
+# ---------------------------------------------------------------------------
+
+#: Valid choices for the ``scaler`` parameter in cluster-detection functions.
+VALID_SCALERS: Tuple[str, ...] = ("none", "standard", "robust")
+
+# ---------------------------------------------------------------------------
 # Result dataclasses
 # ---------------------------------------------------------------------------
 
@@ -96,6 +103,7 @@ class ClusterResult:
     gene_names: List[str]
     silhouette_score: float
     bic_scores: Optional[Dict[int, float]]
+    scaler: str = "none"
 
 
 @dataclass
@@ -194,6 +202,43 @@ def _silhouette(X: np.ndarray, labels: np.ndarray) -> float:
         return 0.0
 
 
+def _apply_scaler(X: np.ndarray, scaler: str) -> np.ndarray:
+    """Apply optional feature scaling to a (N, D) matrix before clustering.
+
+    Parameters
+    ----------
+    X:
+        Feature matrix, shape ``(N, D)``.
+    scaler:
+        One of ``"none"`` (identity), ``"standard"`` (z-score via
+        :class:`sklearn.preprocessing.StandardScaler`), or ``"robust"``
+        (median/IQR via :class:`sklearn.preprocessing.RobustScaler`).
+
+    Returns
+    -------
+    np.ndarray
+        Scaled matrix with the same shape as ``X``.  The original array is
+        returned unchanged when ``scaler="none"``.
+
+    Raises
+    ------
+    ValueError
+        When ``scaler`` is not one of the valid choices.
+    """
+    if scaler not in VALID_SCALERS:
+        raise ValueError(
+            f"scaler must be one of {VALID_SCALERS!r}; got {scaler!r}."
+        )
+    if scaler == "none" or X.shape[0] == 0:
+        return X
+    if scaler == "standard":
+        from sklearn.preprocessing import StandardScaler
+        return StandardScaler().fit_transform(X)
+    # "robust"
+    from sklearn.preprocessing import RobustScaler
+    return RobustScaler().fit_transform(X)
+
+
 # ---------------------------------------------------------------------------
 # Cluster detection – GMM-BIC
 # ---------------------------------------------------------------------------
@@ -205,6 +250,7 @@ def detect_clusters_gmm(
     max_k: int = 5,
     seed: int = 0,
     gene_names: Optional[List[str]] = None,
+    scaler: str = "none",
 ) -> ClusterResult:
     """Detect population clusters using Gaussian Mixture Models with BIC selection.
 
@@ -227,6 +273,12 @@ def detect_clusters_gmm(
     gene_names:
         Ordered subset of genes to use.  When ``None`` all genes present in
         the chromosomes are used (sorted).
+    scaler:
+        Optional feature scaling applied to the raw gene matrix before
+        clustering.  One of ``"none"`` (default, identity), ``"standard"``
+        (z-score), or ``"robust"`` (median/IQR).  Using ``"standard"`` or
+        ``"robust"`` is recommended when genes have very different numeric
+        ranges.
 
     Returns
     -------
@@ -247,7 +299,10 @@ def detect_clusters_gmm(
             gene_names=gnames,
             silhouette_score=0.0,
             bic_scores={},
+            scaler=scaler,
         )
+
+    X = _apply_scaler(X, scaler)
 
     # Cap max_k to the total number of agents to avoid degenerate GMM fits
     effective_max_k = min(max_k, n_agents)
@@ -288,6 +343,7 @@ def detect_clusters_gmm(
             gene_names=gnames,
             silhouette_score=0.0,
             bic_scores=bic_scores,
+            scaler=scaler,
         )
 
     labels: np.ndarray = best_gmm.predict(X).astype(int)
@@ -308,6 +364,7 @@ def detect_clusters_gmm(
         gene_names=gnames,
         silhouette_score=sil,
         bic_scores=bic_scores,
+        scaler=scaler,
     )
 
 
@@ -322,6 +379,7 @@ def detect_clusters_dbscan(
     eps: float = 0.1,
     min_samples: int = 2,
     gene_names: Optional[List[str]] = None,
+    scaler: str = "none",
 ) -> ClusterResult:
     """Detect population clusters using DBSCAN.
 
@@ -342,6 +400,12 @@ def detect_clusters_dbscan(
     gene_names:
         Ordered subset of genes to use.  When ``None`` all present genes are
         used (sorted).
+    scaler:
+        Optional feature scaling applied to the raw gene matrix before
+        clustering.  One of ``"none"`` (default, identity), ``"standard"``
+        (z-score), or ``"robust"`` (median/IQR).  When genes have widely
+        different numeric ranges scaling is strongly recommended, as DBSCAN's
+        ``eps`` threshold is applied in the scaled space.
 
     Returns
     -------
@@ -362,7 +426,10 @@ def detect_clusters_dbscan(
             gene_names=gnames,
             silhouette_score=0.0,
             bic_scores=None,
+            scaler=scaler,
         )
+
+    X = _apply_scaler(X, scaler)
 
     db = DBSCAN(eps=eps, min_samples=min_samples)
     raw_labels: np.ndarray = db.fit_predict(X).astype(int)
@@ -394,6 +461,7 @@ def detect_clusters_dbscan(
         gene_names=gnames,
         silhouette_score=sil,
         bic_scores=None,
+        scaler=scaler,
     )
 
 

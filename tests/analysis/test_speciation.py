@@ -653,3 +653,232 @@ class TestPlotChromosomeSpaceClusters:
         ctx = self._ctx(tmp_path)
         out = plot_chromosome_space_clusters(chromosomes, result, ctx, agent_ids=["a0"])
         assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# Feature scaling helpers
+# ---------------------------------------------------------------------------
+
+
+def _mixed_scale_chromosomes(n_per_cluster: int = 30, seed: int = 42) -> List[Dict[str, float]]:
+    """Two clusters where genes have very different numeric ranges.
+
+    Cluster A: lr ~0.005 (small range), budget ~1500 (large range).
+    Cluster B: lr ~0.95 (small range), budget ~8500 (large range).
+
+    Without scaling the ``budget`` dimension dominates Euclidean distances.
+    With standard/robust scaling both features contribute equally.
+    """
+    import random
+    rng = random.Random(seed)
+    cluster_a = [
+        {"lr": rng.gauss(0.005, 0.001), "budget": rng.gauss(1500.0, 80.0)}
+        for _ in range(n_per_cluster)
+    ]
+    cluster_b = [
+        {"lr": rng.gauss(0.95, 0.001), "budget": rng.gauss(8500.0, 80.0)}
+        for _ in range(n_per_cluster)
+    ]
+    return cluster_a + cluster_b
+
+
+class TestScalerParameter:
+    """Tests for the optional ``scaler`` parameter in cluster-detection functions."""
+
+    # ---- VALID_SCALERS constant ----
+
+    def test_valid_scalers_exported(self):
+        from farm.analysis.speciation import VALID_SCALERS
+        assert "none" in VALID_SCALERS
+        assert "standard" in VALID_SCALERS
+        assert "robust" in VALID_SCALERS
+
+    # ---- GMM: scaler stored in result ----
+
+    def test_gmm_scaler_none_stored_in_result(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        result = detect_clusters_gmm(chromosomes, max_k=3, seed=0, scaler="none")
+        assert result.scaler == "none"
+
+    def test_gmm_scaler_standard_stored_in_result(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        result = detect_clusters_gmm(chromosomes, max_k=3, seed=0, scaler="standard")
+        assert result.scaler == "standard"
+
+    def test_gmm_scaler_robust_stored_in_result(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        result = detect_clusters_gmm(chromosomes, max_k=3, seed=0, scaler="robust")
+        assert result.scaler == "robust"
+
+    def test_gmm_invalid_scaler_raises(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=5)
+        with pytest.raises(ValueError, match="scaler"):
+            detect_clusters_gmm(chromosomes, max_k=2, seed=0, scaler="minmax")
+
+    def test_gmm_empty_input_scaler_stored(self):
+        result = detect_clusters_gmm([], max_k=3, seed=0, scaler="standard")
+        assert result.scaler == "standard"
+        assert result.k == 0
+
+    # ---- DBSCAN: scaler stored in result ----
+
+    def test_dbscan_scaler_none_stored_in_result(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        result = detect_clusters_dbscan(chromosomes, scaler="none")
+        assert result.scaler == "none"
+
+    def test_dbscan_scaler_standard_stored_in_result(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        result = detect_clusters_dbscan(chromosomes, scaler="standard")
+        assert result.scaler == "standard"
+
+    def test_dbscan_scaler_robust_stored_in_result(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=10)
+        result = detect_clusters_dbscan(chromosomes, scaler="robust")
+        assert result.scaler == "robust"
+
+    def test_dbscan_invalid_scaler_raises(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=5)
+        with pytest.raises(ValueError, match="scaler"):
+            detect_clusters_dbscan(chromosomes, scaler="minmax")
+
+    def test_dbscan_empty_input_scaler_stored(self):
+        result = detect_clusters_dbscan([], scaler="robust")
+        assert result.scaler == "robust"
+        assert result.k == 0
+
+    # ---- Determinism with scaling ----
+
+    def test_gmm_standard_scaler_deterministic(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        r1 = detect_clusters_gmm(chromosomes, max_k=4, seed=7, scaler="standard")
+        r2 = detect_clusters_gmm(chromosomes, max_k=4, seed=7, scaler="standard")
+        assert r1.k == r2.k
+        assert r1.labels == r2.labels
+
+    def test_gmm_robust_scaler_deterministic(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        r1 = detect_clusters_gmm(chromosomes, max_k=4, seed=7, scaler="robust")
+        r2 = detect_clusters_gmm(chromosomes, max_k=4, seed=7, scaler="robust")
+        assert r1.k == r2.k
+        assert r1.labels == r2.labels
+
+    # ---- Mixed-scale fixture: scaling improves cluster recovery ----
+
+    def test_gmm_mixed_scale_standard_detects_two_clusters(self):
+        """Standard scaling allows GMM to find the correct 2 clusters even when
+        the ``budget`` gene has a much larger numeric range than ``lr``."""
+        chromosomes = _mixed_scale_chromosomes(n_per_cluster=30)
+        result = detect_clusters_gmm(chromosomes, max_k=4, seed=0, scaler="standard")
+        assert result.k == 2
+        assert result.silhouette_score > 0.5
+
+    def test_gmm_mixed_scale_robust_detects_two_clusters(self):
+        """Robust scaling also allows correct cluster detection on mixed-scale genes."""
+        chromosomes = _mixed_scale_chromosomes(n_per_cluster=30)
+        result = detect_clusters_gmm(chromosomes, max_k=4, seed=0, scaler="robust")
+        assert result.k == 2
+        assert result.silhouette_score > 0.5
+
+    def test_dbscan_mixed_scale_standard_detects_two_clusters(self):
+        """With standard scaling, DBSCAN's eps is applied in scaled space and
+        finds both clusters correctly."""
+        chromosomes = _mixed_scale_chromosomes(n_per_cluster=30)
+        # eps=0.3 in standardised space catches the two well-separated clusters
+        result = detect_clusters_dbscan(chromosomes, eps=0.3, min_samples=3, scaler="standard")
+        assert result.k >= 2
+
+    def test_dbscan_mixed_scale_robust_detects_two_clusters(self):
+        chromosomes = _mixed_scale_chromosomes(n_per_cluster=30)
+        result = detect_clusters_dbscan(chromosomes, eps=0.3, min_samples=3, scaler="robust")
+        assert result.k >= 2
+
+    # ---- ClusterResult default scaler ----
+
+    def test_cluster_result_default_scaler_is_none(self):
+        """ClusterResult.scaler defaults to 'none' for backward compatibility."""
+        result = ClusterResult(
+            algorithm="gmm", k=1, labels=[0],
+            centroids=[{"lr": 0.01}], sizes=[1],
+            gene_names=["lr"], silhouette_score=0.0, bic_scores=None,
+        )
+        assert result.scaler == "none"
+
+
+class TestGeneTrajectoryLoggerScaler:
+    """Tests for speciation_scaler parameter in GeneTrajectoryLogger."""
+
+    def test_default_scaler_is_none(self, tmp_path):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+        logger = GeneTrajectoryLogger(str(tmp_path), snapshot_interval=1, enable_speciation=True)
+        assert logger._speciation_scaler == "none"
+        logger.close()
+
+    def test_standard_scaler_accepted(self, tmp_path):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+        logger = GeneTrajectoryLogger(
+            str(tmp_path), snapshot_interval=1,
+            enable_speciation=True, speciation_scaler="standard",
+        )
+        assert logger._speciation_scaler == "standard"
+        logger.close()
+
+    def test_robust_scaler_accepted(self, tmp_path):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+        logger = GeneTrajectoryLogger(
+            str(tmp_path), snapshot_interval=1,
+            enable_speciation=True, speciation_scaler="robust",
+        )
+        assert logger._speciation_scaler == "robust"
+        logger.close()
+
+    def test_invalid_scaler_raises(self):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+        with pytest.raises(ValueError, match="speciation_scaler"):
+            GeneTrajectoryLogger(None, snapshot_interval=1, speciation_scaler="minmax")
+
+    def test_scaler_persisted_in_cluster_lineage(self, tmp_path):
+        """When speciation is enabled, cluster_lineage.jsonl rows include 'scaler' field."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = (
+            [_make_fake_agent(lr=0.001, gamma=0.99)] * 15
+            + [_make_fake_agent(lr=0.9, gamma=0.1)] * 15
+        )
+        env = _FakeEnvironment(agents)
+        logger = GeneTrajectoryLogger(
+            str(tmp_path), snapshot_interval=1,
+            enable_speciation=True, speciation_scaler="standard",
+        )
+        logger.snapshot(env, step=0)
+        logger.close()
+
+        lineage_path = tmp_path / "cluster_lineage.jsonl"
+        assert lineage_path.exists()
+        rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
+        assert len(rows) >= 1
+        for row in rows:
+            assert row.get("scaler") == "standard"
+
+    def test_standard_scaler_mixed_scale_produces_speciation_index(self, tmp_path):
+        """Standard scaling should still produce a valid speciation_index on mixed-scale genes."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        # Build mixed-scale chromosomes via the fake-agent helper using large gamma range
+        agents = (
+            [_make_fake_agent(lr=0.001, gamma=0.99)] * 20
+            + [_make_fake_agent(lr=0.9, gamma=0.1)] * 20
+        )
+        env = _FakeEnvironment(agents)
+        logger = GeneTrajectoryLogger(
+            str(tmp_path), snapshot_interval=1,
+            enable_speciation=True, speciation_scaler="standard",
+        )
+        logger.snapshot(env, step=0)
+        logger.close()
+
+        traj_path = tmp_path / "intrinsic_gene_trajectory.jsonl"
+        rec = json.loads(traj_path.read_text().splitlines()[0])
+        assert "speciation_index" in rec
+        assert 0.0 <= rec["speciation_index"] <= 1.0
+
