@@ -1,0 +1,48 @@
+{
+  "elapsed_seconds": 939.504,
+  "num_steps_completed": 10000,
+  "final_population": 28,
+  "final_gene_statistics": {
+    "learning_rate": {
+      "mean": 0.15914902832775968,
+      "median": 0.16559592732876457,
+      "std": 0.08680345886467303,
+      "min": 0.005345068439207934,
+      "max": 0.3781005754290391,
+      "at_min_count": 0.0,
+      "at_max_count": 0.0,
+      "boundary_fraction": 0.0
+    },
+    "gamma": {
+      "mean": 0.8668804268511942,
+      "median": 0.8208778086249167,
+      "std": 0.0947250443808142,
+      "min": 0.7078615364775904,
+      "max": 0.9989422892691537,
+      "at_min_count": 0.0,
+      "at_max_count": 0.0,
+      "boundary_fraction": 0.0
+    },
+    "epsilon_decay": {
+      "mean": 0.7424778297079224,
+      "median": 0.915040799782266,
+      "std": 0.3192033091362247,
+      "min": 0.10135778032512577,
+      "max": 0.9956737443687187,
+      "at_min_count": 0.0,
+      "at_max_count": 0.0,
+      "boundary_fraction": 0.0
+    },
+    "memory_size": {
+      "mean": 213060.3840713714,
+      "median": 243792.76702279714,
+      "std": 110342.38524227303,
+      "min": 44555.14620865963,
+      "max": 390845.5665634452,
+      "at_min_count": 0.0,
+      "at_max_count": 0.0,
+      "boundary_fraction": 0.0
+    }
+  },
+  "output_dir": "experiments/intrinsic_evolution_memorysize_20260426_1645"
+}

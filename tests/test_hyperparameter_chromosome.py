@@ -76,7 +76,7 @@ class TestHyperparameterChromosome(unittest.TestCase):
         self.assertTrue(registry["learning_rate"])
         self.assertTrue(registry["gamma"])
         self.assertTrue(registry["epsilon_decay"])
-        self.assertFalse(registry["memory_size"])
+        self.assertTrue(registry["memory_size"])
 
     def test_short_registry_alias_matches_evolution_registry(self):
         self.assertEqual(default_hyperparameter_registry(), hyperparameter_evolution_registry())
@@ -144,7 +144,7 @@ class TestHyperparameterChromosome(unittest.TestCase):
         with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=0.05):
             mutated = mutate_chromosome(chromosome, mutation_rate=1.0, mutation_scale=0.1)
         self.assertNotEqual(mutated.get_value("learning_rate"), chromosome.get_value("learning_rate"))
-        self.assertEqual(mutated.get_value("memory_size"), chromosome.get_value("memory_size"))
+        self.assertNotEqual(mutated.get_value("memory_size"), chromosome.get_value("memory_size"))
 
     def test_gaussian_mutation_clamps_to_gene_bounds(self):
         chromosome = chromosome_from_values({"learning_rate": 0.999})
@@ -283,7 +283,7 @@ class TestHyperparameterChromosome(unittest.TestCase):
                 per_gene_scale_multipliers={"learning_rate": -0.1},
             )
 
-    def test_fixed_genes_remain_unchanged_even_with_full_global_mutation(self):
+    def test_memory_size_mutates_with_full_global_mutation(self):
         chromosome = default_hyperparameter_chromosome()
         with patch("farm.core.hyperparameter_chromosome.random.gauss", return_value=1000.0):
             mutated = mutate_chromosome(
@@ -292,7 +292,7 @@ class TestHyperparameterChromosome(unittest.TestCase):
                 mutation_scale=1.0,
                 mutation_mode=MutationMode.GAUSSIAN,
             )
-        self.assertEqual(mutated.get_value("memory_size"), chromosome.get_value("memory_size"))
+        self.assertNotEqual(mutated.get_value("memory_size"), chromosome.get_value("memory_size"))
 
     def test_apply_chromosome_to_learning_config(self):
         decision = DecisionConfig(learning_rate=0.02, epsilon_decay=0.98, memory_size=5000)
@@ -315,6 +315,24 @@ class TestHyperparameterChromosome(unittest.TestCase):
         self.assertIsNot(updated, stub)
         self.assertEqual(updated.learning_rate, 0.05)
         self.assertEqual(stub.learning_rate, 0.02)
+
+    def test_apply_chromosome_rejects_integer_projection_outside_gene_bounds(self):
+        decision = DecisionConfig(memory_size=5000)
+        chromosome = HyperparameterChromosome(
+            genes=(
+                HyperparameterGene(
+                    name="memory_size",
+                    value_type=GeneValueType.REAL,
+                    value=1.2,
+                    min_value=1.1,
+                    max_value=1.4,
+                    default=1.2,
+                    evolvable=True,
+                ),
+            )
+        )
+        with self.assertRaises(ValueError):
+            apply_chromosome_to_learning_config(decision, chromosome)
 
 
 class TestAdditionalContinuousGenes(unittest.TestCase):
@@ -350,10 +368,9 @@ class TestAdditionalContinuousGenes(unittest.TestCase):
         chromosome = default_hyperparameter_chromosome()
         self.assertIn("gamma", chromosome.evolvable_gene_names())
 
-    def test_memory_size_is_still_fixed(self):
+    def test_memory_size_is_evolvable(self):
         chromosome = default_hyperparameter_chromosome()
-        self.assertIn("memory_size", chromosome.fixed_gene_names())
-        self.assertNotIn("memory_size", chromosome.evolvable_gene_names())
+        self.assertIn("memory_size", chromosome.evolvable_gene_names())
 
     # --- serialization round-trips for new genes ---
 
@@ -429,8 +446,8 @@ class TestAdditionalContinuousGenes(unittest.TestCase):
     def test_multi_gene_chromosome_vector_encode_decode_round_trip(self):
         chromosome = chromosome_from_values({"learning_rate": 0.005, "gamma": 0.95, "epsilon_decay": 0.99})
         vec = encode_chromosome_vector(chromosome)
-        # 3 evolvable genes → 3-element vector
-        self.assertEqual(len(vec), 3)
+        # 4 evolvable genes → 4-element vector
+        self.assertEqual(len(vec), 4)
         decoded = decode_chromosome_vector(vec, template=chromosome)
         self.assertAlmostEqual(decoded.get_value("learning_rate"), 0.005, delta=0.005 * 0.06)
         self.assertAlmostEqual(decoded.get_value("gamma"), 0.95, delta=0.01)
@@ -446,11 +463,11 @@ class TestAdditionalContinuousGenes(unittest.TestCase):
         })
         rng = random.Random(42)
         mutated = mutate_chromosome(chromosome, mutation_rate=1.0, mutation_scale=0.1, rng=rng)
-        # All three evolvable genes should move; memory_size stays fixed.
+        # All evolvable genes should move, including memory_size.
         self.assertNotEqual(mutated.get_value("learning_rate"), 0.5)
         self.assertNotEqual(mutated.get_value("gamma"), 0.5)
         self.assertNotEqual(mutated.get_value("epsilon_decay"), 0.5)
-        self.assertEqual(mutated.get_value("memory_size"), chromosome.get_value("memory_size"))
+        self.assertNotEqual(mutated.get_value("memory_size"), chromosome.get_value("memory_size"))
 
     def test_gamma_mutation_stays_in_bounds(self):
         chromosome = chromosome_from_values({"gamma": 0.99})
@@ -993,20 +1010,26 @@ class TestComputeBoundaryPenalty(unittest.TestCase):
 
     def test_full_penalty_at_max_boundary(self):
         # Set all other evolvable genes to midpoints so only learning_rate (at max) incurs a penalty.
-        chromosome = chromosome_from_values({"learning_rate": 1.0, "gamma": 0.5, "epsilon_decay": 0.5})
+        chromosome = chromosome_from_values(
+            {"learning_rate": 1.0, "gamma": 0.5, "epsilon_decay": 0.5, "memory_size": 500_000.0}
+        )
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05, near_boundary_threshold=0.1)
         penalty = compute_boundary_penalty(chromosome, cfg)
         self.assertAlmostEqual(penalty, 0.05)
 
     def test_full_penalty_at_min_boundary(self):
         # Set all other evolvable genes to midpoints so only learning_rate (at min) incurs a penalty.
-        chromosome = chromosome_from_values({"learning_rate": 1e-6, "gamma": 0.5, "epsilon_decay": 0.5})
+        chromosome = chromosome_from_values(
+            {"learning_rate": 1e-6, "gamma": 0.5, "epsilon_decay": 0.5, "memory_size": 500_000.0}
+        )
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05, near_boundary_threshold=0.1)
         penalty = compute_boundary_penalty(chromosome, cfg)
         self.assertAlmostEqual(penalty, 0.05)
 
     def test_zero_penalty_well_inside_bounds(self):
-        chromosome = chromosome_from_values({"learning_rate": 0.5, "gamma": 0.5, "epsilon_decay": 0.5})
+        chromosome = chromosome_from_values(
+            {"learning_rate": 0.5, "gamma": 0.5, "epsilon_decay": 0.5, "memory_size": 500_000.0}
+        )
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.1, near_boundary_threshold=0.05)
         penalty = compute_boundary_penalty(chromosome, cfg)
         self.assertEqual(penalty, 0.0)
@@ -1027,18 +1050,21 @@ class TestComputeBoundaryPenalty(unittest.TestCase):
         # distance = 0.05, threshold = 0.10 → fraction = 1 - 0.05/0.10 = 0.5
         self.assertAlmostEqual(penalty, 0.05)
 
-    def test_no_penalty_for_fixed_genes(self):
-        chromosome = default_hyperparameter_chromosome()
-        # memory_size is the only fixed gene (evolvable=False).
-        # All evolvable genes (learning_rate, gamma, epsilon_decay) must be set
-        # well inside bounds to guarantee zero penalty.
-        chromosome = chromosome.with_overrides({
-            "learning_rate": 0.5,
-            "gamma": 0.5,
-            "epsilon_decay": 0.5,
-        })
+    def test_no_penalty_for_non_evolvable_genes(self):
+        chromosome = HyperparameterChromosome(
+            genes=(
+                HyperparameterGene(
+                    name="fixed_gene",
+                    value_type=GeneValueType.REAL,
+                    value=1.0,
+                    min_value=0.0,
+                    max_value=1.0,
+                    default=0.5,
+                    evolvable=False,
+                ),
+            )
+        )
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.1, near_boundary_threshold=0.05)
-        # memory_size is fixed → no penalty even though its value is arbitrary
         penalty = compute_boundary_penalty(chromosome, cfg)
         self.assertEqual(penalty, 0.0)
 

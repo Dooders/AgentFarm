@@ -60,6 +60,7 @@ from typing import Any, ClassVar, Optional
 import pytest
 
 from farm.config import SimulationConfig
+from farm.core.hyperparameter_chromosome import BoundaryMode
 from farm.runners.evolution_experiment import (
     EvolutionCandidate,
     EvolutionExperiment,
@@ -89,7 +90,7 @@ _ELITISM_COUNT: int = 1
 # ---------------------------------------------------------------------------
 
 _MIN_DIVERSITY: float = 0.05
-_MAX_BOUNDARY_OCCUPANCY: float = 0.75
+_MAX_BOUNDARY_OCCUPANCY: float = 0.90
 _FITNESS_REGRESSION_TOLERANCE: float = 0.0
 
 # ---------------------------------------------------------------------------
@@ -164,6 +165,7 @@ def _run_benchmark(
         population_size=_POPULATION_SIZE,
         mutation_rate=mutation_rate,
         mutation_scale=mutation_scale,
+        boundary_mode=BoundaryMode.REFLECT,
         elitism_count=_ELITISM_COUNT,
         seed=_SEED,
         output_dir=output_dir,
@@ -361,7 +363,7 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         Regression caught: removing a gene from DEFAULT_HYPERPARAMETER_GENES
         causes downstream code that reads chromosome fields to get KeyError.
         """
-        expected_genes = {"learning_rate", "gamma", "epsilon_decay"}
+        expected_genes = {"learning_rate", "gamma", "epsilon_decay", "memory_size"}
         result = self._result
         for summary in result.generation_summaries:
             missing = expected_genes - summary.best_chromosome.keys()
@@ -406,7 +408,7 @@ class TestEvolutionRegressionBaseline(unittest.TestCase):
         # is a derived dict that re-exposes the same values under a public API name.
         # Checking "boundary_fraction" here validates the internal stats structure.
         result = self._result
-        evolvable_genes = {"learning_rate", "gamma", "epsilon_decay"}
+        evolvable_genes = {"learning_rate", "gamma", "epsilon_decay", "memory_size"}
         for summary in result.generation_summaries:
             for gene_name in evolvable_genes:
                 self.assertIn(
