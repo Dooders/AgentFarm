@@ -135,6 +135,13 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["gmm", "dbscan"],
     )
     parser.add_argument("--speciation-max-k", type=int, default=4)
+    parser.add_argument(
+        "--speciation-scaler",
+        type=str,
+        default="none",
+        choices=["none", "standard", "robust"],
+        help="Feature scaling applied before speciation clustering. Default: none.",
+    )
 
     parser.add_argument(
         "--log-level",
@@ -242,6 +249,7 @@ def main() -> int:
                 speciation_algorithm=args.speciation_algorithm,
                 speciation_max_k=args.speciation_max_k,
                 speciation_seed=args.seed,
+                speciation_scaler=args.speciation_scaler,
                 **kw,
             )
 

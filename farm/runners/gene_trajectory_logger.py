@@ -24,8 +24,16 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
 from typing import Any, Dict, List, Optional, TextIO
 
+from farm.analysis.speciation.compute import (
+    VALID_SCALERS,
+    compute_speciation_index,
+    detect_clusters_dbscan,
+    detect_clusters_gmm,
+    match_clusters_greedy,
+)
 from farm.core.hyperparameter_chromosome import (
     HyperparameterChromosome,
     compute_gene_statistics,
@@ -57,6 +65,11 @@ class GeneTrajectoryLogger:
         Default 5.
     speciation_seed:
         Integer random seed for reproducible cluster detection.  Default 0.
+    speciation_scaler:
+        Optional feature scaling applied to chromosome vectors before
+        clustering.  One of ``"none"`` (default, no scaling), ``"standard"``
+        (z-score), or ``"robust"`` (median/IQR).  Scaling is recommended when
+        genes have widely different numeric ranges.
     """
 
     TRAJECTORY_FILENAME = "intrinsic_gene_trajectory.jsonl"
@@ -72,11 +85,17 @@ class GeneTrajectoryLogger:
         speciation_algorithm: str = "gmm",
         speciation_max_k: int = 5,
         speciation_seed: int = 0,
+        speciation_scaler: str = "none",
     ) -> None:
         if snapshot_interval < 1:
             raise ValueError("snapshot_interval must be at least 1.")
         if speciation_algorithm not in ("gmm", "dbscan"):
             raise ValueError("speciation_algorithm must be 'gmm' or 'dbscan'.")
+        if speciation_scaler not in VALID_SCALERS:
+            raise ValueError(
+                f"speciation_scaler must be one of {VALID_SCALERS!r}; "
+                f"got {speciation_scaler!r}."
+            )
 
         if enable_speciation:
             try:
@@ -92,6 +111,7 @@ class GeneTrajectoryLogger:
         self._speciation_algorithm = speciation_algorithm
         self._speciation_max_k = speciation_max_k
         self._speciation_seed = speciation_seed
+        self._speciation_scaler = speciation_scaler
 
         self._trajectory_handle: Optional[TextIO] = None
         self._snapshot_handle: Optional[TextIO] = None
@@ -212,13 +232,6 @@ class GeneTrajectoryLogger:
         Writes cluster lineage records to ``cluster_lineage.jsonl`` when an
         output directory is configured.
         """
-        from farm.analysis.speciation.compute import (
-            compute_speciation_index,
-            detect_clusters_dbscan,
-            detect_clusters_gmm,
-            match_clusters_greedy,
-        )
-
         if not chromosomes:
             self._cached_speciation_index = 0.0
             self._prev_cluster_records = []
@@ -237,9 +250,13 @@ class GeneTrajectoryLogger:
                     chrom_dicts,
                     max_k=self._speciation_max_k,
                     seed=self._speciation_seed,
+                    scaler=self._speciation_scaler,
                 )
             else:
-                result = detect_clusters_dbscan(chrom_dicts)
+                result = detect_clusters_dbscan(
+                    chrom_dicts,
+                    scaler=self._speciation_scaler,
+                )
 
             self._cached_speciation_index = compute_speciation_index(result)
 
@@ -269,11 +286,11 @@ class GeneTrajectoryLogger:
                         "centroid": rec.centroid,
                         "size": rec.size,
                         "parent_cluster_id": rec.parent_cluster_id,
+                        "scaler": result.scaler,
                     }
                     self._cluster_lineage_handle.write(json.dumps(row) + "\n")
         except Exception as exc:
             # Non-fatal: log and keep previous cached value
-            import warnings
             warnings.warn(
                 f"GeneTrajectoryLogger: speciation update failed at step {step}: {exc!r}",
                 RuntimeWarning,

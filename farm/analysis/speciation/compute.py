@@ -45,13 +45,45 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+
+try:
+    from sklearn.cluster import DBSCAN
+    from sklearn.metrics import silhouette_score as _sk_silhouette
+    from sklearn.mixture import GaussianMixture
+    from sklearn.preprocessing import RobustScaler, StandardScaler
+except ImportError:
+    DBSCAN = None  # type: ignore[assignment]
+    _sk_silhouette = None  # type: ignore[assignment]
+    GaussianMixture = None  # type: ignore[assignment]
+    RobustScaler = None  # type: ignore[assignment]
+    StandardScaler = None  # type: ignore[assignment]
 
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+def _require_sklearn() -> None:
+    if (
+        DBSCAN is None
+        or _sk_silhouette is None
+        or GaussianMixture is None
+        or RobustScaler is None
+        or StandardScaler is None
+    ):
+        raise ImportError(
+            "Speciation clustering requires scikit-learn. Install with: pip install scikit-learn"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Scaler constants
+# ---------------------------------------------------------------------------
+
+#: Valid choices for the ``scaler`` parameter in cluster-detection functions.
+VALID_SCALERS: Tuple[str, ...] = ("none", "standard", "robust")
 
 # ---------------------------------------------------------------------------
 # Result dataclasses
@@ -96,6 +128,7 @@ class ClusterResult:
     gene_names: List[str]
     silhouette_score: float
     bic_scores: Optional[Dict[int, float]]
+    scaler: str = "none"
 
 
 @dataclass
@@ -186,12 +219,59 @@ def _silhouette(X: np.ndarray, labels: np.ndarray) -> float:
     if mask.sum() < 2:
         return 0.0
     try:
-        from sklearn.metrics import silhouette_score as _sk_silhouette
         score = float(_sk_silhouette(X[mask], labels[mask]))
         return max(0.0, score)
     except Exception as exc:
         logger.debug("_silhouette: failed to compute silhouette score: %s", exc)
         return 0.0
+
+
+def _validate_scaler(scaler: str) -> None:
+    if scaler not in VALID_SCALERS:
+        raise ValueError(
+            f"scaler must be one of {VALID_SCALERS!r}; got {scaler!r}."
+        )
+
+
+def _identity_inverse(X: np.ndarray) -> np.ndarray:
+    return X
+
+
+def _apply_scaler(
+    X: np.ndarray, scaler: str
+) -> Tuple[np.ndarray, Callable[[np.ndarray], np.ndarray]]:
+    """Apply optional feature scaling to a (N, D) matrix before clustering.
+
+    Parameters
+    ----------
+    X:
+        Feature matrix, shape ``(N, D)``.
+    scaler:
+        One of ``"none"`` (identity), ``"standard"`` (z-score via
+        :class:`sklearn.preprocessing.StandardScaler`), or ``"robust"``
+        (median/IQR via :class:`sklearn.preprocessing.RobustScaler`).
+
+    Returns
+    -------
+    tuple[np.ndarray, Callable[[np.ndarray], np.ndarray]]
+        ``(scaled_matrix, inverse_transform_fn)`` where the inverse-transform
+        converts vectors back to raw gene units.
+
+    Raises
+    ------
+    ValueError
+        When ``scaler`` is not one of the valid choices.
+    """
+    _validate_scaler(scaler)
+    _require_sklearn()
+    if scaler == "none" or X.shape[0] == 0:
+        return X, _identity_inverse
+    if scaler == "standard":
+        fitted_scaler = StandardScaler().fit(X)
+        return fitted_scaler.transform(X), fitted_scaler.inverse_transform
+    # "robust"
+    fitted_scaler = RobustScaler().fit(X)
+    return fitted_scaler.transform(X), fitted_scaler.inverse_transform
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +285,7 @@ def detect_clusters_gmm(
     max_k: int = 5,
     seed: int = 0,
     gene_names: Optional[List[str]] = None,
+    scaler: str = "none",
 ) -> ClusterResult:
     """Detect population clusters using Gaussian Mixture Models with BIC selection.
 
@@ -227,13 +308,19 @@ def detect_clusters_gmm(
     gene_names:
         Ordered subset of genes to use.  When ``None`` all genes present in
         the chromosomes are used (sorted).
+    scaler:
+        Optional feature scaling applied to the raw gene matrix before
+        clustering.  One of ``"none"`` (default, identity), ``"standard"``
+        (z-score), or ``"robust"`` (median/IQR).  Using ``"standard"`` or
+        ``"robust"`` is recommended when genes have very different numeric
+        ranges.
 
     Returns
     -------
     ClusterResult
     """
-    from sklearn.mixture import GaussianMixture
-
+    _validate_scaler(scaler)
+    _require_sklearn()
     X, gnames = _chromosomes_to_matrix(chromosomes, gene_names)
     n_agents = X.shape[0]
 
@@ -247,7 +334,10 @@ def detect_clusters_gmm(
             gene_names=gnames,
             silhouette_score=0.0,
             bic_scores={},
+            scaler=scaler,
         )
+
+    X_scaled, inverse_transform = _apply_scaler(X, scaler)
 
     # Cap max_k to the total number of agents to avoid degenerate GMM fits
     effective_max_k = min(max_k, n_agents)
@@ -266,8 +356,8 @@ def detect_clusters_gmm(
                 max_iter=200,
                 n_init=3,
             )
-            gmm.fit(X)
-            bic = float(gmm.bic(X))
+            gmm.fit(X_scaled)
+            bic = float(gmm.bic(X_scaled))
             bic_scores[k] = bic
             if bic < best_bic:
                 best_bic = bic
@@ -288,16 +378,18 @@ def detect_clusters_gmm(
             gene_names=gnames,
             silhouette_score=0.0,
             bic_scores=bic_scores,
+            scaler=scaler,
         )
 
-    labels: np.ndarray = best_gmm.predict(X).astype(int)
+    labels: np.ndarray = best_gmm.predict(X_scaled).astype(int)
+    centroids_raw = inverse_transform(best_gmm.means_)
 
     centroids = [
-        _centroid_to_dict(best_gmm.means_[i], gnames)
+        _centroid_to_dict(centroids_raw[i], gnames)
         for i in range(best_k)
     ]
     sizes = [int((labels == i).sum()) for i in range(best_k)]
-    sil = _silhouette(X, labels)
+    sil = _silhouette(X_scaled, labels)
 
     return ClusterResult(
         algorithm="gmm",
@@ -308,6 +400,7 @@ def detect_clusters_gmm(
         gene_names=gnames,
         silhouette_score=sil,
         bic_scores=bic_scores,
+        scaler=scaler,
     )
 
 
@@ -322,6 +415,7 @@ def detect_clusters_dbscan(
     eps: float = 0.1,
     min_samples: int = 2,
     gene_names: Optional[List[str]] = None,
+    scaler: str = "none",
 ) -> ClusterResult:
     """Detect population clusters using DBSCAN.
 
@@ -342,13 +436,19 @@ def detect_clusters_dbscan(
     gene_names:
         Ordered subset of genes to use.  When ``None`` all present genes are
         used (sorted).
+    scaler:
+        Optional feature scaling applied to the raw gene matrix before
+        clustering.  One of ``"none"`` (default, identity), ``"standard"``
+        (z-score), or ``"robust"`` (median/IQR).  When genes have widely
+        different numeric ranges scaling is strongly recommended, as DBSCAN's
+        ``eps`` threshold is applied in the scaled space.
 
     Returns
     -------
     ClusterResult
     """
-    from sklearn.cluster import DBSCAN
-
+    _validate_scaler(scaler)
+    _require_sklearn()
     X, gnames = _chromosomes_to_matrix(chromosomes, gene_names)
     n_agents = X.shape[0]
 
@@ -362,10 +462,13 @@ def detect_clusters_dbscan(
             gene_names=gnames,
             silhouette_score=0.0,
             bic_scores=None,
+            scaler=scaler,
         )
 
+    X_scaled, inverse_transform = _apply_scaler(X, scaler)
+
     db = DBSCAN(eps=eps, min_samples=min_samples)
-    raw_labels: np.ndarray = db.fit_predict(X).astype(int)
+    raw_labels: np.ndarray = db.fit_predict(X_scaled).astype(int)
 
     unique_labels = [lbl for lbl in sorted(set(raw_labels.tolist())) if lbl >= 0]
     k = len(unique_labels)
@@ -374,7 +477,9 @@ def detect_clusters_dbscan(
     sizes: List[int] = []
     for lbl in unique_labels:
         mask = raw_labels == lbl
-        centroids.append(_centroid_to_dict(X[mask].mean(axis=0), gnames))
+        centroid_scaled = X_scaled[mask].mean(axis=0, keepdims=True)
+        centroid_raw = inverse_transform(centroid_scaled)[0]
+        centroids.append(_centroid_to_dict(centroid_raw, gnames))
         sizes.append(int(mask.sum()))
 
     # Re-index labels so they run 0..k-1 for labelled agents; noise stays -1
@@ -383,7 +488,7 @@ def detect_clusters_dbscan(
         [label_map.get(lbl, -1) for lbl in raw_labels.tolist()],
         dtype=int,
     )
-    sil = _silhouette(X, remapped)
+    sil = _silhouette(X_scaled, remapped)
 
     return ClusterResult(
         algorithm="dbscan",
@@ -394,6 +499,7 @@ def detect_clusters_dbscan(
         gene_names=gnames,
         silhouette_score=sil,
         bic_scores=None,
+        scaler=scaler,
     )
 
 
