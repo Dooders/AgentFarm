@@ -1137,9 +1137,10 @@ class TestGeneTrajectoryLoggerAutoTune:
         """Agents with two well-separated clusters where auto_tune finds structure."""
         import itertools
 
-        # Two 3×3 grids of agents separated by a large gap in lr/gamma space.
-        # Spacing within each cluster is 0.15, so eps=0.1 gives k=0 (all noise).
-        # auto_tune estimates eps ~0.3 and correctly recovers at least one cluster.
+        # Two 5×5 grids of agents separated by a large gap in lr/gamma space.
+        # Spacing within each cluster is 0.02 (between adjacent grid points).
+        # auto_tune estimates eps from the actual k-NN distances and recovers
+        # at least one cluster; dbscan_params is then persisted in lineage rows.
         low = [
             _make_fake_agent(lr=0.1 + i * 0.02, gamma=0.1 + j * 0.02)
             for i, j in itertools.product(range(5), range(5))
