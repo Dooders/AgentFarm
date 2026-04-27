@@ -24,8 +24,16 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
 from typing import Any, Dict, List, Optional, TextIO
 
+from farm.analysis.speciation.compute import (
+    VALID_SCALERS,
+    compute_speciation_index,
+    detect_clusters_dbscan,
+    detect_clusters_gmm,
+    match_clusters_greedy,
+)
 from farm.core.hyperparameter_chromosome import (
     HyperparameterChromosome,
     compute_gene_statistics,
@@ -83,7 +91,6 @@ class GeneTrajectoryLogger:
             raise ValueError("snapshot_interval must be at least 1.")
         if speciation_algorithm not in ("gmm", "dbscan"):
             raise ValueError("speciation_algorithm must be 'gmm' or 'dbscan'.")
-        from farm.analysis.speciation.compute import VALID_SCALERS
         if speciation_scaler not in VALID_SCALERS:
             raise ValueError(
                 f"speciation_scaler must be one of {VALID_SCALERS!r}; "
@@ -225,13 +232,6 @@ class GeneTrajectoryLogger:
         Writes cluster lineage records to ``cluster_lineage.jsonl`` when an
         output directory is configured.
         """
-        from farm.analysis.speciation.compute import (
-            compute_speciation_index,
-            detect_clusters_dbscan,
-            detect_clusters_gmm,
-            match_clusters_greedy,
-        )
-
         if not chromosomes:
             self._cached_speciation_index = 0.0
             self._prev_cluster_records = []
@@ -291,7 +291,6 @@ class GeneTrajectoryLogger:
                     self._cluster_lineage_handle.write(json.dumps(row) + "\n")
         except Exception as exc:
             # Non-fatal: log and keep previous cached value
-            import warnings
             warnings.warn(
                 f"GeneTrajectoryLogger: speciation update failed at step {step}: {exc!r}",
                 RuntimeWarning,

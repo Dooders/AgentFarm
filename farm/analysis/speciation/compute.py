@@ -45,13 +45,38 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+
+try:
+    from sklearn.cluster import DBSCAN
+    from sklearn.metrics import silhouette_score as _sk_silhouette
+    from sklearn.mixture import GaussianMixture
+    from sklearn.preprocessing import RobustScaler, StandardScaler
+except ImportError:
+    DBSCAN = None  # type: ignore[assignment]
+    _sk_silhouette = None  # type: ignore[assignment]
+    GaussianMixture = None  # type: ignore[assignment]
+    RobustScaler = None  # type: ignore[assignment]
+    StandardScaler = None  # type: ignore[assignment]
 
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+def _require_sklearn() -> None:
+    if (
+        DBSCAN is None
+        or _sk_silhouette is None
+        or GaussianMixture is None
+        or RobustScaler is None
+        or StandardScaler is None
+    ):
+        raise ImportError(
+            "Speciation clustering requires scikit-learn. Install with: pip install scikit-learn"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Scaler constants
@@ -194,7 +219,6 @@ def _silhouette(X: np.ndarray, labels: np.ndarray) -> float:
     if mask.sum() < 2:
         return 0.0
     try:
-        from sklearn.metrics import silhouette_score as _sk_silhouette
         score = float(_sk_silhouette(X[mask], labels[mask]))
         return max(0.0, score)
     except Exception as exc:
@@ -202,7 +226,20 @@ def _silhouette(X: np.ndarray, labels: np.ndarray) -> float:
         return 0.0
 
 
-def _apply_scaler(X: np.ndarray, scaler: str) -> np.ndarray:
+def _validate_scaler(scaler: str) -> None:
+    if scaler not in VALID_SCALERS:
+        raise ValueError(
+            f"scaler must be one of {VALID_SCALERS!r}; got {scaler!r}."
+        )
+
+
+def _identity_inverse(X: np.ndarray) -> np.ndarray:
+    return X
+
+
+def _apply_scaler(
+    X: np.ndarray, scaler: str
+) -> Tuple[np.ndarray, Callable[[np.ndarray], np.ndarray]]:
     """Apply optional feature scaling to a (N, D) matrix before clustering.
 
     Parameters
@@ -216,27 +253,25 @@ def _apply_scaler(X: np.ndarray, scaler: str) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
-        Scaled matrix with the same shape as ``X``.  The original array is
-        returned unchanged when ``scaler="none"``.
+    tuple[np.ndarray, Callable[[np.ndarray], np.ndarray]]
+        ``(scaled_matrix, inverse_transform_fn)`` where the inverse-transform
+        converts vectors back to raw gene units.
 
     Raises
     ------
     ValueError
         When ``scaler`` is not one of the valid choices.
     """
-    if scaler not in VALID_SCALERS:
-        raise ValueError(
-            f"scaler must be one of {VALID_SCALERS!r}; got {scaler!r}."
-        )
+    _validate_scaler(scaler)
+    _require_sklearn()
     if scaler == "none" or X.shape[0] == 0:
-        return X
+        return X, _identity_inverse
     if scaler == "standard":
-        from sklearn.preprocessing import StandardScaler
-        return StandardScaler().fit_transform(X)
+        fitted_scaler = StandardScaler().fit(X)
+        return fitted_scaler.transform(X), fitted_scaler.inverse_transform
     # "robust"
-    from sklearn.preprocessing import RobustScaler
-    return RobustScaler().fit_transform(X)
+    fitted_scaler = RobustScaler().fit(X)
+    return fitted_scaler.transform(X), fitted_scaler.inverse_transform
 
 
 # ---------------------------------------------------------------------------
@@ -284,8 +319,8 @@ def detect_clusters_gmm(
     -------
     ClusterResult
     """
-    from sklearn.mixture import GaussianMixture
-
+    _validate_scaler(scaler)
+    _require_sklearn()
     X, gnames = _chromosomes_to_matrix(chromosomes, gene_names)
     n_agents = X.shape[0]
 
@@ -302,7 +337,7 @@ def detect_clusters_gmm(
             scaler=scaler,
         )
 
-    X = _apply_scaler(X, scaler)
+    X_scaled, inverse_transform = _apply_scaler(X, scaler)
 
     # Cap max_k to the total number of agents to avoid degenerate GMM fits
     effective_max_k = min(max_k, n_agents)
@@ -321,8 +356,8 @@ def detect_clusters_gmm(
                 max_iter=200,
                 n_init=3,
             )
-            gmm.fit(X)
-            bic = float(gmm.bic(X))
+            gmm.fit(X_scaled)
+            bic = float(gmm.bic(X_scaled))
             bic_scores[k] = bic
             if bic < best_bic:
                 best_bic = bic
@@ -346,14 +381,15 @@ def detect_clusters_gmm(
             scaler=scaler,
         )
 
-    labels: np.ndarray = best_gmm.predict(X).astype(int)
+    labels: np.ndarray = best_gmm.predict(X_scaled).astype(int)
+    centroids_raw = inverse_transform(best_gmm.means_)
 
     centroids = [
-        _centroid_to_dict(best_gmm.means_[i], gnames)
+        _centroid_to_dict(centroids_raw[i], gnames)
         for i in range(best_k)
     ]
     sizes = [int((labels == i).sum()) for i in range(best_k)]
-    sil = _silhouette(X, labels)
+    sil = _silhouette(X_scaled, labels)
 
     return ClusterResult(
         algorithm="gmm",
@@ -411,8 +447,8 @@ def detect_clusters_dbscan(
     -------
     ClusterResult
     """
-    from sklearn.cluster import DBSCAN
-
+    _validate_scaler(scaler)
+    _require_sklearn()
     X, gnames = _chromosomes_to_matrix(chromosomes, gene_names)
     n_agents = X.shape[0]
 
@@ -429,10 +465,10 @@ def detect_clusters_dbscan(
             scaler=scaler,
         )
 
-    X = _apply_scaler(X, scaler)
+    X_scaled, inverse_transform = _apply_scaler(X, scaler)
 
     db = DBSCAN(eps=eps, min_samples=min_samples)
-    raw_labels: np.ndarray = db.fit_predict(X).astype(int)
+    raw_labels: np.ndarray = db.fit_predict(X_scaled).astype(int)
 
     unique_labels = [lbl for lbl in sorted(set(raw_labels.tolist())) if lbl >= 0]
     k = len(unique_labels)
@@ -441,7 +477,9 @@ def detect_clusters_dbscan(
     sizes: List[int] = []
     for lbl in unique_labels:
         mask = raw_labels == lbl
-        centroids.append(_centroid_to_dict(X[mask].mean(axis=0), gnames))
+        centroid_scaled = X_scaled[mask].mean(axis=0, keepdims=True)
+        centroid_raw = inverse_transform(centroid_scaled)[0]
+        centroids.append(_centroid_to_dict(centroid_raw, gnames))
         sizes.append(int(mask.sum()))
 
     # Re-index labels so they run 0..k-1 for labelled agents; noise stays -1
@@ -450,7 +488,7 @@ def detect_clusters_dbscan(
         [label_map.get(lbl, -1) for lbl in raw_labels.tolist()],
         dtype=int,
     )
-    sil = _silhouette(X, remapped)
+    sil = _silhouette(X_scaled, remapped)
 
     return ClusterResult(
         algorithm="dbscan",

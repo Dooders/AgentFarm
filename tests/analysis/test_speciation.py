@@ -714,6 +714,10 @@ class TestScalerParameter:
         with pytest.raises(ValueError, match="scaler"):
             detect_clusters_gmm(chromosomes, max_k=2, seed=0, scaler="minmax")
 
+    def test_gmm_invalid_scaler_raises_on_empty_input(self):
+        with pytest.raises(ValueError, match="scaler"):
+            detect_clusters_gmm([], max_k=2, seed=0, scaler="minmax")
+
     def test_gmm_empty_input_scaler_stored(self):
         result = detect_clusters_gmm([], max_k=3, seed=0, scaler="standard")
         assert result.scaler == "standard"
@@ -740,6 +744,10 @@ class TestScalerParameter:
         chromosomes = _bimodal_chromosomes(n_per_cluster=5)
         with pytest.raises(ValueError, match="scaler"):
             detect_clusters_dbscan(chromosomes, scaler="minmax")
+
+    def test_dbscan_invalid_scaler_raises_on_empty_input(self):
+        with pytest.raises(ValueError, match="scaler"):
+            detect_clusters_dbscan([], scaler="minmax")
 
     def test_dbscan_empty_input_scaler_stored(self):
         result = detect_clusters_dbscan([], scaler="robust")
@@ -779,6 +787,15 @@ class TestScalerParameter:
         assert result.k == 2
         assert result.silhouette_score > 0.5
 
+    def test_gmm_scaled_centroids_are_in_raw_gene_units(self):
+        chromosomes = _mixed_scale_chromosomes(n_per_cluster=30)
+        result = detect_clusters_gmm(chromosomes, max_k=4, seed=0, scaler="standard")
+        budgets = sorted(c["budget"] for c in result.centroids)
+        # Verify centroids are in original budget units (roughly 1500 and 8500),
+        # not in z-score space near 0.
+        assert budgets[0] < 3000.0
+        assert budgets[-1] > 7000.0
+
     def test_dbscan_mixed_scale_standard_detects_two_clusters(self):
         """With standard scaling, DBSCAN's eps is applied in scaled space and
         finds both clusters correctly."""
@@ -791,6 +808,15 @@ class TestScalerParameter:
         chromosomes = _mixed_scale_chromosomes(n_per_cluster=30)
         result = detect_clusters_dbscan(chromosomes, eps=0.3, min_samples=3, scaler="robust")
         assert result.k >= 2
+
+    def test_dbscan_scaled_centroids_are_in_raw_gene_units(self):
+        chromosomes = _mixed_scale_chromosomes(n_per_cluster=30)
+        result = detect_clusters_dbscan(
+            chromosomes, eps=0.3, min_samples=3, scaler="standard"
+        )
+        budgets = sorted(c["budget"] for c in result.centroids)
+        assert budgets[0] < 3000.0
+        assert budgets[-1] > 7000.0
 
     # ---- ClusterResult default scaler ----
 

@@ -93,6 +93,15 @@ class TianshouWrapper(RLAlgorithm):
 
         # Set up algorithm configuration
         self.algorithm_config = self._get_default_config(algorithm_config or {})
+        if self.algorithm_name == "DQN":
+            configured_n_step = int(self.algorithm_config.get("n_step", 1))
+            if configured_n_step != 1:
+                logger.warning(
+                    "DQN wrapper uses one-step replay targets with the current custom replay path; "
+                    "overriding n_step=%d -> 1 to avoid inconsistent training targets.",
+                    configured_n_step,
+                )
+                self.algorithm_config["n_step"] = 1
 
         # Initialize replay buffer (PER implementation supports uniform fallback).
         self.replay_buffer = PrioritizedReplayBuffer(
@@ -148,7 +157,8 @@ class TianshouWrapper(RLAlgorithm):
             dqn_defaults = {
                 "lr": 1e-3,
                 "gamma": 0.99,
-                "n_step": 3,
+                # The custom replay integration in this wrapper trains on one-step transitions.
+                "n_step": 1,
                 "target_update_freq": 500,
                 "eps_test": 0.05,
                 "eps_train": 0.1,
@@ -1098,13 +1108,14 @@ class TianshouWrapper(RLAlgorithm):
                 rewards_np = np.asarray(sampled_batch["reward"], dtype=np.float32)
                 next_states_np = np.asarray(sampled_batch["next_state"])
                 dones_np = np.asarray(sampled_batch["done"], dtype=np.float32)
+                device = torch.device(self.algorithm_config.get("device", "cpu"))
 
                 # Convert to tensors
-                states = torch.tensor(states_np, dtype=torch.float32)
-                actions = torch.tensor(actions_np, dtype=torch.long)
-                rewards = torch.tensor(rewards_np, dtype=torch.float32)
-                next_states = torch.tensor(next_states_np, dtype=torch.float32)
-                dones = torch.tensor(dones_np, dtype=torch.float32)
+                states = torch.tensor(states_np, dtype=torch.float32, device=device)
+                actions = torch.tensor(actions_np, dtype=torch.long, device=device)
+                rewards = torch.tensor(rewards_np, dtype=torch.float32, device=device)
+                next_states = torch.tensor(next_states_np, dtype=torch.float32, device=device)
+                dones = torch.tensor(dones_np, dtype=torch.float32, device=device)
 
                 # Use Tianshou Batch so policy.learn can access attributes like batch.info.
                 tianshou_batch = Batch(
@@ -1115,14 +1126,15 @@ class TianshouWrapper(RLAlgorithm):
                     done=dones,
                     # Tianshou policies that support PER consume this key to
                     # importance-weight per-sample losses.
-                    weight=torch.tensor(is_weights, dtype=torch.float32),
+                    weight=torch.tensor(is_weights, dtype=torch.float32, device=device),
                     terminated=dones,  # Required by RolloutBatchProtocol
                     truncated=torch.zeros_like(dones),  # Required by RolloutBatchProtocol
                     info=Batch(),
                 )
 
                 if self.algorithm_name == "DQN":
-                    # DQNPolicy.learn expects precomputed one-step return targets.
+                    # DQNPolicy.learn expects precomputed return targets for this
+                    # ad-hoc replay path (the standard trainer computes these in process_fn).
                     with torch.no_grad():
                         target_model = getattr(self.policy, "model_old", self.policy.model)
                         next_q_values = target_model(next_states)

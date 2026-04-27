@@ -22,6 +22,7 @@ from farm.core.hyperparameter_chromosome import (
     MutationMode,
     chromosome_from_learning_config,
 )
+from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger as RealGeneTrajectoryLogger
 from farm.runners.intrinsic_evolution_experiment import (
     IntrinsicEvolutionExperiment,
     IntrinsicEvolutionExperimentConfig,
@@ -288,8 +289,53 @@ class TestRunnerOrchestration(unittest.TestCase):
             self.assertEqual(metadata["num_steps_configured"], 5)
             self.assertEqual(metadata["snapshot_interval"], 2)
             self.assertIn("policy", metadata)
+            self.assertIn("speciation", metadata)
+            self.assertEqual(metadata["speciation"]["enabled"], False)
+            self.assertEqual(metadata["speciation"]["algorithm"], "gmm")
+            self.assertEqual(metadata["speciation"]["max_k"], 5)
+            self.assertEqual(metadata["speciation"]["seed"], 0)
+            self.assertEqual(metadata["speciation"]["scaler"], "none")
             # Enums in the policy must serialize to plain string values.
             self.assertEqual(metadata["policy"]["mutation_mode"], "gaussian")
+
+    def test_runner_persists_speciation_settings_when_logger_enables_it(self):
+        side_effect, _env = self._stub_run_simulation(num_agents=2, num_steps=2)
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ), patch(
+            "farm.runners.intrinsic_evolution_experiment.GeneTrajectoryLogger"
+        ) as logger_cls:
+            def _make_logger(*args, **kwargs):
+                return RealGeneTrajectoryLogger(
+                    *args,
+                    enable_speciation=True,
+                    speciation_algorithm="gmm",
+                    speciation_max_k=7,
+                    speciation_seed=123,
+                    speciation_scaler="robust",
+                    **kwargs,
+                )
+
+            logger_cls.side_effect = _make_logger
+
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=2,
+                snapshot_interval=1,
+                output_dir=output_dir,
+                seed=123,
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+            meta_path = os.path.join(output_dir, "intrinsic_evolution_metadata.json")
+            with open(meta_path, encoding="utf-8") as fh:
+                metadata = json.load(fh)
+
+            self.assertEqual(metadata["speciation"]["enabled"], True)
+            self.assertEqual(metadata["speciation"]["algorithm"], "gmm")
+            self.assertEqual(metadata["speciation"]["max_k"], 7)
+            self.assertEqual(metadata["speciation"]["seed"], 123)
+            self.assertEqual(metadata["speciation"]["scaler"], "robust")
 
     def test_final_result_uses_last_hooked_state(self):
         """Final metadata aligns with callback telemetry, not post-loop finalization."""

@@ -302,6 +302,13 @@ class IntrinsicEvolutionExperiment:
     ) -> None:
         self.base_config = base_config
         self.config = config
+        self._last_speciation_config: Dict[str, Any] = {
+            "enabled": False,
+            "algorithm": None,
+            "max_k": None,
+            "seed": None,
+            "scaler": None,
+        }
 
     def run(self) -> IntrinsicEvolutionResult:
         """Execute the configured number of steps and persist artifacts."""
@@ -448,6 +455,13 @@ class IntrinsicEvolutionExperiment:
                 on_step_end=_on_step_end,
             )
         finally:
+            self._last_speciation_config = {
+                "enabled": bool(getattr(gene_logger, "_enable_speciation", False)),
+                "algorithm": getattr(gene_logger, "_speciation_algorithm", None),
+                "max_k": getattr(gene_logger, "_speciation_max_k", None),
+                "seed": getattr(gene_logger, "_speciation_seed", None),
+                "scaler": getattr(gene_logger, "_speciation_scaler", None),
+            }
             gene_logger.close()
 
         result = IntrinsicEvolutionResult(
@@ -477,6 +491,7 @@ class IntrinsicEvolutionExperiment:
             "final_population": result.final_population,
             "final_gene_statistics": result.final_gene_statistics,
             "policy": _serialize_policy(self.config.policy),
+            "speciation": dict(self._last_speciation_config),
             "seed": self.config.seed,
         }
         with open(metadata_path, "w", encoding="utf-8") as handle:
