@@ -43,10 +43,12 @@ from farm.analysis.speciation.compute import (
     ClusterResult,
     ClusterLineageRecord,
     VALID_SCALERS,
+    VALID_TRANSITION_TYPES,
     detect_clusters_gmm,
     detect_clusters_dbscan,
     suggest_dbscan_params,
     match_clusters_greedy,
+    match_clusters_hungarian,
     compute_speciation_index,
     compute_niche_correlation,
 )
@@ -58,12 +60,14 @@ __all__ = [
     "ClusterLineageRecord",
     # Configuration constants
     "VALID_SCALERS",
+    "VALID_TRANSITION_TYPES",
     # Cluster detection
     "detect_clusters_gmm",
     "detect_clusters_dbscan",
     "suggest_dbscan_params",
     # Cluster persistence
     "match_clusters_greedy",
+    "match_clusters_hungarian",
     # Scalar metrics
     "compute_speciation_index",
     # Niche analysis
