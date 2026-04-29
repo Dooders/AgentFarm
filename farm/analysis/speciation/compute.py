@@ -40,6 +40,19 @@ single scalar in ``[0.0, 1.0]``:
 - Otherwise: the *silhouette score* of the detected cluster assignment
   (bounded to ``[0.0, 1.0]``).
 
+Quality bundle
+--------------
+:func:`compute_speciation_quality_bundle` returns a
+:class:`SpeciationQualityBundle` with richer diagnostics alongside
+``speciation_index``:
+
+- ``raw_silhouette``: unclipped silhouette in ``[-1, 1]`` (negative values
+  signal overlapping clusters).
+- ``noise_fraction``: fraction of DBSCAN noise agents (``0.0`` for GMM).
+- ``cluster_size_entropy``: Shannon entropy (nats) of cluster-size
+  distribution; ``0.0`` when ``k ≤ 1``; higher means more balanced clusters.
+- ``n_clusters``: number of detected clusters.
+
 Niche correlation
 -----------------
 :func:`compute_niche_correlation` accepts the per-snapshot agent list (as
@@ -209,6 +222,42 @@ class ClusterLineageRecord:
     gene_stats: Optional[Dict[str, Dict[str, float]]] = field(default=None)
 
 
+@dataclass
+class SpeciationQualityBundle:
+    """Rich quality metrics for a single cluster-detection result.
+
+    This bundle supplements the scalar :func:`compute_speciation_index` with
+    additional diagnostics that expose signal which the clipped scalar loses
+    (e.g. negative silhouette) and that characterise noise prevalence and
+    cluster balance.
+
+    Attributes
+    ----------
+    speciation_index:
+        Normalised speciation index in ``[0.0, 1.0]``, identical to the
+        value returned by :func:`compute_speciation_index`.
+    raw_silhouette:
+        Unclipped silhouette score in ``[-1.0, 1.0]``.  ``0.0`` when
+        ``k ≤ 1`` or when fewer than two labelled agents exist.  Negative
+        values indicate overlapping or misassigned clusters.
+    noise_fraction:
+        Fraction of all input agents labelled as noise (label ``-1``) by
+        DBSCAN.  Always ``0.0`` for GMM results.
+    cluster_size_entropy:
+        Shannon entropy (nats) of the cluster-size distribution, computed
+        over labelled agents only.  ``0.0`` when ``k ≤ 1``.  Higher values
+        indicate more balanced clusters; maximum is ``ln(k)``.
+    n_clusters:
+        Number of detected clusters (``ClusterResult.k``).
+    """
+
+    speciation_index: float
+    raw_silhouette: float
+    noise_fraction: float
+    cluster_size_entropy: float
+    n_clusters: int
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -257,7 +306,12 @@ def _centroid_to_dict(centroid_vec: np.ndarray, gene_names: List[str]) -> Dict[s
 
 
 def _silhouette(X: np.ndarray, labels: np.ndarray) -> float:
-    """Compute silhouette score, returning 0.0 on any failure."""
+    """Compute raw silhouette score in ``[-1, 1]``, returning ``0.0`` on failure.
+
+    Unlike the previous behaviour this function no longer clips negative
+    scores; callers that need a non-negative value apply ``max(0.0, …)``
+    themselves (see :func:`compute_speciation_index`).
+    """
     unique = np.unique(labels[labels >= 0])
     if len(unique) < 2 or X.shape[0] < 2:
         return 0.0
@@ -266,8 +320,7 @@ def _silhouette(X: np.ndarray, labels: np.ndarray) -> float:
     if mask.sum() < 2:
         return 0.0
     try:
-        score = float(_sk_silhouette(X[mask], labels[mask]))
-        return max(0.0, score)
+        return float(_sk_silhouette(X[mask], labels[mask]))
     except Exception as exc:
         logger.debug("_silhouette: failed to compute silhouette score: %s", exc)
         return 0.0
@@ -1093,6 +1146,67 @@ def compute_speciation_index(cluster_result: ClusterResult) -> float:
     if cluster_result.k <= 1:
         return 0.0
     return max(0.0, min(1.0, cluster_result.silhouette_score))
+
+
+def compute_speciation_quality_bundle(
+    cluster_result: ClusterResult,
+) -> SpeciationQualityBundle:
+    """Compute a rich set of quality metrics for a cluster-detection result.
+
+    Returns a :class:`SpeciationQualityBundle` that supplements the scalar
+    :func:`compute_speciation_index` with diagnostics for noise prevalence
+    and cluster balance.
+
+    Parameters
+    ----------
+    cluster_result:
+        A :class:`ClusterResult` from :func:`detect_clusters_gmm` or
+        :func:`detect_clusters_dbscan`.
+
+    Returns
+    -------
+    SpeciationQualityBundle
+        Bundle with the following fields:
+
+        - ``speciation_index`` – normalised index in ``[0.0, 1.0]``
+          (same as :func:`compute_speciation_index`).
+        - ``raw_silhouette`` – unclipped silhouette in ``[-1.0, 1.0]``.
+        - ``noise_fraction`` – fraction of DBSCAN noise agents; ``0.0``
+          for GMM.
+        - ``cluster_size_entropy`` – Shannon entropy (nats) of the
+          cluster-size distribution; ``0.0`` when ``k ≤ 1``.
+        - ``n_clusters`` – number of detected clusters.
+    """
+    n_total = len(cluster_result.labels)
+
+    # Noise fraction (DBSCAN label -1; always 0 for GMM)
+    if n_total > 0:
+        n_noise = sum(1 for lbl in cluster_result.labels if lbl < 0)
+        noise_fraction = float(n_noise) / float(n_total)
+    else:
+        noise_fraction = 0.0
+
+    # Cluster-size Shannon entropy (nats)
+    if cluster_result.k >= 2 and cluster_result.sizes:
+        total_labelled = float(sum(cluster_result.sizes))
+        if total_labelled > 0.0:
+            entropy = 0.0
+            for sz in cluster_result.sizes:
+                p = sz / total_labelled
+                if p > 0.0:
+                    entropy -= p * math.log(p)
+        else:
+            entropy = 0.0
+    else:
+        entropy = 0.0
+
+    return SpeciationQualityBundle(
+        speciation_index=compute_speciation_index(cluster_result),
+        raw_silhouette=cluster_result.silhouette_score if cluster_result.k >= 2 else 0.0,
+        noise_fraction=noise_fraction,
+        cluster_size_entropy=entropy,
+        n_clusters=cluster_result.k,
+    )
 
 
 # ---------------------------------------------------------------------------

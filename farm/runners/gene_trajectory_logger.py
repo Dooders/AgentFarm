@@ -32,6 +32,7 @@ from typing import Any, Dict, List, Optional, TextIO
 from farm.analysis.speciation.compute import (
     VALID_SCALERS,
     compute_speciation_index,
+    compute_speciation_quality_bundle,
     detect_clusters_dbscan,
     detect_clusters_gmm,
     match_clusters_greedy,
@@ -189,6 +190,7 @@ class GeneTrajectoryLogger:
 
         # Cached speciation state between snapshot steps
         self._cached_speciation_index: float = 0.0
+        self._cached_speciation_quality: Optional[Dict[str, Any]] = None
         self._prev_cluster_records: List[Any] = []  # List[ClusterLineageRecord]
         self._cluster_id_counter: int = 0
 
@@ -253,11 +255,15 @@ class GeneTrajectoryLogger:
         }
         if self._enable_speciation:
             trajectory_record["speciation_index"] = self._cached_speciation_index
+            if self._cached_speciation_quality is not None:
+                trajectory_record["speciation_quality"] = self._cached_speciation_quality
 
         if extra_fields:
             _RESERVED_TRAJECTORY_KEYS = {"step", "n_alive", "n_with_chromosome", "gene_stats"}
             if self._enable_speciation:
-                _RESERVED_TRAJECTORY_KEYS = _RESERVED_TRAJECTORY_KEYS | {"speciation_index"}
+                _RESERVED_TRAJECTORY_KEYS = _RESERVED_TRAJECTORY_KEYS | {
+                    "speciation_index", "speciation_quality"
+                }
             collisions = _RESERVED_TRAJECTORY_KEYS & extra_fields.keys()
             if collisions:
                 raise ValueError(
@@ -304,6 +310,7 @@ class GeneTrajectoryLogger:
         """
         if not chromosomes:
             self._cached_speciation_index = 0.0
+            self._cached_speciation_quality = None
             self._prev_cluster_records = []
             self._cluster_id_counter = 0
             return
@@ -331,6 +338,14 @@ class GeneTrajectoryLogger:
                 )
 
             self._cached_speciation_index = compute_speciation_index(result)
+            bundle = compute_speciation_quality_bundle(result)
+            self._cached_speciation_quality = {
+                "speciation_index": bundle.speciation_index,
+                "raw_silhouette": bundle.raw_silhouette,
+                "noise_fraction": bundle.noise_fraction,
+                "cluster_size_entropy": bundle.cluster_size_entropy,
+                "n_clusters": bundle.n_clusters,
+            }
 
             # Persist cluster lineage
             if result.k == 0:
