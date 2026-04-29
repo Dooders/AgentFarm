@@ -781,20 +781,24 @@ class AgentCore:
     def _select_coparent(self, policy, rng) -> Optional["AgentCore"]:
         """Pick a co-parent for crossover according to the policy.
 
-        Filters to alive agents of the same ``agent_type`` (excluding self)
-        with a chromosome attribute, optionally constrained to
-        ``policy.coparent_max_radius`` Euclidean distance from self.
+        Filters to alive agents (excluding self) with a chromosome attribute,
+        optionally constrained to ``policy.coparent_max_radius`` Euclidean
+        distance from self.  By default only agents of the same
+        ``agent_type`` are eligible; set ``policy.allow_cross_type_pollination
+        = True`` to include agents from all types.
         Returns ``None`` when no eligible candidate exists, in which case
         reproduction falls back to asexual (mutation-only) inheritance.
         """
         if self.environment is None:
             return None
 
+        allow_cross_type = getattr(policy, "allow_cross_type_pollination", False)
+
         candidates: List["AgentCore"] = []
         for other in self.environment.alive_agent_objects:
             if other is self:
                 continue
-            if other.agent_type != self.agent_type:
+            if not allow_cross_type and other.agent_type != self.agent_type:
                 continue
             if getattr(other, "hyperparameter_chromosome", None) is None:
                 continue

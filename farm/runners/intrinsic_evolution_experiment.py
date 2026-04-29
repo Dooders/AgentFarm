@@ -142,12 +142,18 @@ class IntrinsicEvolutionPolicy:
             runs :func:`crossover_chromosomes` before mutation.
         crossover_mode / blend_alpha / num_crossover_points: Crossover
             operator settings (see :class:`CrossoverMode`).
-        coparent_strategy: How to pick the co-parent.  Both strategies filter
-            to alive agents of the same ``agent_type``; ``nearest`` is
-            deterministic-modulo-tiebreak and reflects spatial sociality,
-            ``random`` is uniform over the candidate pool.
+        coparent_strategy: How to pick the co-parent.  By default both
+            strategies filter to alive agents of the same ``agent_type``;
+            ``nearest`` is deterministic-modulo-tiebreak and reflects spatial
+            sociality, ``random`` is uniform over the candidate pool.  When
+            ``allow_cross_type_pollination`` is ``True`` the filter is lifted
+            and candidates from any ``agent_type`` are included.
         coparent_max_radius: Optional spatial cap on the co-parent search;
             ``None`` means unbounded.
+        allow_cross_type_pollination: When ``True``, the co-parent candidate
+            pool includes agents of any ``agent_type``, enabling cross-type
+            gene flow.  When ``False`` (default), only agents with the same
+            ``agent_type`` as the reproducing agent are eligible.
         seed: Optional seed for the policy's RNG; when ``None`` the runner
             seeds from its own configured seed.
         selection_pressure: Convenience knob that sets density-dependent
@@ -176,6 +182,7 @@ class IntrinsicEvolutionPolicy:
     num_crossover_points: int = 2
     coparent_strategy: CoparentStrategy = "nearest_alive_same_type"
     coparent_max_radius: Optional[float] = None
+    allow_cross_type_pollination: bool = False
     seed: Optional[int] = None
     selection_pressure: Union[SelectionPressurePreset, float, None] = None
     reproduction_pressure: ReproductionPressureConfig = field(
