@@ -118,6 +118,14 @@ class ClusterResult:
     bic_scores:
         Mapping ``{k: bic_value}`` for each ``k`` tried during GMM search.
         ``None`` for DBSCAN.
+    scaler:
+        Feature scaling applied before clustering.  One of ``"none"``,
+        ``"standard"``, or ``"robust"``.
+    dbscan_params:
+        When DBSCAN was run with ``auto_tune=True``, a dict containing the
+        chosen ``eps``, ``min_samples``, ``method``, and ``k_percentile`` for
+        reproducibility.  ``None`` when parameters were supplied explicitly or
+        the algorithm is GMM.
     """
 
     algorithm: str
@@ -129,6 +137,7 @@ class ClusterResult:
     silhouette_score: float
     bic_scores: Optional[Dict[int, float]]
     scaler: str = "none"
+    dbscan_params: Optional[Dict[str, Any]] = field(default=None)
 
 
 @dataclass
@@ -409,6 +418,117 @@ def detect_clusters_gmm(
 # ---------------------------------------------------------------------------
 
 
+def suggest_dbscan_params(
+    chromosomes: Sequence[Dict[str, float]],
+    *,
+    gene_names: Optional[List[str]] = None,
+    k_percentile: float = 90.0,
+    scaler: str = "none",
+) -> Dict[str, Any]:
+    """Suggest DBSCAN ``eps`` and ``min_samples`` from data statistics.
+
+    Uses the *k-NN distance percentile* heuristic:
+
+    1. ``min_samples`` is set to ``max(2, n_dims + 1)`` — a common rule of
+       thumb that scales with chromosome dimensionality.
+    2. For each point the distance to its ``min_samples``-th nearest neighbour
+       is computed.  ``eps`` is the ``k_percentile``-th percentile of those
+       sorted distances.
+
+    The returned dict can be unpacked directly into :func:`detect_clusters_dbscan`::
+
+        params = suggest_dbscan_params(chromosomes, k_percentile=90)
+        result = detect_clusters_dbscan(chromosomes, **params)
+
+    Parameters
+    ----------
+    chromosomes:
+        Sequence of chromosome dicts used to estimate parameters.
+    gene_names:
+        Ordered subset of genes to use.  When ``None`` all present genes are
+        used (sorted).
+    k_percentile:
+        Percentile (0–100) of the sorted k-NN distance distribution used to
+        estimate ``eps``.  Higher values produce a more inclusive neighbourhood
+        and tend to merge smaller clusters.  Default 90.
+    scaler:
+        Feature scaling applied before computing distances.  Same options as
+        :func:`detect_clusters_dbscan`.  Use the same value you intend to pass
+        to :func:`detect_clusters_dbscan` so the suggested ``eps`` is valid in
+        the same scaled space.
+
+    Returns
+    -------
+    dict
+        ``{"eps": float, "min_samples": int, "method": str, "k_percentile": float}``
+        where ``method`` is always ``"k_distance_percentile"``.
+
+    Raises
+    ------
+    ValueError
+        When ``k_percentile`` is outside ``[0, 100]`` or ``scaler`` is invalid.
+    ImportError
+        When scikit-learn is not installed.
+    """
+    if not 0.0 <= k_percentile <= 100.0:
+        raise ValueError(f"k_percentile must be in [0, 100]; got {k_percentile!r}.")
+    _validate_scaler(scaler)
+    _require_sklearn()
+
+    from sklearn.neighbors import NearestNeighbors
+
+    X, gnames = _chromosomes_to_matrix(chromosomes, gene_names)
+    n_agents, n_dims = X.shape
+
+    min_samples: int = max(2, n_dims + 1)
+
+    fallback: Dict[str, Any] = {
+        "eps": 0.5,
+        "min_samples": min_samples,
+        "method": "k_distance_percentile",
+        "k_percentile": k_percentile,
+    }
+
+    if n_agents <= min_samples:
+        # Too few points to fit NearestNeighbors reliably; return safe defaults.
+        logger.info(
+            "suggest_dbscan_params: insufficient data for k-NN estimation; using fallback",
+            n_agents=n_agents,
+            n_dims=n_dims,
+            min_samples=min_samples,
+        )
+        return fallback
+
+    X_scaled, _ = _apply_scaler(X, scaler)
+
+    nbrs = NearestNeighbors(n_neighbors=min_samples).fit(X_scaled)
+    distances, _ = nbrs.kneighbors(X_scaled)
+    # distances[:, -1] is the distance to the min_samples-th nearest neighbour
+    kth_distances = distances[:, -1]
+    eps = float(np.percentile(kth_distances, k_percentile))
+
+    # Guard against degenerate case where all points are identical (eps == 0).
+    if eps <= 0.0:
+        eps = float(np.percentile(kth_distances, min(k_percentile + 5.0, 100.0)))
+    if eps <= 0.0:
+        eps = 1e-6  # absolute fallback to avoid DBSCAN running with eps=0
+
+    logger.info(
+        "suggest_dbscan_params",
+        n_agents=n_agents,
+        n_dims=n_dims,
+        suggested_eps=round(eps, 6),
+        suggested_min_samples=min_samples,
+        k_percentile=k_percentile,
+    )
+    return {
+        "eps": eps,
+        "min_samples": min_samples,
+        "method": "k_distance_percentile",
+        "k_percentile": k_percentile,
+    }
+
+
 def detect_clusters_dbscan(
     chromosomes: Sequence[Dict[str, float]],
     *,
@@ -416,6 +536,8 @@ def detect_clusters_dbscan(
     min_samples: int = 2,
     gene_names: Optional[List[str]] = None,
     scaler: str = "none",
+    auto_tune: bool = False,
+    auto_tune_percentile: float = 90.0,
 ) -> ClusterResult:
     """Detect population clusters using DBSCAN.
 
@@ -429,10 +551,10 @@ def detect_clusters_dbscan(
     eps:
         Maximum distance between two samples to be considered in the same
         neighbourhood.  Default ``0.1`` (gene values are typically in
-        ``[0, 1]`` after normalisation).
+        ``[0, 1]`` after normalisation).  Ignored when ``auto_tune=True``.
     min_samples:
         Minimum number of samples in a neighbourhood to form a core point.
-        Default 2.
+        Default 2.  Ignored when ``auto_tune=True``.
     gene_names:
         Ordered subset of genes to use.  When ``None`` all present genes are
         used (sorted).
@@ -442,15 +564,43 @@ def detect_clusters_dbscan(
         (z-score), or ``"robust"`` (median/IQR).  When genes have widely
         different numeric ranges scaling is strongly recommended, as DBSCAN's
         ``eps`` threshold is applied in the scaled space.
+    auto_tune:
+        When ``True``, ``eps`` and ``min_samples`` are estimated automatically
+        from the chromosome distribution using :func:`suggest_dbscan_params`
+        (k-NN distance percentile heuristic).  The chosen parameters are
+        recorded in :attr:`ClusterResult.dbscan_params` for reproducibility.
+        Default ``False``.
+    auto_tune_percentile:
+        Percentile (0–100) of the k-NN distance distribution used to estimate
+        ``eps`` when ``auto_tune=True``.  Higher values produce a larger, more
+        inclusive neighbourhood.  Default 90.
 
     Returns
     -------
     ClusterResult
+        ``dbscan_params`` is populated when ``auto_tune=True`` and contains
+        the chosen ``eps``, ``min_samples``, ``method``, and ``k_percentile``.
     """
     _validate_scaler(scaler)
+    if auto_tune and not 0.0 <= auto_tune_percentile <= 100.0:
+        raise ValueError(
+            "auto_tune_percentile must be in [0, 100] when auto_tune=True; "
+            f"got {auto_tune_percentile!r}."
+        )
     _require_sklearn()
     X, gnames = _chromosomes_to_matrix(chromosomes, gene_names)
     n_agents = X.shape[0]
+
+    chosen_params: Optional[Dict[str, Any]] = None
+    if auto_tune and n_agents > 0:
+        chosen_params = suggest_dbscan_params(
+            chromosomes,
+            gene_names=gnames,
+            k_percentile=auto_tune_percentile,
+            scaler=scaler,
+        )
+        eps = chosen_params["eps"]
+        min_samples = chosen_params["min_samples"]
 
     if n_agents == 0:
         return ClusterResult(
@@ -463,6 +613,7 @@ def detect_clusters_dbscan(
             silhouette_score=0.0,
             bic_scores=None,
             scaler=scaler,
+            dbscan_params=chosen_params,
         )
 
     X_scaled, inverse_transform = _apply_scaler(X, scaler)
@@ -500,6 +651,7 @@ def detect_clusters_dbscan(
         silhouette_score=sil,
         bic_scores=None,
         scaler=scaler,
+        dbscan_params=chosen_params,
     )
 
 

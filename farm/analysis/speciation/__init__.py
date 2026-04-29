@@ -45,6 +45,7 @@ from farm.analysis.speciation.compute import (
     VALID_SCALERS,
     detect_clusters_gmm,
     detect_clusters_dbscan,
+    suggest_dbscan_params,
     match_clusters_greedy,
     compute_speciation_index,
     compute_niche_correlation,
@@ -60,6 +61,7 @@ __all__ = [
     # Cluster detection
     "detect_clusters_gmm",
     "detect_clusters_dbscan",
+    "suggest_dbscan_params",
     # Cluster persistence
     "match_clusters_greedy",
     # Scalar metrics
