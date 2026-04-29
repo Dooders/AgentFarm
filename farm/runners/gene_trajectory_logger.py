@@ -306,6 +306,8 @@ class GeneTrajectoryLogger:
                         "centroid": rec.centroid,
                         "size": rec.size,
                         "parent_cluster_id": rec.parent_cluster_id,
+                        "transition_type": rec.transition_type,
+                        "parent_cluster_ids": rec.parent_cluster_ids,
                         "scaler": result.scaler,
                         "dbscan_params": result.dbscan_params,
                     }

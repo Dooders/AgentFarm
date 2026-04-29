@@ -23,11 +23,13 @@ import pytest
 from farm.analysis.speciation import (
     ClusterLineageRecord,
     ClusterResult,
+    VALID_TRANSITION_TYPES,
     compute_niche_correlation,
     compute_speciation_index,
     detect_clusters_dbscan,
     detect_clusters_gmm,
     match_clusters_greedy,
+    match_clusters_hungarian,
     plot_chromosome_space_clusters,
     suggest_dbscan_params,
 )
@@ -230,6 +232,269 @@ class TestMatchClustersGreedy:
         # the other should be a new "c1"
         assert "c0" in ids_100
         assert "c1" in ids_100
+
+
+# ---------------------------------------------------------------------------
+# match_clusters_hungarian
+# ---------------------------------------------------------------------------
+
+
+class TestMatchClustersHungarian:
+    """Tests for the Hungarian-algorithm-based cluster matcher."""
+
+    def _make_record(
+        self, cluster_id: str, centroid: Dict[str, float], size: int = 10
+    ) -> ClusterLineageRecord:
+        return ClusterLineageRecord(
+            step=0,
+            cluster_id=cluster_id,
+            centroid=centroid,
+            size=size,
+            parent_cluster_id=None,
+        )
+
+    # --- basic correctness ---------------------------------------------------
+
+    def test_empty_prev_all_founding(self):
+        """With no previous clusters every new cluster is a founding."""
+        centroids = [{"lr": 0.01}, {"lr": 0.1}]
+        records, next_ctr = match_clusters_hungarian([], centroids, [20, 20], ["lr"], step=0)
+        assert len(records) == 2
+        assert all(r.transition_type == "founding" for r in records)
+        assert all(r.parent_cluster_id is None for r in records)
+        assert all(r.parent_cluster_ids == [] for r in records)
+        assert next_ctr == 2
+
+    def test_stable_id_continuation(self):
+        """A closely-matching 1:1 pair gets transition_type 'continuation'."""
+        prev = [self._make_record("c0", {"lr": 0.01})]
+        records, _ = match_clusters_hungarian(prev, [{"lr": 0.011}], [18], ["lr"], step=1)
+        assert records[0].cluster_id == "c0"
+        assert records[0].parent_cluster_id == "c0"
+        assert records[0].transition_type == "continuation"
+        assert records[0].parent_cluster_ids == ["c0"]
+
+    def test_founding_when_beyond_max_distance(self):
+        """New cluster exceeding max_distance gets a fresh founding ID."""
+        prev = [self._make_record("c0", {"lr": 0.01})]
+        records, _ = match_clusters_hungarian(
+            prev, [{"lr": 0.5}], [15], ["lr"], step=1, max_distance=0.05
+        )
+        assert records[0].cluster_id != "c0"
+        assert records[0].parent_cluster_id is None
+        assert records[0].transition_type == "founding"
+        assert records[0].parent_cluster_ids == []
+
+    def test_step_field_populated_correctly(self):
+        records, _ = match_clusters_hungarian([], [{"lr": 0.05}], [5], ["lr"], step=999)
+        assert records[0].step == 999
+
+    def test_id_counter_auto_advances(self):
+        """Counter skips over IDs already used in prev_records."""
+        prev = [
+            self._make_record("c0", {"lr": 0.01}),
+            self._make_record("c3", {"lr": 0.9}),  # non-contiguous
+        ]
+        records, ctr = match_clusters_hungarian(
+            prev, [{"lr": 0.5}], [10], ["lr"], step=1, max_distance=0.05
+        )
+        assert records[0].cluster_id == "c4"  # skips c0..c3
+        assert ctr == 5
+
+    # --- split detection -----------------------------------------------------
+
+    def test_split_transition_type_detected(self):
+        """One prev cluster splits into two new ones → both get 'split'."""
+        prev = [self._make_record("c0", {"lr": 0.05})]
+        records, _ = match_clusters_hungarian(
+            prev, [{"lr": 0.01}, {"lr": 0.09}], [10, 10], ["lr"], step=1
+        )
+        assert "split" in {r.transition_type for r in records}
+
+    def test_split_inheritor_keeps_prev_id(self):
+        """The Hungarian-matched split child inherits the predecessor ID."""
+        prev = [self._make_record("c0", {"lr": 0.05})]
+        records, _ = match_clusters_hungarian(
+            prev, [{"lr": 0.04}, {"lr": 0.08}], [10, 10], ["lr"], step=1, max_distance=0.5
+        )
+        assert "c0" in {r.cluster_id for r in records}
+
+    def test_split_fixture_across_snapshots(self):
+        """Full scenario: single cluster at step 0, splits at step 1."""
+        r0, ctr0 = match_clusters_hungarian([], [{"lr": 0.05}], [30], ["lr"], step=0)
+        assert r0[0].cluster_id == "c0"
+        assert r0[0].transition_type == "founding"
+
+        r1, _ = match_clusters_hungarian(
+            r0, [{"lr": 0.01}, {"lr": 0.09}], [15, 15], ["lr"], step=1,
+            id_counter_start=ctr0,
+        )
+        ids = {rec.cluster_id for rec in r1}
+        types = {rec.transition_type for rec in r1}
+        assert "c0" in ids
+        assert "split" in types
+
+    # --- merge detection -----------------------------------------------------
+
+    def test_merge_transition_type_detected(self):
+        """Two prev clusters converging into one → transition 'merge'."""
+        prev = [
+            self._make_record("c0", {"lr": 0.01}),
+            self._make_record("c1", {"lr": 0.02}),
+        ]
+        records, _ = match_clusters_hungarian(
+            prev, [{"lr": 0.015}], [20], ["lr"], step=1, max_distance=1.0
+        )
+        assert len(records) == 1
+        assert records[0].transition_type == "merge"
+
+    def test_merge_parent_cluster_ids_contains_all_parents(self):
+        """Merged cluster lists all contributing predecessors."""
+        prev = [
+            self._make_record("c0", {"lr": 0.01}),
+            self._make_record("c1", {"lr": 0.02}),
+        ]
+        records, _ = match_clusters_hungarian(
+            prev, [{"lr": 0.015}], [20], ["lr"], step=1, max_distance=1.0
+        )
+        assert set(records[0].parent_cluster_ids) == {"c0", "c1"}
+
+    def test_merge_fixture_across_snapshots(self):
+        """Full scenario: two clusters at step 0, merge at step 1."""
+        r0, ctr0 = match_clusters_hungarian(
+            [], [{"lr": 0.01}, {"lr": 0.09}], [10, 10], ["lr"], step=0
+        )
+        assert {r.cluster_id for r in r0} == {"c0", "c1"}
+
+        r1, _ = match_clusters_hungarian(
+            r0, [{"lr": 0.05}], [20], ["lr"], step=1,
+            id_counter_start=ctr0, max_distance=1.0,
+        )
+        assert len(r1) == 1
+        assert r1[0].transition_type == "merge"
+        assert set(r1[0].parent_cluster_ids) == {"c0", "c1"}
+
+    # --- global optimality ---------------------------------------------------
+
+    def test_hungarian_global_optimum(self):
+        """Skewed layout where Hungarian gives lower total cost than greedy.
+
+        prev: c0 at 0.0, c1 at 5.0
+        new:  A at 4.0,  B at 6.0
+
+        Greedy (A first): A→c1 (dist 1), B→c0 (dist 6), total 7
+        Hungarian:        A→c0 (dist 4), B→c1 (dist 1), total 5 ← better
+        """
+        prev = [
+            self._make_record("c0", {"lr": 0.0}),
+            self._make_record("c1", {"lr": 5.0}),
+        ]
+        records, _ = match_clusters_hungarian(
+            prev, [{"lr": 4.0}, {"lr": 6.0}], [10, 10], ["lr"], step=1
+        )
+        id_map = {r.centroid["lr"]: r.cluster_id for r in records}
+        assert id_map[4.0] == "c0"
+        assert id_map[6.0] == "c1"
+
+    # --- determinism ---------------------------------------------------------
+
+    def test_deterministic_on_repeated_calls(self):
+        """Repeated calls with identical input give identical output."""
+        prev = [
+            self._make_record("c0", {"lr": 0.01, "gamma": 0.9}),
+            self._make_record("c1", {"lr": 0.1, "gamma": 0.5}),
+        ]
+        centroids = [{"lr": 0.015, "gamma": 0.88}, {"lr": 0.09, "gamma": 0.52}]
+        r1, ctr1 = match_clusters_hungarian(prev, centroids, [10, 10], ["lr", "gamma"], step=5)
+        r2, ctr2 = match_clusters_hungarian(prev, centroids, [10, 10], ["lr", "gamma"], step=5)
+        assert ctr1 == ctr2
+        assert [(r.cluster_id, r.transition_type) for r in r1] == [
+            (r.cluster_id, r.transition_type) for r in r2
+        ]
+
+    # --- transition type validity --------------------------------------------
+
+    def test_all_transition_types_are_valid(self):
+        """All emitted transition_type values are in VALID_TRANSITION_TYPES."""
+        prev = [
+            self._make_record("c0", {"lr": 0.05}),
+            self._make_record("c1", {"lr": 0.5}),
+        ]
+        centroids = [{"lr": 0.01}, {"lr": 0.1}, {"lr": 0.49}]
+        records, _ = match_clusters_hungarian(
+            prev, centroids, [10, 10, 10], ["lr"], step=1, max_distance=1.0
+        )
+        for r in records:
+            assert r.transition_type in VALID_TRANSITION_TYPES
+
+
+# ---------------------------------------------------------------------------
+# ClusterLineageRecord new fields (backward compatibility)
+# ---------------------------------------------------------------------------
+
+
+class TestClusterLineageRecordNewFields:
+    """Backward-compatible new fields on ClusterLineageRecord."""
+
+    def test_transition_type_defaults_to_none(self):
+        rec = ClusterLineageRecord(
+            step=0, cluster_id="c0", centroid={"lr": 0.01}, size=5,
+            parent_cluster_id=None,
+        )
+        assert rec.transition_type is None
+
+    def test_parent_cluster_ids_defaults_to_empty_list(self):
+        rec = ClusterLineageRecord(
+            step=0, cluster_id="c0", centroid={"lr": 0.01}, size=5,
+            parent_cluster_id=None,
+        )
+        assert rec.parent_cluster_ids == []
+
+    def test_greedy_records_have_none_transition_type(self):
+        """match_clusters_greedy leaves transition_type as None."""
+        records, _ = match_clusters_greedy([], [{"lr": 0.01}], [10], ["lr"], step=0)
+        assert records[0].transition_type is None
+        assert records[0].parent_cluster_ids == []
+
+    def test_hungarian_records_have_valid_transition_type(self):
+        records, _ = match_clusters_hungarian([], [{"lr": 0.01}], [10], ["lr"], step=0)
+        assert records[0].transition_type == "founding"
+        assert records[0].parent_cluster_ids == []
+
+
+# ---------------------------------------------------------------------------
+# cluster_lineage.jsonl – new transition fields
+# ---------------------------------------------------------------------------
+
+
+class TestClusterLineageJsonlTransitionFields:
+    """Verify transition_type and parent_cluster_ids appear in cluster_lineage.jsonl."""
+
+    def test_cluster_lineage_contains_transition_fields(self, tmp_path):
+        """cluster_lineage.jsonl rows include transition_type and parent_cluster_ids."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = (
+            [_make_fake_agent(lr=0.001, gamma=0.99)] * 10
+            + [_make_fake_agent(lr=0.9, gamma=0.1)] * 10
+        )
+        env = _FakeEnvironment(agents)
+
+        logger = GeneTrajectoryLogger(str(tmp_path), snapshot_interval=1, enable_speciation=True)
+        logger.snapshot(env, step=0)
+        logger.close()
+
+        lineage_path = tmp_path / "cluster_lineage.jsonl"
+        rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
+        assert len(rows) >= 1
+        for row in rows:
+            assert "transition_type" in row
+            assert "parent_cluster_ids" in row
+            assert isinstance(row["parent_cluster_ids"], list)
+            # Backward-compatible fields still present
+            assert "parent_cluster_id" in row
+            assert "step" in row
+            assert "cluster_id" in row
 
 
 # ---------------------------------------------------------------------------
