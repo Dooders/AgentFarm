@@ -956,12 +956,17 @@ def match_clusters_hungarian(
     # than any valid in-gate distance, so the solver will always prefer a
     # within-gate assignment when one exists.
     # -----------------------------------------------------------------------
-    gate_ceiling = max(float(max_distance), float(np.max(D)) if D.size else 0.0)
+    # n_new > 0 and n_prev > 0 are guaranteed by the early-return above,
+    # so D is non-empty here and np.max(D) is safe.
+    gate_ceiling = max(float(max_distance), float(np.max(D)))
     if not np.isfinite(gate_ceiling) or gate_ceiling >= np.finfo(float).max:
         raise ValueError(
             "max_distance and lineage-assignment distances must be finite "
             "and smaller than the largest representable float"
         )
+    # np.nextafter gives the smallest representable float strictly greater than
+    # gate_ceiling, ensuring out-of-gate pairs always cost more than any valid
+    # in-gate pair regardless of the magnitude of max_distance.
     hungarian_gate_penalty = np.nextafter(gate_ceiling, math.inf)
     cost = np.where(D <= max_distance, D, hungarian_gate_penalty)
     row_ind, col_ind = _lsa(cost)
