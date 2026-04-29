@@ -1224,7 +1224,7 @@ class TestGeneTrajectoryLoggerSpeciation:
         assert isinstance(q, dict)
         assert set(q.keys()) >= {
             "speciation_index", "raw_silhouette", "noise_fraction",
-            "cluster_size_entropy", "n_clusters",
+            "cluster_size_entropy", "n_clusters", "computed_at_step",
         }
 
     def test_quality_bundle_field_bounds(self, tmp_path):
@@ -1247,6 +1247,7 @@ class TestGeneTrajectoryLoggerSpeciation:
         assert 0.0 <= q["noise_fraction"] <= 1.0
         assert q["cluster_size_entropy"] >= 0.0
         assert isinstance(q["n_clusters"], int) and q["n_clusters"] >= 0
+        assert isinstance(q["computed_at_step"], int) and q["computed_at_step"] >= 0
 
     def test_quality_bundle_includes_stability_when_enabled(self, tmp_path):
         """With speciation_include_stability=True, quality includes stability_score."""
@@ -1432,6 +1433,29 @@ class TestGeneTrajectoryLoggerSpeciation:
         rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
         clustering_steps = sorted({row["step"] for row in rows})
         assert clustering_steps == [0, 3, 6, 9]
+
+    def test_clustering_interval_quality_tracks_computed_step(self, tmp_path):
+        """speciation_quality exposes the clustering step that computed it."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = [_make_fake_agent(lr=0.01)] * 10 + [_make_fake_agent(lr=0.5)] * 10
+        env = _FakeEnvironment(agents)
+
+        # Snapshot steps: 0 and 4. Clustering steps: 0 and 3.
+        logger = GeneTrajectoryLogger(
+            str(tmp_path),
+            snapshot_interval=4,
+            enable_speciation=True,
+            clustering_interval=3,
+        )
+        for step in range(5):  # steps 0..4
+            logger.snapshot(env, step=step)
+        logger.close()
+
+        traj_path = tmp_path / "intrinsic_gene_trajectory.jsonl"
+        records = [json.loads(line) for line in traj_path.read_text().splitlines()]
+        assert records[0]["speciation_quality"]["computed_at_step"] == 0
+        assert records[4]["speciation_quality"]["computed_at_step"] == 3
 
 
 

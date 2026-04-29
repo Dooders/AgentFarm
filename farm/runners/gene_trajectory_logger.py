@@ -270,17 +270,10 @@ class GeneTrajectoryLogger:
         when at least one chromosome is present at a snapshot step, a
         ``speciation_quality`` dict containing ``speciation_index``,
         ``raw_silhouette``, ``noise_fraction``, ``cluster_size_entropy``,
-        and ``n_clusters``.  When ``speciation_include_stability=True``,
-        ``speciation_quality`` also includes ``stability_score`` in ``[0, 1]``.
-        ``speciation_quality`` is absent from non-snapshot steps and from
-        snapshot steps where there are no chromosomes.
-        ``speciation_index`` field and, when at least one chromosome is
-        present at the snapshot step, a ``speciation_quality`` dict
-        containing ``speciation_index``, ``raw_silhouette``,
-        ``noise_fraction``, ``cluster_size_entropy``, and ``n_clusters``.
-        When ``speciation_include_stability=True``, ``speciation_quality``
-        also includes ``stability_score`` in ``[0, 1]``.
-        Both fields are updated at every snapshot step; ``speciation_quality``
+        and ``n_clusters`` plus ``computed_at_step`` (the clustering step
+        when the quality bundle was last recomputed).  When
+        ``speciation_include_stability=True``, ``speciation_quality`` also
+        includes ``stability_score`` in ``[0, 1]``.  ``speciation_quality``
         is absent from non-snapshot steps and from snapshot steps where there
         are no chromosomes.
         Additionally appends a full per-agent snapshot when
@@ -442,6 +435,7 @@ class GeneTrajectoryLogger:
                 "noise_fraction": bundle.noise_fraction,
                 "cluster_size_entropy": bundle.cluster_size_entropy,
                 "n_clusters": bundle.n_clusters,
+                "computed_at_step": step,
             }
             if bundle.stability_score is not None:
                 self._cached_speciation_quality["stability_score"] = bundle.stability_score
