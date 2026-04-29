@@ -31,7 +31,8 @@ from typing import Any, Dict, List, Optional, TextIO
 
 from farm.analysis.speciation.compute import (
     VALID_SCALERS,
-    compute_speciation_index,
+    compute_speciation_quality_bundle,
+    compute_speciation_stability_score,
     detect_clusters_dbscan,
     detect_clusters_gmm,
     match_clusters_greedy,
@@ -93,6 +94,19 @@ class GeneTrajectoryLogger:
         historical default); when omitted, greedy uses unlimited distance.
         Lower finite values are more conservative and classify distant clusters
         as founding.
+    speciation_include_stability:
+        When ``True``, compute and include an optional ``stability_score`` in
+        ``speciation_quality`` using perturbation-based robustness checks.
+        Default ``False``.
+    speciation_stability_perturbations:
+        Number of perturbation replicas used for stability estimation.
+        Must be at least 1. Default 5.
+    speciation_stability_noise_std:
+        Standard deviation of additive Gaussian noise in chromosome space for
+        each perturbation replica. Must be non-negative. Default 0.005.
+    speciation_stability_seed:
+        Integer random seed used for deterministic perturbation sampling.
+        Default 0.
     """
 
     TRAJECTORY_FILENAME = "intrinsic_gene_trajectory.jsonl"
@@ -114,6 +128,10 @@ class GeneTrajectoryLogger:
         speciation_dbscan_auto_tune_percentile: float = 90.0,
         speciation_lineage_matcher: str = "hungarian",
         speciation_lineage_max_distance: Optional[float] = None,
+        speciation_include_stability: bool = False,
+        speciation_stability_perturbations: int = 5,
+        speciation_stability_noise_std: float = 0.005,
+        speciation_stability_seed: int = 0,
     ) -> None:
         if snapshot_interval < 1:
             raise ValueError("snapshot_interval must be at least 1.")
@@ -154,6 +172,16 @@ class GeneTrajectoryLogger:
                 "speciation_dbscan_auto_tune_percentile must be in [0, 100]; "
                 f"got {speciation_dbscan_auto_tune_percentile!r}."
             )
+        if speciation_stability_perturbations < 1:
+            raise ValueError(
+                "speciation_stability_perturbations must be at least 1; "
+                f"got {speciation_stability_perturbations!r}."
+            )
+        if speciation_stability_noise_std < 0.0:
+            raise ValueError(
+                "speciation_stability_noise_std must be non-negative; "
+                f"got {speciation_stability_noise_std!r}."
+            )
 
         if enable_speciation:
             try:
@@ -182,6 +210,10 @@ class GeneTrajectoryLogger:
         self._speciation_dbscan_auto_tune_percentile = speciation_dbscan_auto_tune_percentile
         self._speciation_lineage_matcher = speciation_lineage_matcher
         self._speciation_lineage_max_distance = resolved_max_distance
+        self._speciation_include_stability = speciation_include_stability
+        self._speciation_stability_perturbations = speciation_stability_perturbations
+        self._speciation_stability_noise_std = speciation_stability_noise_std
+        self._speciation_stability_seed = speciation_stability_seed
 
         self._trajectory_handle: Optional[TextIO] = None
         self._snapshot_handle: Optional[TextIO] = None
@@ -189,6 +221,7 @@ class GeneTrajectoryLogger:
 
         # Cached speciation state between snapshot steps
         self._cached_speciation_index: float = 0.0
+        self._cached_speciation_quality: Optional[Dict[str, Any]] = None
         self._prev_cluster_records: List[Any] = []  # List[ClusterLineageRecord]
         self._cluster_id_counter: int = 0
 
@@ -216,7 +249,15 @@ class GeneTrajectoryLogger:
 
         Always appends a one-line aggregate record to the trajectory file.
         When speciation tracking is enabled the record includes a
-        ``speciation_index`` field updated at every snapshot step.
+        ``speciation_index`` field and, when at least one chromosome is
+        present at the snapshot step, a ``speciation_quality`` dict
+        containing ``speciation_index``, ``raw_silhouette``,
+        ``noise_fraction``, ``cluster_size_entropy``, and ``n_clusters``.
+        When ``speciation_include_stability=True``, ``speciation_quality``
+        also includes ``stability_score`` in ``[0, 1]``.
+        Both fields are updated at every snapshot step; ``speciation_quality``
+        is absent from non-snapshot steps and from snapshot steps where there
+        are no chromosomes.
         Additionally appends a full per-agent snapshot when
         ``step % snapshot_interval == 0`` (so step 0 is always captured).
 
@@ -253,11 +294,15 @@ class GeneTrajectoryLogger:
         }
         if self._enable_speciation:
             trajectory_record["speciation_index"] = self._cached_speciation_index
+            if is_snapshot_step and self._cached_speciation_quality is not None:
+                trajectory_record["speciation_quality"] = self._cached_speciation_quality
 
         if extra_fields:
             _RESERVED_TRAJECTORY_KEYS = {"step", "n_alive", "n_with_chromosome", "gene_stats"}
             if self._enable_speciation:
-                _RESERVED_TRAJECTORY_KEYS = _RESERVED_TRAJECTORY_KEYS | {"speciation_index"}
+                _RESERVED_TRAJECTORY_KEYS = _RESERVED_TRAJECTORY_KEYS | {
+                    "speciation_index", "speciation_quality"
+                }
             collisions = _RESERVED_TRAJECTORY_KEYS & extra_fields.keys()
             if collisions:
                 raise ValueError(
@@ -304,6 +349,7 @@ class GeneTrajectoryLogger:
         """
         if not chromosomes:
             self._cached_speciation_index = 0.0
+            self._cached_speciation_quality = None
             self._prev_cluster_records = []
             self._cluster_id_counter = 0
             return
@@ -330,7 +376,35 @@ class GeneTrajectoryLogger:
                     auto_tune_percentile=self._speciation_dbscan_auto_tune_percentile,
                 )
 
-            self._cached_speciation_index = compute_speciation_index(result)
+            stability_score = None
+            if self._speciation_include_stability:
+                stability_score = compute_speciation_stability_score(
+                    chrom_dicts,
+                    algorithm=self._speciation_algorithm,
+                    scaler=self._speciation_scaler,
+                    gmm_max_k=self._speciation_max_k,
+                    gmm_seed=self._speciation_seed,
+                    dbscan_auto_tune=self._speciation_dbscan_auto_tune,
+                    dbscan_auto_tune_percentile=self._speciation_dbscan_auto_tune_percentile,
+                    n_perturbations=self._speciation_stability_perturbations,
+                    noise_std=self._speciation_stability_noise_std,
+                    random_seed=self._speciation_stability_seed,
+                )
+
+            bundle = compute_speciation_quality_bundle(
+                result,
+                stability_score=stability_score,
+            )
+            self._cached_speciation_index = bundle.speciation_index
+            self._cached_speciation_quality = {
+                "speciation_index": bundle.speciation_index,
+                "raw_silhouette": bundle.raw_silhouette,
+                "noise_fraction": bundle.noise_fraction,
+                "cluster_size_entropy": bundle.cluster_size_entropy,
+                "n_clusters": bundle.n_clusters,
+            }
+            if bundle.stability_score is not None:
+                self._cached_speciation_quality["stability_score"] = bundle.stability_score
 
             # Persist cluster lineage
             if result.k == 0:

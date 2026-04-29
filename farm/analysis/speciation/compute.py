@@ -40,6 +40,21 @@ single scalar in ``[0.0, 1.0]``:
 - Otherwise: the *silhouette score* of the detected cluster assignment
   (bounded to ``[0.0, 1.0]``).
 
+Quality bundle
+--------------
+:func:`compute_speciation_quality_bundle` returns a
+:class:`SpeciationQualityBundle` with richer diagnostics alongside
+``speciation_index``:
+
+- ``raw_silhouette``: unclipped silhouette in ``[-1, 1]`` (negative values
+  signal overlapping clusters).
+- ``noise_fraction``: fraction of DBSCAN noise agents (``0.0`` for GMM).
+- ``cluster_size_entropy``: Shannon entropy (nats) of cluster-size
+  distribution; ``0.0`` when ``k ≤ 1``; higher means more balanced clusters.
+- ``n_clusters``: number of detected clusters.
+- ``stability_score`` (optional): mean agreement under small perturbations of
+  chromosome values, normalised to ``[0, 1]``.
+
 Niche correlation
 -----------------
 :func:`compute_niche_correlation` accepts the per-snapshot agent list (as
@@ -59,11 +74,13 @@ import numpy as np
 
 try:
     from sklearn.cluster import DBSCAN
+    from sklearn.metrics import adjusted_rand_score as _sk_adjusted_rand
     from sklearn.metrics import silhouette_score as _sk_silhouette
     from sklearn.mixture import GaussianMixture
     from sklearn.preprocessing import RobustScaler, StandardScaler
 except ImportError:
     DBSCAN = None  # type: ignore[assignment]
+    _sk_adjusted_rand = None  # type: ignore[assignment]
     _sk_silhouette = None  # type: ignore[assignment]
     GaussianMixture = None  # type: ignore[assignment]
     RobustScaler = None  # type: ignore[assignment]
@@ -76,6 +93,7 @@ logger = get_logger(__name__)
 def _require_sklearn() -> None:
     if (
         DBSCAN is None
+        or _sk_adjusted_rand is None
         or _sk_silhouette is None
         or GaussianMixture is None
         or RobustScaler is None
@@ -209,6 +227,47 @@ class ClusterLineageRecord:
     gene_stats: Optional[Dict[str, Dict[str, float]]] = field(default=None)
 
 
+@dataclass
+class SpeciationQualityBundle:
+    """Rich quality metrics for a single cluster-detection result.
+
+    This bundle supplements the scalar :func:`compute_speciation_index` with
+    additional diagnostics that expose signal which the clipped scalar loses
+    (e.g. negative silhouette) and that characterise noise prevalence and
+    cluster balance.
+
+    Attributes
+    ----------
+    speciation_index:
+        Normalised speciation index in ``[0.0, 1.0]``, identical to the
+        value returned by :func:`compute_speciation_index`.
+    raw_silhouette:
+        Unclipped silhouette score in ``[-1.0, 1.0]``.  ``0.0`` when
+        ``k ≤ 1`` or when fewer than two labelled agents exist.  Negative
+        values indicate overlapping or misassigned clusters.
+    noise_fraction:
+        Fraction of all input agents labelled as noise (label ``-1``) by
+        DBSCAN.  Always ``0.0`` for GMM results.
+    cluster_size_entropy:
+        Shannon entropy (nats) of the cluster-size distribution, computed
+        over labelled agents only.  ``0.0`` when ``k ≤ 1``.  Higher values
+        indicate more balanced clusters; maximum is ``ln(k)``.
+    n_clusters:
+        Number of detected clusters (``ClusterResult.k``).
+    stability_score:
+        Optional robustness metric in ``[0.0, 1.0]`` measuring assignment
+        agreement under small feature-space perturbations. ``None`` when not
+        computed by the caller.
+    """
+
+    speciation_index: float
+    raw_silhouette: float
+    noise_fraction: float
+    cluster_size_entropy: float
+    n_clusters: int
+    stability_score: Optional[float] = None
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -252,12 +311,27 @@ def _chromosomes_to_matrix(
     return matrix, gene_names
 
 
+def _matrix_to_chromosomes(X: np.ndarray, gene_names: List[str]) -> List[Dict[str, float]]:
+    """Convert a (N, D) matrix back to chromosome dicts."""
+    if X.shape[0] == 0:
+        return []
+    return [
+        {g: float(X[i, j]) for j, g in enumerate(gene_names)}
+        for i in range(X.shape[0])
+    ]
+
+
 def _centroid_to_dict(centroid_vec: np.ndarray, gene_names: List[str]) -> Dict[str, float]:
     return {g: float(centroid_vec[i]) for i, g in enumerate(gene_names)}
 
 
 def _silhouette(X: np.ndarray, labels: np.ndarray) -> float:
-    """Compute silhouette score, returning 0.0 on any failure."""
+    """Compute raw silhouette score in ``[-1, 1]``, returning ``0.0`` on failure.
+
+    Unlike the previous behaviour this function no longer clips negative
+    scores; callers that need a non-negative value apply ``max(0.0, …)``
+    themselves (see :func:`compute_speciation_index`).
+    """
     unique = np.unique(labels[labels >= 0])
     if len(unique) < 2 or X.shape[0] < 2:
         return 0.0
@@ -266,8 +340,7 @@ def _silhouette(X: np.ndarray, labels: np.ndarray) -> float:
     if mask.sum() < 2:
         return 0.0
     try:
-        score = float(_sk_silhouette(X[mask], labels[mask]))
-        return max(0.0, score)
+        return float(_sk_silhouette(X[mask], labels[mask]))
     except Exception as exc:
         logger.debug("_silhouette: failed to compute silhouette score: %s", exc)
         return 0.0
@@ -1093,6 +1166,161 @@ def compute_speciation_index(cluster_result: ClusterResult) -> float:
     if cluster_result.k <= 1:
         return 0.0
     return max(0.0, min(1.0, cluster_result.silhouette_score))
+
+
+def compute_speciation_stability_score(
+    chromosomes: Sequence[Dict[str, float]],
+    *,
+    algorithm: str = "gmm",
+    gene_names: Optional[List[str]] = None,
+    scaler: str = "none",
+    gmm_max_k: int = 5,
+    gmm_seed: int = 0,
+    dbscan_eps: float = 0.1,
+    dbscan_min_samples: int = 2,
+    dbscan_auto_tune: bool = False,
+    dbscan_auto_tune_percentile: float = 90.0,
+    n_perturbations: int = 5,
+    noise_std: float = 0.005,
+    random_seed: int = 0,
+) -> float:
+    """Estimate clustering robustness under small feature perturbations.
+
+    The baseline cluster assignment is compared against assignments from
+    ``n_perturbations`` noisy replicas using adjusted Rand index (ARI).  ARI is
+    mapped from ``[-1, 1]`` to ``[0, 1]`` and averaged.
+    """
+    if algorithm not in ("gmm", "dbscan"):
+        raise ValueError(f"algorithm must be 'gmm' or 'dbscan'; got {algorithm!r}.")
+    if n_perturbations < 1:
+        raise ValueError(
+            f"n_perturbations must be at least 1; got {n_perturbations!r}."
+        )
+    if noise_std < 0.0:
+        raise ValueError(f"noise_std must be non-negative; got {noise_std!r}.")
+    _validate_scaler(scaler)
+    _require_sklearn()
+
+    X, gnames = _chromosomes_to_matrix(chromosomes, gene_names)
+    if X.shape[0] < 2:
+        return 0.0
+
+    if algorithm == "gmm":
+        baseline = detect_clusters_gmm(
+            chromosomes,
+            max_k=gmm_max_k,
+            seed=gmm_seed,
+            gene_names=gnames,
+            scaler=scaler,
+        )
+    else:
+        baseline = detect_clusters_dbscan(
+            chromosomes,
+            eps=dbscan_eps,
+            min_samples=dbscan_min_samples,
+            gene_names=gnames,
+            scaler=scaler,
+            auto_tune=dbscan_auto_tune,
+            auto_tune_percentile=dbscan_auto_tune_percentile,
+        )
+
+    baseline_labels = np.array(baseline.labels, dtype=int)
+    rng = np.random.default_rng(random_seed)
+    scores: List[float] = []
+
+    for _ in range(n_perturbations):
+        X_perturbed = X + rng.normal(loc=0.0, scale=noise_std, size=X.shape)
+        perturbed_chromosomes = _matrix_to_chromosomes(X_perturbed, gnames)
+        if algorithm == "gmm":
+            perturbed = detect_clusters_gmm(
+                perturbed_chromosomes,
+                max_k=gmm_max_k,
+                seed=gmm_seed,
+                gene_names=gnames,
+                scaler=scaler,
+            )
+        else:
+            perturbed = detect_clusters_dbscan(
+                perturbed_chromosomes,
+                eps=dbscan_eps,
+                min_samples=dbscan_min_samples,
+                gene_names=gnames,
+                scaler=scaler,
+                auto_tune=dbscan_auto_tune,
+                auto_tune_percentile=dbscan_auto_tune_percentile,
+            )
+        ari = float(_sk_adjusted_rand(baseline_labels, np.array(perturbed.labels, dtype=int)))
+        scores.append((ari + 1.0) / 2.0)
+
+    if not scores:
+        return 0.0
+    return max(0.0, min(1.0, float(sum(scores) / len(scores))))
+
+
+def compute_speciation_quality_bundle(
+    cluster_result: ClusterResult,
+    *,
+    stability_score: Optional[float] = None,
+) -> SpeciationQualityBundle:
+    """Compute a rich set of quality metrics for a cluster-detection result.
+
+    Returns a :class:`SpeciationQualityBundle` that supplements the scalar
+    :func:`compute_speciation_index` with diagnostics for noise prevalence
+    and cluster balance.
+
+    Parameters
+    ----------
+    cluster_result:
+        A :class:`ClusterResult` from :func:`detect_clusters_gmm` or
+        :func:`detect_clusters_dbscan`.
+
+    Returns
+    -------
+    SpeciationQualityBundle
+        Bundle with the following fields:
+
+        - ``speciation_index`` – normalised index in ``[0.0, 1.0]``
+          (same as :func:`compute_speciation_index`).
+        - ``raw_silhouette`` – unclipped silhouette in ``[-1.0, 1.0]``.
+        - ``noise_fraction`` – fraction of DBSCAN noise agents; ``0.0``
+          for GMM.
+        - ``cluster_size_entropy`` – Shannon entropy (nats) of the
+          cluster-size distribution; ``0.0`` when ``k ≤ 1``.
+        - ``n_clusters`` – number of detected clusters.
+        - ``stability_score`` – optional robustness estimate in ``[0.0, 1.0]``
+          from :func:`compute_speciation_stability_score`.
+    """
+    n_total = len(cluster_result.labels)
+
+    # Noise fraction (DBSCAN label -1; always 0 for GMM)
+    if cluster_result.algorithm == "dbscan" and n_total > 0:
+        n_noise = sum(1 for lbl in cluster_result.labels if lbl < 0)
+        noise_fraction = float(n_noise) / float(n_total)
+    else:
+        noise_fraction = 0.0
+
+    # Cluster-size Shannon entropy (nats)
+    if cluster_result.k >= 2 and cluster_result.sizes:
+        total_labelled = float(sum(cluster_result.sizes))
+        if total_labelled > 0.0:
+            entropy = 0.0
+            for sz in cluster_result.sizes:
+                p = sz / total_labelled
+                if p > 0.0:
+                    entropy -= p * math.log(p)
+        else:
+            entropy = 0.0
+    else:
+        entropy = 0.0
+
+    return SpeciationQualityBundle(
+        speciation_index=compute_speciation_index(cluster_result),
+        raw_silhouette=cluster_result.silhouette_score if cluster_result.k >= 2 else 0.0,
+        noise_fraction=noise_fraction,
+        cluster_size_entropy=entropy,
+        n_clusters=cluster_result.k,
+        stability_score=stability_score,
+    )
 
 
 # ---------------------------------------------------------------------------
