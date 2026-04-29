@@ -12,9 +12,14 @@ Writes append-only JSONL files alongside other run artifacts:
   configurable cadence.
 - ``cluster_lineage.jsonl`` -- written only when speciation tracking is
   enabled (``enable_speciation=True``).  One record per detected cluster per
-  snapshot step with fields ``step``, ``cluster_id``, ``centroid``, ``size``,
+  clustering step with fields ``step``, ``cluster_id``, ``centroid``, ``size``,
   ``parent_cluster_id``, ``transition_type``, ``parent_cluster_ids``,
   ``lineage_matcher``, and ``lineage_max_distance``.
+
+Snapshot cadence (``snapshot_interval``) and clustering cadence
+(``clustering_interval``) are independent.  Use a finer
+``clustering_interval`` to capture short-lived speciation events without
+paying the cost of a full per-agent snapshot payload on every step.
 
 When ``output_dir`` is ``None``, JSONL files are not written; speciation
 state is still updated in memory when ``enable_speciation=True``, allowing
@@ -57,9 +62,17 @@ class GeneTrajectoryLogger:
         Write a full per-agent snapshot every this many steps.  Step 0 is
         always captured.  Must be at least 1.
     enable_speciation:
-        When ``True``, run cluster detection at every snapshot step and
-        include a ``speciation_index`` field in every trajectory record.
-        Also writes ``cluster_lineage.jsonl``.  Default ``False``.
+        When ``True``, run cluster detection according to the clustering
+        cadence and include a ``speciation_index`` field in every trajectory
+        record.  Also writes ``cluster_lineage.jsonl``.  Default ``False``.
+    clustering_interval:
+        Run cluster detection (and update ``speciation_index``) every this
+        many steps.  Step 0 is always a clustering step.  When ``None``
+        (default), the clustering cadence matches ``snapshot_interval`` so
+        that existing behaviour is preserved.  Set to a smaller value than
+        ``snapshot_interval`` to capture short-lived speciation events
+        without writing full per-agent snapshots at each clustering step.
+        Must be at least 1 when provided.
     speciation_algorithm:
         Which cluster-detection algorithm to use.  ``"gmm"`` (default) runs
         Gaussian Mixture Models with BIC-selected ``k``; ``"dbscan"`` runs
@@ -107,6 +120,7 @@ class GeneTrajectoryLogger:
         snapshot_interval: int,
         *,
         enable_speciation: bool = False,
+        clustering_interval: Optional[int] = None,
         speciation_algorithm: str = "gmm",
         speciation_max_k: int = 5,
         speciation_seed: int = 0,
@@ -118,6 +132,8 @@ class GeneTrajectoryLogger:
     ) -> None:
         if snapshot_interval < 1:
             raise ValueError("snapshot_interval must be at least 1.")
+        if clustering_interval is not None and clustering_interval < 1:
+            raise ValueError("clustering_interval must be at least 1.")
         if speciation_algorithm not in ("gmm", "dbscan"):
             raise ValueError("speciation_algorithm must be 'gmm' or 'dbscan'.")
         if speciation_lineage_matcher not in self.VALID_LINEAGE_MATCHERS:
@@ -174,6 +190,7 @@ class GeneTrajectoryLogger:
                     ) from exc
         self._output_dir = output_dir
         self._snapshot_interval = snapshot_interval
+        self._clustering_interval = clustering_interval
         self._enable_speciation = enable_speciation
         self._speciation_algorithm = speciation_algorithm
         self._speciation_max_k = speciation_max_k
@@ -218,9 +235,14 @@ class GeneTrajectoryLogger:
 
         Always appends a one-line aggregate record to the trajectory file.
         When speciation tracking is enabled the record includes a
-        ``speciation_index`` field updated at every snapshot step.
+        ``speciation_index`` field updated at every clustering step.
         Additionally appends a full per-agent snapshot when
         ``step % snapshot_interval == 0`` (so step 0 is always captured).
+
+        The clustering cadence is controlled by ``clustering_interval``
+        (defaults to ``snapshot_interval`` when not set).  A finer
+        ``clustering_interval`` lets speciation track rapid population
+        changes without writing full per-agent snapshot payloads.
 
         Args:
             environment: The live environment object.
@@ -240,8 +262,18 @@ class GeneTrajectoryLogger:
 
         is_snapshot_step = step % self._snapshot_interval == 0
 
-        # Run speciation at snapshot steps when enabled (even if trajectory file I/O is off).
-        if self._enable_speciation and is_snapshot_step:
+        # Determine effective clustering cadence: explicit clustering_interval
+        # takes priority; when absent fall back to snapshot_interval so that
+        # the default behaviour is unchanged.
+        effective_clustering_interval = (
+            self._clustering_interval
+            if self._clustering_interval is not None
+            else self._snapshot_interval
+        )
+        is_clustering_step = step % effective_clustering_interval == 0
+
+        # Run speciation at clustering steps when enabled (even if trajectory file I/O is off).
+        if self._enable_speciation and is_clustering_step:
             self._update_speciation(chromosomes, step)
 
         if self._trajectory_handle is None:
@@ -304,7 +336,7 @@ class GeneTrajectoryLogger:
     ) -> None:
         """Run cluster detection and update cached speciation state.
 
-        Called at every snapshot step when ``enable_speciation=True``.
+        Called at every clustering step when ``enable_speciation=True``.
         Writes cluster lineage records to ``cluster_lineage.jsonl`` when an
         output directory is configured.
         """

@@ -1175,10 +1175,134 @@ class TestGeneTrajectoryLoggerSpeciation:
             rec["speciation_index"]
         )
 
+    # ------------------------------------------------------------------
+    # clustering_interval tests
+    # ------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# plot_chromosome_space_clusters
-# ---------------------------------------------------------------------------
+    def test_invalid_clustering_interval_raises(self):
+        """clustering_interval=0 should raise ValueError."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        with pytest.raises(ValueError, match="clustering_interval"):
+            GeneTrajectoryLogger(None, snapshot_interval=5, clustering_interval=0)
+
+    def test_clustering_interval_none_preserves_snapshot_cadence(self, tmp_path):
+        """Default (clustering_interval=None) matches snapshot cadence – backward compatible."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = (
+            [_make_fake_agent(lr=0.01)] * 10
+            + [_make_fake_agent(lr=0.5)] * 10
+        )
+        env = _FakeEnvironment(agents)
+
+        # snapshot_interval=5, no explicit clustering_interval → clustering at 0, 5
+        logger = GeneTrajectoryLogger(
+            str(tmp_path), snapshot_interval=5, enable_speciation=True
+        )
+        for step in range(6):
+            logger.snapshot(env, step=step)
+        logger.close()
+
+        traj_path = tmp_path / "intrinsic_gene_trajectory.jsonl"
+        records = [json.loads(line) for line in traj_path.read_text().splitlines()]
+        assert len(records) == 6
+
+        idx_0 = records[0]["speciation_index"]
+        # Steps 1–4 should still carry the cached value from step 0
+        for rec in records[1:5]:
+            assert rec["speciation_index"] == pytest.approx(idx_0)
+
+    def test_clustering_interval_finer_than_snapshot_updates_every_step(self, tmp_path):
+        """clustering_interval=1 re-runs clustering every step even between snapshots."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        # Two populations that change between steps to produce different indices
+        pop_a = [_make_fake_agent(lr=0.01)] * 10 + [_make_fake_agent(lr=0.5)] * 10
+        pop_b = [_make_fake_agent(lr=0.01)] * 20  # single cluster
+
+        envs = [
+            _FakeEnvironment(pop_a),  # step 0 – bimodal
+            _FakeEnvironment(pop_b),  # step 1 – unimodal
+            _FakeEnvironment(pop_a),  # step 2 – bimodal again
+        ]
+
+        # snapshot_interval=10 means no full snapshot after step 0.
+        # clustering_interval=1 means speciation runs at every step.
+        logger = GeneTrajectoryLogger(
+            str(tmp_path),
+            snapshot_interval=10,
+            enable_speciation=True,
+            clustering_interval=1,
+        )
+        for step, env in enumerate(envs):
+            logger.snapshot(env, step=step)
+        logger.close()
+
+        traj_path = tmp_path / "intrinsic_gene_trajectory.jsonl"
+        records = [json.loads(line) for line in traj_path.read_text().splitlines()]
+        assert len(records) == 3
+
+        # All records must have a speciation_index
+        for rec in records:
+            assert "speciation_index" in rec
+            assert 0.0 <= rec["speciation_index"] <= 1.0
+
+        # step 1 used unimodal pop; step 0 used bimodal → indices differ
+        assert records[0]["speciation_index"] != pytest.approx(
+            records[1]["speciation_index"], abs=0.05
+        )
+
+    def test_clustering_interval_independent_of_snapshot_interval(self, tmp_path):
+        """clustering_interval=2, snapshot_interval=10 → clustering at 0,2,4,…."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = [_make_fake_agent(lr=0.01)] * 10 + [_make_fake_agent(lr=0.5)] * 10
+        env = _FakeEnvironment(agents)
+
+        logger = GeneTrajectoryLogger(
+            str(tmp_path),
+            snapshot_interval=10,
+            enable_speciation=True,
+            clustering_interval=2,
+        )
+        for step in range(7):  # steps 0..6
+            logger.snapshot(env, step=step)
+        logger.close()
+
+        lineage_path = tmp_path / "cluster_lineage.jsonl"
+        rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
+
+        # Clustering should have happened at steps 0, 2, 4, 6
+        clustering_steps = sorted({row["step"] for row in rows})
+        assert clustering_steps == [0, 2, 4, 6]
+
+    def test_clustering_interval_cluster_lineage_written_at_finer_cadence(self, tmp_path):
+        """cluster_lineage.jsonl entries appear at clustering steps, not only snapshot steps."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = [_make_fake_agent(lr=0.01)] * 10 + [_make_fake_agent(lr=0.5)] * 10
+        env = _FakeEnvironment(agents)
+
+        # snapshot_interval=100, clustering_interval=3 → snapshots only at 0;
+        # lineage rows at 0, 3, 6, 9
+        logger = GeneTrajectoryLogger(
+            str(tmp_path),
+            snapshot_interval=100,
+            enable_speciation=True,
+            clustering_interval=3,
+        )
+        for step in range(10):  # steps 0..9
+            logger.snapshot(env, step=step)
+        logger.close()
+
+        lineage_path = tmp_path / "cluster_lineage.jsonl"
+        assert lineage_path.exists()
+        rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
+        clustering_steps = sorted({row["step"] for row in rows})
+        assert clustering_steps == [0, 3, 6, 9]
+
+
 
 
 class TestPlotChromosomeSpaceClusters:
