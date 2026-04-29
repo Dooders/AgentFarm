@@ -31,7 +31,6 @@ from typing import Any, Dict, List, Optional, TextIO
 
 from farm.analysis.speciation.compute import (
     VALID_SCALERS,
-    compute_speciation_index,
     compute_speciation_quality_bundle,
     detect_clusters_dbscan,
     detect_clusters_gmm,
@@ -337,8 +336,8 @@ class GeneTrajectoryLogger:
                     auto_tune_percentile=self._speciation_dbscan_auto_tune_percentile,
                 )
 
-            self._cached_speciation_index = compute_speciation_index(result)
             bundle = compute_speciation_quality_bundle(result)
+            self._cached_speciation_index = bundle.speciation_index
             self._cached_speciation_quality = {
                 "speciation_index": bundle.speciation_index,
                 "raw_silhouette": bundle.raw_silhouette,
