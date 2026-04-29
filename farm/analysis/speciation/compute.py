@@ -952,11 +952,18 @@ def match_clusters_hungarian(
 
     # -----------------------------------------------------------------------
     # Hungarian assignment on gated cost matrix.
-    # Pairs beyond max_distance get a very large penalty so the solver avoids
-    # them while keeping the matrix finite.
+    # Pairs beyond max_distance get a finite penalty that is strictly larger
+    # than any valid in-gate distance, so the solver will always prefer a
+    # within-gate assignment when one exists.
     # -----------------------------------------------------------------------
-    _HUNGARIAN_GATE_PENALTY = 1.0e15
-    cost = np.where(D <= max_distance, D, _HUNGARIAN_GATE_PENALTY)
+    gate_ceiling = max(float(max_distance), float(np.max(D)) if D.size else 0.0)
+    if not np.isfinite(gate_ceiling) or gate_ceiling >= np.finfo(float).max:
+        raise ValueError(
+            "max_distance and lineage-assignment distances must be finite "
+            "and smaller than the largest representable float"
+        )
+    hungarian_gate_penalty = np.nextafter(gate_ceiling, math.inf)
+    cost = np.where(D <= max_distance, D, hungarian_gate_penalty)
     row_ind, col_ind = _lsa(cost)
 
     # Accept only within-gate pairs
@@ -981,7 +988,8 @@ def match_clusters_hungarian(
                     best_j = j
             all_new_to_prev[i] = best_j
 
-    # Reverse mapping: prev_j → all new_i that claim it as primary parent
+    # Reverse mapping: prev_j → all new_i that point to it (primary Hungarian
+    # matches plus nearest-predecessor links for unmatched new clusters)
     prev_to_all_new: Dict[int, List[int]] = {}
     for ni, pj in all_new_to_prev.items():
         if pj is not None:
