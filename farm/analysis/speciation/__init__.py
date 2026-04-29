@@ -16,7 +16,8 @@ Features
   a :class:`~farm.analysis.speciation.compute.ClusterResult`.
 - **Quality bundle**: richer diagnostics via
   :func:`compute_speciation_quality_bundle` including raw (unclipped)
-  silhouette, noise fraction, cluster-size entropy, and cluster count.
+  silhouette, noise fraction, cluster-size entropy, and cluster count, with
+  optional ``stability_score`` from perturbation analysis.
 - **Niche correlation**: per-cluster mean spatial position, energy, and
   reproduction cost.
 - **Plot helper**: PCA/scatter of agents in chromosome space coloured by
@@ -29,6 +30,7 @@ Quick start::
     ...     detect_clusters_dbscan,
     ...     match_clusters_greedy,
     ...     compute_speciation_index,
+    ...     compute_speciation_stability_score,
     ...     compute_speciation_quality_bundle,
     ...     compute_niche_correlation,
     ...     ClusterResult,
@@ -39,6 +41,7 @@ Quick start::
     >>> chromosomes = [{"lr": 0.01, "gamma": 0.99}, {"lr": 0.1, "gamma": 0.5}]
     >>> result = detect_clusters_gmm(chromosomes, max_k=3, seed=42)
     >>> index = compute_speciation_index(result)
+    >>> stability = compute_speciation_stability_score(chromosomes)
     >>> bundle = compute_speciation_quality_bundle(result)
 
 See ``tests/analysis/test_speciation.py`` for examples with known cluster
@@ -57,6 +60,7 @@ from farm.analysis.speciation.compute import (
     match_clusters_greedy,
     match_clusters_hungarian,
     compute_speciation_index,
+    compute_speciation_stability_score,
     compute_speciation_quality_bundle,
     compute_niche_correlation,
 )
@@ -79,6 +83,7 @@ __all__ = [
     "match_clusters_hungarian",
     # Scalar metrics
     "compute_speciation_index",
+    "compute_speciation_stability_score",
     "compute_speciation_quality_bundle",
     # Niche analysis
     "compute_niche_correlation",
