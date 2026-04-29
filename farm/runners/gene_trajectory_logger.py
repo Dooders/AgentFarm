@@ -13,7 +13,8 @@ Writes append-only JSONL files alongside other run artifacts:
 - ``cluster_lineage.jsonl`` -- written only when speciation tracking is
   enabled (``enable_speciation=True``).  One record per detected cluster per
   snapshot step with fields ``step``, ``cluster_id``, ``centroid``, ``size``,
-  and ``parent_cluster_id``.
+  ``parent_cluster_id``, ``transition_type``, ``parent_cluster_ids``,
+  ``lineage_matcher``, and ``lineage_max_distance``.
 
 When ``output_dir`` is ``None``, JSONL files are not written; speciation
 state is still updated in memory when ``enable_speciation=True``, allowing
@@ -23,6 +24,7 @@ the runner to use the logger unconditionally regardless of persisted artifacts.
 from __future__ import annotations
 
 import json
+import math
 import os
 import warnings
 from typing import Any, Dict, List, Optional, TextIO
@@ -33,6 +35,7 @@ from farm.analysis.speciation.compute import (
     detect_clusters_dbscan,
     detect_clusters_gmm,
     match_clusters_greedy,
+    match_clusters_hungarian,
 )
 from farm.core.hyperparameter_chromosome import (
     HyperparameterChromosome,
@@ -79,11 +82,23 @@ class GeneTrajectoryLogger:
     speciation_dbscan_auto_tune_percentile:
         Percentile (0–100) of the k-NN distance distribution used to estimate
         ``eps`` when ``speciation_dbscan_auto_tune=True``.  Default 90.
+    speciation_lineage_matcher:
+        Cluster-lineage matcher used to persist stable IDs across snapshots.
+        ``"hungarian"`` (default) uses a globally optimal assignment and
+        populates transition metadata; ``"greedy"`` preserves legacy behavior.
+    speciation_lineage_max_distance:
+        Maximum centroid distance accepted by the lineage matcher. For
+        ``"hungarian"``, must be finite and > 0 (default ``1.0`` when omitted).
+        For ``"greedy"``, may be ``float("inf")`` for unlimited matching (the
+        historical default); when omitted, greedy uses unlimited distance.
+        Lower finite values are more conservative and classify distant clusters
+        as founding.
     """
 
     TRAJECTORY_FILENAME = "intrinsic_gene_trajectory.jsonl"
     SNAPSHOT_FILENAME = "intrinsic_gene_snapshots.jsonl"
     CLUSTER_LINEAGE_FILENAME = "cluster_lineage.jsonl"
+    VALID_LINEAGE_MATCHERS = ("hungarian", "greedy")
 
     def __init__(
         self,
@@ -97,11 +112,38 @@ class GeneTrajectoryLogger:
         speciation_scaler: str = "none",
         speciation_dbscan_auto_tune: bool = False,
         speciation_dbscan_auto_tune_percentile: float = 90.0,
+        speciation_lineage_matcher: str = "hungarian",
+        speciation_lineage_max_distance: Optional[float] = None,
     ) -> None:
         if snapshot_interval < 1:
             raise ValueError("snapshot_interval must be at least 1.")
         if speciation_algorithm not in ("gmm", "dbscan"):
             raise ValueError("speciation_algorithm must be 'gmm' or 'dbscan'.")
+        if speciation_lineage_matcher not in self.VALID_LINEAGE_MATCHERS:
+            raise ValueError(
+                "speciation_lineage_matcher must be one of "
+                f"{self.VALID_LINEAGE_MATCHERS!r}; got {speciation_lineage_matcher!r}."
+            )
+        if speciation_lineage_max_distance is None:
+            resolved_max_distance = (
+                float("inf") if speciation_lineage_matcher == "greedy" else 1.0
+            )
+        elif speciation_lineage_matcher == "hungarian":
+            if not math.isfinite(speciation_lineage_max_distance) or speciation_lineage_max_distance <= 0.0:
+                raise ValueError(
+                    "speciation_lineage_max_distance must be finite and > 0 for "
+                    f"speciation_lineage_matcher='hungarian'; got {speciation_lineage_max_distance!r}."
+                )
+            resolved_max_distance = speciation_lineage_max_distance
+        else:
+            # greedy: unlimited (inf) or any positive finite distance
+            d = speciation_lineage_max_distance
+            if d != float("inf") and (not math.isfinite(d) or d <= 0.0):
+                raise ValueError(
+                    "speciation_lineage_max_distance must be float('inf') or finite and > 0 for "
+                    f"speciation_lineage_matcher='greedy'; got {d!r}."
+                )
+            resolved_max_distance = d
         if speciation_scaler not in VALID_SCALERS:
             raise ValueError(
                 f"speciation_scaler must be one of {VALID_SCALERS!r}; "
@@ -121,6 +163,14 @@ class GeneTrajectoryLogger:
                     "GeneTrajectoryLogger: enable_speciation=True requires scikit-learn. "
                     "Install it with: pip install scikit-learn"
                 ) from exc
+            if speciation_lineage_matcher == "hungarian":
+                try:
+                    import scipy  # noqa: F401
+                except ImportError as exc:
+                    raise ImportError(
+                        "GeneTrajectoryLogger: speciation_lineage_matcher='hungarian' requires scipy. "
+                        "Install it with: pip install scipy"
+                    ) from exc
         self._output_dir = output_dir
         self._snapshot_interval = snapshot_interval
         self._enable_speciation = enable_speciation
@@ -130,6 +180,8 @@ class GeneTrajectoryLogger:
         self._speciation_scaler = speciation_scaler
         self._speciation_dbscan_auto_tune = speciation_dbscan_auto_tune
         self._speciation_dbscan_auto_tune_percentile = speciation_dbscan_auto_tune_percentile
+        self._speciation_lineage_matcher = speciation_lineage_matcher
+        self._speciation_lineage_max_distance = resolved_max_distance
 
         self._trajectory_handle: Optional[TextIO] = None
         self._snapshot_handle: Optional[TextIO] = None
@@ -288,14 +340,26 @@ class GeneTrajectoryLogger:
                 self._cluster_id_counter = 0
                 return
 
-            new_records, self._cluster_id_counter = match_clusters_greedy(
-                self._prev_cluster_records,
-                result.centroids,
-                result.sizes,
-                result.gene_names,
-                step,
-                id_counter_start=self._cluster_id_counter,
-            )
+            if self._speciation_lineage_matcher == "hungarian":
+                new_records, self._cluster_id_counter = match_clusters_hungarian(
+                    self._prev_cluster_records,
+                    result.centroids,
+                    result.sizes,
+                    result.gene_names,
+                    step,
+                    max_distance=self._speciation_lineage_max_distance,
+                    id_counter_start=self._cluster_id_counter,
+                )
+            else:
+                new_records, self._cluster_id_counter = match_clusters_greedy(
+                    self._prev_cluster_records,
+                    result.centroids,
+                    result.sizes,
+                    result.gene_names,
+                    step,
+                    max_distance=self._speciation_lineage_max_distance,
+                    id_counter_start=self._cluster_id_counter,
+                )
             self._prev_cluster_records = new_records
 
             if self._cluster_lineage_handle is not None:
@@ -306,6 +370,10 @@ class GeneTrajectoryLogger:
                         "centroid": rec.centroid,
                         "size": rec.size,
                         "parent_cluster_id": rec.parent_cluster_id,
+                        "transition_type": rec.transition_type,
+                        "parent_cluster_ids": rec.parent_cluster_ids,
+                        "lineage_matcher": self._speciation_lineage_matcher,
+                        "lineage_max_distance": self._speciation_lineage_max_distance,
                         "scaler": result.scaler,
                         "dbscan_params": result.dbscan_params,
                     }

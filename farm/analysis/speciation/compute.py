@@ -23,6 +23,14 @@ previous ones at minimum Euclidean distance.  New clusters that have no
 close predecessor receive a fresh monotonically-increasing ID (``"c0"``,
 ``"c1"``, …).
 
+:func:`match_clusters_hungarian` uses a globally optimal assignment
+(Hungarian / Kuhn–Munkres algorithm via
+``scipy.optimize.linear_sum_assignment``) under the same distance gate,
+then classifies each record as ``"founding"``, ``"continuation"``,
+``"split"`` (one-to-many), or ``"merge"`` (many-to-one).  The full set
+of predecessor IDs is stored in
+:attr:`ClusterLineageRecord.parent_cluster_ids`.
+
 Speciation index
 ----------------
 :func:`compute_speciation_index` collapses a :class:`ClusterResult` into a
@@ -84,6 +92,14 @@ def _require_sklearn() -> None:
 
 #: Valid choices for the ``scaler`` parameter in cluster-detection functions.
 VALID_SCALERS: Tuple[str, ...] = ("none", "standard", "robust")
+
+#: Valid ``transition_type`` values emitted by :func:`match_clusters_hungarian`.
+VALID_TRANSITION_TYPES: Tuple[str, ...] = (
+    "founding",
+    "continuation",
+    "split",
+    "merge",
+)
 
 # ---------------------------------------------------------------------------
 # Result dataclasses
@@ -158,6 +174,26 @@ class ClusterLineageRecord:
     parent_cluster_id:
         The ``cluster_id`` of the closest-matching cluster at the previous
         snapshot, or ``None`` for founding clusters at the first snapshot.
+        Backward-compatible single-parent field; use ``parent_cluster_ids``
+        for the full list when a merge has occurred.
+    transition_type:
+        How this cluster relates to the previous snapshot.  One of:
+
+        - ``"founding"`` – no predecessor within ``max_distance``; brand-new
+          lineage.
+        - ``"continuation"`` – one-to-one match with no split or merge.
+        - ``"split"`` – the predecessor also spawned at least one other new
+          cluster (one-to-many).
+        - ``"merge"`` – multiple predecessors are within ``max_distance`` of
+          this cluster (many-to-one).
+
+        ``None`` when populated by :func:`match_clusters_greedy` (legacy
+        matcher that does not classify transitions).
+    parent_cluster_ids:
+        All predecessor ``cluster_id`` values within ``max_distance``.  For a
+        continuation or split this is a single-element list; for a merge it
+        contains all contributing predecessors.  Empty list for founding
+        clusters or when populated by :func:`match_clusters_greedy`.
     gene_stats:
         Optional per-gene statistics dict (``{gene: {mean, std, …}}``) for
         agents in this cluster, populated by callers that request it.
@@ -168,6 +204,8 @@ class ClusterLineageRecord:
     centroid: Dict[str, float]
     size: int
     parent_cluster_id: Optional[str]
+    transition_type: Optional[str] = field(default=None)
+    parent_cluster_ids: List[str] = field(default_factory=list)
     gene_stats: Optional[Dict[str, Dict[str, float]]] = field(default=None)
 
 
@@ -755,6 +793,268 @@ def match_clusters_greedy(
                 centroid=centroid,
                 size=size,
                 parent_cluster_id=parent_cluster_id,
+            )
+        )
+
+    return records, id_counter
+
+
+def match_clusters_hungarian(
+    prev_records: List[ClusterLineageRecord],
+    new_centroids: List[Dict[str, float]],
+    new_sizes: List[int],
+    gene_names: List[str],
+    step: int,
+    *,
+    max_distance: float = 1.0,
+    id_counter_start: int = 0,
+) -> Tuple[List[ClusterLineageRecord], int]:
+    """Assign stable cluster IDs using a globally optimal (Hungarian) matcher.
+
+    Unlike :func:`match_clusters_greedy`, which processes new clusters in
+    iteration order and makes locally-optimal nearest-centroid assignments,
+    this function solves the assignment problem globally via the Hungarian
+    algorithm (``scipy.optimize.linear_sum_assignment``).  Global
+    optimisation avoids order-dependence and gives better ID stability
+    during rapid topology shifts.
+
+    After the one-to-one global assignment, unmatched new clusters are
+    linked to their nearest predecessor within ``max_distance`` (split
+    children).  Every resulting record carries a
+    :attr:`ClusterLineageRecord.transition_type` (one of ``"founding"``,
+    ``"continuation"``, ``"split"``, or ``"merge"``) and a
+    :attr:`ClusterLineageRecord.parent_cluster_ids` list of all predecessor
+    IDs within ``max_distance``.
+
+    Parameters
+    ----------
+    prev_records:
+        :class:`ClusterLineageRecord` list from the previous snapshot
+        (may be empty for the first snapshot).
+    new_centroids:
+        List of per-cluster centroid dicts for the current snapshot.
+    new_sizes:
+        Corresponding per-cluster sizes.
+    gene_names:
+        Ordered list of gene names used to build centroid vectors.
+    step:
+        Current snapshot step (used to populate the new records).
+    max_distance:
+        Maximum Euclidean centroid distance for a match to be accepted.
+        Pairs whose distance exceeds this threshold are never matched.
+        Must be finite and > 0 to avoid pathological over-linking of
+        unrelated clusters.
+    id_counter_start:
+        Counter used to generate new IDs (``"c{counter}"``).  The returned
+        second element is the next counter value after allocating all new IDs
+        in this call.
+
+    Returns
+    -------
+    records : list[ClusterLineageRecord]
+        One record per new cluster.  ``transition_type`` is one of
+        ``"founding"``, ``"continuation"``, ``"split"``, or ``"merge"``;
+        ``parent_cluster_ids`` lists every predecessor within
+        ``max_distance`` (empty for founding clusters).
+    next_id_counter : int
+        Updated counter for subsequent calls.
+
+    Raises
+    ------
+    ImportError
+        When ``scipy`` is not installed.
+    ValueError
+        If ``max_distance`` is not finite and positive.
+
+    Notes
+    -----
+    **Determinism**: the Hungarian algorithm is deterministic for a fixed
+    cost matrix.  Tie-breaking follows
+    ``scipy.optimize.linear_sum_assignment``.
+
+    **Transition-type semantics**:
+
+    - ``"founding"`` – no predecessor within ``max_distance``; new lineage.
+    - ``"continuation"`` – one predecessor matched via global assignment,
+      no split or merge detected.
+    - ``"split"`` – the predecessor also produced at least one other new
+      cluster (one-to-many).  The Hungarian-matched cluster inherits the
+      predecessor ID; additional split children receive fresh IDs.
+    - ``"merge"`` – multiple predecessors are within ``max_distance``
+      (many-to-one).  The Hungarian-matched predecessor donates its ID;
+      all contributors are listed in ``parent_cluster_ids``.
+
+    ``max_distance`` is intentionally required to be finite so merge/split
+    classification remains local rather than linking arbitrarily distant
+    centroids.
+    """
+    if not math.isfinite(max_distance) or max_distance <= 0.0:
+        raise ValueError(
+            "match_clusters_hungarian requires max_distance to be finite and > 0; "
+            f"got {max_distance!r}."
+        )
+
+    try:
+        from scipy.optimize import linear_sum_assignment as _lsa
+    except ImportError as exc:
+        raise ImportError(
+            "match_clusters_hungarian requires scipy. "
+            "Install with: pip install scipy"
+        ) from exc
+
+    import re as _re
+
+    def _centroid_vec(d: Dict[str, float]) -> np.ndarray:
+        return np.array([d.get(g, 0.0) for g in gene_names], dtype=float)
+
+    n_new = len(new_centroids)
+    n_prev = len(prev_records)
+
+    new_vecs = [_centroid_vec(c) for c in new_centroids]
+    prev_vecs = [_centroid_vec(r.centroid) for r in prev_records]
+    prev_ids = [r.cluster_id for r in prev_records]
+
+    # Auto-advance id_counter past any IDs already used in prev_records
+    id_counter = id_counter_start
+    for r in prev_records:
+        m = _re.match(r"^c(\d+)$", r.cluster_id)
+        if m:
+            id_counter = max(id_counter, int(m.group(1)) + 1)
+
+    records: List[ClusterLineageRecord] = []
+
+    # -----------------------------------------------------------------------
+    # Edge cases: no previous clusters
+    # -----------------------------------------------------------------------
+    if n_prev == 0 or n_new == 0:
+        for centroid, size in zip(new_centroids, new_sizes):
+            records.append(
+                ClusterLineageRecord(
+                    step=step,
+                    cluster_id=f"c{id_counter}",
+                    centroid=centroid,
+                    size=size,
+                    parent_cluster_id=None,
+                    transition_type="founding",
+                    parent_cluster_ids=[],
+                )
+            )
+            id_counter += 1
+        return records, id_counter
+
+    # -----------------------------------------------------------------------
+    # Pairwise distance matrix  D[i, j] = dist(new_i, prev_j)
+    # -----------------------------------------------------------------------
+    D = np.zeros((n_new, n_prev), dtype=float)
+    for i, nv in enumerate(new_vecs):
+        for j, pv in enumerate(prev_vecs):
+            D[i, j] = float(np.linalg.norm(nv - pv))
+
+    # -----------------------------------------------------------------------
+    # Hungarian assignment on gated cost matrix.
+    # Pairs beyond max_distance get a finite penalty that is strictly larger
+    # than any valid in-gate distance, so the solver will always prefer a
+    # within-gate assignment when one exists.
+    # -----------------------------------------------------------------------
+    # n_new > 0 and n_prev > 0 are guaranteed by the early-return above,
+    # so D is non-empty here and np.max(D) is safe.
+    gate_ceiling = max(float(max_distance), float(np.max(D)))
+    if not np.isfinite(gate_ceiling) or gate_ceiling >= np.finfo(float).max:
+        raise ValueError(
+            "max_distance and lineage-assignment distances must be finite "
+            "and smaller than the largest representable float"
+        )
+    # np.nextafter gives the smallest representable float strictly greater than
+    # gate_ceiling, ensuring out-of-gate pairs always cost more than any valid
+    # in-gate pair regardless of the magnitude of max_distance.
+    hungarian_gate_penalty = np.nextafter(gate_ceiling, math.inf)
+    cost = np.where(D <= max_distance, D, hungarian_gate_penalty)
+    row_ind, col_ind = _lsa(cost)
+
+    # Accept only within-gate pairs
+    primary_matches: Dict[int, int] = {}  # new_i → prev_j
+    for ri, ci in zip(row_ind.tolist(), col_ind.tolist()):
+        if ri < n_new and ci < n_prev and D[ri, ci] <= max_distance:
+            primary_matches[ri] = ci
+
+    # -----------------------------------------------------------------------
+    # For unmatched new clusters find the nearest predecessor (split child)
+    # -----------------------------------------------------------------------
+    all_new_to_prev: Dict[int, Optional[int]] = {}
+    for i in range(n_new):
+        if i in primary_matches:
+            all_new_to_prev[i] = primary_matches[i]
+        else:
+            best_j: Optional[int] = None
+            best_d = math.inf
+            for j in range(n_prev):
+                if D[i, j] < best_d and D[i, j] <= max_distance:
+                    best_d = D[i, j]
+                    best_j = j
+            all_new_to_prev[i] = best_j
+
+    # Reverse mapping: prev_j → all new_i that point to it (primary Hungarian
+    # matches plus nearest-predecessor links for unmatched new clusters)
+    prev_to_all_new: Dict[int, List[int]] = {}
+    for ni, pj in all_new_to_prev.items():
+        if pj is not None:
+            prev_to_all_new.setdefault(pj, []).append(ni)
+
+    # Per new cluster: all prev clusters within max_distance (for merge check)
+    new_to_all_prev: Dict[int, List[int]] = {
+        i: [j for j in range(n_prev) if D[i, j] <= max_distance]
+        for i in range(n_new)
+    }
+
+    # -----------------------------------------------------------------------
+    # Build ClusterLineageRecord for each new cluster
+    # -----------------------------------------------------------------------
+    for i, (centroid, size) in enumerate(zip(new_centroids, new_sizes)):
+        primary_j: Optional[int] = all_new_to_prev[i]
+        all_prev_js: List[int] = new_to_all_prev[i]
+
+        if primary_j is None:
+            records.append(
+                ClusterLineageRecord(
+                    step=step,
+                    cluster_id=f"c{id_counter}",
+                    centroid=centroid,
+                    size=size,
+                    parent_cluster_id=None,
+                    transition_type="founding",
+                    parent_cluster_ids=[],
+                )
+            )
+            id_counter += 1
+            continue
+
+        is_merge = len(all_prev_js) > 1
+        is_split = len(prev_to_all_new.get(primary_j, [])) > 1
+
+        if is_merge:
+            transition_type = "merge"
+        elif is_split:
+            transition_type = "split"
+        else:
+            transition_type = "continuation"
+
+        # Hungarian-matched clusters inherit the predecessor ID;
+        # fallback-matched split children receive fresh IDs.
+        if i in primary_matches:
+            cluster_id = prev_ids[primary_j]
+        else:
+            cluster_id = f"c{id_counter}"
+            id_counter += 1
+
+        records.append(
+            ClusterLineageRecord(
+                step=step,
+                cluster_id=cluster_id,
+                centroid=centroid,
+                size=size,
+                parent_cluster_id=prev_ids[primary_j],
+                transition_type=transition_type,
+                parent_cluster_ids=[prev_ids[j] for j in all_prev_js],
             )
         )
 
