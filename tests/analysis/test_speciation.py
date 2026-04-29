@@ -1099,6 +1099,10 @@ class TestDBSCANAutoTune:
         # dbscan_params is None for empty input (no data to estimate from)
         assert result.dbscan_params is None
 
+    def test_auto_tune_invalid_percentile_raises_on_empty_input(self):
+        with pytest.raises(ValueError, match="auto_tune_percentile"):
+            detect_clusters_dbscan([], auto_tune=True, auto_tune_percentile=120.0)
+
     def test_auto_tune_bimodal_finds_clusters(self):
         """auto_tune should also work on normal-range bimodal data."""
         chromosomes = _bimodal_chromosomes(n_per_cluster=20)
@@ -1235,10 +1239,10 @@ class TestGeneTrajectoryLoggerAutoTune:
         log.close()
 
         lineage_path = tmp_path / "cluster_lineage.jsonl"
-        if lineage_path.exists():
-            rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
-            for row in rows:
-                # dbscan_params key should exist but be null (no auto_tune)
-                assert "dbscan_params" in row
-                assert row["dbscan_params"] is None
+        assert lineage_path.exists(), "cluster_lineage.jsonl should be written"
+        rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
+        for row in rows:
+            # dbscan_params key should exist but be null (no auto_tune)
+            assert "dbscan_params" in row
+            assert row["dbscan_params"] is None
 

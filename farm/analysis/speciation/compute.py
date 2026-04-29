@@ -582,6 +582,11 @@ def detect_clusters_dbscan(
         the chosen ``eps``, ``min_samples``, ``method``, and ``k_percentile``.
     """
     _validate_scaler(scaler)
+    if auto_tune and not 0.0 <= auto_tune_percentile <= 100.0:
+        raise ValueError(
+            "auto_tune_percentile must be in [0, 100] when auto_tune=True; "
+            f"got {auto_tune_percentile!r}."
+        )
     _require_sklearn()
     X, gnames = _chromosomes_to_matrix(chromosomes, gene_names)
     n_agents = X.shape[0]
