@@ -806,7 +806,7 @@ def match_clusters_hungarian(
     gene_names: List[str],
     step: int,
     *,
-    max_distance: float = float("inf"),
+    max_distance: float = 1.0,
     id_counter_start: int = 0,
 ) -> Tuple[List[ClusterLineageRecord], int]:
     """Assign stable cluster IDs using a globally optimal (Hungarian) matcher.
@@ -842,7 +842,8 @@ def match_clusters_hungarian(
     max_distance:
         Maximum Euclidean centroid distance for a match to be accepted.
         Pairs whose distance exceeds this threshold are never matched.
-        Default: unlimited.
+        Must be finite and > 0 to avoid pathological over-linking of
+        unrelated clusters.
     id_counter_start:
         Counter used to generate new IDs (``"c{counter}"``).  The returned
         second element is the next counter value after allocating all new IDs
@@ -862,6 +863,8 @@ def match_clusters_hungarian(
     ------
     ImportError
         When ``scipy`` is not installed.
+    ValueError
+        If ``max_distance`` is not finite and positive.
 
     Notes
     -----
@@ -880,7 +883,17 @@ def match_clusters_hungarian(
     - ``"merge"`` – multiple predecessors are within ``max_distance``
       (many-to-one).  The Hungarian-matched predecessor donates its ID;
       all contributors are listed in ``parent_cluster_ids``.
+
+    ``max_distance`` is intentionally required to be finite so merge/split
+    classification remains local rather than linking arbitrarily distant
+    centroids.
     """
+    if not math.isfinite(max_distance) or max_distance <= 0.0:
+        raise ValueError(
+            "match_clusters_hungarian requires max_distance to be finite and > 0; "
+            f"got {max_distance!r}."
+        )
+
     try:
         from scipy.optimize import linear_sum_assignment as _lsa
     except ImportError as exc:

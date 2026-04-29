@@ -390,11 +390,18 @@ class TestMatchClustersHungarian:
             self._make_record("c1", {"lr": 5.0}),
         ]
         records, _ = match_clusters_hungarian(
-            prev, [{"lr": 4.0}, {"lr": 6.0}], [10, 10], ["lr"], step=1
+            prev, [{"lr": 4.0}, {"lr": 6.0}], [10, 10], ["lr"], step=1, max_distance=10.0
         )
         id_map = {r.centroid["lr"]: r.cluster_id for r in records}
         assert id_map[4.0] == "c0"
         assert id_map[6.0] == "c1"
+
+    def test_invalid_max_distance_raises(self):
+        prev = [self._make_record("c0", {"lr": 0.01})]
+        with pytest.raises(ValueError, match="finite and > 0"):
+            match_clusters_hungarian(
+                prev, [{"lr": 0.011}], [18], ["lr"], step=1, max_distance=float("inf")
+            )
 
     # --- determinism ---------------------------------------------------------
 
@@ -491,6 +498,9 @@ class TestClusterLineageJsonlTransitionFields:
             assert "transition_type" in row
             assert "parent_cluster_ids" in row
             assert isinstance(row["parent_cluster_ids"], list)
+            assert row["transition_type"] in VALID_TRANSITION_TYPES
+            assert row["lineage_matcher"] == "hungarian"
+            assert row["lineage_max_distance"] == pytest.approx(1.0)
             # Backward-compatible fields still present
             assert "parent_cluster_id" in row
             assert "step" in row
@@ -770,6 +780,45 @@ class TestGeneTrajectoryLoggerSpeciation:
 
         with pytest.raises(ValueError, match="speciation_algorithm"):
             GeneTrajectoryLogger(None, snapshot_interval=1, speciation_algorithm="bad")
+
+    def test_invalid_lineage_matcher_raises(self):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        with pytest.raises(ValueError, match="speciation_lineage_matcher"):
+            GeneTrajectoryLogger(None, snapshot_interval=1, speciation_lineage_matcher="bad")
+
+    def test_invalid_lineage_max_distance_raises(self):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        with pytest.raises(ValueError, match="speciation_lineage_max_distance"):
+            GeneTrajectoryLogger(
+                None,
+                snapshot_interval=1,
+                speciation_lineage_max_distance=float("inf"),
+            )
+
+    def test_greedy_lineage_matcher_keeps_legacy_transition_fields(self, tmp_path):
+        """Greedy matcher keeps transition_type unset for backward compatibility."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = [_make_fake_agent(lr=0.01), _make_fake_agent(lr=0.1)]
+        env = _FakeEnvironment(agents)
+        logger = GeneTrajectoryLogger(
+            str(tmp_path),
+            snapshot_interval=1,
+            enable_speciation=True,
+            speciation_lineage_matcher="greedy",
+        )
+        logger.snapshot(env, step=0)
+        logger.close()
+
+        lineage_path = tmp_path / "cluster_lineage.jsonl"
+        rows = [json.loads(line) for line in lineage_path.read_text().splitlines()]
+        assert len(rows) >= 1
+        for row in rows:
+            assert row["lineage_matcher"] == "greedy"
+            assert row["transition_type"] is None
+            assert row["parent_cluster_ids"] == []
 
     def test_speciation_index_reserved_key_in_extra_fields(self, tmp_path):
         """Passing speciation_index via extra_fields should raise ValueError when speciation enabled."""
