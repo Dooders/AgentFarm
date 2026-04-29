@@ -87,9 +87,12 @@ class GeneTrajectoryLogger:
         ``"hungarian"`` (default) uses a globally optimal assignment and
         populates transition metadata; ``"greedy"`` preserves legacy behavior.
     speciation_lineage_max_distance:
-        Maximum centroid distance accepted by the lineage matcher. Must be
-        finite and > 0. Lower values are more conservative and will classify
-        distant clusters as founding.
+        Maximum centroid distance accepted by the lineage matcher. For
+        ``"hungarian"``, must be finite and > 0 (default ``1.0`` when omitted).
+        For ``"greedy"``, may be ``float("inf")`` for unlimited matching (the
+        historical default); when omitted, greedy uses unlimited distance.
+        Lower finite values are more conservative and classify distant clusters
+        as founding.
     """
 
     TRAJECTORY_FILENAME = "intrinsic_gene_trajectory.jsonl"
@@ -110,7 +113,7 @@ class GeneTrajectoryLogger:
         speciation_dbscan_auto_tune: bool = False,
         speciation_dbscan_auto_tune_percentile: float = 90.0,
         speciation_lineage_matcher: str = "hungarian",
-        speciation_lineage_max_distance: float = 1.0,
+        speciation_lineage_max_distance: Optional[float] = None,
     ) -> None:
         if snapshot_interval < 1:
             raise ValueError("snapshot_interval must be at least 1.")
@@ -121,11 +124,26 @@ class GeneTrajectoryLogger:
                 "speciation_lineage_matcher must be one of "
                 f"{self.VALID_LINEAGE_MATCHERS!r}; got {speciation_lineage_matcher!r}."
             )
-        if not math.isfinite(speciation_lineage_max_distance) or speciation_lineage_max_distance <= 0.0:
-            raise ValueError(
-                "speciation_lineage_max_distance must be finite and > 0; "
-                f"got {speciation_lineage_max_distance!r}."
+        if speciation_lineage_max_distance is None:
+            resolved_max_distance = (
+                float("inf") if speciation_lineage_matcher == "greedy" else 1.0
             )
+        elif speciation_lineage_matcher == "hungarian":
+            if not math.isfinite(speciation_lineage_max_distance) or speciation_lineage_max_distance <= 0.0:
+                raise ValueError(
+                    "speciation_lineage_max_distance must be finite and > 0 for "
+                    f"speciation_lineage_matcher='hungarian'; got {speciation_lineage_max_distance!r}."
+                )
+            resolved_max_distance = speciation_lineage_max_distance
+        else:
+            # greedy: unlimited (inf) or any positive finite distance
+            d = speciation_lineage_max_distance
+            if d != float("inf") and (not math.isfinite(d) or d <= 0.0):
+                raise ValueError(
+                    "speciation_lineage_max_distance must be float('inf') or finite and > 0 for "
+                    f"speciation_lineage_matcher='greedy'; got {d!r}."
+                )
+            resolved_max_distance = d
         if speciation_scaler not in VALID_SCALERS:
             raise ValueError(
                 f"speciation_scaler must be one of {VALID_SCALERS!r}; "
@@ -145,6 +163,14 @@ class GeneTrajectoryLogger:
                     "GeneTrajectoryLogger: enable_speciation=True requires scikit-learn. "
                     "Install it with: pip install scikit-learn"
                 ) from exc
+            if speciation_lineage_matcher == "hungarian":
+                try:
+                    import scipy  # noqa: F401
+                except ImportError as exc:
+                    raise ImportError(
+                        "GeneTrajectoryLogger: speciation_lineage_matcher='hungarian' requires scipy. "
+                        "Install it with: pip install scipy"
+                    ) from exc
         self._output_dir = output_dir
         self._snapshot_interval = snapshot_interval
         self._enable_speciation = enable_speciation
@@ -155,7 +181,7 @@ class GeneTrajectoryLogger:
         self._speciation_dbscan_auto_tune = speciation_dbscan_auto_tune
         self._speciation_dbscan_auto_tune_percentile = speciation_dbscan_auto_tune_percentile
         self._speciation_lineage_matcher = speciation_lineage_matcher
-        self._speciation_lineage_max_distance = speciation_lineage_max_distance
+        self._speciation_lineage_max_distance = resolved_max_distance
 
         self._trajectory_handle: Optional[TextIO] = None
         self._snapshot_handle: Optional[TextIO] = None

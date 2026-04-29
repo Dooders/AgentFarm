@@ -787,15 +787,26 @@ class TestGeneTrajectoryLoggerSpeciation:
         with pytest.raises(ValueError, match="speciation_lineage_matcher"):
             GeneTrajectoryLogger(None, snapshot_interval=1, speciation_lineage_matcher="bad")
 
-    def test_invalid_lineage_max_distance_raises(self):
+    def test_invalid_lineage_max_distance_raises_for_hungarian(self):
         from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
 
         with pytest.raises(ValueError, match="speciation_lineage_max_distance"):
             GeneTrajectoryLogger(
                 None,
                 snapshot_interval=1,
+                speciation_lineage_matcher="hungarian",
                 speciation_lineage_max_distance=float("inf"),
             )
+
+    def test_greedy_lineage_max_distance_inf_allowed(self):
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        GeneTrajectoryLogger(
+            None,
+            snapshot_interval=1,
+            speciation_lineage_matcher="greedy",
+            speciation_lineage_max_distance=float("inf"),
+        )
 
     def test_greedy_lineage_matcher_keeps_legacy_transition_fields(self, tmp_path):
         """Greedy matcher keeps transition_type unset for backward compatibility."""
