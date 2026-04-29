@@ -5,6 +5,7 @@ Covers:
 - detect_clusters_dbscan: trivial, basic cluster detection
 - match_clusters_greedy: stable IDs across snapshots, new cluster allocation
 - compute_speciation_index: single cluster → 0, multi-cluster → silhouette
+- compute_speciation_quality_bundle: full quality bundle validation
 - compute_niche_correlation: per-cluster spatial/resource means
 - GeneTrajectoryLogger: speciation_index in trajectory, cluster_lineage.jsonl output
 - plot_chromosome_space_clusters: smoke test (no file I/O error)
@@ -16,16 +17,18 @@ import json
 import random
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 
 from farm.analysis.speciation import (
     ClusterLineageRecord,
     ClusterResult,
+    SpeciationQualityBundle,
     VALID_TRANSITION_TYPES,
     compute_niche_correlation,
     compute_speciation_index,
+    compute_speciation_quality_bundle,
     detect_clusters_dbscan,
     detect_clusters_gmm,
     match_clusters_greedy,
@@ -559,6 +562,208 @@ class TestComputeSpeciationIndex:
 
 
 # ---------------------------------------------------------------------------
+# compute_speciation_quality_bundle
+# ---------------------------------------------------------------------------
+
+
+class TestComputeSpeciationQualityBundle:
+    """Tests for the richer quality-metrics bundle."""
+
+    def _make_result(
+        self,
+        k: int,
+        sil: float,
+        labels: Optional[List[int]] = None,
+        sizes: Optional[List[int]] = None,
+        algorithm: str = "gmm",
+    ) -> ClusterResult:
+        if labels is None:
+            labels = [0] * 5
+        if sizes is None:
+            sizes = [5] if k >= 1 else []
+        return ClusterResult(
+            algorithm=algorithm,
+            k=k,
+            labels=labels,
+            centroids=[{"lr": 0.01}] * k,
+            sizes=sizes,
+            gene_names=["lr"],
+            silhouette_score=sil,
+            bic_scores=None,
+        )
+
+    # --- return type ---
+
+    def test_returns_speciation_quality_bundle_instance(self):
+        result = self._make_result(k=1, sil=0.5)
+        bundle = compute_speciation_quality_bundle(result)
+        assert isinstance(bundle, SpeciationQualityBundle)
+
+    def test_bundle_has_expected_fields(self):
+        result = self._make_result(k=1, sil=0.5)
+        bundle = compute_speciation_quality_bundle(result)
+        for attr in ("speciation_index", "raw_silhouette", "noise_fraction",
+                     "cluster_size_entropy", "n_clusters"):
+            assert hasattr(bundle, attr)
+
+    # --- speciation_index consistency ---
+
+    def test_speciation_index_matches_scalar_function(self):
+        result = self._make_result(k=2, sil=0.75, labels=[0, 1], sizes=[1, 1])
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.speciation_index == pytest.approx(compute_speciation_index(result))
+
+    def test_speciation_index_zero_for_single_cluster(self):
+        result = self._make_result(k=1, sil=0.9)
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.speciation_index == 0.0
+
+    def test_speciation_index_in_unit_interval(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=30)
+        result = detect_clusters_gmm(chromosomes, max_k=3, seed=0)
+        bundle = compute_speciation_quality_bundle(result)
+        assert 0.0 <= bundle.speciation_index <= 1.0
+
+    # --- raw_silhouette ---
+
+    def test_raw_silhouette_zero_for_single_cluster(self):
+        result = self._make_result(k=1, sil=0.9)
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.raw_silhouette == 0.0
+
+    def test_raw_silhouette_preserves_negative_value(self):
+        """Negative silhouette must NOT be clipped to 0."""
+        result = self._make_result(k=2, sil=-0.3, labels=[0, 1], sizes=[1, 1])
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.raw_silhouette == pytest.approx(-0.3)
+
+    def test_raw_silhouette_in_minus1_to_1_range_for_bimodal(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=30)
+        result = detect_clusters_gmm(chromosomes, max_k=3, seed=0)
+        bundle = compute_speciation_quality_bundle(result)
+        assert -1.0 <= bundle.raw_silhouette <= 1.0
+
+    def test_raw_silhouette_positive_for_well_separated_clusters(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=30)
+        result = detect_clusters_gmm(chromosomes, max_k=3, seed=0)
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.raw_silhouette > 0.0
+
+    # --- noise_fraction ---
+
+    def test_noise_fraction_zero_for_gmm(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        result = detect_clusters_gmm(chromosomes, max_k=3, seed=0)
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.noise_fraction == pytest.approx(0.0)
+
+    def test_noise_fraction_computed_correctly(self):
+        """2 noise, 2 labelled → fraction = 0.5."""
+        result = ClusterResult(
+            algorithm="dbscan",
+            k=1,
+            labels=[-1, 0, 0, -1],
+            centroids=[{"lr": 0.01}],
+            sizes=[2],
+            gene_names=["lr"],
+            silhouette_score=0.0,
+            bic_scores=None,
+        )
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.noise_fraction == pytest.approx(0.5)
+
+    def test_noise_fraction_zero_when_no_noise(self):
+        result = ClusterResult(
+            algorithm="dbscan", k=2, labels=[0, 0, 1, 1],
+            centroids=[{"lr": 0.01}, {"lr": 0.1}],
+            sizes=[2, 2], gene_names=["lr"],
+            silhouette_score=0.8, bic_scores=None,
+        )
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.noise_fraction == pytest.approx(0.0)
+
+    def test_noise_fraction_in_unit_interval(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=20)
+        result = detect_clusters_dbscan(chromosomes, eps=0.04, min_samples=3)
+        bundle = compute_speciation_quality_bundle(result)
+        assert 0.0 <= bundle.noise_fraction <= 1.0
+
+    # --- cluster_size_entropy ---
+
+    def test_entropy_zero_for_single_cluster(self):
+        result = self._make_result(k=1, sil=0.5)
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.cluster_size_entropy == pytest.approx(0.0)
+
+    def test_entropy_zero_for_no_clusters(self):
+        result = self._make_result(k=0, sil=0.0, labels=[], sizes=[])
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.cluster_size_entropy == pytest.approx(0.0)
+
+    def test_entropy_maximised_for_equal_sizes(self):
+        """Two equal clusters → entropy = ln(2)."""
+        import math as _math
+        result = ClusterResult(
+            algorithm="gmm", k=2, labels=[0, 0, 1, 1],
+            centroids=[{"lr": 0.01}, {"lr": 0.1}],
+            sizes=[2, 2], gene_names=["lr"],
+            silhouette_score=0.8, bic_scores=None,
+        )
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.cluster_size_entropy == pytest.approx(_math.log(2))
+
+    def test_entropy_lower_for_imbalanced_split(self):
+        balanced = ClusterResult(
+            algorithm="gmm", k=2, labels=[0] * 10 + [1] * 10,
+            centroids=[{"lr": 0.01}, {"lr": 0.1}],
+            sizes=[10, 10], gene_names=["lr"],
+            silhouette_score=0.8, bic_scores=None,
+        )
+        imbalanced = ClusterResult(
+            algorithm="gmm", k=2, labels=[0] * 18 + [1] * 2,
+            centroids=[{"lr": 0.01}, {"lr": 0.1}],
+            sizes=[18, 2], gene_names=["lr"],
+            silhouette_score=0.5, bic_scores=None,
+        )
+        assert (compute_speciation_quality_bundle(balanced).cluster_size_entropy
+                > compute_speciation_quality_bundle(imbalanced).cluster_size_entropy)
+
+    def test_entropy_non_negative(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=30)
+        result = detect_clusters_gmm(chromosomes, max_k=3, seed=0)
+        assert compute_speciation_quality_bundle(result).cluster_size_entropy >= 0.0
+
+    # --- n_clusters ---
+
+    def test_n_clusters_matches_result_k(self):
+        for k in (0, 1, 2, 3):
+            sizes = [5] * k
+            labels: List[int] = []
+            for i in range(k):
+                labels.extend([i] * 5)
+            result = ClusterResult(
+                algorithm="gmm", k=k, labels=labels,
+                centroids=[{"lr": 0.01}] * k,
+                sizes=sizes, gene_names=["lr"],
+                silhouette_score=0.5 if k >= 2 else 0.0,
+                bic_scores=None,
+            )
+            assert compute_speciation_quality_bundle(result).n_clusters == k
+
+    # --- end-to-end with real clustering ---
+
+    def test_bimodal_gmm_bundle_sensible_values(self):
+        chromosomes = _bimodal_chromosomes(n_per_cluster=30)
+        result = detect_clusters_gmm(chromosomes, max_k=3, seed=0)
+        bundle = compute_speciation_quality_bundle(result)
+        assert bundle.speciation_index > 0.5
+        assert bundle.raw_silhouette > 0.5
+        assert bundle.noise_fraction == pytest.approx(0.0)
+        assert bundle.cluster_size_entropy > 0.0
+        assert bundle.n_clusters == 2
+
+
+# ---------------------------------------------------------------------------
 # compute_niche_correlation
 # ---------------------------------------------------------------------------
 
@@ -882,6 +1087,82 @@ class TestGeneTrajectoryLoggerSpeciation:
         assert len(step_0_rows) == 1
         assert len(step_2_rows) == 1
         assert step_2_rows[0]["parent_cluster_id"] is None
+
+    def test_quality_bundle_emitted_in_trajectory(self, tmp_path):
+        """With enable_speciation=True, trajectory includes speciation_quality dict."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = (
+            [_make_fake_agent(lr=0.001, gamma=0.99)] * 20
+            + [_make_fake_agent(lr=0.9, gamma=0.1)] * 20
+        )
+        env = _FakeEnvironment(agents)
+        logger = GeneTrajectoryLogger(str(tmp_path), snapshot_interval=1, enable_speciation=True)
+        logger.snapshot(env, step=0)
+        logger.close()
+
+        traj_path = tmp_path / "intrinsic_gene_trajectory.jsonl"
+        rec = json.loads(traj_path.read_text().splitlines()[0])
+        assert "speciation_quality" in rec
+        q = rec["speciation_quality"]
+        assert isinstance(q, dict)
+        assert set(q.keys()) >= {
+            "speciation_index", "raw_silhouette", "noise_fraction",
+            "cluster_size_entropy", "n_clusters",
+        }
+
+    def test_quality_bundle_field_bounds(self, tmp_path):
+        """All quality bundle fields are within their documented bounds."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = (
+            [_make_fake_agent(lr=0.001, gamma=0.99)] * 20
+            + [_make_fake_agent(lr=0.9, gamma=0.1)] * 20
+        )
+        env = _FakeEnvironment(agents)
+        logger = GeneTrajectoryLogger(str(tmp_path), snapshot_interval=1, enable_speciation=True)
+        logger.snapshot(env, step=0)
+        logger.close()
+
+        traj_path = tmp_path / "intrinsic_gene_trajectory.jsonl"
+        q = json.loads(traj_path.read_text().splitlines()[0])["speciation_quality"]
+        assert 0.0 <= q["speciation_index"] <= 1.0
+        assert -1.0 <= q["raw_silhouette"] <= 1.0
+        assert 0.0 <= q["noise_fraction"] <= 1.0
+        assert q["cluster_size_entropy"] >= 0.0
+        assert isinstance(q["n_clusters"], int) and q["n_clusters"] >= 0
+
+    def test_quality_bundle_absent_when_speciation_disabled(self, tmp_path):
+        """Without enable_speciation, trajectory records have no speciation_quality."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        logger = GeneTrajectoryLogger(str(tmp_path), snapshot_interval=1)
+        env = _FakeEnvironment([_make_fake_agent(lr=0.01), _make_fake_agent(lr=0.1)])
+        logger.snapshot(env, step=0)
+        logger.close()
+
+        traj_path = tmp_path / "intrinsic_gene_trajectory.jsonl"
+        rec = json.loads(traj_path.read_text().splitlines()[0])
+        assert "speciation_quality" not in rec
+
+    def test_quality_bundle_speciation_index_matches_top_level(self, tmp_path):
+        """quality bundle's speciation_index must equal the top-level field."""
+        from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+
+        agents = (
+            [_make_fake_agent(lr=0.001, gamma=0.99)] * 20
+            + [_make_fake_agent(lr=0.9, gamma=0.1)] * 20
+        )
+        env = _FakeEnvironment(agents)
+        logger = GeneTrajectoryLogger(str(tmp_path), snapshot_interval=1, enable_speciation=True)
+        logger.snapshot(env, step=0)
+        logger.close()
+
+        traj_path = tmp_path / "intrinsic_gene_trajectory.jsonl"
+        rec = json.loads(traj_path.read_text().splitlines()[0])
+        assert rec["speciation_quality"]["speciation_index"] == pytest.approx(
+            rec["speciation_index"]
+        )
 
 
 # ---------------------------------------------------------------------------
