@@ -274,6 +274,15 @@ class GeneTrajectoryLogger:
         ``speciation_quality`` also includes ``stability_score`` in ``[0, 1]``.
         ``speciation_quality`` is absent from non-snapshot steps and from
         snapshot steps where there are no chromosomes.
+        ``speciation_index`` field and, when at least one chromosome is
+        present at the snapshot step, a ``speciation_quality`` dict
+        containing ``speciation_index``, ``raw_silhouette``,
+        ``noise_fraction``, ``cluster_size_entropy``, and ``n_clusters``.
+        When ``speciation_include_stability=True``, ``speciation_quality``
+        also includes ``stability_score`` in ``[0, 1]``.
+        Both fields are updated at every snapshot step; ``speciation_quality``
+        is absent from non-snapshot steps and from snapshot steps where there
+        are no chromosomes.
         Additionally appends a full per-agent snapshot when
         ``step % snapshot_interval == 0`` (so step 0 is always captured).
 
