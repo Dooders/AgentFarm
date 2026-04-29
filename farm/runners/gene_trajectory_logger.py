@@ -327,7 +327,7 @@ class GeneTrajectoryLogger:
         }
         if self._enable_speciation:
             trajectory_record["speciation_index"] = self._cached_speciation_index
-            if is_snapshot_step and self._cached_speciation_quality is not None:
+            if is_snapshot_step and chromosomes and self._cached_speciation_quality is not None:
                 trajectory_record["speciation_quality"] = self._cached_speciation_quality
 
         if extra_fields:
