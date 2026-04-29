@@ -133,7 +133,7 @@ class GeneTrajectoryLogger:
         if snapshot_interval < 1:
             raise ValueError("snapshot_interval must be at least 1.")
         if clustering_interval is not None and clustering_interval < 1:
-            raise ValueError("clustering_interval must be at least 1.")
+            raise ValueError("clustering_interval must be at least 1 when provided.")
         if speciation_algorithm not in ("gmm", "dbscan"):
             raise ValueError("speciation_algorithm must be 'gmm' or 'dbscan'.")
         if speciation_lineage_matcher not in self.VALID_LINEAGE_MATCHERS:

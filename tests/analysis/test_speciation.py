@@ -1248,10 +1248,10 @@ class TestGeneTrajectoryLoggerSpeciation:
             assert "speciation_index" in rec
             assert 0.0 <= rec["speciation_index"] <= 1.0
 
-        # step 1 used unimodal pop; step 0 used bimodal → indices differ
-        assert records[0]["speciation_index"] != pytest.approx(
-            records[1]["speciation_index"], abs=0.05
-        )
+        # Bimodal steps (0 and 2) should have a higher index than the unimodal step (1).
+        bimodal_index = records[0]["speciation_index"]
+        unimodal_index = records[1]["speciation_index"]
+        assert bimodal_index > unimodal_index
 
     def test_clustering_interval_independent_of_snapshot_interval(self, tmp_path):
         """clustering_interval=2, snapshot_interval=10 → clustering at 0,2,4,…."""
