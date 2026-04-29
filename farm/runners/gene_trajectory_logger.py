@@ -217,7 +217,13 @@ class GeneTrajectoryLogger:
 
         Always appends a one-line aggregate record to the trajectory file.
         When speciation tracking is enabled the record includes a
-        ``speciation_index`` field updated at every snapshot step.
+        ``speciation_index`` field and, when at least one chromosome is
+        present at the snapshot step, a ``speciation_quality`` dict
+        containing ``speciation_index``, ``raw_silhouette``,
+        ``noise_fraction``, ``cluster_size_entropy``, and ``n_clusters``.
+        Both fields are updated at every snapshot step; ``speciation_quality``
+        is absent from non-snapshot steps and from snapshot steps where there
+        are no chromosomes.
         Additionally appends a full per-agent snapshot when
         ``step % snapshot_interval == 0`` (so step 0 is always captured).
 
