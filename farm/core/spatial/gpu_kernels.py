@@ -254,8 +254,8 @@ class SpatialGpuKernels:
 
         # ------ GPU / torch path ------
         if _TORCH_AVAILABLE and self._device is not None:
-            pos_t = torch.as_tensor(positions, dtype=torch.float32, device=self._device)
-            qpt_t = torch.as_tensor(query_points, dtype=torch.float32, device=self._device)
+            pos_t = torch.as_tensor(positions, dtype=torch.float64, device=self._device)
+            qpt_t = torch.as_tensor(query_points, dtype=torch.float64, device=self._device)
             # torch.cdist: (M, N) pairwise L2 distances
             dist_t = torch.cdist(qpt_t, pos_t)  # (M, N)
             mask = dist_t <= float(radius)       # (M, N) bool
@@ -304,8 +304,8 @@ class SpatialGpuKernels:
 
         # ------ GPU / torch path ------
         if _TORCH_AVAILABLE and self._device is not None:
-            pos_t = torch.as_tensor(positions, dtype=torch.float32, device=self._device)
-            qpt_t = torch.as_tensor(query_points, dtype=torch.float32, device=self._device)
+            pos_t = torch.as_tensor(positions, dtype=torch.float64, device=self._device)
+            qpt_t = torch.as_tensor(query_points, dtype=torch.float64, device=self._device)
             dist_t = torch.cdist(qpt_t, pos_t)   # (M, N)
             idx_t = dist_t.argmin(dim=1)          # (M,)
             return idx_t.cpu().numpy().astype(np.int64)
@@ -341,9 +341,9 @@ class SpatialGpuKernels:
             return np.empty((len(query_points), len(positions)), dtype=np.float64)
 
         if _TORCH_AVAILABLE and self._device is not None:
-            pos_t = torch.as_tensor(positions, dtype=torch.float32, device=self._device)
-            qpt_t = torch.as_tensor(query_points, dtype=torch.float32, device=self._device)
+            pos_t = torch.as_tensor(positions, dtype=torch.float64, device=self._device)
+            qpt_t = torch.as_tensor(query_points, dtype=torch.float64, device=self._device)
             dist_t = torch.cdist(qpt_t, pos_t)
-            return dist_t.cpu().numpy().astype(np.float64)
+            return dist_t.cpu().numpy()
 
         return _np_pairwise_distances(positions, query_points)
