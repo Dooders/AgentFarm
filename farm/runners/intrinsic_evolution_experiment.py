@@ -140,7 +140,19 @@ class _InitialConditionsPreset:
 
 _INITIAL_CONDITIONS_PRESETS: Dict[str, _InitialConditionsPreset] = {
     # stable: higher agent and environment resources → agents survive early steps,
-    # reproduce sooner, and the population stabilises without a sharp spike/crash.
+    # reproduce sooner, and the population stabilizes without a sharp spike/crash.
+    #
+    # Rationale for specific values:
+    #   initial_agent_resource_level=20.0: agents start with ~2–4× the default
+    #     fallback level (5.0) so they can gather and meet the default
+    #     min_reproduction_resources threshold (8) within the first few steps
+    #     rather than starving before they find food.
+    #   initial_resource_count=30: 50% more resource nodes than the default (20)
+    #     ensures food density is high enough for the whole starting population.
+    #   resource_regen_rate=0.15: ~50% higher than the default (0.1) so that
+    #     the environment recovers quickly after the initial feeding burst.
+    #   resource_regen_amount=3: slightly above the default (2) to keep per-node
+    #     regeneration meaningful while not making resources unlimited.
     "stable": _InitialConditionsPreset(
         initial_agent_resource_level=20.0,
         initial_resource_count=30,
@@ -149,6 +161,15 @@ _INITIAL_CONDITIONS_PRESETS: Dict[str, _InitialConditionsPreset] = {
     ),
     # stress: scarce resources → intense early selection; use when studying
     # how quickly adaptive traits emerge under pressure.
+    #
+    # Rationale:
+    #   initial_agent_resource_level=3.0: well below the default, forcing
+    #     immediate resource-seeking and creating strong early mortality.
+    #   initial_resource_count=10: half the default node count; food scarcity
+    #     is the dominant selection pressure from step 1.
+    #   resource_regen_rate=0.05: slow recovery prevents any surplus from
+    #     building up; only the most efficient foragers survive.
+    #   resource_regen_amount=1: minimal per-node yield amplifies scarcity.
     "stress": _InitialConditionsPreset(
         initial_agent_resource_level=3.0,
         initial_resource_count=10,
@@ -157,6 +178,11 @@ _INITIAL_CONDITIONS_PRESETS: Dict[str, _InitialConditionsPreset] = {
     ),
     # exploratory: moderate resources similar to defaults; intended for runs
     # focused on genetic diversity rather than survival pressure.
+    #
+    # Rationale: values match the SimulationConfig defaults (resource_regen_rate=0.1,
+    # resource_regen_amount=2, initial_resources=20) with a modest agent resource
+    # bump (12.0 vs the fallback 5.0) so agents are not immediately at risk
+    # while still experiencing meaningful selection.
     "exploratory": _InitialConditionsPreset(
         initial_agent_resource_level=12.0,
         initial_resource_count=20,
@@ -207,7 +233,7 @@ class InitialConditionsConfig:
     ----------------
     When > 0 the simulation runs for ``warmup_steps`` extra steps *before* the
     main telemetry window.  Gene-trajectory snapshots are suppressed during the
-    warmup phase so the persistent artifacts reflect only the stabilised
+    warmup phase so the persistent artifacts reflect only the stabilized
     population.  The ``startup_transient_metrics`` in
     :class:`IntrinsicEvolutionResult` are still computed from the very first
     ``transient_window`` steps regardless of warmup.
@@ -683,7 +709,7 @@ class IntrinsicEvolutionExperiment:
             alive_agents = list(environment.alive_agent_objects)
             prev_agent_ids = {_agent_telemetry_key(a) for a in alive_agents}
             # Only record the initial snapshot when there is no warmup phase;
-            # warmup runs silence the logger until the population has stabilised.
+            # warmup runs silence the logger until the population has stabilized.
             if effective_warmup == 0:
                 gene_logger.snapshot(environment, step=0)
             _capture_current_state(environment, step=0)
@@ -704,7 +730,7 @@ class IntrinsicEvolutionExperiment:
                 _transient_populations.append(len(alive_agents))
 
             # Suppress trajectory snapshots during the warmup phase so
-            # persisted artifacts only cover the stabilised population.
+            # persisted artifacts only cover the stabilized population.
             if logical_step > effective_warmup:
                 post_warmup_step = logical_step - effective_warmup
                 gene_logger.snapshot(environment, step=post_warmup_step, extra_fields=extra)
