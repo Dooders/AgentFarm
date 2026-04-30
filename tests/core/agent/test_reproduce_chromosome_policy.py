@@ -19,6 +19,7 @@ from farm.core.decision.config import DecisionConfig
 from farm.core.hyperparameter_chromosome import (
     CrossoverMode,
     chromosome_from_learning_config,
+    crossover_chromosomes,
 )
 from farm.runners.intrinsic_evolution_experiment import IntrinsicEvolutionPolicy
 
@@ -158,3 +159,125 @@ def test_derive_child_with_crossover_uses_coparent():
     assert math.isclose(lr, 0.01) or math.isclose(lr, 0.05), (
         "uniform crossover should pick learning_rate from one of the two parents"
     )
+
+
+# ── Cross-type pollination tests ──────────────────────────────────────────────
+
+
+def test_select_coparent_cross_type_disabled_excludes_other_types():
+    """Default behavior: other-type agents are excluded even when nearby."""
+    parent = _make_agent(agent_id="p", position=(0.0, 0.0))
+    other_type = _make_agent(agent_id="o", agent_type="independent", position=(0.5, 0.0))
+    same_type = _make_agent(agent_id="s", position=(2.0, 0.0))
+    policy = IntrinsicEvolutionPolicy(crossover_enabled=True)
+    parent.environment = _make_environment(
+        [parent, other_type, same_type], policy=policy, rng=random.Random(0)
+    )
+    chosen = parent._select_coparent(policy, random.Random(0))
+    assert chosen is same_type
+
+
+def test_select_coparent_cross_type_enabled_includes_other_types():
+    """Cross-type enabled: other-type agent is eligible as a co-parent."""
+    parent = _make_agent(agent_id="p", position=(0.0, 0.0))
+    other_type = _make_agent(agent_id="o", agent_type="independent", position=(0.5, 0.0))
+    policy = IntrinsicEvolutionPolicy(
+        crossover_enabled=True,
+        allow_cross_type_pollination=True,
+    )
+    parent.environment = _make_environment(
+        [parent, other_type], policy=policy, rng=random.Random(0)
+    )
+    chosen = parent._select_coparent(policy, random.Random(0))
+    assert chosen is other_type
+
+
+def test_select_coparent_cross_type_nearest_alive_same_type_picks_closest_across_types():
+    """Cross-type nearest_alive_same_type strategy picks the closest agent regardless of type."""
+    parent = _make_agent(agent_id="p", position=(0.0, 0.0))
+    closer_other = _make_agent(agent_id="co", agent_type="independent", position=(1.0, 0.0))
+    farther_same = _make_agent(agent_id="fs", position=(5.0, 0.0))
+    policy = IntrinsicEvolutionPolicy(
+        crossover_enabled=True,
+        coparent_strategy="nearest_alive_same_type",
+        allow_cross_type_pollination=True,
+    )
+    parent.environment = _make_environment(
+        [parent, closer_other, farther_same], policy=policy, rng=random.Random(0)
+    )
+    assert parent._select_coparent(policy, random.Random(0)) is closer_other
+
+
+def test_select_coparent_cross_type_random_alive_same_type_includes_all_types():
+    """Cross-type random_alive_same_type strategy draws from all alive agents regardless of type."""
+    parent = _make_agent(agent_id="p", position=(0.0, 0.0))
+    other_types = [
+        _make_agent(agent_id=f"ot{i}", agent_type="independent", position=(float(i), 0.0))
+        for i in range(3)
+    ]
+    policy = IntrinsicEvolutionPolicy(
+        crossover_enabled=True,
+        coparent_strategy="random_alive_same_type",
+        allow_cross_type_pollination=True,
+    )
+    parent.environment = _make_environment(
+        [parent, *other_types], policy=policy, rng=random.Random(0)
+    )
+    chosen = parent._select_coparent(policy, random.Random(42))
+    assert chosen in other_types
+
+
+def test_select_coparent_cross_type_still_skips_dead():
+    """Cross-type enabled: dead agents are still excluded from the candidate pool."""
+    parent = _make_agent(agent_id="p", position=(0.0, 0.0))
+    dead_other = _make_agent(agent_id="d", agent_type="independent", position=(0.5, 0.0), alive=False)
+    policy = IntrinsicEvolutionPolicy(
+        crossover_enabled=True,
+        allow_cross_type_pollination=True,
+    )
+    parent.environment = _make_environment(
+        [parent, dead_other], policy=policy, rng=random.Random(0)
+    )
+    assert parent._select_coparent(policy, random.Random(0)) is None
+
+
+def test_select_coparent_cross_type_respects_radius():
+    """Cross-type enabled: radius filter still applies to other-type agents."""
+    parent = _make_agent(agent_id="p", position=(0.0, 0.0))
+    near_other = _make_agent(agent_id="n", agent_type="independent", position=(1.0, 0.0))
+    far_other = _make_agent(agent_id="f", agent_type="independent", position=(10.0, 0.0))
+    policy = IntrinsicEvolutionPolicy(
+        crossover_enabled=True,
+        coparent_max_radius=5.0,
+        allow_cross_type_pollination=True,
+    )
+    parent.environment = _make_environment(
+        [parent, near_other, far_other], policy=policy, rng=random.Random(0)
+    )
+    assert parent._select_coparent(policy, random.Random(0)) is near_other
+
+
+def test_derive_child_with_crossover_cross_type_enabled_executes_crossover_path():
+    """Cross-type mode should run crossover when only other-type co-parents are available."""
+    parent = _make_agent(agent_id="p", agent_type="system", learning_rate=0.01, position=(0.0, 0.0))
+    coparent = _make_agent(
+        agent_id="c", agent_type="independent", learning_rate=0.05, position=(1.0, 0.0)
+    )
+    policy = IntrinsicEvolutionPolicy(
+        crossover_enabled=True,
+        crossover_mode=CrossoverMode.UNIFORM,
+        mutation_rate=0.0,
+        allow_cross_type_pollination=True,
+    )
+    parent.environment = _make_environment([parent, coparent], policy=policy, rng=random.Random(42))
+    parent.environment.intrinsic_evolution_rng = random.Random(7)
+
+    with patch("farm.core.agent.core.crossover_chromosomes", wraps=crossover_chromosomes) as spy:
+        child = parent._derive_child_chromosome(parent.hyperparameter_chromosome)
+
+    assert spy.called
+    args, _ = spy.call_args
+    assert args[0] is parent.hyperparameter_chromosome
+    assert args[1] is coparent.hyperparameter_chromosome
+    lr = child.get_value("learning_rate")
+    assert math.isclose(lr, 0.01) or math.isclose(lr, 0.05)
