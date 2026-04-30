@@ -99,7 +99,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--initial-conditions-profile",
         type=str,
-        default="stable",
+        default=None,
         choices=["stable", "stress", "exploratory", "legacy"],
         help=(
             "Preset for initial simulation state. "
@@ -270,8 +270,9 @@ def _build_run(args: argparse.Namespace) -> IntrinsicEvolutionExperiment:
         seed=args.seed,
     )
 
+    initial_conditions_profile = args.initial_conditions_profile or "stable"
     initial_conditions = InitialConditionsConfig(
-        profile=args.initial_conditions_profile,
+        profile=initial_conditions_profile,
         initial_agent_resource_level=args.initial_agent_resource_level,
         initial_resource_count=args.initial_resource_count,
         resource_regen_rate=args.resource_regen_rate,
@@ -305,6 +306,15 @@ def main() -> int:
         disable_console=False,
     )
     logger = get_logger(__name__)
+    if args.initial_conditions_profile is None:
+        logger.warning(
+            "intrinsic_evolution_cli_default_initial_conditions_profile",
+            profile="stable",
+            note=(
+                "No --initial-conditions-profile provided; defaulting to 'stable'. "
+                "Pass --initial-conditions-profile legacy to match older runs."
+            ),
+        )
 
     manifest = {
         "script": "scripts/run_intrinsic_evolution_experiment.py",
@@ -362,6 +372,7 @@ def main() -> int:
         "num_steps_completed": result.num_steps_completed,
         "final_population": result.final_population,
         "final_gene_statistics": result.final_gene_statistics,
+        "startup_transient_metrics": result.startup_transient_metrics,
         "output_dir": args.output_dir,
     }
     print(json.dumps(summary, indent=2))

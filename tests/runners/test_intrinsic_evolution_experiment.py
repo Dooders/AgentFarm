@@ -704,6 +704,30 @@ class TestInitialConditionsConfig(unittest.TestCase):
         with self.assertRaises(ValueError):
             InitialConditionsConfig(transient_window=0)
 
+    def test_negative_initial_agent_resource_level_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(initial_agent_resource_level=-1.0)
+
+    def test_negative_initial_resource_count_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(initial_resource_count=-1)
+
+    def test_out_of_range_resource_regen_rate_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(resource_regen_rate=1.1)
+
+    def test_negative_resource_regen_amount_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(resource_regen_amount=-1)
+
     def test_stable_profile_resolve_returns_higher_resources(self):
         from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
 
@@ -993,6 +1017,113 @@ class TestStartupTransientMetrics(unittest.TestCase):
         self.assertEqual(metrics["oscillation_amplitude"], 0)
         self.assertEqual(metrics["n_steps_observed"], 0)
         self.assertEqual(metrics["transient_window"], 50)
+
+    def _make_seeded_benchmark_side_effect(self):
+        """Deterministic startup benchmark model keyed by seed + run config.
+
+        This is a lightweight stand-in for an early-steps ecology where higher
+        startup resources reduce initial mortality and therefore the boom-bust
+        wave amplitude.
+        """
+
+        def _side_effect(*args, **kwargs):
+            on_environment_ready = kwargs.get("on_environment_ready")
+            on_step_end = kwargs.get("on_step_end")
+            run_config = kwargs.get("config")
+            seed = int(kwargs.get("seed") or 0)
+            rng = random.Random(seed)
+
+            agents = [_make_fake_agent(0.01 + float(i) / 1000) for i in range(12)]
+            env = _FakeEnvironment(agents)
+            env.initial_diversity_metrics = None
+            if on_environment_ready is not None:
+                on_environment_ready(env)
+
+            # Resource-rich starts (stable profile) should produce lower early
+            # deaths than legacy-like starts under the same seed.
+            initial_level = float(getattr(run_config.agent_behavior, "initial_resource_level", 0))
+            initial_resources = int(getattr(run_config.resources, "initial_resources", 0))
+            scarcity = max(
+                0.0,
+                1.0
+                - min(initial_level / 20.0, 1.0) * 0.6
+                - min(initial_resources / 30.0, 1.0) * 0.4,
+            )
+
+            # Use only the first few steps as the startup-transient benchmark window.
+            for step in range(5):
+                alive = [a for a in env._agents if a.alive]
+                prev = len(alive)
+                if prev <= 1:
+                    env.time = step + 1
+                    if on_step_end is not None:
+                        on_step_end(env, step)
+                    continue
+
+                deaths = int(round(scarcity * 4))
+                if (step + rng.randint(0, 1)) % 3 == 0:
+                    deaths += int(round(scarcity))
+                deaths = min(prev - 1, max(0, deaths))
+                for victim in alive[:deaths]:
+                    victim.alive = False
+
+                env.time = step + 1
+                if on_step_end is not None:
+                    on_step_end(env, step)
+
+            env.time = 6
+            return env
+
+        return _side_effect
+
+    def test_stable_profile_reduces_startup_wave_vs_legacy_benchmark(self):
+        """Benchmark acceptance check: stable startup wave < legacy startup wave."""
+        from farm.runners.intrinsic_evolution_experiment import (
+            InitialConditionsConfig,
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        side_effect = self._make_seeded_benchmark_side_effect()
+        representative_seeds = [7, 19, 41]
+        for seed in representative_seeds:
+            with self.subTest(seed=seed):
+                with patch(
+                    "farm.runners.intrinsic_evolution_experiment.run_simulation",
+                    side_effect=side_effect,
+                ):
+                    stable_cfg = IntrinsicEvolutionExperimentConfig(
+                        num_steps=5,
+                        snapshot_interval=1,
+                        seed=seed,
+                        initial_conditions=InitialConditionsConfig(profile="stable"),
+                    )
+                    stable_result = IntrinsicEvolutionExperiment(
+                        SimulationConfig(), stable_cfg
+                    ).run()
+
+                with patch(
+                    "farm.runners.intrinsic_evolution_experiment.run_simulation",
+                    side_effect=side_effect,
+                ):
+                    legacy_cfg = IntrinsicEvolutionExperimentConfig(
+                        num_steps=5,
+                        snapshot_interval=1,
+                        seed=seed,
+                        initial_conditions=InitialConditionsConfig(profile="legacy"),
+                    )
+                    legacy_result = IntrinsicEvolutionExperiment(
+                        SimulationConfig(), legacy_cfg
+                    ).run()
+
+                self.assertLess(
+                    stable_result.startup_transient_metrics["peak_death_rate"],
+                    legacy_result.startup_transient_metrics["peak_death_rate"],
+                )
+                self.assertLess(
+                    stable_result.startup_transient_metrics["oscillation_amplitude"],
+                    legacy_result.startup_transient_metrics["oscillation_amplitude"],
+                )
 
 
 class TestMetadataPersistsInitialConditions(unittest.TestCase):
