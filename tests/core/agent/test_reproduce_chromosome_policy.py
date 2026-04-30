@@ -19,6 +19,7 @@ from farm.core.decision.config import DecisionConfig
 from farm.core.hyperparameter_chromosome import (
     CrossoverMode,
     chromosome_from_learning_config,
+    crossover_chromosomes,
 )
 from farm.runners.intrinsic_evolution_experiment import IntrinsicEvolutionPolicy
 
@@ -254,3 +255,29 @@ def test_select_coparent_cross_type_respects_radius():
         [parent, near_other, far_other], policy=policy, rng=random.Random(0)
     )
     assert parent._select_coparent(policy, random.Random(0)) is near_other
+
+
+def test_derive_child_with_crossover_cross_type_enabled_executes_crossover_path():
+    """Cross-type mode should run crossover when only other-type co-parents are available."""
+    parent = _make_agent(agent_id="p", agent_type="system", learning_rate=0.01, position=(0.0, 0.0))
+    coparent = _make_agent(
+        agent_id="c", agent_type="independent", learning_rate=0.05, position=(1.0, 0.0)
+    )
+    policy = IntrinsicEvolutionPolicy(
+        crossover_enabled=True,
+        crossover_mode=CrossoverMode.UNIFORM,
+        mutation_rate=0.0,
+        allow_cross_type_pollination=True,
+    )
+    parent.environment = _make_environment([parent, coparent], policy=policy, rng=random.Random(42))
+    parent.environment.intrinsic_evolution_rng = random.Random(7)
+
+    with patch("farm.core.agent.core.crossover_chromosomes", wraps=crossover_chromosomes) as spy:
+        child = parent._derive_child_chromosome(parent.hyperparameter_chromosome)
+
+    assert spy.called
+    args, _ = spy.call_args
+    assert args[0] is parent.hyperparameter_chromosome
+    assert args[1] is coparent.hyperparameter_chromosome
+    lr = child.get_value("learning_rate")
+    assert math.isclose(lr, 0.01) or math.isclose(lr, 0.05)
