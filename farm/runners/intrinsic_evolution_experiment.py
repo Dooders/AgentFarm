@@ -129,7 +129,7 @@ def _preset_or_scale_to_pressure_config(
 class _InitialConditionsPreset:
     """Internal container for the values that an initial-conditions preset sets."""
 
-    initial_agent_resource_level: Optional[float]
+    initial_agent_resource_level: Optional[int]
     """Starting resource level for each newly-spawned agent (``None`` = no override)."""
     initial_resource_count: Optional[int]
     """Number of resource nodes placed at simulation start (``None`` = no override)."""
@@ -144,8 +144,8 @@ _INITIAL_CONDITIONS_PRESETS: Dict[str, _InitialConditionsPreset] = {
     # reproduce sooner, and the population stabilizes without a sharp spike/crash.
     #
     # Rationale for specific values:
-    #   initial_agent_resource_level=20.0: agents start with ~2–4× the default
-    #     fallback level (5.0) so they can gather and meet the default
+    #   initial_agent_resource_level=20: agents start with ~2–4× the default
+    #     fallback level (5) so they can gather and meet the default
     #     min_reproduction_resources threshold (8) within the first few steps
     #     rather than starving before they find food.
     #   initial_resource_count=30: 50% more resource nodes than the default (20)
@@ -155,7 +155,7 @@ _INITIAL_CONDITIONS_PRESETS: Dict[str, _InitialConditionsPreset] = {
     #   resource_regen_amount=3: slightly above the default (2) to keep per-node
     #     regeneration meaningful while not making resources unlimited.
     "stable": _InitialConditionsPreset(
-        initial_agent_resource_level=20.0,
+        initial_agent_resource_level=20,
         initial_resource_count=30,
         resource_regen_rate=0.15,
         resource_regen_amount=3,
@@ -164,7 +164,7 @@ _INITIAL_CONDITIONS_PRESETS: Dict[str, _InitialConditionsPreset] = {
     # how quickly adaptive traits emerge under pressure.
     #
     # Rationale:
-    #   initial_agent_resource_level=3.0: well below the default, forcing
+    #   initial_agent_resource_level=3: well below the default, forcing
     #     immediate resource-seeking and creating strong early mortality.
     #   initial_resource_count=10: half the default node count; food scarcity
     #     is the dominant selection pressure from step 1.
@@ -172,7 +172,7 @@ _INITIAL_CONDITIONS_PRESETS: Dict[str, _InitialConditionsPreset] = {
     #     building up; only the most efficient foragers survive.
     #   resource_regen_amount=1: minimal per-node yield amplifies scarcity.
     "stress": _InitialConditionsPreset(
-        initial_agent_resource_level=3.0,
+        initial_agent_resource_level=3,
         initial_resource_count=10,
         resource_regen_rate=0.05,
         resource_regen_amount=1,
@@ -182,10 +182,10 @@ _INITIAL_CONDITIONS_PRESETS: Dict[str, _InitialConditionsPreset] = {
     #
     # Rationale: values match the SimulationConfig defaults (resource_regen_rate=0.1,
     # resource_regen_amount=2, initial_resources=20) with a modest agent resource
-    # bump (12.0 vs the fallback 5.0) so agents are not immediately at risk
+    # bump (12 vs the fallback 5) so agents are not immediately at risk
     # while still experiencing meaningful selection.
     "exploratory": _InitialConditionsPreset(
-        initial_agent_resource_level=12.0,
+        initial_agent_resource_level=12,
         initial_resource_count=20,
         resource_regen_rate=0.1,
         resource_regen_amount=2,
@@ -248,7 +248,7 @@ class InitialConditionsConfig:
 
     profile: Optional[InitialConditionsProfileName] = "stable"
     # Per-field manual overrides (win over preset when set)
-    initial_agent_resource_level: Optional[float] = None
+    initial_agent_resource_level: Optional[int] = None
     initial_resource_count: Optional[int] = None
     resource_regen_rate: Optional[float] = None
     resource_regen_amount: Optional[int] = None
@@ -262,12 +262,9 @@ class InitialConditionsConfig:
                 f"got {self.profile!r}."
             )
         if self.initial_agent_resource_level is not None:
-            if (
-                not math.isfinite(self.initial_agent_resource_level)
-                or self.initial_agent_resource_level < 0.0
-            ):
+            if self.initial_agent_resource_level < 0:
                 raise ValueError(
-                    "initial_agent_resource_level must be a finite, non-negative number when set."
+                    "initial_agent_resource_level must be a non-negative integer when set."
                 )
         if self.initial_resource_count is not None and self.initial_resource_count < 0:
             raise ValueError("initial_resource_count must be non-negative when set.")
@@ -579,21 +576,33 @@ class IntrinsicEvolutionExperiment:
             )
         resolved_ic = self.config.initial_conditions.resolve()
         if resolved_ic.get("initial_agent_resource_level") is not None:
-            run_config.agent_behavior.initial_resource_level = round(
+            resolved_ic["initial_agent_resource_level"] = int(
                 resolved_ic["initial_agent_resource_level"]
             )
+            run_config.agent_behavior.initial_resource_level = resolved_ic[
+                "initial_agent_resource_level"
+            ]
         if resolved_ic.get("initial_resource_count") is not None:
-            run_config.resources.initial_resources = int(
+            resolved_ic["initial_resource_count"] = int(
                 resolved_ic["initial_resource_count"]
             )
+            run_config.resources.initial_resources = resolved_ic[
+                "initial_resource_count"
+            ]
         if resolved_ic.get("resource_regen_rate") is not None:
-            run_config.resources.resource_regen_rate = float(
+            resolved_ic["resource_regen_rate"] = float(
                 resolved_ic["resource_regen_rate"]
             )
+            run_config.resources.resource_regen_rate = resolved_ic[
+                "resource_regen_rate"
+            ]
         if resolved_ic.get("resource_regen_amount") is not None:
-            run_config.resources.resource_regen_amount = int(
+            resolved_ic["resource_regen_amount"] = int(
                 resolved_ic["resource_regen_amount"]
             )
+            run_config.resources.resource_regen_amount = resolved_ic[
+                "resource_regen_amount"
+            ]
 
         effective_warmup: int = int(resolved_ic.get("warmup_steps", 0))
         transient_window: int = int(resolved_ic.get("transient_window", 50))

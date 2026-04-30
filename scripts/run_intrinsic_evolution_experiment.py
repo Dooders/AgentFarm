@@ -110,7 +110,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--initial-agent-resource-level",
-        type=float,
+        type=int,
         default=None,
         help="Override: starting resource level for each agent (overrides profile).",
     )

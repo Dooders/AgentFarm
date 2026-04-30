@@ -1005,8 +1005,8 @@ class TestStartupTransientMetrics(unittest.TestCase):
         self.assertEqual(result.startup_transient_metrics["n_steps_observed"], 2)
         self.assertEqual(result.startup_transient_metrics["transient_window"], 2)
 
-    def test_empty_run_gives_zero_transient_metrics(self):
-        """A run with 0 steps still produces zeroed transient metrics."""
+    def test_empty_input_series_give_zero_transient_metrics(self):
+        """Empty inputs to _compute_startup_transient_metrics produce zeroed metrics."""
         from farm.runners.intrinsic_evolution_experiment import (
             _compute_startup_transient_metrics,
         )
@@ -1359,7 +1359,7 @@ class TestWarmupSteps(unittest.TestCase):
 
 
 class TestDeterministicReproducibility(unittest.TestCase):
-    """Fixed seeds must produce identical results regardless of initial-conditions profile."""
+    """Fixed seeds must reproduce identical results for repeated runs of the same initial-conditions profile."""
 
     def _collect_snapshots(self, profile: str, seed: int, num_steps: int = 4):
         """Run with a stub and return the list of trajectory records."""
