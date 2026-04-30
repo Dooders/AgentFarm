@@ -6,9 +6,11 @@ This package contains:
 - Quadtree for hierarchical partitioning
 - SpatialIndex orchestrating KD-tree, Quadtree, and Spatial Hash indices
 - Priority constants for batch update ordering
+- GPU-accelerated spatial kernels (SpatialGpuKernels, is_gpu_available)
 """
 
 from .dirty_regions import DirtyRegion, DirtyRegionTracker
+from .gpu_kernels import SpatialGpuKernels, get_spatial_device, is_gpu_available
 from .hash_grid import SpatialHashGrid
 from .index import (
     PRIORITY_CRITICAL,
@@ -30,4 +32,7 @@ __all__ = [
     "PRIORITY_NORMAL",
     "PRIORITY_HIGH",
     "PRIORITY_CRITICAL",
+    "SpatialGpuKernels",
+    "is_gpu_available",
+    "get_spatial_device",
 ]

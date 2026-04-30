@@ -36,6 +36,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from .dirty_regions import DirtyRegionTracker
+from .gpu_kernels import SpatialGpuKernels
 from .hash_grid import SpatialHashGrid
 from .quadtree import Quadtree, QuadtreeNode
 
@@ -90,6 +91,8 @@ class SpatialIndex:
         flush_interval_seconds: float = 1.0,
         max_pending_updates_before_flush: int = 50,
         dirty_region_batch_size: int = 10,
+        use_gpu: bool = False,
+        gpu_threshold: int = 256,
     ):
         """
         Initialize the SpatialIndex.
@@ -116,12 +119,46 @@ class SpatialIndex:
             Size-based flush policy: automatically flush when this many updates are pending
         dirty_region_batch_size : int, default 10
             Number of dirty regions to process per batch
+        use_gpu : bool, default False
+            Whether to use GPU acceleration for spatial queries when available.
+            Falls back to CPU-based tensor operations when no CUDA device is
+            detected.  For small entity counts (below ``gpu_threshold``) the
+            existing scipy cKDTree path is used regardless of this setting to
+            avoid tensor-setup overhead.
+        gpu_threshold : int, default 256
+            Minimum number of candidate entities before the GPU/tensor path is
+            preferred over the scipy cKDTree for individual queries.  Batch
+            query methods always use the GPU/tensor path when ``use_gpu=True``.
         """
         self.width = width
         self.height = height
         self._initial_batch_updates_enabled = enable_batch_updates
         self.max_batch_size = max_batch_size
         self._dirty_region_batch_size = dirty_region_batch_size
+
+        # GPU acceleration
+        self._use_gpu = use_gpu
+        self._gpu_threshold = gpu_threshold
+        self._gpu_kernels: Optional[SpatialGpuKernels] = None
+        if use_gpu:
+            self._gpu_kernels = SpatialGpuKernels(
+                use_gpu=use_gpu,
+                gpu_threshold=gpu_threshold,
+            )
+            logger.info(
+                "spatial_index_gpu_enabled",
+                on_gpu=self._gpu_kernels.on_gpu,
+                device=str(self._gpu_kernels.device),
+                gpu_threshold=gpu_threshold,
+            )
+
+        # CPU-only fallback kernels used by batch methods when GPU is disabled.
+        # Created once and reused to avoid repeated instantiation overhead.
+        self._cpu_kernels: SpatialGpuKernels = (
+            self._gpu_kernels
+            if self._gpu_kernels is not None
+            else SpatialGpuKernels(use_gpu=False)
+        )
 
         # Flush policy settings
         self.flush_interval_seconds = flush_interval_seconds
@@ -960,9 +997,20 @@ class SpatialIndex:
                 if state["kdtree"] is None:
                     results[name] = []
                     continue
-                indices = state["kdtree"].query_ball_point(position, radius)
                 cached_items = state["cached_items"] or []
-                results[name] = [cached_items[i] for i in indices]
+                # GPU-accelerated path: use when enabled and entity count meets threshold
+                if (
+                    self._gpu_kernels is not None
+                    and len(cached_items) >= self._gpu_threshold
+                    and state["positions"] is not None
+                ):
+                    hit_indices = self._gpu_kernels.radius_query(
+                        state["positions"], position, radius
+                    )
+                    results[name] = [cached_items[i] for i in hit_indices]
+                else:
+                    indices = state["kdtree"].query_ball_point(position, radius)
+                    results[name] = [cached_items[i] for i in indices]
             elif index_type == "quadtree":
                 if state["quadtree"] is None:
                     results[name] = []
@@ -1023,8 +1071,18 @@ class SpatialIndex:
                 if state["kdtree"] is None or not state["cached_items"]:
                     results[name] = None
                     continue
-                _, idx = state["kdtree"].query(position)
-                results[name] = state["cached_items"][idx]
+                cached_items = state["cached_items"]
+                # GPU-accelerated path: use when enabled and entity count meets threshold
+                if (
+                    self._gpu_kernels is not None
+                    and len(cached_items) >= self._gpu_threshold
+                    and state["positions"] is not None
+                ):
+                    idx = self._gpu_kernels.nearest_query(state["positions"], position)
+                    results[name] = cached_items[idx] if idx >= 0 else None
+                else:
+                    _, idx = state["kdtree"].query(position)
+                    results[name] = cached_items[idx]
             elif index_type == "quadtree":
                 if state["quadtree"] is None or not state["cached_items"]:
                     results[name] = None
@@ -1038,6 +1096,131 @@ class SpatialIndex:
             else:
                 results[name] = None
         return results
+
+    def batch_radius_query(
+        self,
+        query_positions: List[Tuple[float, float]],
+        radius: float,
+        index_names: Optional[List[str]] = None,
+        allow_stale_reads: bool = False,
+    ) -> Dict[str, List[List[Any]]]:
+        """GPU-accelerated batch radius query for multiple query positions.
+
+        Computes, in a single vectorised operation, which entities lie within
+        *radius* for each position in *query_positions*.  This is far more
+        efficient than calling :meth:`get_nearby` in a loop when there are many
+        query positions because the full ``(M, N)`` distance matrix is computed
+        on the GPU (or vectorised CPU) in one shot.
+
+        Parameters
+        ----------
+        query_positions : list of (x, y) tuples
+            Positions to query from.
+        radius : float
+            Search radius.
+        index_names : list of str, optional
+            Named indices to query.  Defaults to all registered indices.
+        allow_stale_reads : bool, default False
+            If *True*, skip flushing pending batch updates first.
+
+        Returns
+        -------
+        dict
+            ``results[index_name][i]`` is the list of entities within *radius*
+            of ``query_positions[i]``.
+        """
+        if not allow_stale_reads:
+            self.update()
+        if not query_positions or radius <= 0:
+            return {}
+
+        names = index_names or list(self._named_indices.keys())
+        qp_array = np.asarray(query_positions, dtype=np.float64)
+        results: Dict[str, List[List[Any]]] = {}
+
+        kernels = self._cpu_kernels
+
+        for name in names:
+            state = self._named_indices.get(name)
+            if state is None or state.get("positions") is None:
+                results[name] = [[] for _ in query_positions]
+                continue
+            cached_items = state["cached_items"] or []
+            positions = state["positions"]
+            if len(positions) == 0:
+                results[name] = [[] for _ in query_positions]
+                continue
+            hit_index_lists = kernels.batch_radius_query(positions, qp_array, radius)
+            results[name] = [
+                [cached_items[i] for i in idx_list] for idx_list in hit_index_lists
+            ]
+
+        return results
+
+    def batch_nearest_query(
+        self,
+        query_positions: List[Tuple[float, float]],
+        index_names: Optional[List[str]] = None,
+        allow_stale_reads: bool = False,
+    ) -> Dict[str, List[Optional[Any]]]:
+        """GPU-accelerated batch nearest-neighbour query.
+
+        Finds the nearest entity for each position in *query_positions* using a
+        single batched distance-matrix computation.
+
+        Parameters
+        ----------
+        query_positions : list of (x, y) tuples
+            Positions to query from.
+        index_names : list of str, optional
+            Named indices to query.  Defaults to all registered indices.
+        allow_stale_reads : bool, default False
+            If *True*, skip flushing pending batch updates first.
+
+        Returns
+        -------
+        dict
+            ``results[index_name][i]`` is the nearest entity to
+            ``query_positions[i]``, or ``None`` if no entities exist.
+        """
+        if not allow_stale_reads:
+            self.update()
+        if not query_positions:
+            return {}
+
+        names = index_names or list(self._named_indices.keys())
+        qp_array = np.asarray(query_positions, dtype=np.float64)
+        results: Dict[str, List[Optional[Any]]] = {}
+
+        kernels = self._cpu_kernels
+
+        for name in names:
+            state = self._named_indices.get(name)
+            if state is None or state.get("positions") is None:
+                results[name] = [None] * len(query_positions)
+                continue
+            cached_items = state["cached_items"] or []
+            positions = state["positions"]
+            if len(positions) == 0:
+                results[name] = [None] * len(query_positions)
+                continue
+            nearest_indices = kernels.batch_nearest_query(positions, qp_array)
+            results[name] = [
+                cached_items[int(idx)] if idx >= 0 else None
+                for idx in nearest_indices
+            ]
+
+        return results
+
+    @property
+    def gpu_enabled(self) -> bool:
+        """Whether GPU acceleration is active for this index."""
+        return self._gpu_kernels is not None
+
+    @property
+    def gpu_on_device(self) -> bool:
+        """Whether GPU computations run on a CUDA device (vs CPU tensors)."""
+        return self._gpu_kernels is not None and self._gpu_kernels.on_gpu
 
     def _quadtree_nearest(
         self, quadtree: Quadtree, position: Tuple[float, float]

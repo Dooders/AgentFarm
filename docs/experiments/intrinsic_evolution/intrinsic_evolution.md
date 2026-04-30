@@ -238,6 +238,37 @@ crossover can become asexual at runtime; everything else is policy-driven.
 | `seed`              | `None`                       | Top-level RNG seed propagated to `run_simulation` and the policy if the policy seed is unset.                                                    |
 
 
+## Initial conditions profiles and legacy parity
+
+Intrinsic runs now include an explicit startup-conditions layer via
+`InitialConditionsConfig` (`IntrinsicEvolutionExperimentConfig.initial_conditions`).
+
+- Default profile is `stable`, tuned to reduce the first-steps boom-bust wave.
+- `legacy` preserves pre-profile startup behavior (no startup overrides).
+- `stress` and `exploratory` provide alternative preset regimes.
+- Manual per-field overrides always win over profile defaults.
+
+Use `legacy` when you need apples-to-apples comparisons with older runs:
+
+```python
+from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+config = IntrinsicEvolutionExperimentConfig(
+    # ...
+    initial_conditions=InitialConditionsConfig(profile="legacy"),
+)
+```
+
+CLI equivalent:
+
+```bash
+python scripts/run_intrinsic_evolution_experiment.py \
+  --initial-conditions-profile legacy
+```
+
+If the CLI profile is omitted, it defaults to `stable` and emits a warning so
+the behavior shift is visible in logs and manifests.
+
 ## Output artifacts
 
 When `output_dir` is set, three new files are written alongside whatever
@@ -324,6 +355,36 @@ enums serialized to plain strings so it round-trips cleanly, and a
   "snapshot_interval": 100,
   "final_population": 47,
   "final_gene_statistics": { ... },
+  "startup_transient_metrics": {
+    "peak_birth_rate": 0.23,
+    "peak_death_rate": 0.11,
+    "oscillation_amplitude": 12,
+    "n_steps_observed": 50,
+    "transient_window": 50
+  },
+  "initial_conditions": {
+    "profile": "stable",
+    "resolved": {
+      "initial_agent_resource_level": 20,
+      "initial_resource_count": 30,
+      "resource_regen_rate": 0.15,
+      "resource_regen_amount": 3
+    },
+    "initial_agent_resource_level": null,
+    "initial_resource_count": null,
+    "resource_regen_rate": null,
+    "resource_regen_amount": null,
+    "warmup_steps": 0,
+    "transient_window": 50
+  },
+  "resolved_initial_conditions": {
+    "initial_agent_resource_level": 20,
+    "initial_resource_count": 30,
+    "resource_regen_rate": 0.15,
+    "resource_regen_amount": 3,
+    "warmup_steps": 0,
+    "transient_window": 50
+  },
   "policy": {
     "enabled": true,
     "mutation_mode": "gaussian",
@@ -698,7 +759,7 @@ for snap in snapshots:
 
 ## Testing
 
-- `[tests/runners/test_intrinsic_evolution_experiment.py](../../tests/runners/test_intrinsic_evolution_experiment.py)`: policy / config validation, runner-level installation of platform-wide initial-diversity defaults, runner orchestration with mocked `run_simulation`, artifact persistence (including the `speciation` and `initial_diversity` blocks in `intrinsic_evolution_metadata.json` for both default-disabled and explicitly-enabled logger configurations), `ReproductionPressureConfig` validation, `selection_pressure` presets (none/low/medium/high/float), `_compute_effective_reproduction_cost` unit tests, trajectory telemetry field presence, and zero birth/death rates for stable populations.
+- `[tests/runners/test_intrinsic_evolution_experiment.py](../../tests/runners/test_intrinsic_evolution_experiment.py)`: policy / config validation, runner-level installation of platform-wide initial-diversity defaults, runner orchestration with mocked `run_simulation`, artifact persistence (including the `speciation` and `initial_diversity` blocks in `intrinsic_evolution_metadata.json` for both default-disabled and explicitly-enabled logger configurations), `ReproductionPressureConfig` validation, `selection_pressure` presets (none/low/medium/high/float), `_compute_effective_reproduction_cost` unit tests, trajectory telemetry field presence, startup-transient metrics (including stable-vs-legacy benchmark assertions on representative seeds), and zero birth/death rates for stable populations.
 - `[tests/core/test_initial_diversity.py](../../tests/core/test_initial_diversity.py)` and `[tests/core/test_simulation_initial_diversity.py](../../tests/core/test_simulation_initial_diversity.py)`: behavioural tests for the platform-wide seeding feature - mode validation, `INDEPENDENT_MUTATION` / `UNIQUE` / `MIN_DISTANCE` correctness, fallback semantics, determinism, decision-module reinitialization, and end-to-end wiring through `run_simulation`.
 - `[tests/core/agent/test_reproduce_chromosome_policy.py](../../tests/core/agent/test_reproduce_chromosome_policy.py)`: no-policy passthrough, mutation path, co-parent selection (nearest, random, radius, type-filter, alive-filter), crossover end-to-end.
 - `[tests/test_agent_reproduction_hyperparameters.py](../../tests/test_agent_reproduction_hyperparameters.py)`: updated to assert the new contract (no policy = inheritance unchanged).
