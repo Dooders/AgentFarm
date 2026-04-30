@@ -41,7 +41,7 @@ import random
 import statistics
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Iterable, List, Mapping, Optional, Protocol, Tuple
+from typing import Any, List, Mapping, Optional, Protocol, Tuple
 
 from farm.core.hyperparameter_chromosome import (
     BoundaryMode,
