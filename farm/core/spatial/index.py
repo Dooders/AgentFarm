@@ -36,7 +36,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from .dirty_regions import DirtyRegionTracker
-from .gpu_kernels import SpatialGpuKernels, is_gpu_available
+from .gpu_kernels import SpatialGpuKernels
 from .hash_grid import SpatialHashGrid
 from .quadtree import Quadtree, QuadtreeNode
 
