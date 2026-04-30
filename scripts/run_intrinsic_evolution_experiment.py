@@ -95,9 +95,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--interior-bias-fraction", type=float, default=1e-3)
 
     # Initial diversity seeding (platform-wide; see farm/core/initial_diversity.py).
-    # The intrinsic-evolution runner installs INDEPENDENT_MUTATION as the default
-    # when --initial-diversity-mode is left at "independent_mutation"; explicitly
-    # passing "none" disables seeding so the starting population is a monoculture.
+    # The CLI default for --initial-diversity-mode is "independent_mutation".
+    # Explicitly passing "none" disables seeding, so no default initial-diversity
+    # configuration is installed and the starting population is a monoculture.
     parser.add_argument(
         "--initial-diversity-mode",
         type=str,
