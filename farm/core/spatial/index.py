@@ -152,6 +152,14 @@ class SpatialIndex:
                 gpu_threshold=gpu_threshold,
             )
 
+        # CPU-only fallback kernels used by batch methods when GPU is disabled.
+        # Created once and reused to avoid repeated instantiation overhead.
+        self._cpu_kernels: SpatialGpuKernels = (
+            self._gpu_kernels
+            if self._gpu_kernels is not None
+            else SpatialGpuKernels(use_gpu=False)
+        )
+
         # Flush policy settings
         self.flush_interval_seconds = flush_interval_seconds
         self.max_pending_updates_before_flush = max_pending_updates_before_flush
@@ -1130,7 +1138,7 @@ class SpatialIndex:
         qp_array = np.asarray(query_positions, dtype=np.float64)
         results: Dict[str, List[List[Any]]] = {}
 
-        kernels = self._gpu_kernels or SpatialGpuKernels(use_gpu=False)
+        kernels = self._cpu_kernels
 
         for name in names:
             state = self._named_indices.get(name)
@@ -1184,7 +1192,7 @@ class SpatialIndex:
         qp_array = np.asarray(query_positions, dtype=np.float64)
         results: Dict[str, List[Optional[Any]]] = {}
 
-        kernels = self._gpu_kernels or SpatialGpuKernels(use_gpu=False)
+        kernels = self._cpu_kernels
 
         for name in names:
             state = self._named_indices.get(name)
