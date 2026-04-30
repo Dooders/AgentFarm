@@ -41,8 +41,9 @@ logger = get_logger(__name__)
 
 CoparentStrategy = Literal["nearest_alive_same_type", "random_alive_same_type"]
 SelectionPressurePreset = Literal["none", "low", "medium", "high"]
+InitialConditionsProfileName = Literal["stable", "stress", "exploratory", "legacy"]
 
-# ── Preset definitions ────────────────────────────────────────────────────────
+# ── Selection-pressure preset definitions ─────────────────────────────────────
 # Each preset maps to a ReproductionPressureConfig with sensible defaults that
 # give progressively stronger selection without requiring the user to tune raw
 # coefficients.  "none" is the identity (no density cost).
@@ -115,6 +116,252 @@ def _preset_or_scale_to_pressure_config(
         f"selection_pressure must be a str preset or float in [0, 1]; "
         f"got {type(selection_pressure).__name__!r}."
     )
+
+
+# ── Initial-conditions preset definitions ─────────────────────────────────────
+# Each preset bundles overrides for agent starting resources, environmental
+# resource count, and regeneration rates.  "stable" is the default and is
+# tuned to reduce the early boom-bust transient common in fresh simulations.
+# "legacy" applies no overrides and reproduces the pre-feature behavior.
+
+@dataclass(frozen=True)
+class _InitialConditionsPreset:
+    """Internal container for the values that an initial-conditions preset sets."""
+
+    initial_agent_resource_level: Optional[float]
+    """Starting resource level for each newly-spawned agent (``None`` = no override)."""
+    initial_resource_count: Optional[int]
+    """Number of resource nodes placed at simulation start (``None`` = no override)."""
+    resource_regen_rate: Optional[float]
+    """Per-step probability of a resource node regenerating (``None`` = no override)."""
+    resource_regen_amount: Optional[int]
+    """Amount regenerated per node per step when regeneration fires (``None`` = no override)."""
+
+
+_INITIAL_CONDITIONS_PRESETS: Dict[str, _InitialConditionsPreset] = {
+    # stable: higher agent and environment resources → agents survive early steps,
+    # reproduce sooner, and the population stabilizes without a sharp spike/crash.
+    #
+    # Rationale for specific values:
+    #   initial_agent_resource_level=20.0: agents start with ~2–4× the default
+    #     fallback level (5.0) so they can gather and meet the default
+    #     min_reproduction_resources threshold (8) within the first few steps
+    #     rather than starving before they find food.
+    #   initial_resource_count=30: 50% more resource nodes than the default (20)
+    #     ensures food density is high enough for the whole starting population.
+    #   resource_regen_rate=0.15: ~50% higher than the default (0.1) so that
+    #     the environment recovers quickly after the initial feeding burst.
+    #   resource_regen_amount=3: slightly above the default (2) to keep per-node
+    #     regeneration meaningful while not making resources unlimited.
+    "stable": _InitialConditionsPreset(
+        initial_agent_resource_level=20.0,
+        initial_resource_count=30,
+        resource_regen_rate=0.15,
+        resource_regen_amount=3,
+    ),
+    # stress: scarce resources → intense early selection; use when studying
+    # how quickly adaptive traits emerge under pressure.
+    #
+    # Rationale:
+    #   initial_agent_resource_level=3.0: well below the default, forcing
+    #     immediate resource-seeking and creating strong early mortality.
+    #   initial_resource_count=10: half the default node count; food scarcity
+    #     is the dominant selection pressure from step 1.
+    #   resource_regen_rate=0.05: slow recovery prevents any surplus from
+    #     building up; only the most efficient foragers survive.
+    #   resource_regen_amount=1: minimal per-node yield amplifies scarcity.
+    "stress": _InitialConditionsPreset(
+        initial_agent_resource_level=3.0,
+        initial_resource_count=10,
+        resource_regen_rate=0.05,
+        resource_regen_amount=1,
+    ),
+    # exploratory: moderate resources similar to defaults; intended for runs
+    # focused on genetic diversity rather than survival pressure.
+    #
+    # Rationale: values match the SimulationConfig defaults (resource_regen_rate=0.1,
+    # resource_regen_amount=2, initial_resources=20) with a modest agent resource
+    # bump (12.0 vs the fallback 5.0) so agents are not immediately at risk
+    # while still experiencing meaningful selection.
+    "exploratory": _InitialConditionsPreset(
+        initial_agent_resource_level=12.0,
+        initial_resource_count=20,
+        resource_regen_rate=0.1,
+        resource_regen_amount=2,
+    ),
+    # legacy: no overrides; reproduces pre-InitialConditionsConfig behavior
+    # exactly so existing benchmarks and comparisons remain valid.
+    "legacy": _InitialConditionsPreset(
+        initial_agent_resource_level=None,
+        initial_resource_count=None,
+        resource_regen_rate=None,
+        resource_regen_amount=None,
+    ),
+}
+
+
+@dataclass(frozen=True)
+class InitialConditionsConfig:
+    """Initial-conditions configuration for an intrinsic evolution run.
+
+    Controls the starting state of the simulation (agent resources, environmental
+    resources, and regeneration rates) to reduce or shape early boom-bust dynamics.
+
+    Profiles
+    --------
+    ``profile`` selects a named preset:
+
+    - ``"stable"`` *(default)*: Higher agent and environment resources reduce the
+      early growth/death wave while preserving normal adaptive dynamics thereafter.
+    - ``"stress"``: Scarce resources amplify early selection pressure; useful for
+      studying rapid adaptation.
+    - ``"exploratory"``: Moderate resources with default regeneration; a neutral
+      baseline for genetic-diversity research.
+    - ``"legacy"``: No overrides; exactly reproduces behavior from before this
+      feature was introduced.  Use to run apples-to-apples comparisons with older
+      runs.
+    - ``None``: Skip preset application entirely; only explicit manual overrides
+      below are applied (all default to ``None``, i.e., no override).
+
+    Manual overrides
+    ----------------
+    All override fields default to ``None`` (meaning "use the preset value or
+    leave the base config unchanged").  Non-``None`` values always win over the
+    preset.
+
+    ``warmup_steps``
+    ----------------
+    When > 0 the simulation runs for ``warmup_steps`` extra steps *before* the
+    main telemetry window.  Gene-trajectory snapshots are suppressed during the
+    warmup phase so the persistent artifacts reflect only the stabilized
+    population.  The ``startup_transient_metrics`` in
+    :class:`IntrinsicEvolutionResult` are still computed from the very first
+    ``transient_window`` steps regardless of warmup.
+
+    ``transient_window``
+    --------------------
+    Number of *post-environment-ready* steps used to derive startup-transient
+    metrics (peak birth rate, peak death rate, oscillation amplitude).  Defaults
+    to 50.  Does not affect the total number of steps run.
+    """
+
+    profile: Optional[str] = "stable"
+    # Per-field manual overrides (win over preset when set)
+    initial_agent_resource_level: Optional[float] = None
+    initial_resource_count: Optional[int] = None
+    resource_regen_rate: Optional[float] = None
+    resource_regen_amount: Optional[int] = None
+    warmup_steps: int = 0
+    transient_window: int = 50
+
+    def __post_init__(self) -> None:
+        if self.profile is not None and self.profile not in _INITIAL_CONDITIONS_PRESETS:
+            raise ValueError(
+                f"profile must be one of {list(_INITIAL_CONDITIONS_PRESETS)} or None; "
+                f"got {self.profile!r}."
+            )
+        if self.warmup_steps < 0:
+            raise ValueError("warmup_steps must be non-negative.")
+        if self.transient_window < 1:
+            raise ValueError("transient_window must be at least 1.")
+
+    def resolve(self) -> Dict[str, Any]:
+        """Return the effective settings after merging preset defaults with manual overrides.
+
+        The returned dict always contains the following keys:
+        ``initial_agent_resource_level``, ``initial_resource_count``,
+        ``resource_regen_rate``, ``resource_regen_amount``,
+        ``warmup_steps``, ``transient_window``.
+        Values may be ``None`` when neither a preset nor a manual override supplies them.
+        """
+        if self.profile is not None:
+            preset = _INITIAL_CONDITIONS_PRESETS[self.profile]
+            resolved: Dict[str, Any] = {
+                "initial_agent_resource_level": preset.initial_agent_resource_level,
+                "initial_resource_count": preset.initial_resource_count,
+                "resource_regen_rate": preset.resource_regen_rate,
+                "resource_regen_amount": preset.resource_regen_amount,
+            }
+        else:
+            resolved = {
+                "initial_agent_resource_level": None,
+                "initial_resource_count": None,
+                "resource_regen_rate": None,
+                "resource_regen_amount": None,
+            }
+
+        # Manual overrides win over preset defaults.
+        if self.initial_agent_resource_level is not None:
+            resolved["initial_agent_resource_level"] = self.initial_agent_resource_level
+        if self.initial_resource_count is not None:
+            resolved["initial_resource_count"] = self.initial_resource_count
+        if self.resource_regen_rate is not None:
+            resolved["resource_regen_rate"] = self.resource_regen_rate
+        if self.resource_regen_amount is not None:
+            resolved["resource_regen_amount"] = self.resource_regen_amount
+
+        resolved["warmup_steps"] = self.warmup_steps
+        resolved["transient_window"] = self.transient_window
+        return resolved
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a JSON-friendly dict including the resolved effective values."""
+        resolved = self.resolve()
+        return {
+            "profile": self.profile,
+            "resolved": {
+                k: v for k, v in resolved.items()
+                if k not in ("warmup_steps", "transient_window")
+            },
+            "initial_agent_resource_level": self.initial_agent_resource_level,
+            "initial_resource_count": self.initial_resource_count,
+            "resource_regen_rate": self.resource_regen_rate,
+            "resource_regen_amount": self.resource_regen_amount,
+            "warmup_steps": self.warmup_steps,
+            "transient_window": self.transient_window,
+        }
+
+
+def _compute_startup_transient_metrics(
+    birth_rates: List[float],
+    death_rates: List[float],
+    populations: List[int],
+    transient_window: int,
+) -> Dict[str, Any]:
+    """Compute startup-transient summary statistics from per-step series.
+
+    Parameters
+    ----------
+    birth_rates:
+        Realized birth rates for the first N steps.
+    death_rates:
+        Realized death rates for the first N steps.
+    populations:
+        Alive-agent counts for the first N steps.
+    transient_window:
+        Configured window size (recorded even when fewer steps were observed).
+
+    Returns
+    -------
+    Dict with keys ``peak_birth_rate``, ``peak_death_rate``,
+    ``oscillation_amplitude``, ``n_steps_observed``, and ``transient_window``.
+    """
+    n = len(birth_rates)
+    if n == 0:
+        return {
+            "peak_birth_rate": 0.0,
+            "peak_death_rate": 0.0,
+            "oscillation_amplitude": 0,
+            "n_steps_observed": 0,
+            "transient_window": transient_window,
+        }
+    return {
+        "peak_birth_rate": max(birth_rates),
+        "peak_death_rate": max(death_rates),
+        "oscillation_amplitude": max(populations) - min(populations) if populations else 0,
+        "n_steps_observed": n,
+        "transient_window": transient_window,
+    }
 
 
 @dataclass(frozen=True)
@@ -220,11 +467,19 @@ class IntrinsicEvolutionExperimentConfig:
     installing the runner's independent-mutation defaults when the provided
     base config still has ``initial_diversity.mode=none``. Set it to ``False``
     to preserve an explicit ``none`` mode (monoculture start) unchanged.
+
+    ``initial_conditions`` controls the starting state of the simulation to
+    reduce early boom-bust dynamics.  Defaults to the ``"stable"`` profile;
+    use ``InitialConditionsConfig(profile="legacy")`` to reproduce the
+    pre-feature behavior exactly.
     """
 
     num_steps: int = 2000
     snapshot_interval: int = 100
     install_default_initial_diversity: bool = True
+    initial_conditions: InitialConditionsConfig = field(
+        default_factory=InitialConditionsConfig
+    )
     policy: IntrinsicEvolutionPolicy = field(default_factory=IntrinsicEvolutionPolicy)
     output_dir: Optional[str] = None
     seed: Optional[int] = None
@@ -243,11 +498,15 @@ class IntrinsicEvolutionResult:
     ``num_steps_completed`` may be smaller than ``config.num_steps`` if the
     population went extinct early (mirroring ``run_simulation`` semantics).
     ``final_gene_statistics`` is empty when the final population is empty.
+    ``startup_transient_metrics`` summarises the early boom-bust characteristics
+    of the run; keys: ``peak_birth_rate``, ``peak_death_rate``,
+    ``oscillation_amplitude``, ``n_steps_observed``, ``transient_window``.
     """
 
     num_steps_completed: int
     final_population: int
     final_gene_statistics: Dict[str, Dict[str, float]]
+    startup_transient_metrics: Dict[str, Any] = field(default_factory=dict)
 
 
 class IntrinsicEvolutionExperiment:
@@ -284,6 +543,31 @@ class IntrinsicEvolutionExperiment:
 
         policy = self.config.policy
 
+        # ── Apply initial-conditions overrides ───────────────────────────────
+        # Resolve the effective initial-condition settings by merging the
+        # selected profile defaults with any explicit per-field overrides.
+        resolved_ic = self.config.initial_conditions.resolve()
+        if resolved_ic.get("initial_agent_resource_level") is not None:
+            run_config.agent_behavior.initial_resource_level = int(
+                resolved_ic["initial_agent_resource_level"]
+            )
+        if resolved_ic.get("initial_resource_count") is not None:
+            run_config.resources.initial_resources = int(
+                resolved_ic["initial_resource_count"]
+            )
+        if resolved_ic.get("resource_regen_rate") is not None:
+            run_config.resources.resource_regen_rate = float(
+                resolved_ic["resource_regen_rate"]
+            )
+        if resolved_ic.get("resource_regen_amount") is not None:
+            run_config.resources.resource_regen_amount = int(
+                resolved_ic["resource_regen_amount"]
+            )
+
+        effective_warmup: int = int(resolved_ic.get("warmup_steps", 0))
+        transient_window: int = int(resolved_ic.get("transient_window", 50))
+        total_sim_steps = self.config.num_steps + effective_warmup
+
         # The intrinsic-evolution runner relies on a non-monoculture starting
         # population.  When the caller has not customized the platform-wide
         # initial-diversity config, install the runner's defaults so seeding
@@ -308,6 +592,12 @@ class IntrinsicEvolutionExperiment:
         latest_population = 0
         latest_gene_statistics: Dict[str, Dict[str, float]] = {}
         latest_diversity_metrics: Optional[Any] = None
+
+        # Startup-transient metric accumulators (filled for the first
+        # transient_window post-environment-ready steps).
+        _transient_birth_rates: List[float] = []
+        _transient_death_rates: List[float] = []
+        _transient_populations: List[int] = []
 
         # Track agent IDs from the previous step to compute birth/death rates.
         prev_agent_ids: set = set()
@@ -418,7 +708,10 @@ class IntrinsicEvolutionExperiment:
             # At step 0 there is no previous step, so birth/death rates are 0.
             alive_agents = list(environment.alive_agent_objects)
             prev_agent_ids = {_agent_telemetry_key(a) for a in alive_agents}
-            gene_logger.snapshot(environment, step=0)
+            # Only record the initial snapshot when there is no warmup phase;
+            # warmup runs silence the logger until the population has stabilized.
+            if effective_warmup == 0:
+                gene_logger.snapshot(environment, step=0)
             _capture_current_state(environment, step=0)
 
         def _on_step_end(environment: Any, step: int) -> None:
@@ -427,12 +720,26 @@ class IntrinsicEvolutionExperiment:
             extra = _compute_step_telemetry(environment, prev_agent_ids)
             alive_agents = list(environment.alive_agent_objects)
             prev_agent_ids = {_agent_telemetry_key(a) for a in alive_agents}
-            gene_logger.snapshot(environment, step=logical_step, extra_fields=extra)
+
+            # Accumulate startup-transient metrics for the first
+            # transient_window post-environment-ready steps (regardless of
+            # whether those steps fall inside a warmup phase).
+            if logical_step <= transient_window:
+                _transient_birth_rates.append(extra["realized_birth_rate"])
+                _transient_death_rates.append(extra["realized_death_rate"])
+                _transient_populations.append(len(alive_agents))
+
+            # Suppress trajectory snapshots during the warmup phase so
+            # persisted artifacts only cover the stabilized population.
+            if logical_step > effective_warmup:
+                post_warmup_step = logical_step - effective_warmup
+                gene_logger.snapshot(environment, step=post_warmup_step, extra_fields=extra)
+
             _capture_current_state(environment, step=logical_step)
 
         try:
             run_simulation(
-                num_steps=self.config.num_steps,
+                num_steps=total_sim_steps,
                 config=run_config,
                 path=self.config.output_dir,
                 save_config=False,
@@ -450,15 +757,26 @@ class IntrinsicEvolutionExperiment:
             }
             gene_logger.close()
 
+        startup_transient_metrics = _compute_startup_transient_metrics(
+            _transient_birth_rates,
+            _transient_death_rates,
+            _transient_populations,
+            transient_window,
+        )
+
+        # num_steps_completed is relative to the post-warmup window.
+        post_warmup_latest = max(0, latest_step - effective_warmup)
         result = IntrinsicEvolutionResult(
-            num_steps_completed=min(self.config.num_steps, max(0, latest_step)),
+            num_steps_completed=min(self.config.num_steps, post_warmup_latest),
             final_population=latest_population,
             final_gene_statistics=latest_gene_statistics,
+            startup_transient_metrics=startup_transient_metrics,
         )
         self._persist(
             result,
             initial_diversity_config=run_config.initial_diversity,
             initial_diversity_metrics=latest_diversity_metrics,
+            resolved_initial_conditions=resolved_ic,
         )
         logger.info(
             "intrinsic_evolution_completed",
@@ -474,6 +792,7 @@ class IntrinsicEvolutionExperiment:
         *,
         initial_diversity_config: InitialDiversityConfig,
         initial_diversity_metrics: Optional[Any] = None,
+        resolved_initial_conditions: Optional[Dict[str, Any]] = None,
     ) -> None:
         if not self.config.output_dir:
             return
@@ -486,7 +805,10 @@ class IntrinsicEvolutionExperiment:
             "snapshot_interval": self.config.snapshot_interval,
             "final_population": result.final_population,
             "final_gene_statistics": result.final_gene_statistics,
+            "startup_transient_metrics": result.startup_transient_metrics,
             "policy": _serialize_policy(self.config.policy),
+            "initial_conditions": self.config.initial_conditions.to_dict(),
+            "resolved_initial_conditions": resolved_initial_conditions,
             "initial_diversity": initial_diversity_config.to_dict(),
             "initial_diversity_metrics": (
                 initial_diversity_metrics.to_dict()
