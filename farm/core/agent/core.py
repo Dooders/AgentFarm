@@ -784,8 +784,9 @@ class AgentCore:
         Filters to alive agents (excluding self) with a chromosome attribute,
         optionally constrained to ``policy.coparent_max_radius`` Euclidean
         distance from self.  By default only agents of the same
-        ``agent_type`` are eligible; set ``policy.allow_cross_type_pollination
-        = True`` to include agents from all types.
+        ``agent_type`` are eligible; set
+        ``policy.allow_cross_type_pollination=True`` to include agents from
+        all types.
         Returns ``None`` when no eligible candidate exists, in which case
         reproduction falls back to asexual (mutation-only) inheritance.
         """

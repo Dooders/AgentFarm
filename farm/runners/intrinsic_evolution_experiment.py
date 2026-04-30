@@ -142,12 +142,15 @@ class IntrinsicEvolutionPolicy:
             runs :func:`crossover_chromosomes` before mutation.
         crossover_mode / blend_alpha / num_crossover_points: Crossover
             operator settings (see :class:`CrossoverMode`).
-        coparent_strategy: How to pick the co-parent.  By default both
-            strategies filter to alive agents of the same ``agent_type``;
-            ``nearest`` is deterministic-modulo-tiebreak and reflects spatial
-            sociality, ``random`` is uniform over the candidate pool.  When
-            ``allow_cross_type_pollination`` is ``True`` the filter is lifted
-            and candidates from any ``agent_type`` are included.
+        coparent_strategy: How to pick the co-parent. Accepted values are
+            ``"nearest_alive_same_type"`` and
+            ``"random_alive_same_type"``. By default, both strategies filter
+            to alive agents of the same ``agent_type``; the ``nearest`` variant
+            is deterministic-modulo-tiebreak and reflects spatial sociality,
+            while the ``random`` variant is uniform over the candidate pool.
+            When ``allow_cross_type_pollination`` is ``True``, the same
+            selection behavior applies but the candidate pool expands to alive
+            agents of any ``agent_type``.
         coparent_max_radius: Optional spatial cap on the co-parent search;
             ``None`` means unbounded.
         allow_cross_type_pollination: When ``True``, the co-parent candidate
