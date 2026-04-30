@@ -305,7 +305,6 @@ def main():
                 args.initial_diversity_boundary_mode,
                 args.initial_diversity_min_distance,
                 args.initial_diversity_max_retries,
-                args.seed,
             )
         ):
             base_diversity = config.initial_diversity
