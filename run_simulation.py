@@ -15,6 +15,8 @@ from io import StringIO
 
 # Local imports
 from farm.config import SimulationConfig
+from farm.core.hyperparameter_chromosome import BoundaryMode, MutationMode
+from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode
 from farm.core.simulation import run_simulation
 from farm.utils.logging import configure_logging, get_logger
 
@@ -203,6 +205,54 @@ def main():
         action="store_true",
         help="Skip database validation after simulation completes",
     )
+
+    # Initial genotype diversity (off by default; see farm/core/initial_diversity.py).
+    parser.add_argument(
+        "--initial-diversity-mode",
+        type=str,
+        default=None,
+        choices=[m.value for m in SeedingMode],
+        help="Override initial genotype diversity strategy applied before the loop starts.",
+    )
+    parser.add_argument(
+        "--initial-diversity-mutation-rate",
+        type=float,
+        default=None,
+        help="Override per-gene mutation probability used when seeding initial diversity.",
+    )
+    parser.add_argument(
+        "--initial-diversity-mutation-scale",
+        type=float,
+        default=None,
+        help="Override mutation scale used when seeding initial diversity.",
+    )
+    parser.add_argument(
+        "--initial-diversity-mutation-mode",
+        type=str,
+        default=None,
+        choices=[m.value for m in MutationMode],
+        help="Override mutation operator used when seeding initial diversity.",
+    )
+    parser.add_argument(
+        "--initial-diversity-boundary-mode",
+        type=str,
+        default=None,
+        choices=[m.value for m in BoundaryMode],
+        help="Override boundary handling for mutated values when seeding initial diversity.",
+    )
+    parser.add_argument(
+        "--initial-diversity-min-distance",
+        type=float,
+        default=None,
+        help="Override minimum normalized pairwise distance for MIN_DISTANCE seeding mode.",
+    )
+    parser.add_argument(
+        "--initial-diversity-max-retries",
+        type=int,
+        default=None,
+        help="Override maximum candidate draws per agent in strict seeding modes.",
+    )
+
     args = parser.parse_args()
 
     # Ensure simulations directory exists
@@ -241,6 +291,66 @@ def main():
             )
             if args.no_persist:
                 logger.warning("in_memory_db_no_persist", message="Database will not be persisted to disk")
+
+        # Apply initial-diversity overrides only for fields explicitly
+        # provided on the CLI. This preserves profile/config values unless
+        # the caller intentionally overrides them.
+        if any(
+            value is not None
+            for value in (
+                args.initial_diversity_mode,
+                args.initial_diversity_mutation_rate,
+                args.initial_diversity_mutation_scale,
+                args.initial_diversity_mutation_mode,
+                args.initial_diversity_boundary_mode,
+                args.initial_diversity_min_distance,
+                args.initial_diversity_max_retries,
+            )
+        ):
+            base_diversity = config.initial_diversity
+            config.initial_diversity = InitialDiversityConfig(
+                mode=(
+                    SeedingMode(args.initial_diversity_mode)
+                    if args.initial_diversity_mode is not None
+                    else base_diversity.mode
+                ),
+                mutation_rate=(
+                    args.initial_diversity_mutation_rate
+                    if args.initial_diversity_mutation_rate is not None
+                    else base_diversity.mutation_rate
+                ),
+                mutation_scale=(
+                    args.initial_diversity_mutation_scale
+                    if args.initial_diversity_mutation_scale is not None
+                    else base_diversity.mutation_scale
+                ),
+                mutation_mode=(
+                    MutationMode(args.initial_diversity_mutation_mode)
+                    if args.initial_diversity_mutation_mode is not None
+                    else base_diversity.mutation_mode
+                ),
+                boundary_mode=(
+                    BoundaryMode(args.initial_diversity_boundary_mode)
+                    if args.initial_diversity_boundary_mode is not None
+                    else base_diversity.boundary_mode
+                ),
+                interior_bias_fraction=base_diversity.interior_bias_fraction,
+                max_retries_per_agent=(
+                    args.initial_diversity_max_retries
+                    if args.initial_diversity_max_retries is not None
+                    else base_diversity.max_retries_per_agent
+                ),
+                min_distance=(
+                    args.initial_diversity_min_distance
+                    if args.initial_diversity_min_distance is not None
+                    else base_diversity.min_distance
+                ),
+                seed=(
+                    args.seed
+                    if args.seed is not None
+                    else base_diversity.seed
+                ),
+            )
 
         # Apply seed override if provided
         if args.seed is not None:

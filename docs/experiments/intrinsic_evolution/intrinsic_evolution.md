@@ -78,9 +78,9 @@ environment.
 flowchart TD
     Run["IntrinsicEvolutionExperiment.run()"] --> Sim["run_simulation(..., on_environment_ready, on_step_end)"]
 
-    Sim --> Ready["on_environment_ready(env)"]
-    Ready --> Seed["seed_population_diversity(env, policy)<br/><i>initial diversity</i>"]
-    Seed --> Snap0["GeneTrajectoryLogger.snapshot(env, step=0)<br/><i>core fields only</i>"]
+    Sim --> Diversity["apply_initial_diversity(env, cfg.initial_diversity)<br/><i>platform-wide seeding</i>"]
+    Diversity --> Ready["on_environment_ready(env)"]
+    Ready --> Snap0["GeneTrajectoryLogger.snapshot(env, step=0)<br/><i>core fields only</i>"]
 
     Sim --> Loop["per-step simulation loop"]
     Loop --> Repro["AgentCore.reproduce()"]
@@ -137,7 +137,8 @@ crossover with a co-parent, then mutation, using the policy's knobs.
 
 | Module                                                                                                   | Purpose                                                                                                                                                                                                   |
 | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[farm/runners/intrinsic_evolution_experiment.py](../../farm/runners/intrinsic_evolution_experiment.py)` | `IntrinsicEvolutionPolicy`, `IntrinsicEvolutionExperimentConfig`, `IntrinsicEvolutionResult`, `seed_population_diversity()`, `IntrinsicEvolutionExperiment`                                               |
+| `[farm/runners/intrinsic_evolution_experiment.py](../../farm/runners/intrinsic_evolution_experiment.py)` | `IntrinsicEvolutionPolicy`, `IntrinsicEvolutionExperimentConfig`, `IntrinsicEvolutionResult`, `IntrinsicEvolutionExperiment`                                                                              |
+| `[farm/core/initial_diversity.py](../../farm/core/initial_diversity.py)`                                | `InitialDiversityConfig`, `SeedingMode`, `apply_initial_diversity()`, `ChromosomeDiversitySource` (platform-wide initial-diversity seeding; runner installs `INDEPENDENT_MUTATION` as the default mode)   |
 | `[farm/runners/gene_trajectory_logger.py](../../farm/runners/gene_trajectory_logger.py)`                 | `GeneTrajectoryLogger`: writes per-step aggregates, periodic full snapshots, and (when `enable_speciation=True`) a cached `speciation_index` on every trajectory line plus a `cluster_lineage.jsonl` file |
 | `[farm/core/agent/core.py](../../farm/core/agent/core.py)`                                               | `AgentCore._derive_child_chromosome` and `_select_coparent` (called from `reproduce`)                                                                                                                     |
 | `[farm/core/simulation.py](../../farm/core/simulation.py)`                                               | `run_simulation(..., on_environment_ready, on_step_end)` callback hooks the runner uses                                                                                                                   |
@@ -163,9 +164,6 @@ base_config = SimulationConfig.from_centralized_config(environment="development"
 
 policy = IntrinsicEvolutionPolicy(
     enabled=True,
-    seed_initial_diversity=True,
-    seed_mutation_rate=1.0,
-    seed_mutation_scale=0.2,
     mutation_rate=0.1,
     mutation_scale=0.1,
     mutation_mode=MutationMode.GAUSSIAN,
@@ -175,6 +173,18 @@ policy = IntrinsicEvolutionPolicy(
     coparent_strategy="nearest_alive_same_type",
     coparent_max_radius=10.0,
 )
+
+# Initial-diversity seeding has been promoted to a platform-wide feature.
+# IntrinsicEvolutionExperiment installs INDEPENDENT_MUTATION as the default
+# when base_config.initial_diversity.mode is NONE.  Override here to opt
+# into a stricter mode (e.g. UNIQUE) for an intrinsic-evolution run.  See
+# docs/initial_diversity.md for the full reference.
+# from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode
+# base_config.initial_diversity = InitialDiversityConfig(
+#     mode=SeedingMode.UNIQUE,
+#     mutation_rate=1.0,
+#     mutation_scale=0.2,
+# )
 
 config = IntrinsicEvolutionExperimentConfig(
     num_steps=2000,
@@ -195,9 +205,6 @@ print(f"Final mean LR: {result.final_gene_statistics['learning_rate']['mean']}")
 | Field                    | Default                        | Meaning                                                                                                                                                          |
 | ------------------------ | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `enabled`                | `True`                         | Master switch. When `False`, reproduction inherits chromosomes unchanged.                                                                                        |
-| `seed_initial_diversity` | `True`                         | Mutate every initial agent's chromosome once before the loop starts so the starting population is not a monoculture.                                             |
-| `seed_mutation_rate`     | `1.0`                          | Per-gene mutation probability for the seed pass.                                                                                                                 |
-| `seed_mutation_scale`    | `0.2`                          | Per-gene scale for the seed pass. Larger spreads the population further.                                                                                         |
 | `mutation_rate`          | `0.1`                          | Per-gene mutation probability at each reproduction event.                                                                                                        |
 | `mutation_scale`         | `0.1`                          | Per-gene scale at each reproduction event.                                                                                                                       |
 | `mutation_mode`          | `MutationMode.GAUSSIAN`        | `gaussian` or `multiplicative`. See `[HyperparameterChromosome` docs](../design/hyperparameter_chromosome.md).                                                   |
@@ -357,14 +364,16 @@ settings". Field meanings:
 are noisy. An agent might "win" because of position, lineage timing, or
 social context rather than its hyperparameters. Replicate runs across
 multiple seeds and look at distributions, not single trajectories.
-- **Sparse initial coverage of genotype space.** When
-`seed_initial_diversity=True` (the default), each starting agent's
-chromosome is mutated independently using `seed_mutation_rate=1.0` and
-`seed_mutation_scale=0.2`. This typically yields one distinct
-chromosome per agent in expectation, but exact uniqueness is not
-guaranteed (collisions are possible, especially with small populations
-or low scales). Statistical power per genotype is low until lineages
-expand.
+- **Sparse initial coverage of genotype space.** The runner installs
+`SimulationConfig.initial_diversity = InitialDiversityConfig(mode=independent_mutation,
+mutation_rate=1.0, mutation_scale=0.2)` by default, so each starting
+agent's chromosome is mutated independently. This typically yields one
+distinct chromosome per agent in expectation, but exact uniqueness is
+not guaranteed (collisions are possible, especially with small
+populations or low scales). Use `SeedingMode.UNIQUE` or
+`SeedingMode.MIN_DISTANCE` for stronger guarantees - see
+[`docs/initial_diversity.md`](../../initial_diversity.md). Statistical
+power per genotype is low until lineages expand.
 - **Crossover requires same `agent_type`.** Cross-type pollination is not
 supported. Co-parent selection always filters to identical
 `agent_type`.
@@ -689,7 +698,8 @@ for snap in snapshots:
 
 ## Testing
 
-- `[tests/runners/test_intrinsic_evolution_experiment.py](../../tests/runners/test_intrinsic_evolution_experiment.py)`: policy / config validation, `seed_population_diversity`, runner orchestration with mocked `run_simulation`, artifact persistence (including the `speciation` block in `intrinsic_evolution_metadata.json` for both default-disabled and explicitly-enabled logger configurations), `ReproductionPressureConfig` validation, `selection_pressure` presets (none/low/medium/high/float), `_compute_effective_reproduction_cost` unit tests, trajectory telemetry field presence, and zero birth/death rates for stable populations.
+- `[tests/runners/test_intrinsic_evolution_experiment.py](../../tests/runners/test_intrinsic_evolution_experiment.py)`: policy / config validation, runner-level installation of platform-wide initial-diversity defaults, runner orchestration with mocked `run_simulation`, artifact persistence (including the `speciation` and `initial_diversity` blocks in `intrinsic_evolution_metadata.json` for both default-disabled and explicitly-enabled logger configurations), `ReproductionPressureConfig` validation, `selection_pressure` presets (none/low/medium/high/float), `_compute_effective_reproduction_cost` unit tests, trajectory telemetry field presence, and zero birth/death rates for stable populations.
+- `[tests/core/test_initial_diversity.py](../../tests/core/test_initial_diversity.py)` and `[tests/core/test_simulation_initial_diversity.py](../../tests/core/test_simulation_initial_diversity.py)`: behavioural tests for the platform-wide seeding feature - mode validation, `INDEPENDENT_MUTATION` / `UNIQUE` / `MIN_DISTANCE` correctness, fallback semantics, determinism, decision-module reinitialization, and end-to-end wiring through `run_simulation`.
 - `[tests/core/agent/test_reproduce_chromosome_policy.py](../../tests/core/agent/test_reproduce_chromosome_policy.py)`: no-policy passthrough, mutation path, co-parent selection (nearest, random, radius, type-filter, alive-filter), crossover end-to-end.
 - `[tests/test_agent_reproduction_hyperparameters.py](../../tests/test_agent_reproduction_hyperparameters.py)`: updated to assert the new contract (no policy = inheritance unchanged).
 - `[tests/analysis/test_intrinsic_lineage.py](../../tests/analysis/test_intrinsic_lineage.py)`: `load_intrinsic_snapshots`, `flatten_snapshots_to_agent_records`, `build_intrinsic_lineage_dag`, `compute_surviving_lineage_count_over_time`, `compute_lineage_depth_over_time`, `extract_chromosomes_from_snapshots`, `plot_intrinsic_lineage_tree` (with and without gene colouring).

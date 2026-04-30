@@ -41,6 +41,10 @@ from farm.core.hyperparameter_chromosome import (  # noqa: E402
     CrossoverMode,
     MutationMode,
 )
+from farm.core.initial_diversity import (  # noqa: E402
+    InitialDiversityConfig,
+    SeedingMode,
+)
 from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger  # noqa: E402
 from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
     IntrinsicEvolutionExperiment,
@@ -90,10 +94,21 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--interior-bias-fraction", type=float, default=1e-3)
 
-    # Initial diversity seeding
-    parser.add_argument("--no-seed-diversity", action="store_true")
-    parser.add_argument("--seed-mutation-rate", type=float, default=1.0)
-    parser.add_argument("--seed-mutation-scale", type=float, default=0.25)
+    # Initial diversity seeding (platform-wide; see farm/core/initial_diversity.py).
+    # The CLI default for --initial-diversity-mode is "independent_mutation".
+    # Explicitly passing "none" disables seeding, so no default initial-diversity
+    # configuration is installed and the starting population is a monoculture.
+    parser.add_argument(
+        "--initial-diversity-mode",
+        type=str,
+        default=SeedingMode.INDEPENDENT_MUTATION.value,
+        choices=[m.value for m in SeedingMode],
+        help="Initial genotype diversity strategy applied before the loop starts.",
+    )
+    parser.add_argument("--initial-diversity-mutation-rate", type=float, default=1.0)
+    parser.add_argument("--initial-diversity-mutation-scale", type=float, default=0.25)
+    parser.add_argument("--initial-diversity-min-distance", type=float, default=0.05)
+    parser.add_argument("--initial-diversity-max-retries", type=int, default=32)
 
     # Crossover
     parser.add_argument(
@@ -172,11 +187,20 @@ def _build_run(args: argparse.Namespace) -> IntrinsicEvolutionExperiment:
         profile=args.profile,
     )
 
+    base_config.initial_diversity = InitialDiversityConfig(
+        mode=SeedingMode(args.initial_diversity_mode),
+        mutation_rate=args.initial_diversity_mutation_rate,
+        mutation_scale=args.initial_diversity_mutation_scale,
+        mutation_mode=MutationMode(args.mutation_mode),
+        boundary_mode=BoundaryMode(args.boundary_mode),
+        interior_bias_fraction=args.interior_bias_fraction,
+        max_retries_per_agent=args.initial_diversity_max_retries,
+        min_distance=args.initial_diversity_min_distance,
+        seed=args.seed,
+    )
+
     policy = IntrinsicEvolutionPolicy(
         enabled=True,
-        seed_initial_diversity=not args.no_seed_diversity,
-        seed_mutation_rate=args.seed_mutation_rate,
-        seed_mutation_scale=args.seed_mutation_scale,
         mutation_rate=args.mutation_rate,
         mutation_scale=args.mutation_scale,
         mutation_mode=MutationMode(args.mutation_mode),
@@ -195,6 +219,9 @@ def _build_run(args: argparse.Namespace) -> IntrinsicEvolutionExperiment:
     config = IntrinsicEvolutionExperimentConfig(
         num_steps=args.num_steps,
         snapshot_interval=args.snapshot_interval,
+        install_default_initial_diversity=(
+            SeedingMode(args.initial_diversity_mode) is not SeedingMode.NONE
+        ),
         policy=policy,
         output_dir=args.output_dir,
         seed=args.seed,

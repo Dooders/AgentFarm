@@ -21,6 +21,7 @@ This repository is being developed to support research in the [Dooders](https://
 - Create specialized agent behaviors and properties
 - Configure simulation parameters and conditions
 - Design custom experiments and scenarios
+- Opt-in [initial genotype diversity](docs/initial_diversity.md) for any simulation - seed the starting population with `independent_mutation`, `unique`, or `min_distance` modes via `SimulationConfig.initial_diversity`
 
 ### [AI & Machine Learning](docs/features/ai_machine_learning.md)
 - Reinforcement learning for agent adaptation
