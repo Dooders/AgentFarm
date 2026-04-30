@@ -13,7 +13,6 @@ GA *between* simulations.  Both runners are complementary, not substitutes.
 from __future__ import annotations
 
 import json
-import math
 import os
 import random
 from dataclasses import asdict, dataclass, field
@@ -246,7 +245,7 @@ class InitialConditionsConfig:
     to 50.  Does not affect the total number of steps run.
     """
 
-    profile: Optional[InitialConditionsProfileName] = "stable"
+    profile: Optional[str] = "stable"
     # Per-field manual overrides (win over preset when set)
     initial_agent_resource_level: Optional[float] = None
     initial_resource_count: Optional[int] = None
@@ -261,27 +260,6 @@ class InitialConditionsConfig:
                 f"profile must be one of {list(_INITIAL_CONDITIONS_PRESETS)} or None; "
                 f"got {self.profile!r}."
             )
-        if self.initial_agent_resource_level is not None:
-            if (
-                not math.isfinite(self.initial_agent_resource_level)
-                or self.initial_agent_resource_level < 0.0
-            ):
-                raise ValueError(
-                    "initial_agent_resource_level must be a finite, non-negative number when set."
-                )
-        if self.initial_resource_count is not None and self.initial_resource_count < 0:
-            raise ValueError("initial_resource_count must be non-negative when set.")
-        if self.resource_regen_rate is not None:
-            if (
-                not math.isfinite(self.resource_regen_rate)
-                or self.resource_regen_rate < 0.0
-                or self.resource_regen_rate > 1.0
-            ):
-                raise ValueError(
-                    "resource_regen_rate must be a finite value between 0.0 and 1.0 when set."
-                )
-        if self.resource_regen_amount is not None and self.resource_regen_amount < 0:
-            raise ValueError("resource_regen_amount must be non-negative when set.")
         if self.warmup_steps < 0:
             raise ValueError("warmup_steps must be non-negative.")
         if self.transient_window < 1:
@@ -568,15 +546,6 @@ class IntrinsicEvolutionExperiment:
         # ── Apply initial-conditions overrides ───────────────────────────────
         # Resolve the effective initial-condition settings by merging the
         # selected profile defaults with any explicit per-field overrides.
-        if self.config.initial_conditions.profile == "stable":
-            logger.info(
-                "intrinsic_evolution_initial_conditions_profile_applied",
-                profile="stable",
-                note=(
-                    "stable profile modifies startup resources; set profile='legacy' "
-                    "for parity with pre-profile behavior."
-                ),
-            )
         resolved_ic = self.config.initial_conditions.resolve()
         if resolved_ic.get("initial_agent_resource_level") is not None:
             run_config.agent_behavior.initial_resource_level = int(
