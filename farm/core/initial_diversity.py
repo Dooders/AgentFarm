@@ -347,11 +347,10 @@ class ChromosomeDiversitySource:
             accepted_vectors.append(_normalized_gene_vector(chosen))
             _apply_chromosome_to_agent(agent, chosen)
 
-            # Late-binding sanity note: if the user asked for a minimum distance
-            # but we accepted under fallback, surface the violation.
-            if collided and cfg.mode is SeedingMode.UNIQUE and not fell_back:
-                # Unreachable in practice because we only mark `collided=True`
-                # when we exhausted retries; left as defensive bookkeeping.
+            # In UNIQUE mode, if retries were exhausted and we accepted a
+            # fallback candidate that duplicates an existing signature,
+            # surface the violation for downstream auditing.
+            if collided and cfg.mode is SeedingMode.UNIQUE and fell_back:
                 metrics.notes.append(
                     f"agent={getattr(agent, 'agent_id', '?')} accepted duplicate signature."
                 )
