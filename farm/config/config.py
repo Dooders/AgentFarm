@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
-from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode
+from farm.core.initial_diversity import InitialDiversityConfig
 from farm.core.observations import ObservationConfig
 
 

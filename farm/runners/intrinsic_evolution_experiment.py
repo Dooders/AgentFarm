@@ -214,10 +214,17 @@ class IntrinsicEvolutionPolicy:
 
 @dataclass(frozen=True)
 class IntrinsicEvolutionExperimentConfig:
-    """Top-level config for the intrinsic evolution runner."""
+    """Top-level config for the intrinsic evolution runner.
+
+    ``install_default_initial_diversity`` keeps historical behavior by
+    installing the runner's independent-mutation defaults when the provided
+    base config still has ``initial_diversity.mode=none``. Set it to ``False``
+    to preserve an explicit ``none`` mode (monoculture start) unchanged.
+    """
 
     num_steps: int = 2000
     snapshot_interval: int = 100
+    install_default_initial_diversity: bool = True
     policy: IntrinsicEvolutionPolicy = field(default_factory=IntrinsicEvolutionPolicy)
     output_dir: Optional[str] = None
     seed: Optional[int] = None
@@ -265,6 +272,7 @@ class IntrinsicEvolutionExperiment:
         """Execute the configured number of steps and persist artifacts."""
         seed = self.config.seed if self.config.policy.seed is None else self.config.policy.seed
         rng = random.Random(seed)
+        run_config = self.base_config.copy()
 
         if self.config.output_dir:
             os.makedirs(self.config.output_dir, exist_ok=True)
@@ -282,8 +290,11 @@ class IntrinsicEvolutionExperiment:
         # happens inside run_simulation.  Boundary handling mirrors the
         # per-reproduction policy so seeded values respect the same invariants
         # the policy enforces during the loop.
-        if self.base_config.initial_diversity.mode is SeedingMode.NONE:
-            self.base_config.initial_diversity = InitialDiversityConfig(
+        if (
+            self.config.install_default_initial_diversity
+            and run_config.initial_diversity.mode is SeedingMode.NONE
+        ):
+            run_config.initial_diversity = InitialDiversityConfig(
                 mode=SeedingMode.INDEPENDENT_MUTATION,
                 mutation_rate=1.0,
                 mutation_scale=0.2,
@@ -422,7 +433,7 @@ class IntrinsicEvolutionExperiment:
         try:
             run_simulation(
                 num_steps=self.config.num_steps,
-                config=self.base_config,
+                config=run_config,
                 path=self.config.output_dir,
                 save_config=False,
                 seed=self.config.seed,
@@ -444,7 +455,11 @@ class IntrinsicEvolutionExperiment:
             final_population=latest_population,
             final_gene_statistics=latest_gene_statistics,
         )
-        self._persist(result, initial_diversity_metrics=latest_diversity_metrics)
+        self._persist(
+            result,
+            initial_diversity_config=run_config.initial_diversity,
+            initial_diversity_metrics=latest_diversity_metrics,
+        )
         logger.info(
             "intrinsic_evolution_completed",
             output_dir=self.config.output_dir,
@@ -457,6 +472,7 @@ class IntrinsicEvolutionExperiment:
         self,
         result: IntrinsicEvolutionResult,
         *,
+        initial_diversity_config: InitialDiversityConfig,
         initial_diversity_metrics: Optional[Any] = None,
     ) -> None:
         if not self.config.output_dir:
@@ -471,9 +487,7 @@ class IntrinsicEvolutionExperiment:
             "final_population": result.final_population,
             "final_gene_statistics": result.final_gene_statistics,
             "policy": _serialize_policy(self.config.policy),
-            "initial_diversity": (
-                self.base_config.initial_diversity.to_dict()
-            ),
+            "initial_diversity": initial_diversity_config.to_dict(),
             "initial_diversity_metrics": (
                 initial_diversity_metrics.to_dict()
                 if initial_diversity_metrics is not None

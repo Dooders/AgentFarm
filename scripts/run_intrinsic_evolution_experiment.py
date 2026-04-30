@@ -219,6 +219,9 @@ def _build_run(args: argparse.Namespace) -> IntrinsicEvolutionExperiment:
     config = IntrinsicEvolutionExperimentConfig(
         num_steps=args.num_steps,
         snapshot_interval=args.snapshot_interval,
+        install_default_initial_diversity=(
+            SeedingMode(args.initial_diversity_mode) is not SeedingMode.NONE
+        ),
         policy=policy,
         output_dir=args.output_dir,
         seed=args.seed,

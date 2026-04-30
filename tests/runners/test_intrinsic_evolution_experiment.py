@@ -140,16 +140,18 @@ class TestRunnerInitialDiversityIntegration(unittest.TestCase):
         base_config = SimulationConfig()
         self.assertIs(base_config.initial_diversity.mode, SeedingMode.NONE)
 
-        # Stub run_simulation so we only care about the side effect of mutating
-        # base_config.initial_diversity inside .run().
-        with patch("farm.runners.intrinsic_evolution_experiment.run_simulation"):
+        with patch("farm.runners.intrinsic_evolution_experiment.run_simulation") as run_mock:
             cfg = IntrinsicEvolutionExperimentConfig(num_steps=1, snapshot_interval=1, seed=99)
             IntrinsicEvolutionExperiment(base_config, cfg).run()
 
-        self.assertIs(base_config.initial_diversity.mode, SeedingMode.INDEPENDENT_MUTATION)
-        self.assertEqual(base_config.initial_diversity.mutation_rate, 1.0)
-        self.assertEqual(base_config.initial_diversity.mutation_scale, 0.2)
-        self.assertEqual(base_config.initial_diversity.seed, 99)
+        # Caller-owned config remains unchanged; runner operates on a per-run copy.
+        self.assertIs(base_config.initial_diversity.mode, SeedingMode.NONE)
+        passed_config = run_mock.call_args.kwargs["config"]
+        self.assertIsNot(passed_config, base_config)
+        self.assertIs(passed_config.initial_diversity.mode, SeedingMode.INDEPENDENT_MUTATION)
+        self.assertEqual(passed_config.initial_diversity.mutation_rate, 1.0)
+        self.assertEqual(passed_config.initial_diversity.mutation_scale, 0.2)
+        self.assertEqual(passed_config.initial_diversity.seed, 99)
 
     def test_runner_respects_caller_supplied_initial_diversity(self):
         custom = InitialDiversityConfig(
@@ -161,13 +163,30 @@ class TestRunnerInitialDiversityIntegration(unittest.TestCase):
         base_config = SimulationConfig()
         base_config.initial_diversity = custom
 
-        with patch("farm.runners.intrinsic_evolution_experiment.run_simulation"):
+        with patch("farm.runners.intrinsic_evolution_experiment.run_simulation") as run_mock:
             cfg = IntrinsicEvolutionExperimentConfig(num_steps=1, snapshot_interval=1, seed=42)
             IntrinsicEvolutionExperiment(base_config, cfg).run()
 
         # Should be left untouched because the caller already opted in.
         self.assertIs(base_config.initial_diversity, custom)
         self.assertIs(base_config.initial_diversity.mode, SeedingMode.UNIQUE)
+        self.assertEqual(run_mock.call_args.kwargs["config"].initial_diversity, custom)
+
+    def test_runner_can_preserve_explicit_none_when_default_install_disabled(self):
+        base_config = SimulationConfig()
+        self.assertIs(base_config.initial_diversity.mode, SeedingMode.NONE)
+
+        with patch("farm.runners.intrinsic_evolution_experiment.run_simulation") as run_mock:
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=1,
+                snapshot_interval=1,
+                seed=21,
+                install_default_initial_diversity=False,
+            )
+            IntrinsicEvolutionExperiment(base_config, cfg).run()
+
+        passed_config = run_mock.call_args.kwargs["config"]
+        self.assertIs(passed_config.initial_diversity.mode, SeedingMode.NONE)
 
 
 class TestRunnerOrchestration(unittest.TestCase):
