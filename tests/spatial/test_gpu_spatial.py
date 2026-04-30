@@ -33,14 +33,14 @@ def _make_positions(n: int, seed: int = 42, width: float = 100.0) -> np.ndarray:
     return rng.uniform(0, width, size=(n, 2))
 
 
-def _scipy_radius_query(positions, query_point, radius):
+def _numpy_radius_query(positions, query_point, radius):
     """Reference implementation using NumPy."""
     diffs = positions - np.asarray(query_point)
     dists = np.sqrt((diffs**2).sum(axis=1))
     return sorted(np.where(dists <= radius)[0].tolist())
 
 
-def _scipy_nearest_query(positions, query_point):
+def _numpy_nearest_query(positions, query_point):
     """Reference implementation using NumPy."""
     diffs = positions - np.asarray(query_point)
     dists = (diffs**2).sum(axis=1)
@@ -68,7 +68,7 @@ class TestSpatialGpuKernelsBasic(unittest.TestCase):
 
     def test_radius_query_matches_reference(self):
         got = sorted(self.kernels.radius_query(self.positions, self.query, self.radius))
-        expected = _scipy_radius_query(self.positions, self.query, self.radius)
+        expected = _numpy_radius_query(self.positions, self.query, self.radius)
         self.assertEqual(got, expected)
 
     def test_radius_query_empty_positions(self):
@@ -90,7 +90,7 @@ class TestSpatialGpuKernelsBasic(unittest.TestCase):
 
     def test_nearest_query_matches_reference(self):
         got = self.kernels.nearest_query(self.positions, self.query)
-        expected = _scipy_nearest_query(self.positions, self.query)
+        expected = _numpy_nearest_query(self.positions, self.query)
         self.assertEqual(got, expected)
 
     def test_nearest_query_empty_positions(self):
@@ -117,7 +117,7 @@ class TestSpatialGpuKernelsBasic(unittest.TestCase):
         qp = _make_positions(5, seed=99)
         batch = self.kernels.batch_radius_query(self.positions, qp, self.radius)
         for i, q in enumerate(qp):
-            expected = _scipy_radius_query(self.positions, q, self.radius)
+            expected = _numpy_radius_query(self.positions, q, self.radius)
             self.assertEqual(sorted(batch[i]), expected)
 
     def test_batch_radius_query_empty_positions(self):
@@ -144,7 +144,7 @@ class TestSpatialGpuKernelsBasic(unittest.TestCase):
         qp = _make_positions(6, seed=55)
         batch = self.kernels.batch_nearest_query(self.positions, qp)
         for i, q in enumerate(qp):
-            expected = _scipy_nearest_query(self.positions, q)
+            expected = _numpy_nearest_query(self.positions, q)
             self.assertEqual(int(batch[i]), expected)
 
     def test_batch_nearest_query_empty_positions(self):
@@ -209,13 +209,13 @@ class TestSpatialGpuKernelsGpu(unittest.TestCase):
     def test_gpu_radius_query_matches_numpy(self):
         qp = (50.0, 50.0)
         got = sorted(self.kernels.radius_query(self.positions, qp, self.radius))
-        expected = _scipy_radius_query(self.positions, qp, self.radius)
+        expected = _numpy_radius_query(self.positions, qp, self.radius)
         self.assertEqual(got, expected)
 
     def test_gpu_nearest_query_matches_numpy(self):
         qp = (50.0, 50.0)
         got = self.kernels.nearest_query(self.positions, qp)
-        expected = _scipy_nearest_query(self.positions, qp)
+        expected = _numpy_nearest_query(self.positions, qp)
         self.assertEqual(got, expected)
 
     def test_gpu_batch_matches_cpu(self):

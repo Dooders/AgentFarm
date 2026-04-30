@@ -262,6 +262,11 @@ class InitialConditionsConfig:
                 f"got {self.profile!r}."
             )
         if self.initial_agent_resource_level is not None:
+            if not isinstance(self.initial_agent_resource_level, int):
+                raise ValueError(
+                    "initial_agent_resource_level must be an integer when set; "
+                    f"got {type(self.initial_agent_resource_level).__name__}."
+                )
             if self.initial_agent_resource_level < 0:
                 raise ValueError(
                     "initial_agent_resource_level must be a non-negative integer when set."

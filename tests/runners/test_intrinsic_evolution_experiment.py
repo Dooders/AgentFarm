@@ -753,10 +753,10 @@ class TestInitialConditionsConfig(unittest.TestCase):
 
         cfg = InitialConditionsConfig(
             profile="stable",
-            initial_agent_resource_level=999.0,
+            initial_agent_resource_level=999,
         )
         resolved = cfg.resolve()
-        self.assertEqual(resolved["initial_agent_resource_level"], 999.0)
+        self.assertEqual(resolved["initial_agent_resource_level"], 999)
 
     def test_none_profile_with_all_none_overrides_gives_all_none(self):
         from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
@@ -868,7 +868,7 @@ class TestInitialConditionsAppliedToConfig(unittest.TestCase):
                 seed=2,
                 initial_conditions=InitialConditionsConfig(
                     profile="legacy",
-                    initial_agent_resource_level=42.0,
+                    initial_agent_resource_level=42,
                 ),
             )
             IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()

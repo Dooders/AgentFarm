@@ -1107,7 +1107,7 @@ class SpatialIndex:
         """GPU-accelerated batch radius query for multiple query positions.
 
         Computes, in a single vectorised operation, which entities lie within
-        *radius* of **every** position in *query_positions*.  This is far more
+        *radius* for each position in *query_positions*.  This is far more
         efficient than calling :meth:`get_nearby` in a loop when there are many
         query positions because the full ``(M, N)`` distance matrix is computed
         on the GPU (or vectorised CPU) in one shot.

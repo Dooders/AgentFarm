@@ -365,7 +365,7 @@ enums serialized to plain strings so it round-trips cleanly, and a
   "initial_conditions": {
     "profile": "stable",
     "resolved": {
-      "initial_agent_resource_level": 20.0,
+      "initial_agent_resource_level": 20,
       "initial_resource_count": 30,
       "resource_regen_rate": 0.15,
       "resource_regen_amount": 3
@@ -378,7 +378,7 @@ enums serialized to plain strings so it round-trips cleanly, and a
     "transient_window": 50
   },
   "resolved_initial_conditions": {
-    "initial_agent_resource_level": 20.0,
+    "initial_agent_resource_level": 20,
     "initial_resource_count": 30,
     "resource_regen_rate": 0.15,
     "resource_regen_amount": 3,

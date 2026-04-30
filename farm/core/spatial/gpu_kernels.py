@@ -252,8 +252,8 @@ class SpatialGpuKernels:
         if n_entities == 0 or m_queries == 0:
             return [[] for _ in range(m_queries)]
 
-        # ------ GPU / torch path ------
-        if _TORCH_AVAILABLE and self._device is not None:
+        # ------ GPU / torch path (only for large entity counts) ------
+        if _TORCH_AVAILABLE and self._device is not None and n_entities >= self.gpu_threshold:
             pos_t = torch.as_tensor(positions, dtype=torch.float64, device=self._device)
             qpt_t = torch.as_tensor(query_points, dtype=torch.float64, device=self._device)
             # torch.cdist: (M, N) pairwise L2 distances
@@ -265,7 +265,7 @@ class SpatialGpuKernels:
                 for i in range(m_queries)
             ]
 
-        # ------ NumPy CPU fallback ------
+        # ------ NumPy CPU fallback (also used when n_entities < gpu_threshold) ------
         dists = _np_pairwise_distances(positions, query_points)  # (M, N)
         mask = dists <= radius
         return [list(np.where(mask[i])[0]) for i in range(m_queries)]
@@ -302,15 +302,15 @@ class SpatialGpuKernels:
         if m_queries == 0:
             return np.empty(0, dtype=np.int64)
 
-        # ------ GPU / torch path ------
-        if _TORCH_AVAILABLE and self._device is not None:
+        # ------ GPU / torch path (only for large entity counts) ------
+        if _TORCH_AVAILABLE and self._device is not None and n_entities >= self.gpu_threshold:
             pos_t = torch.as_tensor(positions, dtype=torch.float64, device=self._device)
             qpt_t = torch.as_tensor(query_points, dtype=torch.float64, device=self._device)
             dist_t = torch.cdist(qpt_t, pos_t)   # (M, N)
             idx_t = dist_t.argmin(dim=1)          # (M,)
             return idx_t.cpu().numpy().astype(np.int64)
 
-        # ------ NumPy CPU fallback ------
+        # ------ NumPy CPU fallback (also used when n_entities < gpu_threshold) ------
         dists = _np_pairwise_distances(positions, query_points)  # (M, N)
         return dists.argmin(axis=1).astype(np.int64)
 
