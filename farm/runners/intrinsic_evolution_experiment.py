@@ -579,7 +579,7 @@ class IntrinsicEvolutionExperiment:
             )
         resolved_ic = self.config.initial_conditions.resolve()
         if resolved_ic.get("initial_agent_resource_level") is not None:
-            run_config.agent_behavior.initial_resource_level = int(
+            run_config.agent_behavior.initial_resource_level = round(
                 resolved_ic["initial_agent_resource_level"]
             )
         if resolved_ic.get("initial_resource_count") is not None:
