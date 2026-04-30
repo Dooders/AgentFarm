@@ -26,9 +26,11 @@ from farm.core.hyperparameter_chromosome import (
     CrossoverMode,
     HyperparameterChromosome,
     MutationMode,
-    apply_chromosome_to_learning_config,
     compute_gene_statistics,
-    mutate_chromosome,
+)
+from farm.core.initial_diversity import (
+    InitialDiversityConfig,
+    SeedingMode,
 )
 from farm.core.simulation import run_simulation
 from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
@@ -127,12 +129,6 @@ class IntrinsicEvolutionPolicy:
 
     Attributes:
         enabled: Master switch for in-situ chromosome inheritance.
-        seed_initial_diversity: When ``True``, the runner mutates every
-            initial agent's chromosome once before the loop starts so the
-            starting population is not a monoculture.
-        seed_mutation_rate / seed_mutation_scale: Mutation knobs used **only**
-            for the initial diversity seed.  Defaults are intentionally larger
-            than per-reproduction values to spread the starting population.
         mutation_rate / mutation_scale / mutation_mode: Per-reproduction
             mutation parameters threaded through to
             :func:`mutate_chromosome`.
@@ -171,9 +167,6 @@ class IntrinsicEvolutionPolicy:
     """
 
     enabled: bool = True
-    seed_initial_diversity: bool = True
-    seed_mutation_rate: float = 1.0
-    seed_mutation_scale: float = 0.2
     mutation_rate: float = 0.1
     mutation_scale: float = 0.1
     mutation_mode: MutationMode = MutationMode.GAUSSIAN
@@ -197,10 +190,6 @@ class IntrinsicEvolutionPolicy:
             raise ValueError("mutation_rate must be between 0 and 1.")
         if self.mutation_scale < 0.0:
             raise ValueError("mutation_scale must be non-negative.")
-        if not 0.0 <= self.seed_mutation_rate <= 1.0:
-            raise ValueError("seed_mutation_rate must be between 0 and 1.")
-        if self.seed_mutation_scale < 0.0:
-            raise ValueError("seed_mutation_scale must be non-negative.")
         if self.interior_bias_fraction < 0.0:
             raise ValueError("interior_bias_fraction must be non-negative.")
         if self.blend_alpha < 0.0:
@@ -254,54 +243,6 @@ class IntrinsicEvolutionResult:
     final_gene_statistics: Dict[str, Dict[str, float]]
 
 
-def seed_population_diversity(
-    environment: Any,
-    policy: IntrinsicEvolutionPolicy,
-    rng: random.Random,
-) -> None:
-    """Mutate each initial agent's chromosome to spread the starting population.
-
-    When ``policy.seed_initial_diversity`` is ``False`` this is a no-op.
-    Both the agent's ``hyperparameter_chromosome`` attribute and its
-    ``config.decision`` are updated so subsequent decision-module construction
-    sees the seeded values.  If the agent already has a ``LearningAgentBehavior``
-    with a ``DecisionModule`` (i.e., the module was constructed before seeding),
-    the module's config is updated and its algorithm is reinitialized so that
-    optimizer hyper-parameters (LR, gamma, …) reflect the seeded chromosome.
-    """
-    if not policy.seed_initial_diversity:
-        return
-
-    for agent in list(environment.agent_objects):
-        chromosome = getattr(agent, "hyperparameter_chromosome", None)
-        if chromosome is None:
-            continue
-        mutated = mutate_chromosome(
-            chromosome,
-            mutation_rate=policy.seed_mutation_rate,
-            mutation_scale=policy.seed_mutation_scale,
-            mutation_mode=policy.mutation_mode,
-            boundary_mode=policy.boundary_mode,
-            interior_bias_fraction=policy.interior_bias_fraction,
-            rng=rng,
-        )
-        agent.hyperparameter_chromosome = mutated
-        new_decision_config = apply_chromosome_to_learning_config(
-            agent.config.decision, mutated
-        )
-        agent.config.decision = new_decision_config
-
-        # If a decision module was already constructed (common when
-        # on_environment_ready fires after create_initial_agents), update its
-        # config and reinitialize the algorithm so the optimizer reflects the
-        # seeded hyperparameters rather than the pre-seed defaults.
-        behavior = getattr(agent, "behavior", None)
-        decision_module = getattr(behavior, "decision_module", None)
-        reinitialize = getattr(decision_module, "reinitialize_algorithm", None)
-        if callable(reinitialize):
-            reinitialize(new_decision_config)
-
-
 class IntrinsicEvolutionExperiment:
     """Run a single simulation in which agents carry inheritable chromosomes."""
 
@@ -334,9 +275,28 @@ class IntrinsicEvolutionExperiment:
         )
 
         policy = self.config.policy
+
+        # The intrinsic-evolution runner relies on a non-monoculture starting
+        # population.  When the caller has not customized the platform-wide
+        # initial-diversity config, install the runner's defaults so seeding
+        # happens inside run_simulation.  Boundary handling mirrors the
+        # per-reproduction policy so seeded values respect the same invariants
+        # the policy enforces during the loop.
+        if self.base_config.initial_diversity.mode is SeedingMode.NONE:
+            self.base_config.initial_diversity = InitialDiversityConfig(
+                mode=SeedingMode.INDEPENDENT_MUTATION,
+                mutation_rate=1.0,
+                mutation_scale=0.2,
+                mutation_mode=policy.mutation_mode,
+                boundary_mode=policy.boundary_mode,
+                interior_bias_fraction=policy.interior_bias_fraction,
+                seed=seed,
+            )
+
         latest_step = 0
         latest_population = 0
         latest_gene_statistics: Dict[str, Dict[str, float]] = {}
+        latest_diversity_metrics: Optional[Any] = None
 
         # Track agent IDs from the previous step to compute birth/death rates.
         prev_agent_ids: set = set()
@@ -435,10 +395,15 @@ class IntrinsicEvolutionExperiment:
             }
 
         def _on_environment_ready(environment: Any) -> None:
-            nonlocal prev_agent_ids
+            nonlocal prev_agent_ids, latest_diversity_metrics
             environment.intrinsic_evolution_policy = policy
             environment.intrinsic_evolution_rng = rng
-            seed_population_diversity(environment, policy, rng)
+            # Initial diversity seeding now happens inside run_simulation
+            # before this hook fires; capture the metrics so they can be
+            # included in the persisted experiment metadata.
+            latest_diversity_metrics = getattr(
+                environment, "initial_diversity_metrics", None
+            )
             # At step 0 there is no previous step, so birth/death rates are 0.
             alive_agents = list(environment.alive_agent_objects)
             prev_agent_ids = {_agent_telemetry_key(a) for a in alive_agents}
@@ -479,7 +444,7 @@ class IntrinsicEvolutionExperiment:
             final_population=latest_population,
             final_gene_statistics=latest_gene_statistics,
         )
-        self._persist(result)
+        self._persist(result, initial_diversity_metrics=latest_diversity_metrics)
         logger.info(
             "intrinsic_evolution_completed",
             output_dir=self.config.output_dir,
@@ -488,7 +453,12 @@ class IntrinsicEvolutionExperiment:
         )
         return result
 
-    def _persist(self, result: IntrinsicEvolutionResult) -> None:
+    def _persist(
+        self,
+        result: IntrinsicEvolutionResult,
+        *,
+        initial_diversity_metrics: Optional[Any] = None,
+    ) -> None:
         if not self.config.output_dir:
             return
         metadata_path = os.path.join(
@@ -501,6 +471,14 @@ class IntrinsicEvolutionExperiment:
             "final_population": result.final_population,
             "final_gene_statistics": result.final_gene_statistics,
             "policy": _serialize_policy(self.config.policy),
+            "initial_diversity": (
+                self.base_config.initial_diversity.to_dict()
+            ),
+            "initial_diversity_metrics": (
+                initial_diversity_metrics.to_dict()
+                if initial_diversity_metrics is not None
+                else None
+            ),
             "speciation": dict(self._last_speciation_config),
             "seed": self.config.seed,
         }

@@ -46,6 +46,12 @@ from tqdm import tqdm
 from farm.config import SimulationConfig
 from farm.core.agent import AgentFactory, AgentServices
 from farm.core.environment import Environment
+from farm.core.initial_diversity import (
+    SeedingMode,
+    apply_initial_diversity,
+    emit_initial_diversity_event,
+    persist_initial_diversity_metrics,
+)
 from farm.utils.identity import Identity
 from farm.utils.logging import configure_logging, get_logger, log_simulation, log_step
 
@@ -474,11 +480,24 @@ def run_simulation(
             config.population.chaos_agents,
         )
 
-        # Allow callers to attach per-environment policy / state, seed
-        # population diversity, etc., after agents exist but before the
-        # initial DB flush.  Mutations made here (e.g., chromosome seeding)
-        # will therefore be captured by the flush below and keep in-memory
-        # state in sync with persisted records.
+        # Apply platform-wide initial genotype diversity (off by default; opt
+        # in via config.initial_diversity).  Runs before any caller-supplied
+        # on_environment_ready hook so downstream policy attachment / step-0
+        # snapshots observe the seeded chromosomes.
+        diversity_cfg = config.initial_diversity
+        seeding_seed = diversity_cfg.seed if diversity_cfg.seed is not None else seed
+        seeding_rng = random.Random(seeding_seed)
+        diversity_metrics = apply_initial_diversity(environment, diversity_cfg, seeding_rng)
+        environment.initial_diversity_metrics = diversity_metrics
+        if diversity_cfg.mode is not SeedingMode.NONE:
+            emit_initial_diversity_event(diversity_metrics)
+            if path is not None:
+                persist_initial_diversity_metrics(path, diversity_metrics)
+
+        # Allow callers to attach per-environment policy / state, etc., after
+        # agents exist (and after diversity seeding) but before the initial
+        # DB flush.  Mutations made here will therefore be captured by the
+        # flush below and keep in-memory state in sync with persisted records.
         if on_environment_ready is not None:
             on_environment_ready(environment)
 

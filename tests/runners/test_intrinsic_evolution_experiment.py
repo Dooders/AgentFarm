@@ -1,8 +1,9 @@
 """Tests for the intrinsic evolution runner.
 
 The runner drives a single simulation and patches `run_simulation` so we can
-exercise the orchestration (policy attachment, seed diversity, per-step
-logger snapshots, artifact persistence) without the cost of a full sim.
+exercise the orchestration (policy attachment, default initial-diversity
+config installation, per-step logger snapshots, artifact persistence) without
+the cost of a full sim.
 """
 
 from __future__ import annotations
@@ -22,12 +23,16 @@ from farm.core.hyperparameter_chromosome import (
     MutationMode,
     chromosome_from_learning_config,
 )
+from farm.core.initial_diversity import (
+    InitialDiversityConfig,
+    InitialDiversityMetrics,
+    SeedingMode,
+)
 from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger as RealGeneTrajectoryLogger
 from farm.runners.intrinsic_evolution_experiment import (
     IntrinsicEvolutionExperiment,
     IntrinsicEvolutionExperimentConfig,
     IntrinsicEvolutionPolicy,
-    seed_population_diversity,
 )
 
 
@@ -124,86 +129,45 @@ class TestIntrinsicEvolutionExperimentConfig(unittest.TestCase):
             IntrinsicEvolutionExperimentConfig(snapshot_interval=0)
 
 
-class TestSeedPopulationDiversity(unittest.TestCase):
-    def test_no_op_when_disabled(self):
-        agents = [_make_fake_agent(0.01) for _ in range(3)]
-        env = _FakeEnvironment(agents)
-        original_lrs = [a.hyperparameter_chromosome.get_value("learning_rate") for a in agents]
-        policy = IntrinsicEvolutionPolicy(seed_initial_diversity=False)
-        seed_population_diversity(env, policy, random.Random(0))
-        new_lrs = [a.hyperparameter_chromosome.get_value("learning_rate") for a in agents]
-        self.assertEqual(original_lrs, new_lrs)
+class TestRunnerInitialDiversityIntegration(unittest.TestCase):
+    """The runner must install its own initial-diversity defaults when the
+    base config has not opted in, so the starting population is not a
+    monoculture by default.  Detailed behavioral tests for the seeding
+    primitive itself live in tests/core/test_initial_diversity.py.
+    """
 
-    def test_seeds_each_agent_with_distinct_chromosome(self):
-        agents = [_make_fake_agent(0.01) for _ in range(5)]
-        env = _FakeEnvironment(agents)
-        policy = IntrinsicEvolutionPolicy(
-            seed_initial_diversity=True,
-            seed_mutation_rate=1.0,
-            seed_mutation_scale=0.3,
+    def test_runner_installs_independent_mutation_default_when_unset(self):
+        base_config = SimulationConfig()
+        self.assertIs(base_config.initial_diversity.mode, SeedingMode.NONE)
+
+        # Stub run_simulation so we only care about the side effect of mutating
+        # base_config.initial_diversity inside .run().
+        with patch("farm.runners.intrinsic_evolution_experiment.run_simulation"):
+            cfg = IntrinsicEvolutionExperimentConfig(num_steps=1, snapshot_interval=1, seed=99)
+            IntrinsicEvolutionExperiment(base_config, cfg).run()
+
+        self.assertIs(base_config.initial_diversity.mode, SeedingMode.INDEPENDENT_MUTATION)
+        self.assertEqual(base_config.initial_diversity.mutation_rate, 1.0)
+        self.assertEqual(base_config.initial_diversity.mutation_scale, 0.2)
+        self.assertEqual(base_config.initial_diversity.seed, 99)
+
+    def test_runner_respects_caller_supplied_initial_diversity(self):
+        custom = InitialDiversityConfig(
+            mode=SeedingMode.UNIQUE,
+            mutation_rate=0.5,
+            mutation_scale=0.05,
+            seed=777,
         )
-        seed_population_diversity(env, policy, random.Random(0))
-        new_lrs = [a.hyperparameter_chromosome.get_value("learning_rate") for a in agents]
-        # With mutation_rate=1.0 and a non-zero scale, at least one value should differ.
-        self.assertTrue(any(lr != 0.01 for lr in new_lrs))
-        # Decision config is updated alongside the chromosome.
-        for agent, lr in zip(agents, new_lrs):
-            self.assertEqual(agent.config.decision.learning_rate, lr)
+        base_config = SimulationConfig()
+        base_config.initial_diversity = custom
 
-    def test_reinitializes_decision_module_when_behavior_present(self):
-        """DecisionModule config and algorithm are updated when already constructed."""
-        from unittest.mock import MagicMock
+        with patch("farm.runners.intrinsic_evolution_experiment.run_simulation"):
+            cfg = IntrinsicEvolutionExperimentConfig(num_steps=1, snapshot_interval=1, seed=42)
+            IntrinsicEvolutionExperiment(base_config, cfg).run()
 
-        from farm.core.agent.behaviors.learning import LearningAgentBehavior
-
-        dm = MagicMock()
-        behavior = LearningAgentBehavior(dm)
-        config = SimpleNamespace(decision=SimpleNamespace(learning_rate=0.01))
-        chromosome = chromosome_from_learning_config(config.decision)
-        agent = SimpleNamespace(
-            agent_id="dm_agent",
-            agent_type="system",
-            alive=True,
-            config=config,
-            hyperparameter_chromosome=chromosome,
-            behavior=behavior,
-        )
-        env = _FakeEnvironment([agent])
-        policy = IntrinsicEvolutionPolicy(
-            seed_initial_diversity=True,
-            seed_mutation_rate=1.0,
-            seed_mutation_scale=0.5,
-        )
-        seed_population_diversity(env, policy, random.Random(42))
-
-        # DecisionModule must be reinitialized via the public reinitialize_algorithm method.
-        dm.reinitialize_algorithm.assert_called_once_with(agent.config.decision)
-
-    def test_reinitializes_any_behavior_with_compatible_decision_module(self):
-        """Reinitialization is capability-based, not tied to one behavior class."""
-        from unittest.mock import MagicMock
-
-        dm = MagicMock()
-        behavior = SimpleNamespace(decision_module=dm)
-        config = SimpleNamespace(decision=SimpleNamespace(learning_rate=0.01))
-        chromosome = chromosome_from_learning_config(config.decision)
-        agent = SimpleNamespace(
-            agent_id="generic_behavior_agent",
-            agent_type="system",
-            alive=True,
-            config=config,
-            hyperparameter_chromosome=chromosome,
-            behavior=behavior,
-        )
-        env = _FakeEnvironment([agent])
-        policy = IntrinsicEvolutionPolicy(
-            seed_initial_diversity=True,
-            seed_mutation_rate=1.0,
-            seed_mutation_scale=0.5,
-        )
-        seed_population_diversity(env, policy, random.Random(42))
-
-        dm.reinitialize_algorithm.assert_called_once_with(agent.config.decision)
+        # Should be left untouched because the caller already opted in.
+        self.assertIs(base_config.initial_diversity, custom)
+        self.assertIs(base_config.initial_diversity.mode, SeedingMode.UNIQUE)
 
 
 class TestRunnerOrchestration(unittest.TestCase):
@@ -215,6 +179,14 @@ class TestRunnerOrchestration(unittest.TestCase):
         def _side_effect(*args, **kwargs):
             on_environment_ready = kwargs.get("on_environment_ready")
             on_step_end = kwargs.get("on_step_end")
+            # Real run_simulation attaches initial_diversity_metrics to the env
+            # before invoking the hook; mimic that contract for the runner's
+            # _on_environment_ready capture path.
+            env.initial_diversity_metrics = InitialDiversityMetrics(
+                mode=SeedingMode.INDEPENDENT_MUTATION,
+                agents_processed=num_agents,
+                unique_count=num_agents,
+            )
             if on_environment_ready is not None:
                 on_environment_ready(env)
             for step in range(num_steps):
@@ -297,6 +269,14 @@ class TestRunnerOrchestration(unittest.TestCase):
             self.assertEqual(metadata["speciation"]["scaler"], "none")
             # Enums in the policy must serialize to plain string values.
             self.assertEqual(metadata["policy"]["mutation_mode"], "gaussian")
+            # Initial-diversity defaults installed by the runner are
+            # surfaced in the metadata for reproducibility.
+            self.assertIn("initial_diversity", metadata)
+            self.assertEqual(metadata["initial_diversity"]["mode"], "independent_mutation")
+            self.assertIn("initial_diversity_metrics", metadata)
+            self.assertEqual(
+                metadata["initial_diversity_metrics"]["mode"], "independent_mutation"
+            )
 
     def test_runner_persists_speciation_settings_when_logger_enables_it(self):
         side_effect, _env = self._stub_run_simulation(num_agents=2, num_steps=2)

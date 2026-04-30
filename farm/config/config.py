@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode
 from farm.core.observations import ObservationConfig
 
 
@@ -851,6 +852,10 @@ class SimulationConfig:
     observation: Optional[ObservationConfig] = None
     redis: RedisMemoryConfig = field(default_factory=RedisMemoryConfig)
 
+    # Platform-wide initial genotype diversity (off by default; opt in per
+    # simulation or via the intrinsic-evolution runner's defaults).
+    initial_diversity: InitialDiversityConfig = field(default_factory=InitialDiversityConfig)
+
     # Analysis configurations
     spatial_analysis: SpatialAnalysisConfig = field(default_factory=SpatialAnalysisConfig)
     genesis_analysis: GenesisAnalysisConfig = field(default_factory=GenesisAnalysisConfig)
@@ -879,6 +884,8 @@ class SimulationConfig:
                 config_dict[key] = self.visualization.to_dict()
             elif key == "redis":
                 config_dict[key] = self.redis.to_dict()
+            elif key == "initial_diversity":
+                config_dict[key] = self.initial_diversity.to_dict()
             elif key == "analysis_global":
                 config_dict[key] = self.analysis_global.to_dict()
             elif key in [
@@ -957,6 +964,16 @@ class SimulationConfig:
             nested_data["redis"] = redis_data
         else:
             nested_data["redis"] = RedisMemoryConfig(**redis_data)
+
+        # Handle initial_diversity config specially (frozen dataclass with
+        # enum-typed fields that the constructor coerces from strings).
+        diversity_data = nested_data.pop("initial_diversity", None)
+        if isinstance(diversity_data, InitialDiversityConfig):
+            nested_data["initial_diversity"] = diversity_data
+        elif diversity_data is None:
+            nested_data["initial_diversity"] = InitialDiversityConfig()
+        else:
+            nested_data["initial_diversity"] = InitialDiversityConfig(**diversity_data)
 
         # Handle analysis configs specially
         analysis_configs = {
