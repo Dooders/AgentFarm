@@ -658,5 +658,764 @@ class TestTrajectoryTelemetryFields(unittest.TestCase):
             self.assertAlmostEqual(record["realized_death_rate"], 0.0)
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# InitialConditionsConfig tests
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestInitialConditionsConfig(unittest.TestCase):
+    """Unit tests for InitialConditionsConfig validation and resolve()."""
+
+    def test_default_profile_is_stable(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        cfg = InitialConditionsConfig()
+        self.assertEqual(cfg.profile, "stable")
+
+    def test_valid_profiles_accepted(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        for profile in ("stable", "stress", "exploratory", "legacy"):
+            with self.subTest(profile=profile):
+                cfg = InitialConditionsConfig(profile=profile)
+                self.assertEqual(cfg.profile, profile)
+
+    def test_none_profile_accepted(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        cfg = InitialConditionsConfig(profile=None)
+        self.assertIsNone(cfg.profile)
+
+    def test_unknown_profile_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(profile="nonexistent")
+
+    def test_negative_warmup_steps_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(warmup_steps=-1)
+
+    def test_zero_transient_window_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(transient_window=0)
+
+    def test_negative_initial_agent_resource_level_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(initial_agent_resource_level=-1.0)
+
+    def test_negative_initial_resource_count_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(initial_resource_count=-1)
+
+    def test_out_of_range_resource_regen_rate_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(resource_regen_rate=1.1)
+
+    def test_negative_resource_regen_amount_raises(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        with self.assertRaises(ValueError):
+            InitialConditionsConfig(resource_regen_amount=-1)
+
+    def test_stable_profile_resolve_returns_higher_resources(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        stable = InitialConditionsConfig(profile="stable").resolve()
+        legacy = InitialConditionsConfig(profile="legacy").resolve()
+
+        # stable must give agents more resources than legacy (which has None → no override)
+        self.assertIsNotNone(stable["initial_agent_resource_level"])
+        self.assertIsNone(legacy["initial_agent_resource_level"])
+
+    def test_stable_resource_level_greater_than_stress(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        stable = InitialConditionsConfig(profile="stable").resolve()
+        stress = InitialConditionsConfig(profile="stress").resolve()
+        self.assertGreater(
+            stable["initial_agent_resource_level"],
+            stress["initial_agent_resource_level"],
+        )
+
+    def test_manual_override_wins_over_preset(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        cfg = InitialConditionsConfig(
+            profile="stable",
+            initial_agent_resource_level=999.0,
+        )
+        resolved = cfg.resolve()
+        self.assertEqual(resolved["initial_agent_resource_level"], 999.0)
+
+    def test_none_profile_with_all_none_overrides_gives_all_none(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        cfg = InitialConditionsConfig(profile=None)
+        resolved = cfg.resolve()
+        self.assertIsNone(resolved["initial_agent_resource_level"])
+        self.assertIsNone(resolved["initial_resource_count"])
+        self.assertIsNone(resolved["resource_regen_rate"])
+        self.assertIsNone(resolved["resource_regen_amount"])
+
+    def test_resolve_always_includes_warmup_and_window_keys(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        cfg = InitialConditionsConfig(warmup_steps=5, transient_window=20)
+        resolved = cfg.resolve()
+        self.assertEqual(resolved["warmup_steps"], 5)
+        self.assertEqual(resolved["transient_window"], 20)
+
+    def test_to_dict_round_trips_profile(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        cfg = InitialConditionsConfig(profile="stress", warmup_steps=3)
+        d = cfg.to_dict()
+        self.assertEqual(d["profile"], "stress")
+        self.assertEqual(d["warmup_steps"], 3)
+        self.assertIn("resolved", d)
+
+
+class TestInitialConditionsAppliedToConfig(unittest.TestCase):
+    """The runner must apply resolved initial-condition overrides to run_config."""
+
+    def _run_with_profile(self, profile: str):
+        """Run with the given profile and return the config passed to run_simulation."""
+        with patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation"
+        ) as run_mock:
+            from farm.runners.intrinsic_evolution_experiment import (
+                InitialConditionsConfig,
+                IntrinsicEvolutionExperiment,
+                IntrinsicEvolutionExperimentConfig,
+            )
+
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=1,
+                snapshot_interval=1,
+                seed=7,
+                initial_conditions=InitialConditionsConfig(profile=profile),
+            )
+            base_config = SimulationConfig()
+            IntrinsicEvolutionExperiment(base_config, cfg).run()
+
+        return run_mock.call_args.kwargs["config"]
+
+    def test_stable_profile_overrides_agent_resource_level(self):
+        """stable profile must set a non-zero initial_resource_level on run config."""
+        run_config = self._run_with_profile("stable")
+        # stable preset sets initial_agent_resource_level=20.0
+        self.assertEqual(run_config.agent_behavior.initial_resource_level, 20)
+
+    def test_stable_profile_overrides_resource_count(self):
+        run_config = self._run_with_profile("stable")
+        # stable preset sets initial_resource_count=30
+        self.assertEqual(run_config.resources.initial_resources, 30)
+
+    def test_stable_profile_overrides_regen_rate(self):
+        run_config = self._run_with_profile("stable")
+        self.assertAlmostEqual(run_config.resources.resource_regen_rate, 0.15)
+
+    def test_legacy_profile_does_not_modify_agent_resource_level(self):
+        """legacy profile has None overrides → base config values unchanged."""
+        base = SimulationConfig()
+        original_level = base.agent_behavior.initial_resource_level
+
+        with patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation"
+        ) as run_mock:
+            from farm.runners.intrinsic_evolution_experiment import (
+                InitialConditionsConfig,
+                IntrinsicEvolutionExperiment,
+                IntrinsicEvolutionExperimentConfig,
+            )
+
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=1,
+                snapshot_interval=1,
+                seed=3,
+                initial_conditions=InitialConditionsConfig(profile="legacy"),
+            )
+            IntrinsicEvolutionExperiment(base, cfg).run()
+
+        passed_config = run_mock.call_args.kwargs["config"]
+        self.assertEqual(passed_config.agent_behavior.initial_resource_level, original_level)
+
+    def test_manual_override_applied_regardless_of_profile(self):
+        """An explicit override wins over any profile."""
+        with patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation"
+        ) as run_mock:
+            from farm.runners.intrinsic_evolution_experiment import (
+                InitialConditionsConfig,
+                IntrinsicEvolutionExperiment,
+                IntrinsicEvolutionExperimentConfig,
+            )
+
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=1,
+                snapshot_interval=1,
+                seed=2,
+                initial_conditions=InitialConditionsConfig(
+                    profile="legacy",
+                    initial_agent_resource_level=42.0,
+                ),
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+        passed_config = run_mock.call_args.kwargs["config"]
+        self.assertEqual(passed_config.agent_behavior.initial_resource_level, 42)
+
+    def test_caller_base_config_not_modified(self):
+        """The runner must operate on a copy; the caller's config must remain unchanged."""
+        from farm.runners.intrinsic_evolution_experiment import (
+            InitialConditionsConfig,
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        base = SimulationConfig()
+        original_level = base.agent_behavior.initial_resource_level
+
+        with patch("farm.runners.intrinsic_evolution_experiment.run_simulation"):
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=1,
+                snapshot_interval=1,
+                seed=5,
+                initial_conditions=InitialConditionsConfig(profile="stable"),
+            )
+            IntrinsicEvolutionExperiment(base, cfg).run()
+
+        self.assertEqual(base.agent_behavior.initial_resource_level, original_level)
+
+
+class TestStartupTransientMetrics(unittest.TestCase):
+    """Tests for the startup-transient metrics computation and result field."""
+
+    def _make_run_with_population_change(self, initial_agents: int, step_deaths: int):
+        """Simulate a run where `step_deaths` agents die on step 1."""
+        agents = [_make_fake_agent(0.01) for _ in range(initial_agents)]
+        env = _FakeEnvironment(agents)
+
+        def _side_effect(*args, **kwargs):
+            on_environment_ready = kwargs.get("on_environment_ready")
+            on_step_end = kwargs.get("on_step_end")
+            if on_environment_ready is not None:
+                on_environment_ready(env)
+            # Kill some agents on step 0 → appears as deaths on step 1
+            for i in range(step_deaths):
+                env._agents[i].alive = False
+            env.time = 1
+            if on_step_end is not None:
+                on_step_end(env, 0)
+            env.time = 2
+            return env
+
+        return _side_effect, env
+
+    def test_startup_transient_metrics_in_result(self):
+        from farm.runners.intrinsic_evolution_experiment import (
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        side_effect, _ = self._make_run_with_population_change(
+            initial_agents=4, step_deaths=2
+        )
+        with patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(num_steps=1, snapshot_interval=1, seed=1)
+            result = IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+        self.assertIn("peak_death_rate", result.startup_transient_metrics)
+        self.assertIn("peak_birth_rate", result.startup_transient_metrics)
+        self.assertIn("oscillation_amplitude", result.startup_transient_metrics)
+        self.assertIn("n_steps_observed", result.startup_transient_metrics)
+        self.assertIn("transient_window", result.startup_transient_metrics)
+
+    def test_nonzero_death_rate_recorded(self):
+        from farm.runners.intrinsic_evolution_experiment import (
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        side_effect, _ = self._make_run_with_population_change(
+            initial_agents=4, step_deaths=2
+        )
+        with patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(num_steps=1, snapshot_interval=1, seed=1)
+            result = IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+        # 2 deaths out of 4 initial agents → rate = 0.5
+        self.assertAlmostEqual(
+            result.startup_transient_metrics["peak_death_rate"], 0.5, places=6
+        )
+
+    def test_transient_window_respected(self):
+        """Steps beyond transient_window are not counted in the metric."""
+        from farm.runners.intrinsic_evolution_experiment import (
+            InitialConditionsConfig,
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        agents = [_make_fake_agent(0.01) for _ in range(3)]
+        env = _FakeEnvironment(agents)
+
+        def _side_effect(*args, **kwargs):
+            on_environment_ready = kwargs.get("on_environment_ready")
+            on_step_end = kwargs.get("on_step_end")
+            if on_environment_ready is not None:
+                on_environment_ready(env)
+            for step in range(5):
+                env.time = step + 1
+                if on_step_end is not None:
+                    on_step_end(env, step)
+            env.time = 6
+            return env
+
+        with patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=_side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=5,
+                snapshot_interval=1,
+                seed=42,
+                initial_conditions=InitialConditionsConfig(transient_window=2),
+            )
+            result = IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+        # Only 2 steps recorded in transient window.
+        self.assertEqual(result.startup_transient_metrics["n_steps_observed"], 2)
+        self.assertEqual(result.startup_transient_metrics["transient_window"], 2)
+
+    def test_empty_input_series_give_zero_transient_metrics(self):
+        """Empty inputs to _compute_startup_transient_metrics produce zeroed metrics."""
+        from farm.runners.intrinsic_evolution_experiment import (
+            _compute_startup_transient_metrics,
+        )
+
+        metrics = _compute_startup_transient_metrics([], [], [], transient_window=50)
+        self.assertEqual(metrics["peak_birth_rate"], 0.0)
+        self.assertEqual(metrics["peak_death_rate"], 0.0)
+        self.assertEqual(metrics["oscillation_amplitude"], 0)
+        self.assertEqual(metrics["n_steps_observed"], 0)
+        self.assertEqual(metrics["transient_window"], 50)
+
+    def _make_seeded_benchmark_side_effect(self):
+        """Deterministic startup benchmark model keyed by seed + run config.
+
+        This is a lightweight stand-in for an early-steps ecology where higher
+        startup resources reduce initial mortality and therefore the boom-bust
+        wave amplitude.
+        """
+
+        def _side_effect(*args, **kwargs):
+            on_environment_ready = kwargs.get("on_environment_ready")
+            on_step_end = kwargs.get("on_step_end")
+            run_config = kwargs.get("config")
+            seed = int(kwargs.get("seed") or 0)
+            rng = random.Random(seed)
+
+            agents = [_make_fake_agent(0.01 + float(i) / 1000) for i in range(12)]
+            env = _FakeEnvironment(agents)
+            env.initial_diversity_metrics = None
+            if on_environment_ready is not None:
+                on_environment_ready(env)
+
+            # Resource-rich starts (stable profile) should produce lower early
+            # deaths than legacy-like starts under the same seed.
+            initial_level = float(getattr(run_config.agent_behavior, "initial_resource_level", 0))
+            initial_resources = int(getattr(run_config.resources, "initial_resources", 0))
+            scarcity = max(
+                0.0,
+                1.0
+                - min(initial_level / 20.0, 1.0) * 0.6
+                - min(initial_resources / 30.0, 1.0) * 0.4,
+            )
+
+            # Use only the first few steps as the startup-transient benchmark window.
+            for step in range(5):
+                alive = [a for a in env._agents if a.alive]
+                prev = len(alive)
+                if prev <= 1:
+                    env.time = step + 1
+                    if on_step_end is not None:
+                        on_step_end(env, step)
+                    continue
+
+                deaths = int(round(scarcity * 4))
+                if (step + rng.randint(0, 1)) % 3 == 0:
+                    deaths += int(round(scarcity))
+                deaths = min(prev - 1, max(0, deaths))
+                for victim in alive[:deaths]:
+                    victim.alive = False
+
+                env.time = step + 1
+                if on_step_end is not None:
+                    on_step_end(env, step)
+
+            env.time = 6
+            return env
+
+        return _side_effect
+
+    def test_stable_profile_reduces_startup_wave_vs_legacy_benchmark(self):
+        """Benchmark acceptance check: stable startup wave < legacy startup wave."""
+        from farm.runners.intrinsic_evolution_experiment import (
+            InitialConditionsConfig,
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        side_effect = self._make_seeded_benchmark_side_effect()
+        representative_seeds = [7, 19, 41]
+        for seed in representative_seeds:
+            with self.subTest(seed=seed):
+                with patch(
+                    "farm.runners.intrinsic_evolution_experiment.run_simulation",
+                    side_effect=side_effect,
+                ):
+                    stable_cfg = IntrinsicEvolutionExperimentConfig(
+                        num_steps=5,
+                        snapshot_interval=1,
+                        seed=seed,
+                        initial_conditions=InitialConditionsConfig(profile="stable"),
+                    )
+                    stable_result = IntrinsicEvolutionExperiment(
+                        SimulationConfig(), stable_cfg
+                    ).run()
+
+                with patch(
+                    "farm.runners.intrinsic_evolution_experiment.run_simulation",
+                    side_effect=side_effect,
+                ):
+                    legacy_cfg = IntrinsicEvolutionExperimentConfig(
+                        num_steps=5,
+                        snapshot_interval=1,
+                        seed=seed,
+                        initial_conditions=InitialConditionsConfig(profile="legacy"),
+                    )
+                    legacy_result = IntrinsicEvolutionExperiment(
+                        SimulationConfig(), legacy_cfg
+                    ).run()
+
+                self.assertLess(
+                    stable_result.startup_transient_metrics["peak_death_rate"],
+                    legacy_result.startup_transient_metrics["peak_death_rate"],
+                )
+                self.assertLess(
+                    stable_result.startup_transient_metrics["oscillation_amplitude"],
+                    legacy_result.startup_transient_metrics["oscillation_amplitude"],
+                )
+
+
+class TestMetadataPersistsInitialConditions(unittest.TestCase):
+    """Metadata JSON must include initial_conditions and startup_transient_metrics."""
+
+    def _stub_run_simulation(self, num_agents: int = 2, num_steps: int = 2):
+        agents = [_make_fake_agent(0.01) for _ in range(num_agents)]
+        env = _FakeEnvironment(agents)
+
+        def _side_effect(*args, **kwargs):
+            on_environment_ready = kwargs.get("on_environment_ready")
+            on_step_end = kwargs.get("on_step_end")
+            env.initial_diversity_metrics = None
+            if on_environment_ready is not None:
+                on_environment_ready(env)
+            for step in range(num_steps):
+                env.time = step + 1
+                if on_step_end is not None:
+                    on_step_end(env, step)
+            env.time += 1
+            return env
+
+        return _side_effect
+
+    def test_metadata_contains_initial_conditions_section(self):
+        from farm.runners.intrinsic_evolution_experiment import (
+            InitialConditionsConfig,
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        side_effect = self._stub_run_simulation()
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=2,
+                snapshot_interval=1,
+                output_dir=output_dir,
+                seed=77,
+                initial_conditions=InitialConditionsConfig(profile="stable"),
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+            with open(
+                os.path.join(output_dir, "intrinsic_evolution_metadata.json"),
+                encoding="utf-8",
+            ) as fh:
+                meta = json.load(fh)
+
+        self.assertIn("initial_conditions", meta)
+        self.assertEqual(meta["initial_conditions"]["profile"], "stable")
+        self.assertIn("resolved", meta["initial_conditions"])
+
+    def test_metadata_contains_resolved_initial_conditions(self):
+        from farm.runners.intrinsic_evolution_experiment import (
+            InitialConditionsConfig,
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        side_effect = self._stub_run_simulation()
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=2,
+                snapshot_interval=1,
+                output_dir=output_dir,
+                seed=88,
+                initial_conditions=InitialConditionsConfig(profile="stable"),
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+            with open(
+                os.path.join(output_dir, "intrinsic_evolution_metadata.json"),
+                encoding="utf-8",
+            ) as fh:
+                meta = json.load(fh)
+
+        self.assertIn("resolved_initial_conditions", meta)
+        # stable preset sets initial_agent_resource_level to a non-None value
+        self.assertIsNotNone(
+            meta["resolved_initial_conditions"]["initial_agent_resource_level"]
+        )
+
+    def test_metadata_contains_startup_transient_metrics(self):
+        from farm.runners.intrinsic_evolution_experiment import (
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        side_effect = self._stub_run_simulation()
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=2,
+                snapshot_interval=1,
+                output_dir=output_dir,
+                seed=99,
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+            with open(
+                os.path.join(output_dir, "intrinsic_evolution_metadata.json"),
+                encoding="utf-8",
+            ) as fh:
+                meta = json.load(fh)
+
+        self.assertIn("startup_transient_metrics", meta)
+        stm = meta["startup_transient_metrics"]
+        self.assertIn("peak_birth_rate", stm)
+        self.assertIn("peak_death_rate", stm)
+        self.assertIn("oscillation_amplitude", stm)
+
+
+class TestWarmupSteps(unittest.TestCase):
+    """Warmup steps suppress gene-logger snapshots for the first N steps."""
+
+    def _build_side_effect(self, num_agents: int, num_steps: int):
+        """Side-effect that honours total_sim_steps from the run_simulation call."""
+        agents = [_make_fake_agent(0.01) for _ in range(num_agents)]
+        env = _FakeEnvironment(agents)
+
+        def _side_effect(*args, **kwargs):
+            on_environment_ready = kwargs.get("on_environment_ready")
+            on_step_end = kwargs.get("on_step_end")
+            actual_steps = kwargs.get("num_steps", num_steps)
+            env.initial_diversity_metrics = None
+            if on_environment_ready is not None:
+                on_environment_ready(env)
+            for step in range(actual_steps):
+                env.time = step + 1
+                if on_step_end is not None:
+                    on_step_end(env, step)
+            env.time += 1
+            return env
+
+        return _side_effect, env
+
+    def test_warmup_suppresses_initial_snapshot(self):
+        """With warmup_steps=2 and num_steps=3, snapshot at step 0 must be absent."""
+        from farm.runners.intrinsic_evolution_experiment import (
+            InitialConditionsConfig,
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        side_effect, _ = self._build_side_effect(num_agents=2, num_steps=5)
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=3,
+                snapshot_interval=1,
+                output_dir=output_dir,
+                seed=11,
+                initial_conditions=InitialConditionsConfig(
+                    profile="legacy", warmup_steps=2
+                ),
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+            traj_path = os.path.join(output_dir, "intrinsic_gene_trajectory.jsonl")
+            with open(traj_path, encoding="utf-8") as fh:
+                lines = [json.loads(line) for line in fh if line.strip()]
+
+        # No step-0 record; post-warmup steps start at 1.
+        recorded_steps = [r["step"] for r in lines]
+        self.assertNotIn(0, recorded_steps)
+        # Post-warmup steps are numbered starting at 1.
+        self.assertIn(1, recorded_steps)
+
+    def test_warmup_zero_behaves_like_no_warmup(self):
+        """warmup_steps=0 must record step 0 as in the non-warmup path."""
+        from farm.runners.intrinsic_evolution_experiment import (
+            InitialConditionsConfig,
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        side_effect, _ = self._build_side_effect(num_agents=2, num_steps=2)
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=2,
+                snapshot_interval=1,
+                output_dir=output_dir,
+                seed=13,
+                initial_conditions=InitialConditionsConfig(
+                    profile="legacy", warmup_steps=0
+                ),
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+            traj_path = os.path.join(output_dir, "intrinsic_gene_trajectory.jsonl")
+            with open(traj_path, encoding="utf-8") as fh:
+                lines = [json.loads(line) for line in fh if line.strip()]
+
+        recorded_steps = [r["step"] for r in lines]
+        self.assertIn(0, recorded_steps)
+
+    def test_warmup_extends_total_sim_steps(self):
+        """run_simulation must be called with num_steps + warmup_steps."""
+        from farm.runners.intrinsic_evolution_experiment import (
+            InitialConditionsConfig,
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        with patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation"
+        ) as run_mock:
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=10,
+                snapshot_interval=1,
+                seed=5,
+                initial_conditions=InitialConditionsConfig(
+                    profile="legacy", warmup_steps=5
+                ),
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+        called_num_steps = run_mock.call_args.kwargs["num_steps"]
+        self.assertEqual(called_num_steps, 15)  # 10 + 5
+
+
+class TestDeterministicReproducibility(unittest.TestCase):
+    """Fixed seeds must reproduce identical results for repeated runs of the same initial-conditions profile."""
+
+    def _collect_snapshots(self, profile: str, seed: int, num_steps: int = 4):
+        """Run with a stub and return the list of trajectory records."""
+        from farm.runners.intrinsic_evolution_experiment import (
+            InitialConditionsConfig,
+            IntrinsicEvolutionExperiment,
+            IntrinsicEvolutionExperimentConfig,
+        )
+
+        agents = [_make_fake_agent(0.01 + float(i) / 100) for i in range(3)]
+        env = _FakeEnvironment(agents)
+
+        def _side_effect(*args, **kwargs):
+            on_environment_ready = kwargs.get("on_environment_ready")
+            on_step_end = kwargs.get("on_step_end")
+            actual_steps = kwargs.get("num_steps", num_steps)
+            env.initial_diversity_metrics = None
+            if on_environment_ready is not None:
+                on_environment_ready(env)
+            for step in range(actual_steps):
+                env.time = step + 1
+                if on_step_end is not None:
+                    on_step_end(env, step)
+            env.time += 1
+            return env
+
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=_side_effect,
+        ):
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=num_steps,
+                snapshot_interval=1,
+                output_dir=output_dir,
+                seed=seed,
+                initial_conditions=InitialConditionsConfig(profile=profile),
+            )
+            result = IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+        return result
+
+    def test_same_seed_same_profile_gives_same_result(self):
+        """Two runs with the same seed and profile must produce identical results."""
+        r1 = self._collect_snapshots("stable", seed=42)
+        r2 = self._collect_snapshots("stable", seed=42)
+        self.assertEqual(r1.final_population, r2.final_population)
+        self.assertEqual(r1.num_steps_completed, r2.num_steps_completed)
+        self.assertEqual(
+            r1.startup_transient_metrics, r2.startup_transient_metrics
+        )
+
+    def test_legacy_profile_same_seed_reproducible(self):
+        r1 = self._collect_snapshots("legacy", seed=77)
+        r2 = self._collect_snapshots("legacy", seed=77)
+        self.assertEqual(r1.final_population, r2.final_population)
+        self.assertEqual(r1.num_steps_completed, r2.num_steps_completed)
+
+
 if __name__ == "__main__":
     unittest.main()

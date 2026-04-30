@@ -47,6 +47,7 @@ from farm.core.initial_diversity import (  # noqa: E402
 )
 from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger  # noqa: E402
 from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
+    InitialConditionsConfig,
     IntrinsicEvolutionExperiment,
     IntrinsicEvolutionExperimentConfig,
     IntrinsicEvolutionPolicy,
@@ -93,6 +94,59 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=[m.value for m in BoundaryMode],
     )
     parser.add_argument("--interior-bias-fraction", type=float, default=1e-3)
+
+    # Initial conditions (startup state overrides; see InitialConditionsConfig).
+    parser.add_argument(
+        "--initial-conditions-profile",
+        type=str,
+        default=None,
+        choices=["stable", "stress", "exploratory", "legacy"],
+        help=(
+            "Preset for initial simulation state. "
+            "'stable' (default) reduces early boom-bust by giving agents and the "
+            "environment more starting resources. 'legacy' reproduces pre-feature "
+            "behavior exactly."
+        ),
+    )
+    parser.add_argument(
+        "--initial-agent-resource-level",
+        type=int,
+        default=None,
+        help="Override: starting resource level for each agent (overrides profile).",
+    )
+    parser.add_argument(
+        "--initial-resource-count",
+        type=int,
+        default=None,
+        help="Override: number of resource nodes at simulation start (overrides profile).",
+    )
+    parser.add_argument(
+        "--resource-regen-rate",
+        type=float,
+        default=None,
+        help="Override: resource regeneration probability per step (overrides profile).",
+    )
+    parser.add_argument(
+        "--resource-regen-amount",
+        type=int,
+        default=None,
+        help="Override: resource amount regenerated per node per step (overrides profile).",
+    )
+    parser.add_argument(
+        "--warmup-steps",
+        type=int,
+        default=0,
+        help=(
+            "Extra steps run before telemetry collection begins. "
+            "Gene-trajectory snapshots are suppressed during the warmup phase."
+        ),
+    )
+    parser.add_argument(
+        "--transient-window",
+        type=int,
+        default=50,
+        help="Number of initial steps used to compute startup-transient metrics.",
+    )
 
     # Initial diversity seeding (platform-wide; see farm/core/initial_diversity.py).
     # The CLI default for --initial-diversity-mode is "independent_mutation".
@@ -216,12 +270,24 @@ def _build_run(args: argparse.Namespace) -> IntrinsicEvolutionExperiment:
         seed=args.seed,
     )
 
+    initial_conditions_profile = args.initial_conditions_profile or "stable"
+    initial_conditions = InitialConditionsConfig(
+        profile=initial_conditions_profile,
+        initial_agent_resource_level=args.initial_agent_resource_level,
+        initial_resource_count=args.initial_resource_count,
+        resource_regen_rate=args.resource_regen_rate,
+        resource_regen_amount=args.resource_regen_amount,
+        warmup_steps=args.warmup_steps,
+        transient_window=args.transient_window,
+    )
+
     config = IntrinsicEvolutionExperimentConfig(
         num_steps=args.num_steps,
         snapshot_interval=args.snapshot_interval,
         install_default_initial_diversity=(
             SeedingMode(args.initial_diversity_mode) is not SeedingMode.NONE
         ),
+        initial_conditions=initial_conditions,
         policy=policy,
         output_dir=args.output_dir,
         seed=args.seed,
@@ -240,6 +306,15 @@ def main() -> int:
         disable_console=False,
     )
     logger = get_logger(__name__)
+    if args.initial_conditions_profile is None:
+        logger.warning(
+            "intrinsic_evolution_cli_default_initial_conditions_profile",
+            profile="stable",
+            note=(
+                "No --initial-conditions-profile provided; defaulting to 'stable'. "
+                "Pass --initial-conditions-profile legacy to match older runs."
+            ),
+        )
 
     manifest = {
         "script": "scripts/run_intrinsic_evolution_experiment.py",
@@ -297,6 +372,7 @@ def main() -> int:
         "num_steps_completed": result.num_steps_completed,
         "final_population": result.final_population,
         "final_gene_statistics": result.final_gene_statistics,
+        "startup_transient_metrics": result.startup_transient_metrics,
         "output_dir": args.output_dir,
     }
     print(json.dumps(summary, indent=2))
