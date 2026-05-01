@@ -92,6 +92,7 @@ class TestEnvironmentalGridManagerMemmap(unittest.TestCase):
             try:
                 os.remove(os.path.join(self.tmpdir, fname))
             except OSError:
+                # Best-effort cleanup in tests: ignore files that are already gone/locked.
                 pass
         os.rmdir(self.tmpdir)
 
@@ -185,6 +186,7 @@ class TestTemporalGridManagerMemmap(unittest.TestCase):
             try:
                 os.remove(os.path.join(self.tmpdir, fname))
             except OSError:
+                # Best-effort cleanup in tests: ignore files that are already gone/locked.
                 pass
         os.rmdir(self.tmpdir)
 
