@@ -1073,6 +1073,19 @@ class TransientEventHandler(ChannelHandler):
         """
         Process transient events and write to their relative positions.
 
+        Two equivalent input paths are supported:
+
+        - **Dense world layer**: when ``world_layers[self.name]`` is
+          provided (e.g., a windowed crop from
+          :class:`farm.core.temporal_grids.TemporalGridManager`), the
+          handler delegates to the same logic as :class:`WorldLayerHandler`
+          and writes the dense tensor straight into the channel. This
+          avoids a wasteful dense → sparse → dense round-trip when the
+          environment maintains a shared world grid for the channel.
+        - **Sparse events** (legacy): when ``world_layers`` does not
+          contain this channel, the handler falls back to the per-event
+          path using ``kwargs[self.data_key]``.
+
         Uses sparse storage for event points to maintain memory efficiency.
 
         Args:
@@ -1080,24 +1093,59 @@ class TransientEventHandler(ChannelHandler):
             channel_idx: Index of this transient event channel
             config: Observation configuration
             agent_world_pos: Agent's world position (y, x)
-            **kwargs: Must contain event data at self.data_key as list of (y, x, intensity) tuples
-                     where self.data_key is configured during initialization
+            **kwargs: Either ``world_layers[self.name]`` (dense path) or
+                ``self.data_key`` listing ``(y, x, intensity)`` events.
         """
+        world_layers = kwargs.get("world_layers") or {}
+        if self.name in world_layers:
+            # Dense path: identical to WorldLayerHandler.process. The world
+            # grid was already decayed at world level, so AgentObservation
+            # marks this channel ``world_driven`` and skips per-agent decay.
+            from farm.core.observations import (  # local import to avoid cycles
+                crop_local,
+                crop_local_rotated,
+                rotate_local_grid,
+            )
+
+            layer = world_layers[self.name]
+            if isinstance(layer, torch.Tensor):
+                if layer.device != config.device or layer.dtype != config.torch_dtype:
+                    layer = layer.to(device=config.device, dtype=config.torch_dtype)
+            else:
+                layer = torch.as_tensor(
+                    layer, device=config.device, dtype=config.torch_dtype
+                )
+
+            R = config.R
+            expected_size = config.get_local_observation_size()
+            angle = float(kwargs.get("agent_orientation", 0.0)) % 360.0
+            if tuple(layer.shape[-2:]) == expected_size:
+                final_layer = (
+                    rotate_local_grid(layer, angle, pad_val=0.0)
+                    if angle != 0.0
+                    else layer
+                )
+            else:
+                if angle != 0.0:
+                    final_layer = crop_local_rotated(
+                        layer, agent_world_pos, R, orientation=angle, pad_val=0.0
+                    )
+                else:
+                    final_layer = crop_local(layer, agent_world_pos, R, pad_val=0.0)
+
+            self._safe_store_sparse_grid(observation, channel_idx, final_layer)
+            return
+
         events = kwargs.get(self.data_key, [])
         if not events:
             return
 
         R = config.R
-        ay, ax = agent_world_pos
-        angle = float(kwargs.get("agent_orientation", 0.0)) % 360.0
-        use_rotation = angle != 0.0
-        if use_rotation:
-            a = math.radians(angle)
-            cos_a = math.cos(a)
-            sin_a = math.sin(a)
-
         # Convert to local coordinates (rotate by -angle to align facing 'up') and filter valid positions
-        points = self._transform_entities_to_observation_coords(events, agent_world_pos, angle, R)
+        angle = float(kwargs.get("agent_orientation", 0.0)) % 360.0
+        points = self._transform_entities_to_observation_coords(
+            events, agent_world_pos, angle, R
+        )
 
         # Use sparse storage utility method for consistent handling (no accumulation)
         # This maintains encapsulation by avoiding direct access to observation.sparse_channels

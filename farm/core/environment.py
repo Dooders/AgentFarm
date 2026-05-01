@@ -37,7 +37,7 @@ Notes
 import math
 import random
 import time as _time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -51,9 +51,11 @@ from farm.core.action import ActionType, action_registry
 from farm.core.channels import NUM_CHANNELS
 from farm.core.geometry import discretize_position_continuous
 from farm.core.interfaces import DatabaseFactoryProtocol, DatabaseProtocol
+from farm.core.environment_grids import EnvironmentalGridManager
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
+from farm.core.temporal_grids import TemporalGridManager
 from farm.core.services.implementations import (
     EnvironmentAgentLifecycleService,
     EnvironmentLoggingService,
@@ -396,6 +398,25 @@ class Environment(AECEnv):
 
         # Add observation space setup:
         self._setup_observation_space(self.config)
+
+        # Initialize environmental and temporal world-grid managers (memmap-aware).
+        # Both managers fall back gracefully to in-RAM arrays when memmap is
+        # disabled, so downstream code does not need conditional branches to
+        # use them.
+        memmap_cfg = getattr(self.config, "memmap", None) if self.config else None
+        self.environmental_grids = EnvironmentalGridManager(
+            height=int(self.height),
+            width=int(self.width),
+            memmap_config=memmap_cfg,
+            simulation_id=self.simulation_id,
+        )
+        self.temporal_grids = TemporalGridManager(
+            height=int(self.height),
+            width=int(self.width),
+            memmap_config=memmap_cfg,
+            simulation_id=self.simulation_id,
+            observation_config=self.observation_config,
+        )
 
         # Add action space setup call:
         self._setup_action_space()
@@ -1022,6 +1043,19 @@ class Environment(AECEnv):
             # Update spatial index (flushes any pending batch updates and rebuilds indices)
             self.spatial_index.update()
 
+            # Decay temporal channel grids (DAMAGE_HEAT, TRAILS, ALLY_SIGNAL).
+            # No-op when temporal grids are not in use or all channels have
+            # gamma == 1.0.
+            if hasattr(self, "temporal_grids") and self.temporal_grids is not None:
+                try:
+                    self.temporal_grids.apply_decay()
+                except Exception as exc:
+                    logger.warning(
+                        "temporal_grid_decay_failed",
+                        error_type=type(exc).__name__,
+                        error_message=str(exc),
+                    )
+
             # Reset counters for next step
             self.resources_shared_this_step = 0
             self.combat_encounters_this_step = 0
@@ -1224,7 +1258,18 @@ class Environment(AECEnv):
         """
         if hasattr(self, "resource_manager") and self.resource_manager is not None:
             # Ensure memmap file is flushed; delete based on config (default: keep for reuse)
-            delete_memmap = getattr(self.config, "resources", ResourceConfig()).memmap_delete_on_close
+            memmap_cfg = getattr(self.config, "memmap", None) if self.config else None
+            if memmap_cfg is not None:
+                delete_memmap = bool(getattr(memmap_cfg, "delete_on_close", False))
+            else:
+                # Legacy fallback to ResourceConfig.memmap_delete_on_close.
+                delete_memmap = bool(
+                    getattr(
+                        getattr(self.config, "resources", ResourceConfig()),
+                        "memmap_delete_on_close",
+                        False,
+                    )
+                )
             try:
                 self.resource_manager.cleanup_memmap(delete_file=delete_memmap)
             except Exception as e:
@@ -1234,6 +1279,21 @@ class Environment(AECEnv):
                     error_message=str(e),
                     exc_info=True,
                 )
+            # Tear down environmental and temporal grids if they were
+            # constructed for this environment.
+            for attr in ("environmental_grids", "temporal_grids"):
+                grid_mgr = getattr(self, attr, None)
+                if grid_mgr is not None:
+                    try:
+                        grid_mgr.close(delete_files=delete_memmap)
+                    except Exception as exc:
+                        logger.error(
+                            "memmap_grid_cleanup_failed",
+                            grid=attr,
+                            error_type=type(exc).__name__,
+                            error_message=str(exc),
+                            exc_info=True,
+                        )
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
@@ -1824,6 +1884,122 @@ class Environment(AECEnv):
 
     # _create_initial_agents removed: agents should be created outside the environment
 
+    # ------------------------------------------------------------------
+    # Public APIs for environmental and temporal world grids
+    # ------------------------------------------------------------------
+
+    def set_environmental_layer(self, name: str, grid: np.ndarray) -> None:
+        """Replace the environmental world layer ``name`` with ``grid``.
+
+        Provides a single, well-typed entry point for populating
+        OBSTACLES, TERRAIN_COST, or VISIBILITY world layers regardless of
+        whether they are memmap-backed. ``grid`` must match
+        ``(height, width)``.
+        """
+
+        if not hasattr(self, "environmental_grids"):
+            raise RuntimeError("Environmental grids are not initialized")
+        self.environmental_grids.set(name, grid)
+
+    def deposit_temporal_events(
+        self,
+        channel: str,
+        events: Iterable[Tuple[int, int, float]],
+        *,
+        accumulate: bool = True,
+        clip_max: Optional[float] = 1.0,
+    ) -> None:
+        """Deposit ``(world_y, world_x, intensity)`` events into a temporal grid.
+
+        Events outside the world are silently discarded. When the temporal
+        grid manager is unavailable this method is a no-op so callers do
+        not need to special-case the disabled configuration.
+        """
+
+        if not hasattr(self, "temporal_grids") or self.temporal_grids is None:
+            return
+        if channel not in self.temporal_grids:
+            return
+        self.temporal_grids.deposit(
+            channel, events, accumulate=accumulate, clip_max=clip_max
+        )
+
+    # ------------------------------------------------------------------
+    # Memmap-aware observation helpers
+    # ------------------------------------------------------------------
+
+    def _make_environmental_layer_tensor(
+        self, layer_name: str, ay: int, ax: int, R: int
+    ) -> torch.Tensor:
+        """Return a torch tensor cropped from an environmental world layer.
+
+        The window comes from :class:`EnvironmentalGridManager`, which is
+        backed by ``numpy.memmap`` when ``MemmapConfig.use_for_environmental``
+        is enabled and by a plain ndarray otherwise. The returned tensor
+        is on the configured observation device and has the configured
+        dtype.
+        """
+
+        S = 2 * R + 1
+        if not hasattr(self, "environmental_grids") or layer_name not in self.environmental_grids:
+            return torch.zeros(
+                (S, S),
+                dtype=self.observation_config.torch_dtype,
+                device=self.observation_config.device,
+            )
+        window_np = self.environmental_grids.get_window(
+            layer_name, ay - R, ay + R + 1, ax - R, ax + R + 1
+        )
+        return self._np_window_to_tensor(window_np)
+
+    def _np_window_to_tensor(self, window_np: np.ndarray) -> torch.Tensor:
+        """Convert a fresh numpy window into the configured observation tensor.
+
+        Avoids an extra copy when the destination device/dtype already match
+        the numpy array (the common ``cpu``/``float32`` case).
+        """
+
+        if (
+            self.observation_config.device == "cpu"
+            and self.observation_config.torch_dtype == torch.float32
+            and window_np.dtype == np.float32
+        ):
+            return torch.from_numpy(window_np)
+        return torch.tensor(
+            window_np,
+            dtype=self.observation_config.torch_dtype,
+            device=self.observation_config.device,
+            copy=False,
+        )
+
+    def _make_temporal_layer_tensor(
+        self, channel_name: str, ay: int, ax: int, R: int
+    ) -> torch.Tensor:
+        """Return a torch tensor cropped from a temporal channel world grid.
+
+        Mirrors :meth:`_make_environmental_layer_tensor` but pulls from the
+        temporal grid manager. The returned ``(2R+1, 2R+1)`` tensor is
+        passed straight to :class:`TransientEventHandler` via
+        ``world_layers[channel_name]``, which copies it into the channel
+        without any sparse → dense conversion.
+        """
+
+        S = 2 * R + 1
+        if (
+            not hasattr(self, "temporal_grids")
+            or self.temporal_grids is None
+            or channel_name not in self.temporal_grids
+        ):
+            return torch.zeros(
+                (S, S),
+                dtype=self.observation_config.torch_dtype,
+                device=self.observation_config.device,
+            )
+        window_np = self.temporal_grids.get_window(
+            channel_name, ay - R, ay + R + 1, ax - R, ax + R + 1
+        )
+        return self._np_window_to_tensor(window_np)
+
     def _get_observation(self, agent_id: str) -> np.ndarray:
         """Generate an observation for a specific agent.
 
@@ -1993,21 +2169,54 @@ class Environment(AECEnv):
             _tn1 = _time.perf_counter()
             self._perception_profile["nearest_time_s"] += max(0.0, _tn1 - _tn0)
 
-        # Empty local layers
-        obstacles_local = torch.zeros_like(resource_local)
-        terrain_cost_local = torch.zeros_like(resource_local)
+        # Source OBSTACLES, TERRAIN_COST, and VISIBILITY layers from the
+        # environmental grid manager (memmap-backed when enabled). Each
+        # ``get_window`` call returns a freshly-allocated, zero-padded array
+        # so we can safely wrap it in a torch tensor without copying again.
+        obstacles_local = self._make_environmental_layer_tensor("OBSTACLES", ay, ax, R)
+        terrain_cost_local = self._make_environmental_layer_tensor(
+            "TERRAIN_COST", ay, ax, R
+        )
 
         world_layers = {
             "RESOURCES": resource_local,
             "OBSTACLES": obstacles_local,
             "TERRAIN_COST": terrain_cost_local,
         }
+        # Pass the visibility layer through when the environmental grid
+        # provides one (defaults to a zeroed grid). When the channel
+        # handler computes its own disk mask it ignores this entry.
+        if "VISIBILITY" in self.environmental_grids:
+            world_layers["VISIBILITY"] = self._make_environmental_layer_tensor(
+                "VISIBILITY", ay, ax, R
+            )
 
         # Get health from combat component to ensure proper capping
         combat_comp = agent.get_component("combat")
         current_health = combat_comp.health if combat_comp else 0.0
         starting_health = combat_comp.config.starting_health if combat_comp else 100.0
         self_hp01 = current_health / starting_health
+
+        # Inject temporal channel data as dense world layers when the
+        # shared temporal-grid manager exists. This is dramatically faster
+        # than the legacy dense → sparse → dense round-trip via
+        # ``_collect_temporal_events``: ``TransientEventHandler.process``
+        # detects the world-layer key and copies the windowed crop
+        # straight into the channel, while ``AgentObservation`` marks
+        # those channels as world-driven so per-agent decay is skipped
+        # (the world grid is already decayed at world level by
+        # ``Environment.update``).
+        if hasattr(self, "temporal_grids") and self.temporal_grids is not None:
+            for channel_name in self.temporal_grids.channel_names():
+                # Skip channels that have never received an event. The
+                # observation tensor is already zero for these slots and
+                # the per-agent decay path is a no-op for empty channels,
+                # so we save both the window slice and the dense store.
+                if not self.temporal_grids.has_any_data(channel_name):
+                    continue
+                world_layers[channel_name] = self._make_temporal_layer_tensor(
+                    channel_name, ay, ax, R
+                )
 
         obs = self.agent_observations[agent_id]
         obs.perceive_world(
@@ -2017,9 +2226,9 @@ class Environment(AECEnv):
             allies=None,  # Let observation system use spatial index for efficiency
             enemies=None,  # Let observation system use spatial index for efficiency
             goal_world_pos=None,  # TODO: Set if needed
-            recent_damage_world=[],  # TODO: Implement if needed
-            ally_signals_world=[],  # TODO: Implement if needed
-            trails_world_points=[],  # TODO: Implement if needed
+            recent_damage_world=None,
+            ally_signals_world=None,
+            trails_world_points=None,
             spatial_index=self.spatial_index,
             agent_object=agent,
             agent_orientation=getattr(agent, "orientation", 0.0),
@@ -2298,6 +2507,14 @@ class Environment(AECEnv):
         self.time = 0
         # Reset metrics tracker
         self.metrics_tracker.reset()
+
+        # Clear transient temporal-channel grids so a new episode starts
+        # without stale damage/trail/signal residue from the previous one.
+        if hasattr(self, "temporal_grids") and self.temporal_grids is not None:
+            for channel_name in self.temporal_grids.channel_names():
+                arr = self.temporal_grids.get(channel_name)
+                arr[:] = 0
+            self.temporal_grids.flush()
 
         self.resources = []
         self.initialize_resources(self.resource_distribution)

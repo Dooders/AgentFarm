@@ -144,6 +144,73 @@ class SpatialIndexConfig:
 
 
 @dataclass
+class MemmapConfig:
+    """Configuration for memory-mapped state storage.
+
+    Memory-mapped (memmap) arrays back large dense state structures with
+    on-disk files, dramatically reducing resident memory usage for big
+    grids while still allowing fast localized window reads.
+
+    The same configuration governs every memmap-backed structure in the
+    simulation:
+
+    - ``use_for_resources``: enable memmap for the resource grid
+    - ``use_for_environmental``: enable memmap for OBSTACLES, TERRAIN_COST
+      and VISIBILITY world layers
+    - ``use_for_temporal``: enable memmap for DAMAGE_HEAT, TRAILS, and
+      ALLY_SIGNAL world-wide event grids
+
+    Attributes
+    ----------
+    directory:
+        Directory for ``.dat`` files. ``None`` means the system temp dir.
+    dtype:
+        Numpy dtype string used by every memmap array (default ``float32``).
+    mode:
+        ``numpy.memmap`` open mode (``"w+"`` truncates, ``"r+"`` reuses).
+    delete_on_close:
+        When ``True`` the backing files are removed by ``Environment.close``.
+    use_for_resources:
+        Enable memmap-backed resource grid.
+    use_for_environmental:
+        Enable memmap-backed OBSTACLES, TERRAIN_COST, VISIBILITY layers.
+    use_for_temporal:
+        Enable memmap-backed temporal channel grids (DAMAGE_HEAT, TRAILS,
+        ALLY_SIGNAL).
+    """
+
+    directory: Optional[str] = None
+    dtype: str = "float32"
+    mode: str = "w+"
+    delete_on_close: bool = False
+    use_for_resources: bool = False
+    use_for_environmental: bool = False
+    use_for_temporal: bool = False
+
+    def any_enabled(self) -> bool:
+        """Return ``True`` when at least one memmap-backed structure is on."""
+
+        return bool(
+            self.use_for_resources
+            or self.use_for_environmental
+            or self.use_for_temporal
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert MemmapConfig to a JSON-serializable dictionary."""
+
+        return {
+            "directory": self.directory,
+            "dtype": self.dtype,
+            "mode": self.mode,
+            "delete_on_close": self.delete_on_close,
+            "use_for_resources": self.use_for_resources,
+            "use_for_environmental": self.use_for_environmental,
+            "use_for_temporal": self.use_for_temporal,
+        }
+
+
+@dataclass
 class EnvironmentConfig:
     """Configuration for simulation environment settings."""
 
@@ -835,6 +902,7 @@ class SimulationConfig:
     environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
     population: PopulationConfig = field(default_factory=PopulationConfig)
     resources: ResourceConfig = field(default_factory=ResourceConfig)
+    memmap: MemmapConfig = field(default_factory=MemmapConfig)
     learning: LearningConfig = field(default_factory=LearningConfig)
     combat: CombatConfig = field(default_factory=CombatConfig)
     agent_behavior: AgentBehaviorConfig = field(default_factory=AgentBehaviorConfig)
@@ -915,6 +983,7 @@ class SimulationConfig:
                 "environment",
                 "population",
                 "resources",
+                "memmap",
                 "learning",
                 "combat",
                 "agent_behavior",
@@ -1035,6 +1104,8 @@ class SimulationConfig:
                         **env_fac
                     )
                 nested_data[parent] = ResourceConfig(**config_dict)
+            elif parent == "memmap":
+                nested_data[parent] = MemmapConfig(**config_dict)
             elif parent == "learning":
                 nested_data[parent] = LearningConfig(**config_dict)
             elif parent == "combat":
@@ -1190,6 +1261,18 @@ class SimulationConfig:
                     "resource_regen_amount",
                     "max_resource_amount",
                     "default_spawn_amount",
+                ],
+            ),
+            "memmap": (
+                MemmapConfig,
+                [
+                    "directory",
+                    "dtype",
+                    "mode",
+                    "delete_on_close",
+                    "use_for_resources",
+                    "use_for_environmental",
+                    "use_for_temporal",
                 ],
             ),
             "learning": (

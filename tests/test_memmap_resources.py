@@ -13,19 +13,20 @@ class TestMemmapResources(unittest.TestCase):
     def setUp(self):
         self.tmpdir = os.getenv("TMPDIR", tempfile.gettempdir())
 
-        from farm.config.config import EnvironmentConfig, ResourceConfig
+        from farm.config.config import EnvironmentConfig, MemmapConfig, ResourceConfig
 
         self.cfg = SimulationConfig(
             environment=EnvironmentConfig(width=60, height=60),
             resources=ResourceConfig(initial_resources=200, max_resource_amount=30),
+            memmap=MemmapConfig(
+                directory=self.tmpdir,
+                dtype="float32",
+                mode="w+",
+                use_for_resources=True,
+            ),
             seed=12345,
         )
 
-        # Add memmap parameters dynamically (accessed via getattr in ResourceManager)
-        self.cfg.use_memmap_resources = True
-        self.cfg.memmap_dir = self.tmpdir
-        self.cfg.memmap_dtype = "float32"
-        self.cfg.memmap_mode = "w+"
         self.env = Environment(
             width=self.cfg.environment.width,
             height=self.cfg.environment.height,

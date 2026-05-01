@@ -847,6 +847,13 @@ class AgentObservation:
         self.dense_cache = None  # Lazy dense tensor
         self.cache_dirty = True  # Whether we need to rebuild dense
 
+        # Channels that are driven by externally-supplied dense world layers
+        # for the current tick (e.g., when ``Environment`` provides
+        # ``world_layers["DAMAGE_HEAT"]`` straight from a memmap-backed
+        # temporal grid). These channels skip per-agent decay because the
+        # world grid was already decayed at world level. Reset every tick.
+        self.world_driven_channels: Set[int] = set()
+
         # Metrics
         self._metrics = {
             "cache_hits": 0,
@@ -1412,6 +1419,25 @@ class AgentObservation:
 
         return (computed_allies, computed_enemies)
 
+    def _compute_world_driven_channels(
+        self, world_layers: Optional[Dict[str, "torch.Tensor"]]
+    ) -> Set[int]:
+        """Return registered channel indices for which a dense world layer is supplied.
+
+        The set is consulted by :meth:`decay_dynamics` so DYNAMIC channels
+        backed by an externally-decayed world grid are not double-decayed.
+        """
+
+        if not world_layers:
+            return set()
+        result: Set[int] = set()
+        for name in world_layers:
+            try:
+                result.add(self.registry.get_index(name))
+            except KeyError:
+                continue
+        return result
+
     def decay_dynamics(self):
         """
         Apply decay factors to dynamic observation channels.
@@ -1421,12 +1447,19 @@ class AgentObservation:
         Dynamic channels include trails, damage heat, ally signals, and known empty cells.
 
         Uses sparse-aware decay that removes effectively zero values to maintain sparsity.
+
+        Channels listed in :attr:`world_driven_channels` are skipped because
+        an externally-supplied dense world layer already encodes the
+        post-decay state for the current tick.
         """
         # Apply decay to each dynamic channel using handler-specific logic
         for name, handler in self.registry.get_all_handlers().items():
-            if handler.behavior == ChannelBehavior.DYNAMIC:
-                channel_idx = self.registry.get_index(name)
-                handler.decay(self, channel_idx, self.config)
+            if handler.behavior != ChannelBehavior.DYNAMIC:
+                continue
+            channel_idx = self.registry.get_index(name)
+            if channel_idx in self.world_driven_channels:
+                continue
+            handler.decay(self, channel_idx, self.config)
 
     def clear_instant(self):
         """
@@ -1541,6 +1574,13 @@ class AgentObservation:
             agent_orientation: Agent's facing orientation in degrees (clockwise). 0=north/up.
             **kwargs: Additional keyword arguments passed to custom channel handlers.
         """
+        # Identify channels that will be replaced wholesale by an
+        # externally-supplied dense world layer this tick. They must be
+        # excluded from per-agent decay before ``decay_dynamics`` runs.
+        self.world_driven_channels = self._compute_world_driven_channels(
+            world_layers
+        )
+
         self.decay_dynamics()
         self.clear_instant()
 
