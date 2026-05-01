@@ -26,7 +26,7 @@ takes care of bounds checking and zero-padding outside the world.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 import numpy as np
 
