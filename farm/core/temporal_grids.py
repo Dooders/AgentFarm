@@ -26,7 +26,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 
-from farm.core.memmap_manager import MemmapManager, Shape2D
+from farm.core.memmap_manager import MemmapManager, Shape2D, get_zero_padded_window_2d
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -282,41 +282,9 @@ class TemporalGridManager:
             raise KeyError(
                 f"Temporal channel '{name}' not registered (known: {sorted(self._specs)})"
             )
-        arr = self._arrays.get(name)
-        H, W = self.shape
-        y0i = int(y0)
-        y1i = int(y1)
-        x0i = int(x0)
-        x1i = int(x1)
-        h = y1i - y0i
-        w = x1i - x0i
-        target_dtype = np.dtype(out_dtype)
-        if h <= 0 or w <= 0:
-            return np.zeros((max(0, h), max(0, w)), dtype=target_dtype)
-        if arr is None:
-            # Undeposited RAM-backed channels are implicitly all-zeros.
-            return np.zeros((h, w), dtype=target_dtype)
-
-        if 0 <= y0i and y1i <= H and 0 <= x0i and x1i <= W:
-            return np.array(arr[y0i:y1i, x0i:x1i], dtype=target_dtype, copy=True)
-
-        out = np.zeros((h, w), dtype=target_dtype)
-        ys0 = max(0, y0i)
-        ys1 = min(H, y1i)
-        xs0 = max(0, x0i)
-        xs1 = min(W, x1i)
-        if ys1 <= ys0 or xs1 <= xs0:
-            return out
-        ty0 = ys0 - y0i
-        tx0 = xs0 - x0i
-        view = arr[ys0:ys1, xs0:xs1]
-        if view.dtype == out.dtype:
-            out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view
-        else:
-            out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view.astype(
-                out.dtype, copy=False
-            )
-        return out
+        return get_zero_padded_window_2d(
+            self._arrays.get(name), self.shape, y0, y1, x0, x1, out_dtype=out_dtype
+        )
 
     def gamma_for(self, name: str) -> float:
         """Return the decay gamma for channel ``name``.

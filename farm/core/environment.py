@@ -2187,13 +2187,6 @@ class Environment(AECEnv):
             "OBSTACLES": obstacles_local,
             "TERRAIN_COST": terrain_cost_local,
         }
-        # Pass the visibility layer through when the environmental grid
-        # provides one (defaults to a zeroed grid). When the channel
-        # handler computes its own disk mask it ignores this entry.
-        if "VISIBILITY" in self.environmental_grids:
-            world_layers["VISIBILITY"] = self._make_environmental_layer_tensor(
-                "VISIBILITY", ay, ax, R
-            )
 
         # Get health from combat component to ensure proper capping
         combat_comp = agent.get_component("combat")

@@ -30,7 +30,7 @@ from __future__ import annotations
 import os
 import tempfile
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -43,6 +43,57 @@ logger = get_logger(__name__)
 
 #: A 2D shape ``(height, width)``.
 Shape2D = Tuple[int, int]
+
+
+def get_zero_padded_window_2d(
+    arr: Optional[np.ndarray],
+    shape_hw: Shape2D,
+    y0: int,
+    y1: int,
+    x0: int,
+    x1: int,
+    *,
+    out_dtype: Any = np.float32,
+) -> np.ndarray:
+    """Extract ``arr[y0:y1, x0:x1]`` with zero-padding outside ``shape_hw``.
+
+    Shared by :class:`MemmapManager` and RAM-backed grid managers so bounds
+    handling and dtype coercion stay consistent across backends.
+    """
+
+    H, W = int(shape_hw[0]), int(shape_hw[1])
+    y0i = int(y0)
+    y1i = int(y1)
+    x0i = int(x0)
+    x1i = int(x1)
+    h = y1i - y0i
+    w = x1i - x0i
+    target_dtype = np.dtype(out_dtype)
+    if h <= 0 or w <= 0:
+        return np.zeros((max(0, h), max(0, w)), dtype=target_dtype)
+    if arr is None:
+        return np.zeros((h, w), dtype=target_dtype)
+
+    if 0 <= y0i and y1i <= H and 0 <= x0i and x1i <= W:
+        return np.array(arr[y0i:y1i, x0i:x1i], dtype=target_dtype, copy=True)
+
+    out = np.zeros((h, w), dtype=target_dtype)
+    ys0 = max(0, y0i)
+    ys1 = min(H, y1i)
+    xs0 = max(0, x0i)
+    xs1 = min(W, x1i)
+    if ys1 <= ys0 or xs1 <= xs0:
+        return out
+    ty0 = ys0 - y0i
+    tx0 = xs0 - x0i
+    view = arr[ys0:ys1, xs0:xs1]
+    if view.dtype == target_dtype:
+        out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view
+    else:
+        out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view.astype(
+            target_dtype, copy=False
+        )
+    return out
 
 
 @dataclass(frozen=True)
@@ -338,41 +389,9 @@ class MemmapManager:
         """
 
         arr = self._views[name]
-        H, W = arr.shape
-        y0i = int(y0)
-        y1i = int(y1)
-        x0i = int(x0)
-        x1i = int(x1)
-        h = y1i - y0i
-        w = x1i - x0i
-        if h <= 0 or w <= 0:
-            return np.zeros((max(0, h), max(0, w)), dtype=np.dtype(out_dtype))
-
-        target_dtype = np.dtype(out_dtype)
-
-        # Fast path: window is fully inside the array. Skip the
-        # ``np.zeros`` allocation and copy the slice directly. This is the
-        # common case (agent away from world edge) and avoids paying for
-        # zero-fill when no padding is needed.
-        if 0 <= y0i and y1i <= H and 0 <= x0i and x1i <= W:
-            view = arr[y0i:y1i, x0i:x1i]
-            out = np.array(view, dtype=target_dtype, copy=True)
-        else:
-            out = np.zeros((h, w), dtype=target_dtype)
-            ys0 = max(0, y0i)
-            ys1 = min(H, y1i)
-            xs0 = max(0, x0i)
-            xs1 = min(W, x1i)
-            if ys1 > ys0 and xs1 > xs0:
-                ty0 = ys0 - y0i
-                tx0 = xs0 - x0i
-                view = arr[ys0:ys1, xs0:xs1]
-                if view.dtype == target_dtype:
-                    out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view
-                else:
-                    out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = (
-                        view.astype(target_dtype, copy=False)
-                    )
+        out = get_zero_padded_window_2d(
+            arr, arr.shape, y0, y1, x0, x1, out_dtype=out_dtype
+        )
 
         if normalize_by is not None and normalize_by > 0:
             np.divide(out, float(normalize_by), out=out)
