@@ -327,8 +327,13 @@ def run_trial(
                 info = env_mm.temporal_grids._manager.info(storage_name)  # noqa: SLF001
                 temporal_grid_paths.append(info.path)
                 temporal_grid_size_mb += os.path.getsize(info.path) / (1024.0 * 1024.0)
-            except Exception:
-                pass
+            except Exception as exc:
+                # Path/size collection is best-effort diagnostics; continue even if
+                # one channel cannot be introspected in this environment/backend.
+                print(
+                    f"warning: failed to collect temporal grid file info for '{name}': {exc}",
+                    file=sys.stderr,
+                )
         # Deposit a few damage events and verify decay.
         env_mm.deposit_temporal_events(
             "DAMAGE_HEAT",
