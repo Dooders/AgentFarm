@@ -248,8 +248,8 @@ def run_trial(
                 info = env_mm.environmental_grids._manager.info(name)  # noqa: SLF001
                 env_grid_paths.append(info.path)
                 env_grid_size_mb += os.path.getsize(info.path) / (1024.0 * 1024.0)
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"warning: failed to collect memmap metadata for grid '{name}': {exc}")
 
         env_grid_mm_avg_ms = _best_of(
             lambda: _bench_environmental_windows(env_mm.environmental_grids, seed=1),
