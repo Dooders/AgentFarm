@@ -38,8 +38,14 @@ class TestMemmapManager(unittest.TestCase):
         for fname in os.listdir(self.tmpdir):
             try:
                 os.remove(os.path.join(self.tmpdir, fname))
-            except OSError:
-                pass
+            except FileNotFoundError:
+                # Best-effort cleanup: file may already have been removed.
+                continue
+            except OSError as exc:
+                # Ignore only "already removed" race conditions; surface
+                # unexpected filesystem errors.
+                if exc.errno != getattr(os, "ENOENT", 2):
+                    raise
         os.rmdir(self.tmpdir)
 
     def test_create_initializes_zeros_and_registers(self):
