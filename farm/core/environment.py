@@ -1256,20 +1256,22 @@ class Environment(AECEnv):
         not exist or may already be closed, preventing exceptions during
         cleanup operations.
         """
-        if hasattr(self, "resource_manager") and self.resource_manager is not None:
-            # Ensure memmap file is flushed; delete based on config (default: keep for reuse)
-            memmap_cfg = getattr(self.config, "memmap", None) if self.config else None
-            if memmap_cfg is not None:
-                delete_memmap = bool(getattr(memmap_cfg, "delete_on_close", False))
-            else:
-                # Legacy fallback to ResourceConfig.memmap_delete_on_close.
-                delete_memmap = bool(
-                    getattr(
-                        getattr(self.config, "resources", ResourceConfig()),
-                        "memmap_delete_on_close",
-                        False,
-                    )
+        # Ensure memmap-backed files are flushed; delete based on config
+        # (default: keep for reuse).
+        memmap_cfg = getattr(self.config, "memmap", None) if self.config else None
+        if memmap_cfg is not None:
+            delete_memmap = bool(getattr(memmap_cfg, "delete_on_close", False))
+        else:
+            # Legacy fallback to ResourceConfig.memmap_delete_on_close.
+            delete_memmap = bool(
+                getattr(
+                    getattr(self.config, "resources", ResourceConfig()),
+                    "memmap_delete_on_close",
+                    False,
                 )
+            )
+
+        if hasattr(self, "resource_manager") and self.resource_manager is not None:
             try:
                 self.resource_manager.cleanup_memmap(delete_file=delete_memmap)
             except Exception as e:
@@ -1279,21 +1281,23 @@ class Environment(AECEnv):
                     error_message=str(e),
                     exc_info=True,
                 )
-            # Tear down environmental and temporal grids if they were
-            # constructed for this environment.
-            for attr in ("environmental_grids", "temporal_grids"):
-                grid_mgr = getattr(self, attr, None)
-                if grid_mgr is not None:
-                    try:
-                        grid_mgr.close(delete_files=delete_memmap)
-                    except Exception as exc:
-                        logger.error(
-                            "memmap_grid_cleanup_failed",
-                            grid=attr,
-                            error_type=type(exc).__name__,
-                            error_message=str(exc),
-                            exc_info=True,
-                        )
+
+        # Tear down environmental and temporal grids independently from
+        # resource-manager availability so partial-init/failure cases still
+        # release memmap files and handles.
+        for attr in ("environmental_grids", "temporal_grids"):
+            grid_mgr = getattr(self, attr, None)
+            if grid_mgr is not None:
+                try:
+                    grid_mgr.close(delete_files=delete_memmap)
+                except Exception as exc:
+                    logger.error(
+                        "memmap_grid_cleanup_failed",
+                        grid=attr,
+                        error_type=type(exc).__name__,
+                        error_message=str(exc),
+                        exc_info=True,
+                    )
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
@@ -2510,11 +2514,9 @@ class Environment(AECEnv):
 
         # Clear transient temporal-channel grids so a new episode starts
         # without stale damage/trail/signal residue from the previous one.
+        # This also resets channel activity hints used to skip empty channels.
         if hasattr(self, "temporal_grids") and self.temporal_grids is not None:
-            for channel_name in self.temporal_grids.channel_names():
-                arr = self.temporal_grids.get(channel_name)
-                arr[:] = 0
-            self.temporal_grids.flush()
+            self.temporal_grids.clear_all()
 
         self.resources = []
         self.initialize_resources(self.resource_distribution)

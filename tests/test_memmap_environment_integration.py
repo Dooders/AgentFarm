@@ -115,6 +115,12 @@ class TestEnvironmentMemmapIntegration(unittest.TestCase):
         after = float(self.env.temporal_grids.get("DAMAGE_HEAT")[5, 5])
         self.assertAlmostEqual(after, before * spec.default_gamma, places=5)
 
+    def test_reset_clears_temporal_activity_flags(self):
+        self.env.deposit_temporal_events("ALLY_SIGNAL", [(6, 6, 0.7)])
+        self.assertTrue(self.env.temporal_grids.has_any_data("ALLY_SIGNAL"))
+        self.env.reset()
+        self.assertFalse(self.env.temporal_grids.has_any_data("ALLY_SIGNAL"))
+
     def test_close_deletes_files_when_configured(self):
         env_paths = []
         if self.env.environmental_grids.has_memmap:
@@ -124,6 +130,21 @@ class TestEnvironmentMemmapIntegration(unittest.TestCase):
             )
         for p in env_paths:
             self.assertTrue(os.path.exists(p))
+        self.env.close()
+        for p in env_paths:
+            self.assertFalse(os.path.exists(p))
+
+    def test_close_cleans_grid_memmaps_even_without_resource_manager(self):
+        env_paths = []
+        if self.env.environmental_grids.has_memmap:
+            env_paths.extend(
+                self.env.environmental_grids._manager.info(name).path  # noqa: SLF001
+                for name in self.env.environmental_grids.names()
+            )
+        for p in env_paths:
+            self.assertTrue(os.path.exists(p))
+        # Simulate partial-init/failure state where resource manager is unavailable.
+        self.env.resource_manager = None
         self.env.close()
         for p in env_paths:
             self.assertFalse(os.path.exists(p))

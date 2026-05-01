@@ -111,13 +111,16 @@ class EnvironmentalGridManager:
                 self._use_memmap = False
 
         if not self._use_memmap:
-            for name in self.layer_names:
-                self._arrays[name] = np.zeros(self.shape, dtype=self._dtype)
+            # RAM mode is lazy by default: we only allocate a world-sized layer
+            # when it is first written/read as an array. Pure window reads from
+            # untouched layers can be served as all-zeros without allocating
+            # the backing grid.
             logger.debug(
                 "environmental_grids_initialized",
                 backend="ram",
                 layers=self.layer_names,
                 shape=self.shape,
+                allocation="lazy",
             )
 
     # ------------------------------------------------------------------
@@ -131,22 +134,35 @@ class EnvironmentalGridManager:
         return bool(self._use_memmap and self._manager is not None)
 
     def __contains__(self, name: object) -> bool:  # pragma: no cover - trivial
-        return isinstance(name, str) and name in self._arrays
+        return isinstance(name, str) and name in self.layer_names
+
+    def _ensure_layer(self, name: str) -> np.ndarray:
+        if name not in self.layer_names:
+            raise KeyError(
+                f"Environmental layer '{name}' not registered (known: {sorted(self.layer_names)})"
+            )
+        arr = self._arrays.get(name)
+        if arr is None:
+            arr = np.zeros(self.shape, dtype=self._dtype)
+            self._arrays[name] = arr
+        return arr
 
     def get(self, name: str) -> np.ndarray:
         """Return the underlying array (memmap or ndarray) for ``name``."""
 
-        try:
-            return self._arrays[name]
-        except KeyError:
-            raise KeyError(
-                f"Environmental layer '{name}' not registered (known: {sorted(self._arrays)})"
-            ) from None
+        if self.has_memmap:
+            try:
+                return self._arrays[name]
+            except KeyError:
+                raise KeyError(
+                    f"Environmental layer '{name}' not registered (known: {sorted(self._arrays)})"
+                ) from None
+        return self._ensure_layer(name)
 
     def names(self) -> Tuple[str, ...]:
         """Names of the registered environmental layers."""
 
-        return tuple(self._arrays.keys())
+        return tuple(self.layer_names)
 
     def set(self, name: str, data: np.ndarray) -> None:
         """Replace the contents of layer ``name`` with ``data``."""
@@ -184,10 +200,14 @@ class EnvironmentalGridManager:
             return self._manager.get_window(
                 name, y0, y1, x0, x1, out_dtype=out_dtype
             )
+        if name not in self.layer_names:
+            raise KeyError(
+                f"Environmental layer '{name}' not registered (known: {sorted(self.layer_names)})"
+            )
         # Plain-array path mirrors MemmapManager.get_window behavior, with
         # the same fast path for windows fully inside the array.
-        arr = self.get(name)
-        H, W = arr.shape
+        arr = self._arrays.get(name)
+        H, W = self.shape
         y0i = int(y0)
         y1i = int(y1)
         x0i = int(x0)
@@ -197,6 +217,9 @@ class EnvironmentalGridManager:
         target_dtype = np.dtype(out_dtype)
         if h <= 0 or w <= 0:
             return np.zeros((max(0, h), max(0, w)), dtype=target_dtype)
+        if arr is None:
+            # Untouched RAM-backed layers are implicitly all-zeros.
+            return np.zeros((h, w), dtype=target_dtype)
 
         if 0 <= y0i and y1i <= H and 0 <= x0i and x1i <= W:
             return np.array(arr[y0i:y1i, x0i:x1i], dtype=target_dtype, copy=True)
@@ -224,6 +247,7 @@ class EnvironmentalGridManager:
 
         if self.has_memmap:
             return self._manager.total_size_bytes()
+        # Report only allocated RAM layers (lazy allocation).
         return sum(int(arr.nbytes) for arr in self._arrays.values())
 
     # ------------------------------------------------------------------

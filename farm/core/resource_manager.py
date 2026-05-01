@@ -196,7 +196,11 @@ class ResourceManager:
         normalize_by = None
         if normalize:
             max_amount = (
-                getattr(self.config, "max_resource_amount", 10) if self.config else 10
+                getattr(
+                    getattr(self.config, "resources", None), "max_resource_amount", 10
+                )
+                if self.config
+                else 10
             )
             if max_amount and max_amount > 0:
                 normalize_by = float(max_amount)

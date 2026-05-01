@@ -67,6 +67,13 @@ class TestEnvironmentalGridManagerRam(unittest.TestCase):
     def test_has_memmap_false(self):
         self.assertFalse(self.mgr.has_memmap)
 
+    def test_lazy_ram_does_not_allocate_until_materialized(self):
+        self.assertEqual(self.mgr.total_size_bytes(), 0)
+        _ = self.mgr.get_window("OBSTACLES", 0, 3, 0, 3)
+        self.assertEqual(self.mgr.total_size_bytes(), 0)
+        _ = self.mgr.get("OBSTACLES")
+        self.assertGreater(self.mgr.total_size_bytes(), 0)
+
 
 class TestEnvironmentalGridManagerMemmap(unittest.TestCase):
     def setUp(self):
@@ -147,6 +154,19 @@ class TestTemporalGridManagerRam(unittest.TestCase):
         self.mgr.deposit("DAMAGE_HEAT", [(3, 3, 0.4)])
         self.mgr.deposit("DAMAGE_HEAT", [(3, 3, 0.2)], accumulate=False)
         self.assertAlmostEqual(float(self.mgr.get("DAMAGE_HEAT")[3, 3]), 0.2)
+
+    def test_lazy_ram_window_on_untouched_channel_returns_zeros(self):
+        self.assertEqual(self.mgr.total_size_bytes(), 0)
+        win = self.mgr.get_window("ALLY_SIGNAL", 1, 4, 1, 4)
+        self.assertTrue(np.all(win == 0))
+        self.assertEqual(self.mgr.total_size_bytes(), 0)
+
+    def test_clear_all_resets_activity_flags(self):
+        self.mgr.deposit("TRAILS", [(2, 2, 0.8)])
+        self.assertTrue(self.mgr.has_any_data("TRAILS"))
+        self.mgr.clear_all()
+        self.assertFalse(self.mgr.has_any_data("TRAILS"))
+        self.assertTrue(np.all(self.mgr.get("TRAILS") == 0))
 
 
 class TestTemporalGridManagerMemmap(unittest.TestCase):

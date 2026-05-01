@@ -146,13 +146,14 @@ class TemporalGridManager:
                 self._use_memmap = False
 
         if not self._use_memmap:
-            for spec in self._specs.values():
-                self._arrays[spec.name] = np.zeros(self.shape, dtype=self._dtype)
+            # RAM mode allocates channel grids lazily. Channels with no events
+            # stay allocation-free and are treated as all-zeros on read.
             logger.debug(
                 "temporal_grids_initialized",
                 backend="ram",
                 channels=tuple(self._specs.keys()),
                 shape=self.shape,
+                allocation="lazy",
             )
 
     # ------------------------------------------------------------------
@@ -171,17 +172,30 @@ class TemporalGridManager:
         return tuple(self._specs.keys())
 
     def __contains__(self, name: object) -> bool:  # pragma: no cover - trivial
-        return isinstance(name, str) and name in self._arrays
+        return isinstance(name, str) and name in self._specs
+
+    def _ensure_channel(self, name: str) -> np.ndarray:
+        if name not in self._specs:
+            raise KeyError(
+                f"Temporal channel '{name}' not registered (known: {sorted(self._specs)})"
+            )
+        arr = self._arrays.get(name)
+        if arr is None:
+            arr = np.zeros(self.shape, dtype=self._dtype)
+            self._arrays[name] = arr
+        return arr
 
     def get(self, name: str) -> np.ndarray:
         """Return the underlying array for channel ``name``."""
 
-        try:
-            return self._arrays[name]
-        except KeyError:
-            raise KeyError(
-                f"Temporal channel '{name}' not registered (known: {sorted(self._arrays)})"
-            ) from None
+        if self.has_memmap:
+            try:
+                return self._arrays[name]
+            except KeyError:
+                raise KeyError(
+                    f"Temporal channel '{name}' not registered (known: {sorted(self._arrays)})"
+                ) from None
+        return self._ensure_channel(name)
 
     # ------------------------------------------------------------------
     # Event deposit / decay
@@ -264,8 +278,12 @@ class TemporalGridManager:
                 x1,
                 out_dtype=out_dtype,
             )
-        arr = self.get(name)
-        H, W = arr.shape
+        if name not in self._specs:
+            raise KeyError(
+                f"Temporal channel '{name}' not registered (known: {sorted(self._specs)})"
+            )
+        arr = self._arrays.get(name)
+        H, W = self.shape
         y0i = int(y0)
         y1i = int(y1)
         x0i = int(x0)
@@ -275,6 +293,9 @@ class TemporalGridManager:
         target_dtype = np.dtype(out_dtype)
         if h <= 0 or w <= 0:
             return np.zeros((max(0, h), max(0, w)), dtype=target_dtype)
+        if arr is None:
+            # Undeposited RAM-backed channels are implicitly all-zeros.
+            return np.zeros((h, w), dtype=target_dtype)
 
         if 0 <= y0i and y1i <= H and 0 <= x0i and x1i <= W:
             return np.array(arr[y0i:y1i, x0i:x1i], dtype=target_dtype, copy=True)
@@ -334,7 +355,9 @@ class TemporalGridManager:
             # The flag is sticky once set; checking ``arr.max()`` on a
             # large memmap to flip it back would defeat the purpose.
             return
-        arr = self.get(name)
+        arr = self._arrays.get(name)
+        if arr is None:
+            return
         np.multiply(arr, gamma, out=arr)
         if self.has_memmap:
             self._manager.flush(spec.storage_name)
@@ -363,3 +386,18 @@ class TemporalGridManager:
             self._manager.close_all(delete_files=delete_files)
             self._manager = None
         self._arrays.clear()
+        self._has_data = {name: False for name in self._specs}
+
+    def clear_all(self) -> None:
+        """Reset all temporal channels to zero and clear activity flags.
+
+        In RAM mode this only touches channels that were actually allocated.
+        In memmap mode all registered channels are dense-backed and are
+        zeroed explicitly.
+        """
+
+        for name, arr in self._arrays.items():
+            arr[:] = 0
+            if self.has_memmap:
+                self._manager.flush(self._resolve_storage_name(name))
+        self._has_data = {name: False for name in self._specs}
