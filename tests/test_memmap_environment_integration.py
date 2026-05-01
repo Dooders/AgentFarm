@@ -49,6 +49,8 @@ class TestEnvironmentMemmapIntegration(unittest.TestCase):
                 try:
                     os.remove(os.path.join(self.tmpdir, fname))
                 except OSError:
+                    # Best-effort teardown cleanup: files may already be gone or
+                    # temporarily unavailable on some platforms.
                     pass
             os.rmdir(self.tmpdir)
 
