@@ -1,17 +1,20 @@
+import hashlib
 import math
 import os
 import random
-import tempfile
-import hashlib
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
 from farm.core.geometry import discretize_position_continuous
+from farm.core.memmap_manager import MemmapManager
 from farm.core.resources import Resource
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+_RESOURCE_GRID_NAME = "resources"
 
 
 class ResourceManager:
@@ -89,78 +92,68 @@ class ResourceManager:
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
 
-        # Memmap-backed resource grid (optional)
+        # Memmap-backed resource grid (optional). Driven by config.memmap.use_for_resources.
+        memmap_cfg = getattr(self.config, "memmap", None) if self.config else None
         self._use_memmap: bool = bool(
-            getattr(self.config, "use_memmap_resources", False)
+            getattr(memmap_cfg, "use_for_resources", False)
         )
-        self._memmap: Optional[np.memmap] = None
-        self._memmap_path: Optional[str] = None
         self._memmap_shape: Tuple[int, int] = (int(self.height), int(self.width))
-        self._memmap_dtype = (
-            getattr(self.config, "memmap_dtype", "float32")
-            if self.config
-            else "float32"
-        )
-        self._memmap_mode = (
-            getattr(self.config, "memmap_mode", "w+") if self.config else "w+"
-        )
+        self._memmap_manager: Optional[MemmapManager] = None
         if self._use_memmap:
-            self._init_memmap()
+            self._init_memmap(memmap_cfg)
 
     # -----------------
     # Memmap utilities
     # -----------------
-    def _sanitize_for_filename(self, value: str) -> str:
-        # Keep alnum, dash, underscore; replace others with '-'
-        return "".join(c if (c.isalnum() or c in ("-", "_")) else "-" for c in value)[
-            :64
-        ]
-
-    def _init_memmap(self) -> None:
+    def _init_memmap(self, memmap_cfg: Any) -> None:
         try:
-            mem_dir = (
-                getattr(self.config, "memmap_dir", None) if self.config else None
-            ) or tempfile.gettempdir()
-            os.makedirs(mem_dir, exist_ok=True)
-            pid_part = f"_p{os.getpid()}"
-            if self.simulation_id:
-                sim_safe = self._sanitize_for_filename(str(self.simulation_id))
-                sim_part = f"_{sim_safe}"
-            else:
-                sim_part = ""
-            filename = f"resources{sim_part}{pid_part}_{int(self.width)}x{int(self.height)}.dat"
-            path = os.path.join(mem_dir, filename)
-            self._memmap_path = path
-            self._memmap = np.memmap(
-                path,
-                dtype=self._memmap_dtype,
-                mode=self._memmap_mode,
-                shape=self._memmap_shape,
+            self._memmap_manager = MemmapManager(
+                directory=getattr(memmap_cfg, "directory", None),
+                simulation_id=self.simulation_id,
+                namespace=None,
+                default_dtype=getattr(memmap_cfg, "dtype", "float32"),
+                default_mode=getattr(memmap_cfg, "mode", "w+"),
             )
-            # Initialize zeros for deterministic start
-            self._memmap[:] = 0
-            self._memmap.flush()
-            logger.info("resource_memmap_initialized", path=path)
+            self._memmap_manager.create(
+                _RESOURCE_GRID_NAME, self._memmap_shape, fill=0.0
+            )
+            info = self._memmap_manager.info(_RESOURCE_GRID_NAME)
+            logger.info(
+                "resource_memmap_initialized",
+                path=info.path,
+                shape=info.shape,
+                dtype=str(info.dtype),
+            )
         except Exception as e:
             logger.error(
                 "resource_memmap_init_failed",
                 error_type=type(e).__name__,
                 error_message=str(e),
             )
-            self._memmap = None
-            self._memmap_path = None
+            self._memmap_manager = None
             self._use_memmap = False
 
     @property
     def has_memmap(self) -> bool:
-        return bool(self._use_memmap and self._memmap is not None)
+        return bool(self._use_memmap and self._memmap_manager is not None)
+
+    @property
+    def _memmap_path(self) -> Optional[str]:
+        """Backing file path (or ``None`` when memmap is disabled).
+
+        Exposed as a public-friendly attribute for tests and tooling that
+        previously inspected the private memmap path.
+        """
+
+        if not self.has_memmap:
+            return None
+        return self._memmap_manager.info(_RESOURCE_GRID_NAME).path
 
     def _rebuild_memmap_from_resources(self) -> None:
         if not self.has_memmap:
             return
         try:
-            mm = self._memmap  # type: ignore[assignment]
-            assert mm is not None
+            mm = self._memmap_manager.get(_RESOURCE_GRID_NAME)
             mm[:] = 0
             max_amount = (
                 getattr(
@@ -170,7 +163,6 @@ class ResourceManager:
                 else 10
             )
             H, W = self._memmap_shape
-            # Discretization
             method = (
                 getattr(self.config, "position_discretization_method", "floor")
                 if self.config
@@ -180,8 +172,8 @@ class ResourceManager:
                 x, y = discretize_position_continuous(
                     (r.position[0], r.position[1]), (W, H), method
                 )
-                # Accumulate (clamped by max)
-                mm[y, x] = min(max_amount, float(mm[y, x]) + float(r.amount))
+                if 0 <= y < H and 0 <= x < W:
+                    mm[y, x] = min(max_amount, float(mm[y, x]) + float(r.amount))
             mm.flush()
         except Exception as e:
             logger.error(
@@ -197,47 +189,48 @@ class ResourceManager:
 
         If memmap is disabled or unavailable, returns zeros.
         """
-        H, W = self._memmap_shape
-        h = max(0, y1 - y0)
-        w = max(0, x1 - x0)
-        out = np.zeros((h, w), dtype=np.float32)
+        h = max(0, int(y1) - int(y0))
+        w = max(0, int(x1) - int(x0))
         if not self.has_memmap or h == 0 or w == 0:
-            return out
-        ys0 = max(0, y0)
-        ys1 = min(H, y1)
-        xs0 = max(0, x0)
-        xs1 = min(W, x1)
-        ty0 = ys0 - y0
-        tx0 = xs0 - x0
-        if ys1 > ys0 and xs1 > xs0:
-            view = self._memmap[ys0:ys1, xs0:xs1]
-            if view.dtype == np.float32:
-                out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view
-            elif view.dtype.itemsize == np.dtype(np.float32).itemsize:
-                out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view.view(
-                    np.float32
-                )
-            else:
-                out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view.astype(
-                    np.float32
-                )
+            return np.zeros((h, w), dtype=np.float32)
+        normalize_by = None
         if normalize:
             max_amount = (
-                getattr(self.config, "max_resource_amount", 10) if self.config else 10
+                getattr(
+                    getattr(self.config, "resources", None), "max_resource_amount", 10
+                )
+                if self.config
+                else 10
             )
             if max_amount and max_amount > 0:
-                out = out / float(max_amount)
-                # Clamp to [0, 1] range to handle resource accumulation
-                out = np.clip(out, 0.0, 1.0)
-        return out
+                normalize_by = float(max_amount)
+        return self._memmap_manager.get_window(
+            _RESOURCE_GRID_NAME,
+            y0,
+            y1,
+            x0,
+            x1,
+            normalize_by=normalize_by,
+            out_dtype=np.float32,
+        )
 
     def cleanup_memmap(self, delete_file: bool = True) -> None:
+        """Flush the resource memmap; optionally drop the manager and delete files.
+
+        When ``delete_file=False`` (the default for normal environment
+        shutdown) the underlying file is preserved on disk so it can be
+        reused by subsequent runs. The in-memory manager is kept so a later
+        call with ``delete_file=True`` can still remove the backing file.
+        """
+
+        if self._memmap_manager is None:
+            return
         try:
-            if self._memmap is not None:
-                self._memmap.flush()
-                self._memmap = None
-            if delete_file and self._memmap_path and os.path.exists(self._memmap_path):
-                os.remove(self._memmap_path)
+            if delete_file:
+                self._memmap_manager.close_all(delete_files=True)
+                self._memmap_manager = None
+            else:
+                self._memmap_manager.flush()
         except Exception as e:
             logger.warning("Failed to cleanup resource memmap: %s", e)
 

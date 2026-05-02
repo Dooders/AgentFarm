@@ -44,8 +44,8 @@ class ObservationProfiler:
         # Configure observation settings
         config.observation = ObservationConfig(R=obs_radius)
 
-        # Configure resource settings
-        config.resources.use_memmap_resources = use_memmap
+        # Configure resource settings (uses unified memmap configuration)
+        config.memmap.use_for_resources = use_memmap
 
         # Create environment
         env = Environment(
