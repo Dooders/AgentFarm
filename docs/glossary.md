@@ -2,7 +2,7 @@
 
 ## Agent
 
-An agent is an autonomous entity that perceives its environment, makes decisions, and takes actions toward survival or other objectives.
+An agent is an autonomous entity[^autonomous-entity] that perceives its environment, makes decisions, and takes actions toward survival or other objectives.
 
 In AgentFarm, an agent is modeled as a **stateful simulation actor with configurable behavior, resources, and lifecycle dynamics**:
 
@@ -11,6 +11,8 @@ In AgentFarm, an agent is modeled as a **stateful simulation actor with configur
 - Agent interactions with resources, space, and other agents generate the population-level patterns analyzed throughout the library.
 
 In this library, agents are the core units of simulation from which lineage, ecological dynamics, and emergent behavior are derived.
+
+[^autonomous-entity]: Here, "autonomous entity" means an individual actor that carries its own state and computes its own actions from local observations and internal policy/state. AgentFarm does have a central simulation scheduler (the step loop), but that scheduler orchestrates timing/order; it does not supply each agent's action choice. Autonomy is therefore decision-level (not runtime-level) and remains bounded by simulation rules, action interfaces, and resource limits.
 
 ## Agency
 
@@ -215,6 +217,18 @@ In AgentFarm, a niche is modeled as a **cluster-specific ecological profile** th
 - This links genotype-like structure (chromosome clusters) to environment-embedded outcomes (where agents are, how costly reproduction is, and how they are performing).
 
 In practice, a niche here means a recurring cluster pattern with distinguishable ecological context, not a fixed species label.
+
+## Frequency-dependent selection
+
+Frequency-dependent selection is selection in which the relative success of a variant depends on how common that variant currently is in the population.
+
+In AgentFarm, frequency-dependent selection is modeled as **population-composition-dependent fitness emerging from a shared environment**:
+
+- Because agents compete for the same resources and space, the value of a strategy (for example a particular `learning_rate` or `gamma` setting) depends on what other agents are doing — common strategies face more direct competition, while rare strategies may exploit underused conditions.
+- `IntrinsicEvolutionExperiment` refers to this as *frequency-dependent dynamics*: the optimal hyperparameter is not fixed in advance and can shift as the population mix changes, so a chromosome that wins early may lose later as it becomes common.
+- Negative frequency dependence (rare-variant advantage) tends to maintain coexisting variants and produces multiple clusters in chromosome space, which is what the speciation layer (`farm.analysis.speciation`) is designed to detect via `speciation_index` and `cluster_lineage.jsonl`.
+
+In this library, frequency-dependent selection is the mechanism that allows multiple hyperparameter strategies to coexist within a single run rather than collapsing onto one dominant chromosome.
 
 ## Polymorphism
 
