@@ -169,7 +169,7 @@ playground.ipynb
 
 # Simulation data
 simulations/
-experiments/
+/experiments/
 
 # Generated distillation/quantization artifacts
 checkpoints/distillation*/
