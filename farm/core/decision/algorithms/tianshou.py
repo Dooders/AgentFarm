@@ -35,7 +35,7 @@ class TianshouWrapper(RLAlgorithm):
     # ``target_update_freq`` gene actually controls the hard target sync.
     _EXCLUDED_PARAMS = frozenset([
         "lr", "device", "gamma", "tau", "alpha", "auto_alpha", "target_entropy",
-        "n_step", "target_update_freq", "eps_test", "eps_train", "eps_train_final",
+        "n_step", "estimation_step", "target_update_freq", "eps_test", "eps_train", "eps_train_final",
         "repeat_per_collect", "max_batchsize"
     ])
 

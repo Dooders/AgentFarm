@@ -281,8 +281,10 @@ def compute_action_weights(
             )
 
     # ── enabled mask ────────────────────────────────────────────────────────
+    enabled_list: Optional[List[int]] = None
     if enabled_actions is not None:
-        enabled_set = {int(i) for i in enabled_actions}
+        enabled_list = [int(i) for i in enabled_actions]
+        enabled_set = set(enabled_list)
         for idx in range(weights.size):
             if idx not in enabled_set:
                 weights[idx] = 0.0
@@ -297,8 +299,7 @@ def compute_action_weights(
         return weights / total
 
     # All-zero fallback: uniform across enabled (or all) actions.
-    if enabled_actions is not None:
-        enabled_list: List[int] = [int(i) for i in enabled_actions]
+    if enabled_list is not None:
         if enabled_list:
             uniform = np.zeros_like(weights)
             uniform[enabled_list] = 1.0 / len(enabled_list)
