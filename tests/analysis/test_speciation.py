@@ -899,9 +899,41 @@ class TestComputeNicheCorrelation:
 
 
 def _make_fake_chromosome(lr: float = 0.01, gamma: float = 0.99):
-    """Build a minimal HyperparameterChromosome-like object."""
-    from farm.core.hyperparameter_chromosome import chromosome_from_values
-    return chromosome_from_values({"learning_rate": lr, "gamma": gamma})
+    """Build a minimal HyperparameterChromosome-like object.
+
+    Constructs a 2-gene chromosome directly so the speciation tests operate on
+    a low-dimensional feature matrix.  Using the platform-wide default
+    chromosome would pad the vector with many constant loci, which makes GMM's
+    BIC criterion prefer k=1 even when the population is clearly bimodal in
+    one dimension.
+    """
+    from farm.core.hyperparameter_chromosome import (
+        GeneValueType,
+        HyperparameterChromosome,
+        HyperparameterGene,
+    )
+    return HyperparameterChromosome(
+        genes=(
+            HyperparameterGene(
+                name="learning_rate",
+                value_type=GeneValueType.REAL,
+                value=lr,
+                min_value=1e-6,
+                max_value=1.0,
+                default=0.001,
+                evolvable=True,
+            ),
+            HyperparameterGene(
+                name="gamma",
+                value_type=GeneValueType.REAL,
+                value=gamma,
+                min_value=0.0,
+                max_value=1.0,
+                default=0.99,
+                evolvable=True,
+            ),
+        )
+    )
 
 
 def _make_fake_agent(lr: float = 0.01, gamma: float = 0.99):

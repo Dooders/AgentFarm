@@ -364,25 +364,75 @@ class HyperparameterChromosome:
 
 
 # Default encoding policy by gene name.
-# learning_rate uses log-space 8-bit quantization so equal bucket changes map to
-# multiplicative LR changes, which is typically more meaningful than linear shifts.
-# epsilon_decay and gamma use linear 8-bit quantization; their ranges are bounded
-# and do not span multiple orders of magnitude in a way that requires log space.
+#
+# Log-space quantization is used for genes whose useful range spans multiple
+# orders of magnitude, so equal bucket changes map to multiplicative shifts in
+# the underlying value (typically more meaningful than linear shifts).  Linear
+# 8-bit quantization is used for bounded ratios and probabilities whose ranges
+# do not span multiple decades.
 DEFAULT_GENE_ENCODINGS: Dict[str, GeneEncodingSpec] = {
+    # ── Chromosome A: learning / RL hyperparameters ──────────────────────────
     "learning_rate": GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8),
     "epsilon_decay": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
     "gamma": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "epsilon_start": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    # epsilon_min uses linear encoding (not log) so the gene can accept the
+    # legal DecisionConfig boundary value of 0.0; log-scale would require a
+    # strictly positive lower bound and reject configs that disable exploration.
+    "epsilon_min": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    # tau, batch_size, target_update_freq, dqn_hidden_size, and rl_train_freq
+    # all span multiple orders of magnitude where multiplicative steps are
+    # more meaningful than absolute ones, so they use log-scale encoding.
+    "tau": GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8),
+    "batch_size": GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8),
+    "target_update_freq": GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8),
+    "dqn_hidden_size": GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8),
+    "rl_train_freq": GeneEncodingSpec(scale=GeneEncodingScale.LOG, bit_width=8),
+    "per_alpha": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "per_beta_start": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "per_beta_end": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "ensemble_size": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    # ── Chromosome B: action-policy priors ───────────────────────────────────
+    "move_weight": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "gather_weight": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "share_weight": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "attack_weight": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reproduce_weight": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "move_mult_no_resources": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "gather_mult_low_resources": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "share_mult_wealthy": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "share_mult_poor": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "attack_mult_desperate": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "attack_mult_stable": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reproduce_mult_wealthy": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reproduce_mult_poor": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "attack_starvation_threshold": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "attack_defense_threshold": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reproduce_resource_threshold": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
 }
 
 # Smallest positive IEEE-754 binary64; mirrors DecisionConfig allowing any (0, 1].
 _EPSILON_DECAY_GENE_MIN = math.ldexp(1.0, -1074)
 
 
+
 # Default hyperparameter loci.
-# learning_rate, gamma, epsilon_decay, and memory_size are all evolvable.
-# memory_size is projected to integer config fields via rounding with a bounds
-# safety check in ``apply_chromosome_to_learning_config``.
+#
+# These cover two logical chromosomes (kept in a single tuple so the existing
+# crossover/mutation pipeline operates over all of them):
+#
+# - **Chromosome A — learning / RL hyperparameters** (DQN/PER knobs).
+# - **Chromosome B — action-policy priors** (base action weights, state-based
+#   multipliers, and policy thresholds on ``DecisionConfig``).
+#
+# All names match attributes on :class:`farm.core.decision.config.DecisionConfig`,
+# so :func:`apply_chromosome_to_learning_config` projects gene values back into
+# the live config automatically.  Genes whose target attribute is an ``int``
+# (``memory_size``, ``batch_size``, ``target_update_freq``, ``dqn_hidden_size``,
+# ``rl_train_freq``, ``ensemble_size``) are projected via rounding with a bounds
+# safety check in :func:`apply_chromosome_to_learning_config`.
 DEFAULT_HYPERPARAMETER_GENES: Tuple[HyperparameterGene, ...] = (
+    # ── Chromosome A: learning / RL hyperparameters ──────────────────────────
     HyperparameterGene(
         name="learning_rate",
         value_type=GeneValueType.REAL,
@@ -417,6 +467,250 @@ DEFAULT_HYPERPARAMETER_GENES: Tuple[HyperparameterGene, ...] = (
         min_value=1.0,
         max_value=1_000_000.0,
         default=10000.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="epsilon_start",
+        value_type=GeneValueType.REAL,
+        value=1.0,
+        min_value=0.0,
+        max_value=1.0,
+        default=1.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="epsilon_min",
+        value_type=GeneValueType.REAL,
+        value=0.01,
+        min_value=0.0,
+        max_value=0.5,
+        default=0.01,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="tau",
+        value_type=GeneValueType.REAL,
+        value=0.005,
+        min_value=1e-4,
+        max_value=0.5,
+        default=0.005,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="batch_size",
+        value_type=GeneValueType.REAL,
+        value=32.0,
+        min_value=8.0,
+        max_value=1024.0,
+        default=32.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="target_update_freq",
+        value_type=GeneValueType.REAL,
+        value=100.0,
+        min_value=1.0,
+        max_value=5000.0,
+        default=100.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="dqn_hidden_size",
+        value_type=GeneValueType.REAL,
+        value=64.0,
+        min_value=8.0,
+        max_value=512.0,
+        default=64.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="rl_train_freq",
+        value_type=GeneValueType.REAL,
+        value=4.0,
+        min_value=1.0,
+        max_value=64.0,
+        default=4.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="per_alpha",
+        value_type=GeneValueType.REAL,
+        value=0.6,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.6,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="per_beta_start",
+        value_type=GeneValueType.REAL,
+        value=0.4,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.4,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="per_beta_end",
+        value_type=GeneValueType.REAL,
+        value=1.0,
+        min_value=0.0,
+        max_value=1.0,
+        default=1.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="ensemble_size",
+        value_type=GeneValueType.REAL,
+        value=1.0,
+        min_value=1.0,
+        max_value=16.0,
+        default=1.0,
+        evolvable=True,
+    ),
+    # ── Chromosome B: action-policy priors ───────────────────────────────────
+    HyperparameterGene(
+        name="move_weight",
+        value_type=GeneValueType.REAL,
+        value=0.30,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.30,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="gather_weight",
+        value_type=GeneValueType.REAL,
+        value=0.30,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.30,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="share_weight",
+        value_type=GeneValueType.REAL,
+        value=0.15,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.15,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="attack_weight",
+        value_type=GeneValueType.REAL,
+        value=0.10,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.10,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reproduce_weight",
+        value_type=GeneValueType.REAL,
+        value=0.15,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.15,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="move_mult_no_resources",
+        value_type=GeneValueType.REAL,
+        value=1.5,
+        min_value=0.5,
+        max_value=3.0,
+        default=1.5,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="gather_mult_low_resources",
+        value_type=GeneValueType.REAL,
+        value=1.5,
+        min_value=0.5,
+        max_value=3.0,
+        default=1.5,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="share_mult_wealthy",
+        value_type=GeneValueType.REAL,
+        value=1.3,
+        min_value=0.5,
+        max_value=3.0,
+        default=1.3,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="share_mult_poor",
+        value_type=GeneValueType.REAL,
+        value=0.5,
+        min_value=0.0,
+        max_value=1.5,
+        default=0.5,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="attack_mult_desperate",
+        value_type=GeneValueType.REAL,
+        value=1.4,
+        min_value=0.5,
+        max_value=3.0,
+        default=1.4,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="attack_mult_stable",
+        value_type=GeneValueType.REAL,
+        value=0.6,
+        min_value=0.0,
+        max_value=1.5,
+        default=0.6,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reproduce_mult_wealthy",
+        value_type=GeneValueType.REAL,
+        value=1.4,
+        min_value=0.5,
+        max_value=3.0,
+        default=1.4,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reproduce_mult_poor",
+        value_type=GeneValueType.REAL,
+        value=0.3,
+        min_value=0.0,
+        max_value=1.5,
+        default=0.3,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="attack_starvation_threshold",
+        value_type=GeneValueType.REAL,
+        value=0.5,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.5,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="attack_defense_threshold",
+        value_type=GeneValueType.REAL,
+        value=0.3,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.3,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reproduce_resource_threshold",
+        value_type=GeneValueType.REAL,
+        value=0.7,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.7,
         evolvable=True,
     ),
 )

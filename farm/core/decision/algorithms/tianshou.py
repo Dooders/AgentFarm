@@ -27,7 +27,12 @@ class TianshouWrapper(RLAlgorithm):
     """
 
     # Parameters that are handled separately and should be filtered out
-    # when passing config to Tianshou policy constructors
+    # when passing config to Tianshou policy constructors.
+    #
+    # ``target_update_freq`` stays in this set because most Tianshou policies
+    # (PPO / SAC / A2C / DDPG) do not accept it.  The DQN branch forwards the
+    # value via an explicit kwarg below so the Chromosome A
+    # ``target_update_freq`` gene actually controls the hard target sync.
     _EXCLUDED_PARAMS = frozenset([
         "lr", "device", "gamma", "tau", "alpha", "auto_alpha", "target_entropy",
         "n_step", "target_update_freq", "eps_test", "eps_train", "eps_train_final",
@@ -545,12 +550,28 @@ class TianshouWrapper(RLAlgorithm):
                     q_net.parameters(), lr=self.algorithm_config["lr"]
                 )
 
-                # Create policy
+                # Create policy.  ``target_update_freq`` and ``estimation_step``
+                # are first-class DQNPolicy constructor args, so we pass them
+                # explicitly rather than letting the EXCLUDED_PARAMS filter
+                # drop them.  This makes the Chromosome A
+                # ``target_update_freq`` gene control the hard target sync
+                # cadence end-to-end.
+                target_update_freq = int(
+                    self.algorithm_config.get("target_update_freq", 500)
+                )
+                if target_update_freq <= 0:
+                    raise ValueError(
+                        "target_update_freq must be a positive integer; got "
+                        f"{target_update_freq}."
+                    )
+                estimation_step = int(self.algorithm_config.get("n_step", 1))
 
                 self.policy = DQNPolicy(
                     model=q_net,
                     optim=optim,
                     action_space=gymnasium.spaces.Discrete(self.num_actions),
+                    target_update_freq=target_update_freq,
+                    estimation_step=estimation_step,
                     **{
                         k: v
                         for k, v in self.algorithm_config.items()

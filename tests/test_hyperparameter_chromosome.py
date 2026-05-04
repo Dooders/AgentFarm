@@ -446,8 +446,9 @@ class TestAdditionalContinuousGenes(unittest.TestCase):
     def test_multi_gene_chromosome_vector_encode_decode_round_trip(self):
         chromosome = chromosome_from_values({"learning_rate": 0.005, "gamma": 0.95, "epsilon_decay": 0.99})
         vec = encode_chromosome_vector(chromosome)
-        # 4 evolvable genes → 4-element vector
-        self.assertEqual(len(vec), 4)
+        # Vector length follows the count of evolvable genes in the default
+        # chromosome, so it adapts as new loci are added.
+        self.assertEqual(len(vec), len(chromosome.evolvable_gene_names()))
         decoded = decode_chromosome_vector(vec, template=chromosome)
         self.assertAlmostEqual(decoded.get_value("learning_rate"), 0.005, delta=0.005 * 0.06)
         self.assertAlmostEqual(decoded.get_value("gamma"), 0.95, delta=0.01)
@@ -1009,26 +1010,57 @@ class TestComputeBoundaryPenalty(unittest.TestCase):
         self.assertEqual(compute_boundary_penalty(chromosome, cfg), 0.0)
 
     def test_full_penalty_at_max_boundary(self):
-        # Set all other evolvable genes to midpoints so only learning_rate (at max) incurs a penalty.
-        chromosome = chromosome_from_values(
-            {"learning_rate": 1.0, "gamma": 0.5, "epsilon_decay": 0.5, "memory_size": 500_000.0}
+        # Use a single-gene chromosome so only the boundary-positioned gene
+        # contributes to the penalty, decoupled from the (growing) default
+        # gene set.
+        chromosome = HyperparameterChromosome(
+            genes=(
+                HyperparameterGene(
+                    name="locus",
+                    value_type=GeneValueType.REAL,
+                    value=1.0,
+                    min_value=0.0,
+                    max_value=1.0,
+                    default=0.5,
+                    evolvable=True,
+                ),
+            )
         )
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05, near_boundary_threshold=0.1)
         penalty = compute_boundary_penalty(chromosome, cfg)
         self.assertAlmostEqual(penalty, 0.05)
 
     def test_full_penalty_at_min_boundary(self):
-        # Set all other evolvable genes to midpoints so only learning_rate (at min) incurs a penalty.
-        chromosome = chromosome_from_values(
-            {"learning_rate": 1e-6, "gamma": 0.5, "epsilon_decay": 0.5, "memory_size": 500_000.0}
+        chromosome = HyperparameterChromosome(
+            genes=(
+                HyperparameterGene(
+                    name="locus",
+                    value_type=GeneValueType.REAL,
+                    value=0.0,
+                    min_value=0.0,
+                    max_value=1.0,
+                    default=0.5,
+                    evolvable=True,
+                ),
+            )
         )
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.05, near_boundary_threshold=0.1)
         penalty = compute_boundary_penalty(chromosome, cfg)
         self.assertAlmostEqual(penalty, 0.05)
 
     def test_zero_penalty_well_inside_bounds(self):
-        chromosome = chromosome_from_values(
-            {"learning_rate": 0.5, "gamma": 0.5, "epsilon_decay": 0.5, "memory_size": 500_000.0}
+        chromosome = HyperparameterChromosome(
+            genes=(
+                HyperparameterGene(
+                    name="locus",
+                    value_type=GeneValueType.REAL,
+                    value=0.5,
+                    min_value=0.0,
+                    max_value=1.0,
+                    default=0.5,
+                    evolvable=True,
+                ),
+            )
         )
         cfg = BoundaryPenaltyConfig(enabled=True, penalty_strength=0.1, near_boundary_threshold=0.05)
         penalty = compute_boundary_penalty(chromosome, cfg)
