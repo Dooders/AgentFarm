@@ -29,12 +29,18 @@ These recommendations are anchored to what is currently wired up in the codebase
 
 ---
 
-## Tier 1 — drop-in additions (no framework changes)
+## Tier 1 — drop-in additions (no framework changes) — **IMPLEMENTED**
 
 These extend the existing **learning chromosome** by adding `HyperparameterGene`
 entries to `DEFAULT_HYPERPARAMETER_GENES`. Names already match `DecisionConfig`
 attributes, so `apply_chromosome_to_learning_config` will project them
 automatically.
+
+> **Status:** All Chromosome A and B genes below are now part of
+> `DEFAULT_HYPERPARAMETER_GENES` in `farm/core/hyperparameter_chromosome.py`
+> (31 evolvable loci total).  Encodings are registered in
+> `DEFAULT_GENE_ENCODINGS`; integer-typed `DecisionConfig` fields are
+> projected via the existing rounding-with-bounds-check path.
 
 ### Chromosome A — Learning / RL hyperparameters
 
