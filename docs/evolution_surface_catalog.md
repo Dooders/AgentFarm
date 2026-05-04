@@ -44,66 +44,60 @@ automatically.
 
 ### Runtime-effect audit
 
-Adding a gene to the chromosome does not, by itself, give it a runtime
-effect — the receiving config attribute also has to be **read** somewhere in
-the agent / decision pipeline.  The catalog below records which genes are
-already consumed by live code and which are only declared.
+All 31 default chromosome loci now have a runtime consumer.  Each gene
+flows into ``DecisionConfig`` via
+:func:`apply_chromosome_to_learning_config` and is read by exactly one
+identified pipeline path, summarized below.
 
-#### Active in the live simulation
+#### Chromosome A — learning / RL hyperparameters
 
-These genes flow into `DecisionConfig` via
-:func:`apply_chromosome_to_learning_config` and are read by
-`farm/core/decision/base_dqn.py` (`BaseDQNModule.__init__`) or by the
-Tianshou wrapper builders in `farm/core/decision/decision.py`, so mutating
-them changes the simulation when the agent's algorithm is rebuilt:
+| Gene | Consumer | Notes |
+|------|----------|-------|
+| `learning_rate` | `BaseDQNModule.__init__`, Tianshou builders | Adam optimizer LR |
+| `gamma` | `BaseDQNModule`, all Tianshou wrappers | discount factor |
+| `epsilon_start` | `BaseDQNModule`, Tianshou DQN (`eps_train`), fallback | exploration init |
+| `epsilon_min` | `BaseDQNModule`, Tianshou DQN (`eps_test`, `eps_train_final`) | exploration floor |
+| `epsilon_decay` | `BaseDQNModule` | decay multiplier |
+| `memory_size` | `BaseDQNModule.memory` | replay buffer size |
+| `tau` | `BaseDQNModule.tau` | soft target update |
+| `batch_size` | `BaseDQNModule.train` | gradient noise |
+| `target_update_freq` | Tianshou `DQNPolicy(target_update_freq=…)` (explicit kwarg) | hard target sync cadence |
+| `dqn_hidden_size` | `BaseDQNModule.q_network`, target net | network capacity |
+| `rl_train_freq` | All Tianshou wrappers (`train_freq=…`) | training cadence |
+| `per_alpha` | All Tianshou wrappers' replay buffer | PER prioritization |
+| `per_beta_start` | All Tianshou wrappers' replay buffer | IS-correction warmup |
+| `per_beta_end` | All Tianshou wrappers' replay buffer | IS-correction final |
+| `ensemble_size` | `RandomForestActionSelector.n_estimators` (auto-injected when `algorithm_type ∈ {"random_forest", "gradient_boost"}`) | tree-ensemble width |
 
-- `learning_rate`, `gamma`, `epsilon_start`, `epsilon_min`, `epsilon_decay`,
-  `memory_size`, `tau`, `batch_size`, `dqn_hidden_size`, `rl_train_freq`,
-  `per_alpha`, `per_beta_start`, `per_beta_end`.
+#### Chromosome B — action-policy priors
 
-#### Latent (declared but not yet consumed)
+Two-stage pipeline:
 
-These genes are part of the chromosome and project into `DecisionConfig`
-cleanly, but no current code path reads the projected attribute.  They
-need follow-up wiring before evolutionary pressure on them can produce
-phenotypic change:
+1. **Base weights** — `move_weight`, `gather_weight`, `share_weight`,
+   `attack_weight`, `reproduce_weight` are bridged into
+   ``core.actions[i].weight`` by
+   ``AgentCore._customize_action_weights`` (at construction) and
+   ``AgentCore.refresh_action_weights_from_decision_config`` (after
+   chromosome re-application).  Per-agent gene values win over the
+   environment-level ``agent_parameters`` block; default-valued genes
+   fall through unchanged.
+2. **State-aware re-weighting** — ``LearningAgentBehavior.decide_action``
+   calls ``compute_action_weights`` from
+   ``farm/core/decision/action_weight_policy.py`` to scale the base
+   weights by the eight multipliers gated by the three thresholds:
+   - `move_mult_no_resources` (no resources nearby)
+   - `gather_mult_low_resources` (resource ratio < 0.5)
+   - `share_mult_wealthy` (resource ratio ≥ 0.7)
+   - `share_mult_poor` (resource ratio < 0.3)
+   - `attack_mult_desperate` (starvation risk ≥ `attack_starvation_threshold`)
+   - `attack_mult_stable` (health ratio ≥ 1 − `attack_defense_threshold`)
+   - `reproduce_mult_wealthy` (resource ratio ≥ `reproduce_resource_threshold`)
+   - `reproduce_mult_poor` (resource ratio < `reproduce_resource_threshold`)
 
-- **Chromosome A:**
-  - `target_update_freq` — `farm/core/decision/decision.py` and
-    `farm/core/decision/algorithms/tianshou.py` hard-code `500` instead
-    of forwarding `self.config.target_update_freq`.
-  - `ensemble_size` — no algorithm constructor reads it.
-- **Chromosome B (all 16):** `move_weight`, `gather_weight`, `share_weight`,
-  `attack_weight`, `reproduce_weight`, `move_mult_no_resources`,
-  `gather_mult_low_resources`, `share_mult_wealthy`, `share_mult_poor`,
-  `attack_mult_desperate`, `attack_mult_stable`, `reproduce_mult_wealthy`,
-  `reproduce_mult_poor`, `attack_starvation_threshold`,
-  `attack_defense_threshold`, `reproduce_resource_threshold`.
-  - Action weights actually consumed by the policy come from
-    `core.actions[i].weight`, which is populated in
-    `AgentCore._customize_action_weights` from the environment-level
-    `agent_parameters` block (`farm/core/agent/core.py` ≈ L245–L304).
-    `LearningAgentBehavior.decide_action` then reads `action.weight`,
-    not `DecisionConfig.move_weight` etc.
-  - The state-based multipliers and thresholds have no consumer at all.
-
-#### Suggested wiring follow-ups
-
-1. **Bridge `DecisionConfig.{move,gather,share,attack,reproduce}_weight`
-   into `AgentCore.actions`** at agent construction (and on chromosome
-   re-application after mutation), so the per-agent gene values override
-   the global `agent_parameters` weights.  This single change activates
-   the five highest-impact Chromosome B loci.
-2. **Replace the hard-coded `target_update_freq=500`** in
-   `farm/core/decision/decision.py` and the Tianshou wrappers with
-   `self.config.target_update_freq`.
-3. **Decide on `ensemble_size` semantics** — either delete the gene/field
-   pair, or thread it through to ensemble-capable algorithm wrappers.
-4. **Consume the multiplier / threshold genes** in a state-aware action
-   re-weighter (a small helper invoked just before
-   `decision_module.decide_action`).  This is the cleanest path because
-   it keeps RL-only code untouched and gives the multipliers a single,
-   explicit application point.
+The scaled vector is then passed as `action_weights` to
+``DecisionModule.decide_action``, which already supports per-action
+biasing of both Q-value-based exploitation and weighted random
+exploration.
 
 ### Chromosome A — Learning / RL hyperparameters
 
