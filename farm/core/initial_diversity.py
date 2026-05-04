@@ -274,6 +274,11 @@ def _apply_chromosome_to_agent(agent: Any, chromosome: HyperparameterChromosome)
     seeding: rewrite ``hyperparameter_chromosome``, recompute the learning
     config, and reinitialize the decision module's algorithm when one already
     exists so optimizer hyperparameters track the seeded values.
+
+    In addition, the agent's per-action ``Action.weight`` values are refreshed
+    from the new ``DecisionConfig`` so any mutated Chromosome B action-weight
+    gene (``move_weight``, ``gather_weight``, ``share_weight``,
+    ``attack_weight``, ``reproduce_weight``) takes effect on the next decision.
     """
     agent.hyperparameter_chromosome = chromosome
     new_decision_config = apply_chromosome_to_learning_config(
@@ -286,6 +291,12 @@ def _apply_chromosome_to_agent(agent: Any, chromosome: HyperparameterChromosome)
     reinitialize = getattr(decision_module, "reinitialize_algorithm", None)
     if callable(reinitialize):
         reinitialize(new_decision_config)
+
+    refresh_action_weights = getattr(
+        agent, "refresh_action_weights_from_decision_config", None
+    )
+    if callable(refresh_action_weights):
+        refresh_action_weights()
 
 
 class ChromosomeDiversitySource:

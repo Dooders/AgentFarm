@@ -18,6 +18,7 @@ from farm.core.agent.behaviors.base import IAgentBehavior
 from farm.core.agent.components.base import AgentComponent
 from farm.core.agent.config.component_configs import AgentComponentConfig
 from farm.core.agent.services import AgentServices
+from farm.core.decision.config import DecisionConfig
 from farm.core.device_utils import create_device_from_config
 from farm.core.hyperparameter_chromosome import (
     HyperparameterChromosome,
@@ -242,21 +243,43 @@ class AgentCore:
                         f"config.decision.{field_name}={value!r} is invalid; {requirement}."
                     )
 
+    # Map of action names whose base weights are evolvable via Chromosome B
+    # (genes living on :class:`farm.core.decision.config.DecisionConfig`).
+    # When the named ``DecisionConfig`` attribute is present **and** its current
+    # value differs from the Pydantic default, the chromosome value wins over
+    # the global ``agent_parameters`` override.
+    _DECISION_ACTION_WEIGHT_FIELDS = {
+        "move": "move_weight",
+        "gather": "gather_weight",
+        "share": "share_weight",
+        "attack": "attack_weight",
+        "reproduce": "reproduce_weight",
+    }
+
     def _customize_action_weights(
         self, base_actions: list[Action], agent_type: str, environment: Optional["Environment"]
     ) -> list[Action]:
         """
         Customize action weights based on agent type from configuration.
-        
+
+        Precedence (highest wins):
+
+        1. Per-agent ``DecisionConfig.{move,gather,share,attack,reproduce}_weight``
+           — sourced from the agent's hyperparameter chromosome via
+           :func:`apply_chromosome_to_learning_config`.  This is the path that
+           lets evolutionary pressure on Chromosome B reshape the policy.
+        2. Environment-level ``agent_parameters[<AgentType>]`` ``share_weight``
+           / ``attack_weight`` overrides (legacy global biasing).
+        3. Action registry defaults.
+
         Args:
             base_actions: List of base actions from registry
             agent_type: Agent type (e.g., 'system', 'independent', 'control')
             environment: Environment instance that may contain config
-            
+
         Returns:
-            List of Action objects with customized weights
+            List of Action objects with normalized customized weights
         """
-        # Map agent_type to config key
         agent_type_map = {
             "system": "SystemAgent",
             "independent": "IndependentAgent",
@@ -265,45 +288,120 @@ class AgentCore:
             "chaos": "ChaosAgent",
         }
         config_key = agent_type_map.get(agent_type.lower())
-        
-        # Default weights (from global registry)
-        custom_actions = []
+
         share_weight = None
         attack_weight = None
-        
-        # Try to get agent-specific weights from config
         if environment and hasattr(environment, "config") and environment.config:
             agent_params = getattr(environment.config, "agent_parameters", None)
             if agent_params and config_key and config_key in agent_params:
                 params = agent_params[config_key]
                 share_weight = params.get("share_weight")
                 attack_weight = params.get("attack_weight")
-        
-        # Create new Action objects with customized weights
+
+        decision_overrides = self._action_weight_overrides_from_decision_config()
+
+        custom_actions: list[Action] = []
         for action in base_actions:
-            new_weight = action.weight  # Keep default weight
-            
-            # Override share and attack weights if specified in config
+            new_weight = action.weight
+
+            # Legacy environment-level overrides for share / attack.
             if action.name == "share" and share_weight is not None:
                 new_weight = share_weight
             elif action.name == "attack" and attack_weight is not None:
                 new_weight = attack_weight
-            
-            # Create new Action with same name and function but updated weight
+
+            # Per-agent chromosome value wins when explicitly set.
+            if action.name in decision_overrides:
+                new_weight = decision_overrides[action.name]
+
             custom_actions.append(Action(action.name, new_weight, action.function))
-        
-        # Normalize weights
-        total_weight = sum(action.weight for action in custom_actions)
-        if total_weight > 0:
-            for action in custom_actions:
-                action.weight /= total_weight
-        else:
-            # Fallback to uniform if all weights are zero
-            uniform_weight = 1.0 / len(custom_actions)
-            for action in custom_actions:
-                action.weight = uniform_weight
-        
+
+        self._normalize_action_weights(custom_actions)
         return custom_actions
+
+    def _action_weight_overrides_from_decision_config(self) -> Dict[str, float]:
+        """Resolve per-action weight overrides from ``self.config.decision``.
+
+        Only fields whose current value differs from the Pydantic default are
+        treated as overrides, so plain ``DecisionConfig()`` instances with
+        unmodified action weights fall through to the legacy precedence chain
+        and existing scenarios are preserved.
+        """
+        overrides: Dict[str, float] = {}
+        decision_config = getattr(self.config, "decision", None)
+        if decision_config is None:
+            return overrides
+        defaults = self._decision_action_weight_defaults()
+        for action_name, field_name in self._DECISION_ACTION_WEIGHT_FIELDS.items():
+            if not hasattr(decision_config, field_name):
+                continue
+            value = getattr(decision_config, field_name)
+            if value is None or not isinstance(value, (int, float)):
+                continue
+            default_value = defaults.get(field_name)
+            if default_value is not None and float(value) == float(default_value):
+                continue
+            overrides[action_name] = float(value)
+        return overrides
+
+    @staticmethod
+    def _decision_action_weight_defaults() -> Dict[str, float]:
+        """Return the Pydantic-default values of the action-weight fields.
+
+        Cached on the class so :func:`getattr` for each agent does not
+        instantiate :class:`DecisionConfig` repeatedly.
+        """
+        cached = getattr(AgentCore, "_DECISION_ACTION_WEIGHT_DEFAULTS_CACHE", None)
+        if cached is not None:
+            return cached
+        try:
+            defaults_obj = DecisionConfig()
+        except Exception:
+            cached = {}
+        else:
+            cached = {
+                field_name: float(getattr(defaults_obj, field_name))
+                for field_name in AgentCore._DECISION_ACTION_WEIGHT_FIELDS.values()
+                if hasattr(defaults_obj, field_name)
+            }
+        AgentCore._DECISION_ACTION_WEIGHT_DEFAULTS_CACHE = cached
+        return cached
+
+    @staticmethod
+    def _normalize_action_weights(actions: list[Action]) -> None:
+        """Normalize a list of :class:`Action` weights in place to sum to 1.0.
+
+        Falls back to a uniform distribution when every weight is zero (or
+        negative) so the policy never receives a degenerate ``[0, 0, …]``
+        weight vector.
+        """
+        if not actions:
+            return
+        total_weight = sum(max(0.0, action.weight) for action in actions)
+        if total_weight > 0:
+            for action in actions:
+                action.weight = max(0.0, action.weight) / total_weight
+            return
+        uniform_weight = 1.0 / len(actions)
+        for action in actions:
+            action.weight = uniform_weight
+
+    def refresh_action_weights_from_decision_config(self) -> None:
+        """Re-derive ``self.actions[*].weight`` from the current ``DecisionConfig``.
+
+        Called after the agent's hyperparameter chromosome is re-applied
+        (e.g. by ``ChromosomeDiversitySource``) so any mutated Chromosome B
+        action-weight gene takes effect on the very next decision step.
+        """
+        if not getattr(self, "actions", None):
+            return
+        overrides = self._action_weight_overrides_from_decision_config()
+        if not overrides:
+            return
+        for action in self.actions:
+            if action.name in overrides:
+                action.weight = overrides[action.name]
+        self._normalize_action_weights(self.actions)
 
     def attach_component(self, component: AgentComponent) -> None:
         """
