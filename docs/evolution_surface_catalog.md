@@ -42,6 +42,69 @@ automatically.
 > `DEFAULT_GENE_ENCODINGS`; integer-typed `DecisionConfig` fields are
 > projected via the existing rounding-with-bounds-check path.
 
+### Runtime-effect audit
+
+Adding a gene to the chromosome does not, by itself, give it a runtime
+effect — the receiving config attribute also has to be **read** somewhere in
+the agent / decision pipeline.  The catalog below records which genes are
+already consumed by live code and which are only declared.
+
+#### Active in the live simulation
+
+These genes flow into `DecisionConfig` via
+:func:`apply_chromosome_to_learning_config` and are read by
+`farm/core/decision/base_dqn.py` (`BaseDQNModule.__init__`) or by the
+Tianshou wrapper builders in `farm/core/decision/decision.py`, so mutating
+them changes the simulation when the agent's algorithm is rebuilt:
+
+- `learning_rate`, `gamma`, `epsilon_start`, `epsilon_min`, `epsilon_decay`,
+  `memory_size`, `tau`, `batch_size`, `dqn_hidden_size`, `rl_train_freq`,
+  `per_alpha`, `per_beta_start`, `per_beta_end`.
+
+#### Latent (declared but not yet consumed)
+
+These genes are part of the chromosome and project into `DecisionConfig`
+cleanly, but no current code path reads the projected attribute.  They
+need follow-up wiring before evolutionary pressure on them can produce
+phenotypic change:
+
+- **Chromosome A:**
+  - `target_update_freq` — `farm/core/decision/decision.py` and
+    `farm/core/decision/algorithms/tianshou.py` hard-code `500` instead
+    of forwarding `self.config.target_update_freq`.
+  - `ensemble_size` — no algorithm constructor reads it.
+- **Chromosome B (all 16):** `move_weight`, `gather_weight`, `share_weight`,
+  `attack_weight`, `reproduce_weight`, `move_mult_no_resources`,
+  `gather_mult_low_resources`, `share_mult_wealthy`, `share_mult_poor`,
+  `attack_mult_desperate`, `attack_mult_stable`, `reproduce_mult_wealthy`,
+  `reproduce_mult_poor`, `attack_starvation_threshold`,
+  `attack_defense_threshold`, `reproduce_resource_threshold`.
+  - Action weights actually consumed by the policy come from
+    `core.actions[i].weight`, which is populated in
+    `AgentCore._customize_action_weights` from the environment-level
+    `agent_parameters` block (`farm/core/agent/core.py` ≈ L245–L304).
+    `LearningAgentBehavior.decide_action` then reads `action.weight`,
+    not `DecisionConfig.move_weight` etc.
+  - The state-based multipliers and thresholds have no consumer at all.
+
+#### Suggested wiring follow-ups
+
+1. **Bridge `DecisionConfig.{move,gather,share,attack,reproduce}_weight`
+   into `AgentCore.actions`** at agent construction (and on chromosome
+   re-application after mutation), so the per-agent gene values override
+   the global `agent_parameters` weights.  This single change activates
+   the five highest-impact Chromosome B loci.
+2. **Replace the hard-coded `target_update_freq=500`** in
+   `farm/core/decision/decision.py` and the Tianshou wrappers with
+   `self.config.target_update_freq`.
+3. **Decide on `ensemble_size` semantics** — either delete the gene/field
+   pair, or thread it through to ensemble-capable algorithm wrappers.
+4. **Consume the multiplier / threshold genes** in a state-aware action
+   re-weighter (a small helper invoked just before
+   `decision_module.decide_action`).  This is the cleanest path because
+   it keeps RL-only code untouched and gives the multipliers a single,
+   explicit application point.
+
 ### Chromosome A — Learning / RL hyperparameters
 
 Extends `DEFAULT_HYPERPARAMETER_GENES`.
