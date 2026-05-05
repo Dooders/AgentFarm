@@ -6,6 +6,25 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/' | relative_url }}">
+      <span class="post-card__date">2026-05-04</span>
+      <h3 class="post-card__title">Does the resource buffer pick the genes?</h3>
+      <p class="post-card__excerpt">
+        Three intrinsic-evolution runs share every policy and only differ in their stable
+        resource profile. Most behavioural genes drift the same way, but learning rate,
+        ensemble size, and the speciation trajectory split cleanly along the buffer.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/glossary/' | relative_url }}">Glossary</a>,
+      <a href="{{ '/experiments/intrinsic_evolution/intrinsic_evolution/' | relative_url }}">Intrinsic evolution docs</a>,
+      <a href="{{ '/design/hyperparameter_chromosome/' | relative_url }}">Hyperparameter chromosome design</a>,
+      <a href="{{ '/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">Companion devlog</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">
       <span class="post-card__date">2026-04-23</span>
       <h3 class="post-card__title">Evolving hyperparameter genomes in foraging and learning agents</h3>
@@ -16,6 +35,13 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
       </p>
       <span class="post-card__more">Read the post</span>
     </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/glossary/' | relative_url }}">Glossary</a>,
+      <a href="{{ '/design/hyperparameter_chromosome/' | relative_url }}">Hyperparameter chromosome design</a>,
+      <a href="{{ '/experiments/intrinsic_evolution/intrinsic_evolution/' | relative_url }}">Intrinsic evolution docs</a>,
+      <a href="{{ '/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/' | relative_url }}">Follow-up devlog</a>.
+    </p>
   </li>
   <li>
     <a class="post-card" href="{{ '/devlog/2026-04-17-dna-hyperparameter-evolution/' | relative_url }}">

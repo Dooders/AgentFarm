@@ -1,46 +1,72 @@
 ---
-layout: page
+
+## layout: page
+
 title: "Evolving Hyperparameter Genomes in Foraging and Learning Agents"
----
 
 # Evolving Hyperparameter Genomes in Foraging and Learning Agents
 
 A recurring question in evolutionary computation and agent-based modeling is
-how much adaptive behavior can emerge from ecology alone - finite resources,
-costly reproduction, and inherited learning priors - without hand-crafted
-fitness functions or predefined optima. This experiment is a small step in
-that direction: each agent carries its own hyperparameter chromosome, offspring
-inherit it (with optional mutation and crossover), and selection is whatever
-the resource environment happens to apply.
+simple: how much adaptive behavior can emerge under ecological constraints
+like finite resources and costly reproduction, without a hand-crafted fitness
+function or a predefined optimum to chase? This experiment is a small step
+toward answering that: each agent carries its own
+[hyperparameter chromosome](../design/hyperparameter_chromosome.html),
+offspring inherit it (with optional mutation and crossover), and selection is
+whatever the resource environment happens to apply.
 
-It is not a claim of open-ended evolution. It is a bounded simulation in which
-evolutionary dynamics are layered on top of reinforcement learning agents that
-have to feed themselves to stay alive.
+This isn't meant as a claim of open-ended evolution - it's a bounded
+simulation in which evolutionary dynamics are layered on top of
+[reinforcement learning](../deep_q_learning.html) agents that have to feed
+themselves to stay alive.
 
-## What's actually evolving
+## What's evolving
 
 Each agent owns a `HyperparameterChromosome` built from its decision config at
-construction time. Today the evolvable loci are the core RL hyperparameters:
+construction time. The schema (documented in
+[Hyperparameter Chromosome Design](../design/hyperparameter_chromosome.html))
+is currently two logical chromosomes that are crossed and mutated as a single
+gene vector:
 
-- `learning_rate`
-- `gamma` (discount factor)
-- `epsilon_decay` (exploration schedule)
+**Chromosome A - learning / RL hyperparameters.** Knobs that shape *how* the
+agent learns during its lifetime:
 
-`memory_size` is represented as a gene but is held fixed for now, pending
-proper integer-rounding handling alongside the continuous-gene operators.
+- Core DQN: `learning_rate`, `gamma`, `tau`, `batch_size`,
+`target_update_freq`, `dqn_hidden_size`, `rl_train_freq`, `memory_size`.
+- Exploration schedule: `epsilon_start`, `epsilon_min`, `epsilon_decay`.
+- Prioritized experience replay: `per_alpha`, `per_beta_start`, `per_beta_end`.
+- Ensembling: `ensemble_size`.
 
-These genes don't directly encode behavior; they shape **how the agent learns**
-during its lifetime. The learned policy itself is not part of the genome.
+**Chromosome B - action-policy priors.** Knobs that shape *what* the agent is
+biased toward doing before learning kicks in:
+
+- Base action weights: `move_weight`, `gather_weight`, `share_weight`,
+`attack_weight`, `reproduce_weight`.
+- State-conditional multipliers (e.g. low resources, wealthy, desperate):
+`move_mult_no_resources`, `gather_mult_low_resources`, `share_mult_wealthy`,
+`share_mult_poor`, `attack_mult_desperate`, `attack_mult_stable`,
+`reproduce_mult_wealthy`, `reproduce_mult_poor`.
+- Policy thresholds: `attack_starvation_threshold`, `attack_defense_threshold`,
+`reproduce_resource_threshold`.
+
+Integer-valued genes (`memory_size`, `batch_size`, `target_update_freq`,
+`dqn_hidden_size`, `rl_train_freq`, `ensemble_size`) are stored as real values
+on the chromosome and rounded with a bounds check when projected back into the
+decision config.
+
+None of these genes directly encode behavior. Chromosome A shapes the learning
+dynamics, Chromosome B shapes the prior over action choice; the learned policy
+itself is not part of the genome.
 
 ## Inheritance, mutation, and crossover
 
 When an agent reproduces, the child's chromosome is derived from the parent's:
 
 - **Default path:** asexual - deep-copy the parent chromosome and apply
-  per-gene mutation.
+per-gene mutation.
 - **Crossover enabled:** sexual - pick a co-parent, combine the two
-  chromosomes (`SINGLE_POINT`, `UNIFORM`, `BLEND`, or `MULTI_POINT`), then
-  mutate.
+chromosomes (`SINGLE_POINT`, `UNIFORM`, `BLEND`, or `MULTI_POINT`), then
+mutate.
 
 The resulting chromosome is written back into the child's decision config
 before its `DecisionModule` is constructed, so the offspring starts life with
@@ -53,11 +79,11 @@ emergent and ecological:
 
 - **Finite resources.** Resource nodes deplete as agents gather from them.
 - **Metabolic cost.** Every step debits a base consumption rate from the
-  agent's resource pool.
+agent's resource pool.
 - **Starvation.** After a configurable number of zero-resource steps, the
-  agent terminates.
+agent terminates.
 - **Costly reproduction.** Reproduction requires meeting an offspring-cost
-  threshold, which is paid out of the parent's resources.
+threshold, which is paid out of the parent's resources.
 
 Lineages whose hyperparameters happen to produce agents that forage well
 enough to cover both metabolism and reproduction persist. Lineages that don't,
@@ -66,10 +92,11 @@ die out. That's the whole selection story.
 ## Foraging
 
 Agents have an explicit `gather` action: locate the nearest resource node
-within range via the spatial index, consume from it, and credit the agent's
-resource pool. Foraging is one of the actions the RL policy chooses among, so
-the evolved learning hyperparameters and the foraging behavior are coupled
-through the decision module.
+within range via the
+[spatial index](../spatial/spatial_indexing.html), consume from it, and credit
+the agent's resource pool. Foraging is one of the actions the RL policy
+chooses among, so the evolved learning hyperparameters and the foraging
+behavior are coupled through the decision module.
 
 ## Learning during life - Baldwinian, not Lamarckian
 
@@ -78,7 +105,8 @@ experience. At reproduction time, however, only the **hyperparameter
 chromosome** is passed on; the offspring builds a fresh decision module. No
 Q-values, weights, or replay buffers cross the generational boundary.
 
-That makes the system Baldwinian: evolution tunes the *priors* and *learning
+That makes the system
+[Baldwinian](../glossary.html): evolution tunes the *priors* and *learning
 dynamics* (how fast to learn, how much to discount the future, how aggressively
 to explore), and each generation has to acquire its own experience inside
 those priors.
@@ -89,32 +117,48 @@ those priors.
 
 - A per-agent hyperparameter genome with mutation and optional crossover.
 - An ecological selection regime driven by resource scarcity and
-  reproduction costs.
+reproduction costs.
 - RL agents whose learning hyperparameters are themselves under selection.
 
 **It isn't (yet):**
 
 - Open-ended evolution in the ALife sense - runs are bounded simulations.
-- A genome that encodes full behavior or network architecture - only a
-  narrow set of RL hyperparameters evolve through this path.
+- A genome that encodes full behavior or network architecture - only a  
+narrow set of hyperparameters evolve through this path.
 - Lamarckian inheritance - learned policies are not transmitted to offspring.
 
-## Where it might go next
+## Current state and next questions
 
-A few natural extensions, roughly in order of how invasive they are:
+Current capabilities in this line of work:
 
-- Make `memory_size` (and other integer-valued knobs) properly evolvable.
-- Wire the existing `Genome` representation - which already serializes action
-  weights and module state - into the reproduction path, so action
-  preferences and module parameters can also be inherited and mutated.
-- Optionally support warm-starting offspring from parent weights (Lamarckian
-  inheritance) as a configurable policy.
-- Run longer, less-bounded experiments to see how much novelty the ecology
-  can sustain before populations collapse or stagnate.
+- The intrinsic runner supports explicit initial-conditions profiles,
+  selection-pressure controls, and per-step telemetry, so ecology can be varied
+  systematically instead of ad hoc.
+- Speciation and lineage tracking are part of the standard analysis outputs,
+  including snapshot-based cluster traces and lineage-tree analysis.
+- Cross-run profile comparisons (for example,
+  conservative/balanced/buffered resource buffers) are part of the workflow,
+  not one-off side analysis.
+- The chromosome/reproduction path is documented and parameterized in the
+  [Intrinsic evolution docs](../experiments/intrinsic_evolution/intrinsic_evolution.html)
+  and [Hyperparameter chromosome design](../design/hyperparameter_chromosome.html).
 
-This is an early-stage personal experiment at the intersection of
-agent-based modeling, evolutionary computation, and reinforcement learning.
-The interesting question isn't whether the framing is grand; it's whether
-small ecological pressures, applied to the parameters that govern learning,
-produce noticeably better foragers over generations than fixed
-hyperparameters do.
+Open questions and next targets:
+
+- Run broader multi-seed cohorts per profile and treat trends as distributions,
+  not single trajectories.
+- Push farther on inherited payload design (policy priors/module state) to test
+  when richer inheritance helps versus overfits to local ecology.
+- Add explicit Baldwinian-vs-Lamarckian A/B runs under matched settings to
+  quantify when warm-starting offspring is worth the stability trade-off.
+
+The practical focus is no longer whether the mechanism exists, but which
+inheritance/ecology combinations produce robust gains across runs.
+
+## Related docs
+
+- [Glossary](../glossary.html)
+- [Hyperparameter chromosome design](../design/hyperparameter_chromosome.html)
+- [Intrinsic evolution experiment docs](../experiments/intrinsic_evolution/intrinsic_evolution.html)
+- [Resource-buffer follow-up devlog](2026-05-04-resource-buffer-shapes-intrinsic-evolution.html)
+
