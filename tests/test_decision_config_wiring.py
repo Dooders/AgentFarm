@@ -41,7 +41,9 @@ class TestTargetUpdateFreqWiring(unittest.TestCase):
         for attr in ("_freq", "target_update_freq"):
             if hasattr(policy, attr):
                 return int(getattr(policy, attr))
-        self.fail(f"Could not locate target_update_freq on {type(policy).__name__}")
+        raise AssertionError(
+            f"Could not locate target_update_freq on {type(policy).__name__}"
+        )
 
     def test_default_target_update_freq_propagates(self):
         cfg = DecisionConfig(algorithm_type="dqn")
