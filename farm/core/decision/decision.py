@@ -140,7 +140,18 @@ class DecisionModule:
         # Initialize the decision algorithm
         self._initialize_algorithm()
 
-        logger.info(f"Initialized DecisionModule for agent {self.agent_id} with {config.algorithm_type}")
+        logger.debug(
+            "decision_module_initialized",
+            agent_id=self.agent_id,
+            algorithm=config.algorithm_type,
+        )
+
+    # Algorithm types whose constructors accept an ``n_estimators`` kwarg.
+    # When the active algorithm is one of these, ``DecisionConfig.ensemble_size``
+    # is auto-injected as ``n_estimators`` if the caller hasn't already
+    # supplied it via ``algorithm_params``.  This activates the
+    # Chromosome A ``ensemble_size`` gene end-to-end.
+    _ENSEMBLE_ALGORITHM_TYPES = frozenset({"random_forest", "gradient_boost"})
 
     def _initialize_algorithm(self):
         """Initialize the decision algorithm based on configuration."""
@@ -156,6 +167,15 @@ class DecisionModule:
             self._initialize_tianshou_a2c()
         elif algorithm_type == "ddpg" and TIANSHOU_AVAILABLE:
             self._initialize_tianshou_ddpg()
+        elif algorithm_type in {
+            "mlp",
+            "svm",
+            "random_forest",
+            "gradient_boost",
+            "naive_bayes",
+            "knn",
+        }:
+            self._initialize_traditional_ml(algorithm_type)
         elif algorithm_type == "fallback":
             # Explicit fallback algorithm
             self._initialize_fallback()
@@ -165,6 +185,52 @@ class DecisionModule:
                 algorithm_type=algorithm_type,
                 agent_id=self.agent_id,
                 message="Using fallback",
+            )
+            self._initialize_fallback()
+
+    def _initialize_traditional_ml(self, algorithm_type: str) -> None:
+        """Instantiate a traditional-ML action selector via the registry.
+
+        Threads ``DecisionConfig.ensemble_size`` into ``n_estimators`` for
+        ensemble-class algorithms when the caller hasn't already provided one
+        through ``algorithm_params``.  Falls back to the random-fallback
+        algorithm if construction fails so the simulation can still proceed.
+        """
+        try:
+            from farm.core.decision.algorithms.base import AlgorithmRegistry
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "traditional_ml_registry_unavailable",
+                algorithm_type=algorithm_type,
+                agent_id=self.agent_id,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+            )
+            self._initialize_fallback()
+            return
+
+        params: Dict[str, Any] = dict(self.config.algorithm_params or {})
+        if algorithm_type in self._ENSEMBLE_ALGORITHM_TYPES:
+            params.setdefault("n_estimators", int(self.config.ensemble_size))
+        if self.config.seed is not None:
+            params.setdefault("random_state", int(self.config.seed))
+
+        try:
+            self.algorithm = AlgorithmRegistry.create(
+                algorithm_type, num_actions=self.num_actions, **params
+            )
+            logger.debug(
+                "algorithm_initialized",
+                algorithm=algorithm_type,
+                agent_id=self.agent_id,
+            )
+        except Exception as exc:
+            logger.error(
+                "algorithm_initialization_failed",
+                algorithm=algorithm_type,
+                agent_id=self.agent_id,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
             )
             self._initialize_fallback()
 
@@ -223,7 +289,7 @@ class DecisionModule:
                 per_beta_steps=self.config.per_beta_steps,
                 per_epsilon=self.config.per_epsilon,
             )
-            logger.info("algorithm_initialized", algorithm="ppo", agent_id=self.agent_id)
+            logger.debug("algorithm_initialized", algorithm="ppo", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
@@ -271,7 +337,7 @@ class DecisionModule:
                 per_beta_steps=self.config.per_beta_steps,
                 per_epsilon=self.config.per_epsilon,
             )
-            logger.info("algorithm_initialized", algorithm="sac", agent_id=self.agent_id)
+            logger.debug("algorithm_initialized", algorithm="sac", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
@@ -296,7 +362,7 @@ class DecisionModule:
                 "lr": self.config.learning_rate,
                 "gamma": self.config.gamma,
                 "n_step": 3,
-                "target_update_freq": 500,
+                "target_update_freq": int(self.config.target_update_freq),
                 "eps_test": self.config.epsilon_min,
                 "eps_train": self.config.epsilon_start,
                 "eps_train_final": self.config.epsilon_min,
@@ -320,7 +386,7 @@ class DecisionModule:
                 per_beta_steps=self.config.per_beta_steps,
                 per_epsilon=self.config.per_epsilon,
             )
-            logger.info("algorithm_initialized", algorithm="dqn", agent_id=self.agent_id)
+            logger.debug("algorithm_initialized", algorithm="dqn", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
@@ -369,7 +435,7 @@ class DecisionModule:
                 per_beta_steps=self.config.per_beta_steps,
                 per_epsilon=self.config.per_epsilon,
             )
-            logger.info("algorithm_initialized", algorithm="a2c", agent_id=self.agent_id)
+            logger.debug("algorithm_initialized", algorithm="a2c", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
@@ -415,7 +481,7 @@ class DecisionModule:
                 per_beta_steps=self.config.per_beta_steps,
                 per_epsilon=self.config.per_epsilon,
             )
-            logger.info("algorithm_initialized", algorithm="ddpg", agent_id=self.agent_id)
+            logger.debug("algorithm_initialized", algorithm="ddpg", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
@@ -429,7 +495,7 @@ class DecisionModule:
 
     def _initialize_fallback(self):
         """Initialize a fallback decision mechanism."""
-        logger.info("using_fallback_algorithm", agent_id=self.agent_id)
+        logger.debug("using_fallback_algorithm", agent_id=self.agent_id)
 
         # Simple epsilon-greedy random action selection
         class FallbackAlgorithm:

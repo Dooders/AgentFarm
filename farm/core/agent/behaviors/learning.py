@@ -10,6 +10,10 @@ import numpy as np
 import torch
 
 from farm.core.action import Action, action_registry, action_name_to_index
+from farm.core.decision.action_weight_policy import (
+    compute_action_weights,
+    extract_signals,
+)
 from farm.core.decision.decision import DecisionModule
 from farm.utils.logging import get_logger
 
@@ -66,22 +70,48 @@ class LearningAgentBehavior(IAgentBehavior):
             enabled_action_indices = [core.actions.index(action) for action in enabled_actions]
         else:
             enabled_action_indices = None
-        
-        # Extract action weights for all actions in core.actions
-        # Map to indices matching DecisionModule's action space (0 to num_actions-1)
-        action_weights = np.zeros(self.decision_module.num_actions, dtype=np.float64)
+
+        # Build the per-action weight vector, then scale by state-aware
+        # multiplier / threshold genes (Chromosome B).  ``core.actions[i].weight``
+        # already reflects evolved base-weight genes via
+        # ``AgentCore.refresh_action_weights_from_decision_config``; this layer
+        # adds the situation-dependent biasing on top.
+        num_actions = self.decision_module.num_actions
+        base_weights = np.zeros(num_actions, dtype=np.float64)
+        action_names = ["" for _ in range(num_actions)]
         for i, action in enumerate(core.actions):
-            if i < len(action_weights):
-                action_weights[i] = action.weight
-        
-        # Normalize weights
+            if i < num_actions:
+                base_weights[i] = action.weight
+                action_names[i] = action.name
+
+        decision_config = getattr(getattr(core, "config", None), "decision", None)
+        if decision_config is not None:
+            try:
+                signals = extract_signals(core)
+                action_weights = compute_action_weights(
+                    base_weights=base_weights,
+                    action_names=action_names,
+                    decision_config=decision_config,
+                    signals=signals,
+                    enabled_actions=enabled_action_indices,
+                )
+            except Exception as exc:
+                logger.debug(
+                    "action_weight_policy_fallback",
+                    agent_id=getattr(core, "agent_id", "unknown"),
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
+                action_weights = base_weights
+        else:
+            action_weights = base_weights
+
         total_weight = np.sum(action_weights)
         if total_weight > 0:
             action_weights = action_weights / total_weight
         else:
-            # Fallback to uniform if all weights are zero
-            action_weights = np.ones(self.decision_module.num_actions) / self.decision_module.num_actions
-        
+            action_weights = np.ones(num_actions) / num_actions
+
         # Use DecisionModule to select action with weights
         action_index = self.decision_module.decide_action(
             state, enabled_action_indices, action_weights=action_weights

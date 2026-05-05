@@ -133,19 +133,19 @@
     ]
   },
   "artifacts": {
-    "gene_trajectories": "experiments/intrinsic_evolution/analysis/gene_trajectories.png",
-    "gene_distribution_history": "experiments/intrinsic_evolution/analysis/gene_distribution_history.png",
-    "population_dynamics": "experiments/intrinsic_evolution/analysis/population_dynamics.png",
-    "speciation_index": "experiments/intrinsic_evolution/analysis/speciation_index.png",
-    "cluster_lineage_sizes": "experiments/intrinsic_evolution/analysis/cluster_lineage_sizes.png",
+    "gene_trajectories": "docs/experiments/intrinsic_evolution/analysis/gene_trajectories.png",
+    "gene_distribution_history": "docs/experiments/intrinsic_evolution/analysis/gene_distribution_history.png",
+    "population_dynamics": "docs/experiments/intrinsic_evolution/analysis/population_dynamics.png",
+    "speciation_index": "docs/experiments/intrinsic_evolution/analysis/speciation_index.png",
+    "cluster_lineage_sizes": "docs/experiments/intrinsic_evolution/analysis/cluster_lineage_sizes.png",
     "chromosome_space_scatters": [
-      "experiments/intrinsic_evolution/analysis/speciation_clusters_step0.png",
-      "experiments/intrinsic_evolution/analysis/speciation_clusters_step5000.png",
-      "experiments/intrinsic_evolution/analysis/speciation_clusters_step10000.png"
+      "docs/experiments/intrinsic_evolution/analysis/speciation_clusters_step0.png",
+      "docs/experiments/intrinsic_evolution/analysis/speciation_clusters_step5000.png",
+      "docs/experiments/intrinsic_evolution/analysis/speciation_clusters_step10000.png"
     ],
     "lineage_tree_nodes": 197,
     "lineage_tree_max_depth": 4,
-    "lineage_tree": "experiments/intrinsic_evolution/analysis/intrinsic_lineage_tree.png",
-    "lineage_summary": "experiments/intrinsic_evolution/analysis/lineage_summary.png"
+    "lineage_tree": "docs/experiments/intrinsic_evolution/analysis/intrinsic_lineage_tree.png",
+    "lineage_summary": "docs/experiments/intrinsic_evolution/analysis/lineage_summary.png"
   }
 }

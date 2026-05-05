@@ -17,6 +17,14 @@ from farm.runners.evolution_experiment import (
     EvolutionFitnessMetric,
 )
 
+_MOCK_RUN_SIM_ENV = SimpleNamespace(
+    agents=["a", "b", "c"],
+    cached_total_resources=42.0,
+    metrics_tracker=SimpleNamespace(
+        cumulative_metrics=SimpleNamespace(total_births=5),
+    ),
+)
+
 
 class TestEvolutionExperimentConfig(unittest.TestCase):
     def test_config_fields_define_boundary_settings_once(self):
@@ -84,6 +92,27 @@ class TestEvolutionExperimentConfig(unittest.TestCase):
 
 
 class TestEvolutionExperiment(unittest.TestCase):
+    """Evolution runner unit tests.
+
+    Real :func:`run_simulation` is patched for the whole class so accidental
+    use of the default fitness evaluator never spins up a full simulation.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls._run_sim_patch = patch(
+            "farm.runners.evolution_experiment.run_simulation",
+            return_value=_MOCK_RUN_SIM_ENV,
+        )
+        cls.run_simulation_mock = cls._run_sim_patch.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._run_sim_patch.stop()
+
+    def setUp(self):
+        self.run_simulation_mock.reset_mock()
+
     def test_runs_two_generations_with_population_four(self):
         base_config = SimulationConfig()
         config = EvolutionExperimentConfig(
@@ -131,16 +160,8 @@ class TestEvolutionExperiment(unittest.TestCase):
         self.assertTrue(any(rate != base_config.learning.learning_rate for rate in seen_learning_rates[1:]))
         self.assertGreater(result.best_candidate.fitness, 0.0)
 
-    @patch("farm.runners.evolution_experiment.run_simulation")
-    def test_default_fitness_metric_uses_environment_summary(self, run_simulation_mock):
+    def test_default_fitness_metric_uses_environment_summary(self):
         base_config = SimulationConfig()
-        run_simulation_mock.return_value = SimpleNamespace(
-            agents=["a", "b", "c"],
-            cached_total_resources=42.0,
-            metrics_tracker=SimpleNamespace(
-                cumulative_metrics=SimpleNamespace(total_births=5),
-            ),
-        )
         config = EvolutionExperimentConfig(
             num_generations=2,
             population_size=4,
@@ -150,7 +171,7 @@ class TestEvolutionExperiment(unittest.TestCase):
         result = EvolutionExperiment(base_config, config).run()
         self.assertEqual(len(result.evaluations), 8)
         self.assertEqual(result.best_candidate.fitness, 3.0)
-        self.assertEqual(run_simulation_mock.call_count, 8)
+        self.assertEqual(self.run_simulation_mock.call_count, 8)
 
     def test_persists_generation_and_lineage_json(self):
         base_config = SimulationConfig()
@@ -225,12 +246,17 @@ class TestEvolutionExperiment(unittest.TestCase):
 
     def test_boundary_penalty_adjusts_candidate_fitness(self):
         base_config = SimulationConfig()
+        # Place learning_rate at its min boundary so it incurs the full
+        # per-gene penalty.  Other evolvable genes inherit their defaults from
+        # ``DEFAULT_HYPERPARAMETER_GENES``; whichever of those happen to sit on
+        # a boundary contribute additional penalty, so the expected value is
+        # computed from the same source of truth rather than hard-coded.
         base_config.learning.learning_rate = 1e-6
-        # Move all other evolvable genes well inside bounds so only learning_rate
-        # (at its min boundary) incurs a penalty, keeping the expected values simple.
         base_config.learning.gamma = 0.5
         base_config.learning.epsilon_decay = 0.5
         base_config.learning.memory_size = 500_000
+        penalty_strength = 0.2
+        near_boundary_threshold = 0.05
         config = EvolutionExperimentConfig(
             num_generations=1,
             population_size=3,
@@ -238,12 +264,27 @@ class TestEvolutionExperiment(unittest.TestCase):
             mutation_scale=0.0,
             boundary_penalty=BoundaryPenaltyConfig(
                 enabled=True,
-                penalty_strength=0.2,
-                near_boundary_threshold=0.05,
+                penalty_strength=penalty_strength,
+                near_boundary_threshold=near_boundary_threshold,
             ),
             seed=23,
         )
         experiment = EvolutionExperiment(base_config, config)
+
+        from farm.core.hyperparameter_chromosome import (
+            BoundaryPenaltyConfig as _BPC,
+            chromosome_from_learning_config,
+            compute_boundary_penalty,
+        )
+
+        expected_penalty = compute_boundary_penalty(
+            chromosome_from_learning_config(base_config.learning),
+            _BPC(
+                enabled=True,
+                penalty_strength=penalty_strength,
+                near_boundary_threshold=near_boundary_threshold,
+            ),
+        )
 
         def evaluator(candidate, candidate_config, generation, member_index):
             return 1.0, {"member": member_index}
@@ -252,8 +293,8 @@ class TestEvolutionExperiment(unittest.TestCase):
         self.assertEqual(len(result.evaluations), 3)
         for evaluation in result.evaluations:
             self.assertAlmostEqual(evaluation.metadata["raw_fitness"], 1.0)
-            self.assertAlmostEqual(evaluation.metadata["boundary_penalty"], 0.2)
-            self.assertAlmostEqual(evaluation.fitness, 0.8)
+            self.assertAlmostEqual(evaluation.metadata["boundary_penalty"], expected_penalty)
+            self.assertAlmostEqual(evaluation.fitness, 1.0 - expected_penalty)
 
     @patch("farm.runners.evolution_experiment.mutate_chromosome")
     def test_boundary_mode_is_forwarded_to_mutation_calls(self, mutate_mock):
