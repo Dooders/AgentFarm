@@ -17,6 +17,14 @@ from farm.runners.evolution_experiment import (
     EvolutionFitnessMetric,
 )
 
+_MOCK_RUN_SIM_ENV = SimpleNamespace(
+    agents=["a", "b", "c"],
+    cached_total_resources=42.0,
+    metrics_tracker=SimpleNamespace(
+        cumulative_metrics=SimpleNamespace(total_births=5),
+    ),
+)
+
 
 class TestEvolutionExperimentConfig(unittest.TestCase):
     def test_config_fields_define_boundary_settings_once(self):
@@ -84,6 +92,27 @@ class TestEvolutionExperimentConfig(unittest.TestCase):
 
 
 class TestEvolutionExperiment(unittest.TestCase):
+    """Evolution runner unit tests.
+
+    Real :func:`run_simulation` is patched for the whole class so accidental
+    use of the default fitness evaluator never spins up a full simulation.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls._run_sim_patch = patch(
+            "farm.runners.evolution_experiment.run_simulation",
+            return_value=_MOCK_RUN_SIM_ENV,
+        )
+        cls.run_simulation_mock = cls._run_sim_patch.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._run_sim_patch.stop()
+
+    def setUp(self):
+        self.run_simulation_mock.reset_mock()
+
     def test_runs_two_generations_with_population_four(self):
         base_config = SimulationConfig()
         config = EvolutionExperimentConfig(
@@ -131,16 +160,8 @@ class TestEvolutionExperiment(unittest.TestCase):
         self.assertTrue(any(rate != base_config.learning.learning_rate for rate in seen_learning_rates[1:]))
         self.assertGreater(result.best_candidate.fitness, 0.0)
 
-    @patch("farm.runners.evolution_experiment.run_simulation")
-    def test_default_fitness_metric_uses_environment_summary(self, run_simulation_mock):
+    def test_default_fitness_metric_uses_environment_summary(self):
         base_config = SimulationConfig()
-        run_simulation_mock.return_value = SimpleNamespace(
-            agents=["a", "b", "c"],
-            cached_total_resources=42.0,
-            metrics_tracker=SimpleNamespace(
-                cumulative_metrics=SimpleNamespace(total_births=5),
-            ),
-        )
         config = EvolutionExperimentConfig(
             num_generations=2,
             population_size=4,
@@ -150,7 +171,7 @@ class TestEvolutionExperiment(unittest.TestCase):
         result = EvolutionExperiment(base_config, config).run()
         self.assertEqual(len(result.evaluations), 8)
         self.assertEqual(result.best_candidate.fitness, 3.0)
-        self.assertEqual(run_simulation_mock.call_count, 8)
+        self.assertEqual(self.run_simulation_mock.call_count, 8)
 
     def test_persists_generation_and_lineage_json(self):
         base_config = SimulationConfig()
