@@ -36,6 +36,7 @@ import json
 import os
 import random
 import time
+from collections import deque
 from datetime import datetime, timezone
 from typing import Callable, List, Optional, Tuple
 
@@ -59,6 +60,57 @@ from farm.utils.logging import configure_logging, get_logger, log_simulation, lo
 _shared_identity = Identity()
 
 logger = get_logger(__name__)
+
+
+def _run_deferred_learning_updates(environment: Environment, max_updates: int, rr_cursor: int) -> int:
+    """Run up to ``max_updates`` deferred RL training calls in round-robin order.
+
+    Args:
+        environment: Active simulation environment.
+        max_updates: Maximum number of training calls to execute this step.
+        rr_cursor: Round-robin start index into alive agents.
+
+    Returns:
+        int: Number of training updates executed.
+    """
+    if max_updates <= 0:
+        return 0
+
+    alive_agents = environment.alive_agent_objects
+    if not alive_agents:
+        return 0
+
+    n_agents = len(alive_agents)
+    start = rr_cursor % n_agents
+    agent_queue = deque(alive_agents[start:] + alive_agents[:start])
+    updates_run = 0
+    passes_without_progress = 0
+    max_passes = n_agents
+
+    while agent_queue and updates_run < max_updates and passes_without_progress < max_passes:
+        agent = agent_queue.popleft()
+        trained = False
+        train_fn = getattr(agent, "train_learning_if_ready", None)
+        if callable(train_fn):
+            try:
+                trained = bool(train_fn())
+            except Exception as exc:
+                logger.warning(
+                    "deferred_training_update_failed",
+                    agent_id=getattr(agent, "agent_id", "unknown"),
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
+
+        if trained:
+            updates_run += 1
+            passes_without_progress = 0
+            # Requeue so heavily-used learners can consume remaining budget.
+            agent_queue.append(agent)
+        else:
+            passes_without_progress += 1
+
+    return updates_run
 
 
 def create_services_from_environment(environment: Environment) -> AgentServices:
@@ -507,6 +559,14 @@ def run_simulation(
             environment.db.logger.flush_all_buffers()
             logger.info("initial_agents_committed_to_database")
 
+        perf_cfg = getattr(config, "performance", None)
+        defer_learning_training = bool(getattr(perf_cfg, "defer_learning_training", True))
+        max_learning_updates_per_step = int(
+            max(0, getattr(perf_cfg, "max_learning_updates_per_step", 4))
+        )
+        environment.defer_learning_training = defer_learning_training
+        round_robin_cursor = 0
+
         # Main simulation loop
         # Disable tqdm progress bar in CI environments to avoid output interference
         disable_tqdm = (
@@ -538,7 +598,6 @@ def run_simulation(
                 break
 
             # Get batch size from config, with fallback to default
-            perf_cfg = getattr(config, "performance", None)
             batch_size = getattr(perf_cfg, "agent_processing_batch_size", 32)
 
             # Process batches without a nested progress bar
@@ -548,6 +607,14 @@ def run_simulation(
 
                 for agent in batch:
                     agent.act()
+
+            if defer_learning_training:
+                _run_deferred_learning_updates(
+                    environment=environment,
+                    max_updates=max_learning_updates_per_step,
+                    rr_cursor=round_robin_cursor,
+                )
+                round_robin_cursor += 1
 
             # Flush buffered DB writes on a time-based schedule rather than
             # every step.  Buffer-size-based flushing is already handled

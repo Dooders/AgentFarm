@@ -59,6 +59,7 @@ class IAgentBehavior(ABC):
         reward: float,
         next_state: torch.Tensor,
         done: bool,
+        train_now: bool = True,
     ) -> None:
         """
         Update behavior with new experience (for learning behaviors).
@@ -69,6 +70,7 @@ class IAgentBehavior(ABC):
             reward: Reward received
             next_state: State after action
             done: Whether episode ended
+            train_now: Whether to execute training immediately after storing experience
         """
         pass
     

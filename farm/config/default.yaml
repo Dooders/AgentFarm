@@ -250,6 +250,8 @@ enable_memory_pooling: true
 memory_pool_size_mb: 100
 enable_state_caching: true
 cache_ttl_seconds: 60
+defer_learning_training: true
+max_learning_updates_per_step: 4
 
 # Action reward configuration
 defend_success_reward: 0.02

@@ -363,6 +363,33 @@ class TestDecisionModule(unittest.TestCase):
                 mock_train.assert_called_once()
             self.assertTrue(module._is_trained)
 
+    def test_update_with_deferred_training(self):
+        """Test that update can defer training to a later coordinator pass."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        state = torch.randn(8)
+        action = 1
+        reward = 1.0
+        next_state = torch.randn(8)
+        done = False
+
+        with patch.object(module.algorithm, "train") as mock_train, \
+             patch.object(module.algorithm, "should_train", return_value=True):
+            module.update(state, action, reward, next_state, done, train_now=False)
+
+            mock_train.assert_not_called()
+            self.assertFalse(module._is_trained)
+
+            trained_now = module.train_if_ready()
+            self.assertTrue(trained_now)
+            mock_train.assert_called_once()
+            self.assertTrue(module._is_trained)
+
     def test_update_logs_learning_experience(self):
         """Test that update logs learning experience to database."""
         # Set up mock agent with full database chain
