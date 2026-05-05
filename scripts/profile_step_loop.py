@@ -12,6 +12,8 @@ Usage:
     snakeviz simulations/profile_step_loop.prof
 """
 
+from __future__ import annotations
+
 import argparse
 import cProfile
 import os
@@ -19,17 +21,16 @@ import pstats
 import sys
 import time
 from io import StringIO
+from typing import TYPE_CHECKING
 
-if "PYTHONHASHSEED" not in os.environ or os.environ["PYTHONHASHSEED"] != "0":
-    os.environ["PYTHONHASHSEED"] = "0"
-    os.execv(sys.executable, [sys.executable] + sys.argv)
-
-from farm.config import SimulationConfig
-from farm.core.simulation import run_simulation
+if TYPE_CHECKING:
+    from farm.config import SimulationConfig
 
 
 def build_config(width: int, height: int, agents: int, train: bool) -> SimulationConfig:
     """Construct the small-grid scenario used for the baseline."""
+    from farm.config import SimulationConfig
+
     config = SimulationConfig.from_centralized_config(environment="development")
     config.environment.width = width
     config.environment.height = height
@@ -37,7 +38,7 @@ def build_config(width: int, height: int, agents: int, train: bool) -> Simulatio
     third = max(1, agents // 3)
     config.population.system_agents = third
     config.population.independent_agents = third
-    config.population.control_agents = agents - 2 * third
+    config.population.control_agents = max(0, agents - 2 * third)
     config.population.max_population = max(agents * 2, 60)
 
     config.database.use_in_memory_db = True
@@ -92,6 +93,12 @@ def print_top(stats: pstats.Stats, sort_key: str, n: int, total_tt: float) -> No
 
 
 def main() -> int:
+    if "PYTHONHASHSEED" not in os.environ or os.environ["PYTHONHASHSEED"] != "0":
+        os.environ["PYTHONHASHSEED"] = "0"
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    from farm.core.simulation import run_simulation
+
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--steps", type=int, default=100)
     parser.add_argument("--width", type=int, default=30)
@@ -187,7 +194,8 @@ def main() -> int:
     print_top(stats, "cumulative", args.top, total_tt)
     print_top(stats, "tottime", args.top, total_tt)
 
-    text_out = args.out.replace(".prof", ".txt")
+    root, _ext = os.path.splitext(args.out)
+    text_out = root + ".txt"
     with open(text_out, "w", encoding="utf-8") as fh:
         s = StringIO()
         st = pstats.Stats(profiler, stream=s).sort_stats("cumulative")
