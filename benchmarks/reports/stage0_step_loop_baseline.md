@@ -286,6 +286,74 @@ policies and DB into a foreign‑language interface for no measurable benefit.
 
 ---
 
+## Post-change verification (deferred RL scheduler vs immediate training)
+
+After implementing the deferred RL training scheduler (`performance.defer_learning_training=true`,
+`performance.max_learning_updates_per_step=4`), we reran the same Stage 0 workload and
+compared it against a forced immediate-training run on the same seed and config:
+
+- grid: 30x30
+- agents: 30 (10/10/10)
+- steps: 100 (+5 warmup)
+- seed: `1234567890`
+- in-memory DB enabled
+
+| Scenario | wall (s) | steps/sec | ms / step | alive at end |
+|---|---:|---:|---:|---:|
+| **deferred scheduler** (new default) | **22.085** | **4.53** | **220.85** | 56 |
+| **forced immediate training** (`defer_learning_training=false`) | 36.077 | 2.77 | 360.77 | 53 |
+
+Observed improvement on this profile:
+
+- **Wall-time reduction:** `(36.077 - 22.085) / 36.077 = 38.8%`
+- `tianshou.py:1104(train_on_batch)` cumulative time:
+  - immediate: **21.2985 s**
+  - deferred: **7.1386 s**
+  - reduction: **66.5%**
+- Training-call count in the profile top table:
+  - immediate: **690** `train_on_batch` calls
+  - deferred: **232** `train_on_batch` calls
+
+Reproduction commands used for this verification:
+
+```bash
+source venv/bin/activate
+PYTHONHASHSEED=0 python -m scripts.profile_step_loop --steps 100 \
+  --out simulations/profile_step_loop_deferred.prof
+
+# forced immediate-training comparison (defer_learning_training=false)
+PYTHONHASHSEED=0 python - <<'PY'
+from farm.config import SimulationConfig
+from farm.core.simulation import run_simulation
+import cProfile, pstats, time, os
+
+cfg = SimulationConfig.from_centralized_config(environment="development")
+cfg.environment.width = 30
+cfg.environment.height = 30
+cfg.population.system_agents = 10
+cfg.population.independent_agents = 10
+cfg.population.control_agents = 10
+cfg.population.max_population = 60
+cfg.database.use_in_memory_db = True
+cfg.database.persist_db_on_completion = False
+cfg.database.enable_validation = False
+cfg.performance.defer_learning_training = False
+
+run_simulation(num_steps=5, config=cfg, path=None, save_config=False, disable_console_logging=True)
+
+prof = cProfile.Profile()
+prof.enable()
+t0 = time.time()
+run_simulation(num_steps=100, config=cfg, path=None, save_config=False, disable_console_logging=True)
+prof.disable()
+print("wall", time.time() - t0)
+os.makedirs("simulations", exist_ok=True)
+prof.dump_stats("simulations/profile_step_loop_immediate.prof")
+PY
+```
+
+---
+
 ## Files / artifacts
 
 - `scripts/profile_step_loop.py` — reproducible Stage 0 profiler.
@@ -293,6 +361,10 @@ policies and DB into a foreign‑language interface for no measurable benefit.
 - `simulations/profile_step_loop.txt` — text top‑80 cumulative + tottime.
 - `simulations/profile_step_loop_notrain.prof` — binary cProfile (no training).
 - `simulations/profile_step_loop_notrain.txt` — text top‑80 cumulative + tottime.
+- `simulations/profile_step_loop_deferred.prof` — binary cProfile (deferred RL scheduler).
+- `simulations/profile_step_loop_deferred.txt` — text top‑80 cumulative + tottime.
+- `simulations/profile_step_loop_immediate.prof` — binary cProfile (forced immediate training).
+- `simulations/profile_step_loop_immediate.txt` — text top‑80 cumulative + tottime.
 
 View interactively with `snakeviz simulations/profile_step_loop.prof` (already
 in `requirements.txt`).
