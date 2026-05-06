@@ -16,12 +16,17 @@ from __future__ import annotations
 
 import argparse
 import cProfile
+import json
 import os
+import platform
 import pstats
+import statistics
+import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from io import StringIO
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from farm.config import SimulationConfig
@@ -51,14 +56,97 @@ def build_config(width: int, height: int, agents: int, train: bool) -> Simulatio
     return config
 
 
-def _disable_training_globally() -> None:
-    """Force every Tianshou wrapper to skip ``train()`` for inference-only runs."""
+@contextmanager
+def _patched_no_training(enabled: bool):
+    """Temporarily patch Tianshou wrappers to skip training for this run only."""
+    if not enabled:
+        yield
+        return
+
     from farm.core.decision.algorithms.tianshou import TianshouWrapper
+
+    original_should_train = TianshouWrapper.should_train
 
     def _no_train(self) -> bool:
         return False
 
     TianshouWrapper.should_train = _no_train
+    try:
+        yield
+    finally:
+        TianshouWrapper.should_train = original_should_train
+
+
+def _percentile(values: List[float], percentile: float) -> float:
+    """Compute a percentile with linear interpolation."""
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return values[0]
+    vals = sorted(values)
+    rank = (len(vals) - 1) * percentile
+    lo = int(rank)
+    hi = min(lo + 1, len(vals) - 1)
+    frac = rank - lo
+    return vals[lo] * (1.0 - frac) + vals[hi] * frac
+
+
+def _validate_args(args: argparse.Namespace) -> None:
+    if args.steps <= 0:
+        raise ValueError("--steps must be a positive integer")
+    if args.warmup_steps < 0:
+        raise ValueError("--warmup-steps cannot be negative")
+    if args.repeats <= 0:
+        raise ValueError("--repeats must be a positive integer")
+    if args.top <= 0:
+        raise ValueError("--top must be a positive integer")
+    if args.width <= 0 or args.height <= 0:
+        raise ValueError("--width and --height must be positive integers")
+    if args.agents <= 0:
+        raise ValueError("--agents must be a positive integer")
+
+
+def _resolve_run_output_path(base_out: str, run_idx: int, repeats: int) -> str:
+    if repeats <= 1:
+        return base_out
+    root, ext = os.path.splitext(base_out)
+    return f"{root}_run{run_idx + 1:02d}{ext}"
+
+
+def _collect_runtime_metadata() -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+    }
+
+    try:
+        import torch
+
+        metadata["torch_version"] = torch.__version__
+    except Exception:
+        metadata["torch_version"] = None
+
+    try:
+        import tianshou
+
+        metadata["tianshou_version"] = tianshou.__version__
+    except Exception:
+        metadata["tianshou_version"] = None
+
+    try:
+        metadata["git_sha"] = (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            .strip()
+        )
+    except Exception:
+        metadata["git_sha"] = None
+
+    return metadata
 
 
 def fmt_pct(part: float, whole: float) -> str:
@@ -92,59 +180,37 @@ def print_top(stats: pstats.Stats, sort_key: str, n: int, total_tt: float) -> No
         )
 
 
-def main() -> int:
-    if "PYTHONHASHSEED" not in os.environ or os.environ["PYTHONHASHSEED"] != "0":
-        os.environ["PYTHONHASHSEED"] = "0"
-        os.execv(sys.executable, [sys.executable] + sys.argv)
-
+def _run_single_profile(
+    *,
+    args: argparse.Namespace,
+    run_index: int,
+    out_path: str,
+    print_tables: bool,
+) -> Dict[str, Any]:
     from farm.core.simulation import run_simulation
 
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--steps", type=int, default=100)
-    parser.add_argument("--width", type=int, default=30)
-    parser.add_argument("--height", type=int, default=30)
-    parser.add_argument("--agents", type=int, default=30)
-    parser.add_argument("--seed", type=int, default=1234567890)
-    parser.add_argument(
-        "--no-train",
-        action="store_true",
-        help="Disable RL training updates (isolates inference cost from training)",
-    )
-    parser.add_argument("--top", type=int, default=20)
-    parser.add_argument(
-        "--out",
-        type=str,
-        default="simulations/profile_step_loop.prof",
-    )
-    parser.add_argument(
-        "--warmup-steps",
-        type=int,
-        default=5,
-        help="Steps to run before enabling the profiler (same run; setup not in profile)",
-    )
-    args = parser.parse_args()
-
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-
-    if args.no_train:
-        _disable_training_globally()
-
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     config = build_config(args.width, args.height, args.agents, train=not args.no_train)
     config.seed = args.seed
 
     print("=" * 72)
-    print("Stage 0 baseline profile")
+    print(f"Stage 0 baseline profile (run {run_index + 1}/{args.repeats})")
     print("=" * 72)
     print(f"  grid:     {args.width}x{args.height}")
-    print(f"  agents:   {args.agents} (sys/ind/ctrl ~= "
-          f"{config.population.system_agents}/"
-          f"{config.population.independent_agents}/"
-          f"{config.population.control_agents})")
+    print(
+        f"  agents:   {args.agents} (sys/ind/ctrl ~= "
+        f"{config.population.system_agents}/"
+        f"{config.population.independent_agents}/"
+        f"{config.population.control_agents})"
+    )
     print(f"  steps:    {args.steps} (warmup {args.warmup_steps})")
-    print(f"  training: {'disabled' if args.no_train else 'enabled '}"
-          f"(training_frequency={config.learning.training_frequency})")
+    print(
+        f"  training: {'disabled' if args.no_train else 'enabled '} "
+        f"(training_frequency={config.learning.training_frequency})"
+    )
     print(f"  seed:     {args.seed}")
     print(f"  in-mem db: {config.database.use_in_memory_db}")
+    print(f"  out:      {out_path}")
     print()
 
     total_steps = args.warmup_steps + args.steps
@@ -177,7 +243,7 @@ def main() -> int:
         print(f"  warmup wall: {profile_wall_start - run_start:.2f}s")
     wall = run_end - profile_wall_start if profile_wall_start is not None else 0.0
 
-    profiler.dump_stats(args.out)
+    profiler.dump_stats(out_path)
 
     n_alive_end = sum(1 for a in getattr(env, "agent_objects", []) if getattr(a, "alive", False))
     steps_per_sec = args.steps / wall if wall > 0 else float("inf")
@@ -194,10 +260,11 @@ def main() -> int:
     stats = pstats.Stats(profiler)
     total_tt = sum(v[2] for v in stats.stats.values())
 
-    print_top(stats, "cumulative", args.top, total_tt)
-    print_top(stats, "tottime", args.top, total_tt)
+    if print_tables:
+        print_top(stats, "cumulative", args.top, total_tt)
+        print_top(stats, "tottime", args.top, total_tt)
 
-    root, _ext = os.path.splitext(args.out)
+    root, _ext = os.path.splitext(out_path)
     text_out = root + ".txt"
     with open(text_out, "w", encoding="utf-8") as fh:
         s = StringIO()
@@ -211,9 +278,119 @@ def main() -> int:
         fh.write(s2.getvalue())
 
     print()
-    print(f"Saved binary profile: {args.out}")
+    print(f"Saved binary profile: {out_path}")
     print(f"Saved text  profile: {text_out}")
-    print(f"View interactively:  snakeviz {args.out}")
+    print(f"View interactively:  snakeviz {out_path}")
+    return {
+        "run_index": run_index + 1,
+        "profile_path": out_path,
+        "text_profile_path": text_out,
+        "wall_seconds": wall,
+        "steps_per_second": steps_per_sec,
+        "ms_per_step": wall * 1000.0 / max(1, args.steps),
+        "alive_at_end": n_alive_end,
+    }
+
+
+def main() -> int:
+    if "PYTHONHASHSEED" not in os.environ or os.environ["PYTHONHASHSEED"] != "0":
+        os.environ["PYTHONHASHSEED"] = "0"
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--steps", type=int, default=100)
+    parser.add_argument("--width", type=int, default=30)
+    parser.add_argument("--height", type=int, default=30)
+    parser.add_argument("--agents", type=int, default=30)
+    parser.add_argument("--seed", type=int, default=1234567890)
+    parser.add_argument(
+        "--no-train",
+        action="store_true",
+        help="Disable RL training updates (isolates inference cost from training)",
+    )
+    parser.add_argument("--top", type=int, default=20)
+    parser.add_argument(
+        "--out",
+        type=str,
+        default="simulations/profile_step_loop.prof",
+    )
+    parser.add_argument(
+        "--warmup-steps",
+        type=int,
+        default=5,
+        help="Steps to run before enabling the profiler (same run; setup not in profile)",
+    )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=1,
+        help="Number of repeated runs to capture timing variance (profiles each run).",
+    )
+    args = parser.parse_args()
+    _validate_args(args)
+
+    runtime_metadata = _collect_runtime_metadata()
+    print("=" * 72)
+    print("Runtime metadata")
+    print("=" * 72)
+    for key, value in runtime_metadata.items():
+        print(f"  {key}: {value}")
+    print()
+
+    run_results: List[Dict[str, Any]] = []
+    with _patched_no_training(args.no_train):
+        for run_idx in range(args.repeats):
+            run_out = _resolve_run_output_path(args.out, run_idx, args.repeats)
+            run_results.append(
+                _run_single_profile(
+                    args=args,
+                    run_index=run_idx,
+                    out_path=run_out,
+                    print_tables=(run_idx == args.repeats - 1),
+                )
+            )
+
+    walls = [r["wall_seconds"] for r in run_results]
+    sps = [r["steps_per_second"] for r in run_results]
+    summary = {
+        "repeats": args.repeats,
+        "wall_seconds": {
+            "min": min(walls),
+            "max": max(walls),
+            "mean": statistics.fmean(walls),
+            "median": statistics.median(walls),
+            "p95": _percentile(walls, 0.95),
+            "stdev": statistics.stdev(walls) if len(walls) > 1 else 0.0,
+        },
+        "steps_per_second": {
+            "min": min(sps),
+            "max": max(sps),
+            "mean": statistics.fmean(sps),
+            "median": statistics.median(sps),
+            "p95": _percentile(sps, 0.95),
+            "stdev": statistics.stdev(sps) if len(sps) > 1 else 0.0,
+        },
+        "runtime_metadata": runtime_metadata,
+        "runs": run_results,
+    }
+
+    print()
+    print("=" * 72)
+    print("Repeat summary")
+    print("=" * 72)
+    print(f"  repeats:        {summary['repeats']}")
+    print(f"  wall median:    {summary['wall_seconds']['median']:.3f} s")
+    print(f"  wall p95:       {summary['wall_seconds']['p95']:.3f} s")
+    print(f"  wall mean:      {summary['wall_seconds']['mean']:.3f} s")
+    print(f"  wall stdev:     {summary['wall_seconds']['stdev']:.3f} s")
+    print(f"  steps/sec med:  {summary['steps_per_second']['median']:.2f}")
+    print(f"  steps/sec p95:  {summary['steps_per_second']['p95']:.2f}")
+
+    root, _ext = os.path.splitext(args.out)
+    summary_out = root + "_summary.json"
+    with open(summary_out, "w", encoding="utf-8") as fh:
+        json.dump(summary, fh, indent=2)
+    print(f"Saved repeat summary: {summary_out}")
     return 0
 
 
