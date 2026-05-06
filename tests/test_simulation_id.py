@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from typing import Dict, List, Optional
 
+import pytest
+
 from farm.config import SimulationConfig
 from farm.config.config import (
     EnvironmentConfig,
@@ -23,6 +25,7 @@ from farm.utils.identity import Identity
 
 # Shared Identity instance for efficiency in tests
 _shared_identity = Identity()
+pytestmark = pytest.mark.integration
 
 
 class TestSimulationID(unittest.TestCase):

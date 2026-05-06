@@ -1,0 +1,38 @@
+name: nightly-heavy-tests
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-heavy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Install package
+        run: |
+          pip install -e .
+      - name: Run full heavy pytest suite
+        run: |
+          pytest -q -vv --durations=50 -m "" --cov=farm --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=90
+      - name: Run deterministic pytest module explicitly
+        run: |
+          pytest -q -vv --durations=50 -m integration tests/test_deterministic_pytest.py

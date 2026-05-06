@@ -11,6 +11,8 @@ import os
 import tempfile
 import unittest
 
+import pytest
+
 from farm.config import SimulationConfig
 from farm.core.initial_diversity import (
     InitialDiversityConfig,
@@ -18,6 +20,8 @@ from farm.core.initial_diversity import (
     SeedingMode,
 )
 from farm.core.simulation import run_simulation
+
+pytestmark = pytest.mark.integration
 
 
 def _tiny_config(initial_diversity: InitialDiversityConfig) -> SimulationConfig:
