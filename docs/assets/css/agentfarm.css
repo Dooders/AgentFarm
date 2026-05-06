@@ -5,7 +5,6 @@
 :root {
   --surface: #ffffff;
   --surface-muted: #f7f7f8;
-  --surface-sunken: #f2f2f4;
   --border: #e5e7eb;
   --border-strong: #d4d4d8;
 
@@ -39,7 +38,6 @@
   :root {
     --surface: #0e0e10;
     --surface-muted: #161618;
-    --surface-sunken: #1c1c1f;
     --border: #2a2a2e;
     --border-strong: #3a3a3f;
 
