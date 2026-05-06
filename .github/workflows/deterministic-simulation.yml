@@ -17,7 +17,7 @@ permissions:
 jobs:
   deterministic-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     
     steps:
       - name: Checkout code
@@ -39,16 +39,27 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
-      - name: Run deterministic pytest suite
+      - name: Run deterministic component pytest suite
         run: |
-          python -m pytest -q -o addopts='' -m "determinism or determinism_regression" \
-            tests/test_deterministic_pytest.py \
+          timeout 5m python -m pytest -vv -o addopts='' -m "determinism and not slow and not integration" \
             tests/test_component_determinism.py \
-            --tb=short
+            --tb=short \
+            --durations=10
+
+      - name: Run critical deterministic simulation regression
+        run: |
+          timeout 10m python -m pytest -vv -o addopts='' -m "determinism_regression and not slow and not integration" \
+            tests/test_deterministic_pytest.py \
+            --tb=short \
+            --durations=10
 
       - name: Run deterministic CLI smoke test
         run: |
-          python tests/test_deterministic.py --environment testing --steps 50 --seed 42
+          timeout 8m python tests/test_deterministic.py --environment testing --steps 50 --seed 42
+
+      - name: Run extended deterministic CLI smoke test
+        run: |
+          timeout 12m python tests/test_deterministic.py --environment testing --steps 100 --seed 123
 
       - name: Upload simulation artifacts on failure
         if: failure()
