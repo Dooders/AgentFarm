@@ -15,6 +15,8 @@ from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from tests.test_deterministic import get_simulation_state_hash, run_determinism_test
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.determinism
 def test_determinism_single_seed(deterministic_seed):

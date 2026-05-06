@@ -33,3 +33,6 @@ jobs:
       - name: Run full heavy pytest suite
         run: |
           pytest -q -vv --durations=50 -m "" --cov=farm --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=90
+      - name: Run deterministic pytest module explicitly
+        run: |
+          pytest -q -vv --durations=50 -m integration tests/test_deterministic_pytest.py

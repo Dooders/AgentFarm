@@ -33,7 +33,7 @@ jobs:
           pip install -e .
       - name: Run pytest
         run: |
-          pytest -q -vv --durations=50 -m "not slow and not integration" --cov=farm --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=90
+          pytest -q -vv --durations=50 --ignore=tests/test_deterministic_pytest.py -m "not slow and not integration" --cov=farm --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=90
 
   js-ui:
     runs-on: ubuntu-latest
