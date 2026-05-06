@@ -26,7 +26,7 @@ import sys
 import time
 from contextlib import contextmanager
 from io import StringIO
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from farm.config import SimulationConfig
