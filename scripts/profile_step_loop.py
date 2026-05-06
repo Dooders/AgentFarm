@@ -85,7 +85,7 @@ def print_top(stats: pstats.Stats, sort_key: str, n: int, total_tt: float) -> No
             short = f"{os.path.relpath(filename)}:{lineno}({name})"
         except ValueError:
             short = f"{filename}:{lineno}({name})"
-        percall = ct / nc if nc else 0.0
+        percall = (tt / nc if sort_key == "tottime" else ct / nc) if nc else 0.0
         print(
             f"{rank:>4}  {nc:>10}  {tt:>10.4f}  {fmt_pct(tt, total_tt):>6}  "
             f"{ct:>10.4f}  {percall:>10.6f}  {short}"
@@ -150,16 +150,16 @@ def main() -> int:
     total_steps = args.warmup_steps + args.steps
     profiler = cProfile.Profile()
     profile_wall_start: Optional[float] = None
-    run_start = time.time()
+    run_start = time.perf_counter()
 
     def on_step_end(_env: object, step_idx: int) -> None:
         nonlocal profile_wall_start
         if step_idx == args.warmup_steps - 1:
-            profile_wall_start = time.time()
+            profile_wall_start = time.perf_counter()
             profiler.enable()
 
     if args.warmup_steps == 0:
-        profile_wall_start = time.time()
+        profile_wall_start = time.perf_counter()
         profiler.enable()
 
     env = run_simulation(
@@ -167,11 +167,12 @@ def main() -> int:
         config=config,
         path=None,
         save_config=False,
+        seed=args.seed,
         disable_console_logging=True,
         on_step_end=on_step_end if args.warmup_steps > 0 else None,
     )
     profiler.disable()
-    run_end = time.time()
+    run_end = time.perf_counter()
     if args.warmup_steps > 0 and profile_wall_start is not None:
         print(f"  warmup wall: {profile_wall_start - run_start:.2f}s")
     wall = run_end - profile_wall_start if profile_wall_start is not None else 0.0
