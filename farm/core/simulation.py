@@ -607,12 +607,12 @@ def run_simulation(
                     agent.act()
 
             if defer_learning_training:
-                _run_deferred_learning_updates(
+                updates_run = _run_deferred_learning_updates(
                     environment=environment,
                     max_updates=max_learning_updates_per_step,
                     rr_cursor=round_robin_cursor,
                 )
-                round_robin_cursor += 1
+                round_robin_cursor += updates_run
 
             # Flush buffered DB writes on a time-based schedule rather than
             # every step.  Buffer-size-based flushing is already handled
