@@ -475,10 +475,6 @@ class AgentCore:
             except Exception:
                 pass
 
-    def supports_deferred_learning_training(self) -> bool:
-        """Return whether the agent behavior can defer training updates."""
-        return hasattr(self.behavior, "update")
-
     def train_learning_if_ready(self) -> bool:
         """Run one deferred learning update if the behavior exposes it."""
         decision_module = getattr(self.behavior, "decision_module", None)

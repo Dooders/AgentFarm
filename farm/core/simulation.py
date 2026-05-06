@@ -105,8 +105,6 @@ def _run_deferred_learning_updates(environment: Environment, max_updates: int, r
         if trained:
             updates_run += 1
             passes_without_progress = 0
-            # Requeue so heavily-used learners can consume remaining budget.
-            agent_queue.append(agent)
         else:
             passes_without_progress += 1
 
