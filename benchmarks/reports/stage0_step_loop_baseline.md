@@ -45,7 +45,7 @@ PyTorch C++/CUDA.
 
 ## Top-20 by cumulative time — with training
 
-```
+```text
 rank  ncalls    tottime   %tt    cumtime    percall  function
    1    4119     0.003   0.0%    35.039   0.008507  farm/core/agent/core.py:478(act)
    2    4118     0.073   0.2%    35.034   0.008508  farm/core/agent/core.py:429(step)
@@ -65,7 +65,7 @@ rank  ncalls    tottime   %tt    cumtime    percall  function
 
 ## Top-20 by self (`tottime`) — with training
 
-```
+```text
 rank  ncalls   tottime   %tt    function
    1     690    4.408  11.8%   <method 'run_backward' of 'torch._C._EngineBase'>
    2    8280    3.879  10.4%   <method 'sqrt' of 'torch._C.TensorBase'>
@@ -106,7 +106,7 @@ rank  ncalls   tottime   %tt    function
 
 ## Top-20 by cumulative time — no training (inference only)
 
-```
+```text
 rank  ncalls    tottime   %tt    cumtime    percall  function
    1    4352     0.005   0.0%    13.579   0.003120  farm/core/agent/core.py:478(act)
    2    4351     0.066   0.4%    13.573   0.003120  farm/core/agent/core.py:429(step)
@@ -123,7 +123,7 @@ rank  ncalls    tottime   %tt    cumtime    percall  function
 
 ## Top-20 by self (`tottime`) — no training
 
-```
+```text
 rank   ncalls   tottime   %tt    function
    1      660    1.462   9.8%   <method 'uniform_' of 'torch._C.TensorBase'>   (init noise)
    2    25125    1.019   6.8%   farm/core/observations.py:144(apply_to_dense)
