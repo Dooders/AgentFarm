@@ -140,7 +140,11 @@ class DecisionModule:
         # Initialize the decision algorithm
         self._initialize_algorithm()
 
-        logger.info(f"Initialized DecisionModule for agent {self.agent_id} with {config.algorithm_type}")
+        logger.debug(
+            "decision_module_initialized",
+            agent_id=self.agent_id,
+            algorithm=config.algorithm_type,
+        )
 
     # Algorithm types whose constructors accept an ``n_estimators`` kwarg.
     # When the active algorithm is one of these, ``DecisionConfig.ensemble_size``
@@ -215,7 +219,7 @@ class DecisionModule:
             self.algorithm = AlgorithmRegistry.create(
                 algorithm_type, num_actions=self.num_actions, **params
             )
-            logger.info(
+            logger.debug(
                 "algorithm_initialized",
                 algorithm=algorithm_type,
                 agent_id=self.agent_id,
@@ -285,7 +289,7 @@ class DecisionModule:
                 per_beta_steps=self.config.per_beta_steps,
                 per_epsilon=self.config.per_epsilon,
             )
-            logger.info("algorithm_initialized", algorithm="ppo", agent_id=self.agent_id)
+            logger.debug("algorithm_initialized", algorithm="ppo", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
@@ -333,7 +337,7 @@ class DecisionModule:
                 per_beta_steps=self.config.per_beta_steps,
                 per_epsilon=self.config.per_epsilon,
             )
-            logger.info("algorithm_initialized", algorithm="sac", agent_id=self.agent_id)
+            logger.debug("algorithm_initialized", algorithm="sac", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
@@ -382,7 +386,7 @@ class DecisionModule:
                 per_beta_steps=self.config.per_beta_steps,
                 per_epsilon=self.config.per_epsilon,
             )
-            logger.info("algorithm_initialized", algorithm="dqn", agent_id=self.agent_id)
+            logger.debug("algorithm_initialized", algorithm="dqn", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
@@ -431,7 +435,7 @@ class DecisionModule:
                 per_beta_steps=self.config.per_beta_steps,
                 per_epsilon=self.config.per_epsilon,
             )
-            logger.info("algorithm_initialized", algorithm="a2c", agent_id=self.agent_id)
+            logger.debug("algorithm_initialized", algorithm="a2c", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
@@ -477,7 +481,7 @@ class DecisionModule:
                 per_beta_steps=self.config.per_beta_steps,
                 per_epsilon=self.config.per_epsilon,
             )
-            logger.info("algorithm_initialized", algorithm="ddpg", agent_id=self.agent_id)
+            logger.debug("algorithm_initialized", algorithm="ddpg", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
@@ -491,7 +495,7 @@ class DecisionModule:
 
     def _initialize_fallback(self):
         """Initialize a fallback decision mechanism."""
-        logger.info("using_fallback_algorithm", agent_id=self.agent_id)
+        logger.debug("using_fallback_algorithm", agent_id=self.agent_id)
 
         # Simple epsilon-greedy random action selection
         class FallbackAlgorithm:

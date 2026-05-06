@@ -12,6 +12,8 @@ source venv/bin/activate
 PYTHONHASHSEED=0 python -m scripts.profile_step_loop --steps 100 --warmup-steps 5
 PYTHONHASHSEED=0 python -m scripts.profile_step_loop --steps 100 --warmup-steps 5 --no-train \
     --out simulations/profile_step_loop_notrain.prof
+PYTHONHASHSEED=0 python -m scripts.profile_step_loop --steps 100 --warmup-steps 5 \
+    --repeats 5 --out simulations/profile_step_loop_repeated.prof
 snakeviz simulations/profile_step_loop.prof
 ```
 
@@ -30,6 +32,9 @@ profile, seed `1234567890`, 5 warm-up steps excluded from the profile.
 
 Both runs start with 30 agents on a 30×30 grid; population grows to ~50 by step
 100 because reproduction is enabled by default.
+
+These are single-run snapshots. Use `--repeats` and the generated
+`*_summary.json` (median/p95/stdev) before treating small deltas as meaningful.
 
 **The training path more than doubles wall-clock per step.** Just from this
 ratio, **~60 % of the wall on the small-grid default run is RL training**, not
@@ -258,11 +263,11 @@ So:
 
 1. **First (no native code, biggest win on the small grid):**
    - Lower `training_frequency` from 4 → 16 (or implement a single shared
-     batched training step across agents per N global steps). Expected: ~40 %
-     wall reduction on default settings.
+     batched training step across agents per N global steps). Hypothesis: large
+     wall reduction on default settings; confirm with repeated runs.
    - Cache `next_state` reuse in `AgentCore._execute_action` (don't rebuild
-     observation when nothing observation‑relevant changed). Expected: ~20 %
-     wall reduction on the inference path.
+     observation when nothing observation‑relevant changed). Hypothesis:
+     meaningful inference-path wall reduction; confirm with repeated runs.
    - Batch `decide_action` across agents into a single `policy(obs_batch)`
      call. Small absolute win but unlocks GPU later.
 
@@ -365,6 +370,7 @@ PY
 - `simulations/profile_step_loop_deferred.txt` — text top‑80 cumulative + tottime.
 - `simulations/profile_step_loop_immediate.prof` — binary cProfile (forced immediate training).
 - `simulations/profile_step_loop_immediate.txt` — text top‑80 cumulative + tottime.
+- `simulations/profile_step_loop*_summary.json` — aggregate statistics for repeated runs.
 
 View interactively with `snakeviz simulations/profile_step_loop.prof` (already
 in `requirements.txt`).

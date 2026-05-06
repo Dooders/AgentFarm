@@ -869,7 +869,7 @@ class Environment(AECEnv):
         - Cleans up agent observation data
         """
         # Log agent removal before processing
-        logger.info(
+        logger.debug(
             "agent_removed",
             agent_id=agent.agent_id,
             agent_type=agent.__class__.__name__,
@@ -1498,7 +1498,7 @@ class Environment(AECEnv):
             self.record_birth()
 
         # Log agent addition
-        logger.info(
+        logger.debug(
             "agent_added",
             agent_id=agent.agent_id,
             agent_type=agent.__class__.__name__,

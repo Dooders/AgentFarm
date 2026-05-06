@@ -101,7 +101,7 @@ class TianshouWrapper(RLAlgorithm):
         if self.algorithm_name == "DQN":
             configured_n_step = int(self.algorithm_config.get("n_step", 1))
             if configured_n_step != 1:
-                logger.warning(
+                logger.debug(
                     "DQN wrapper uses one-step replay targets with the current custom replay path; "
                     "overriding n_step=%d -> 1 to avoid inconsistent training targets.",
                     configured_n_step,
