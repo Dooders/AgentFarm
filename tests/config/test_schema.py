@@ -228,6 +228,7 @@ class TestGenerateCombinedConfigSchema(unittest.TestCase):
         sim_props = self.schema["sections"]["simulation"]["properties"]
         self.assertIn("defer_learning_training", sim_props)
         self.assertIn("max_learning_updates_per_step", sim_props)
+        self.assertEqual(sim_props["max_learning_updates_per_step"]["minimum"], 0)
 
     def test_visualization_section(self):
         vis = self.schema["sections"]["visualization"]

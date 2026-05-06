@@ -34,6 +34,9 @@ jobs:
       - name: Run pytest
         run: |
           pytest -q -vv --durations=50 --ignore=tests/test_deterministic_pytest.py -m "not slow and not integration" --cov=farm --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=90
+      - name: Run integration and determinism smoke tests
+        run: |
+          pytest -q -vv --durations=20 tests/test_simulation_determinism_regression.py::test_simulation_repeatability_fixed_seed tests/test_simulation_id.py::TestSimulationID::test_simulation_id_generation
 
   js-ui:
     runs-on: ubuntu-latest

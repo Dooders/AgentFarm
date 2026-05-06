@@ -232,6 +232,8 @@ def generate_combined_config_schema() -> Dict[str, Any]:
         SimulationConfig, known_enums=simulation_known_enums
     )
     performance_props = _dataclass_to_properties(PerformanceConfig)
+    if "max_learning_updates_per_step" in performance_props:
+        performance_props["max_learning_updates_per_step"]["minimum"] = 0
     for key in (
         "agent_processing_batch_size",
         "resource_processing_batch_size",

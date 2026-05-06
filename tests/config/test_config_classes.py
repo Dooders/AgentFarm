@@ -9,7 +9,8 @@ This module tests the core configuration dataclasses including:
 
 import unittest
 from types import SimpleNamespace
-from farm.config import VisualizationConfig, RedisMemoryConfig
+from farm.config import RedisMemoryConfig, VisualizationConfig
+from farm.config.config import PerformanceConfig
 from farm.core.agent.config.component_configs import AgentComponentConfig
 
 
@@ -268,6 +269,18 @@ class TestAgentComponentConfig(unittest.TestCase):
         self.assertEqual(component_config.decision.rl_train_freq, 3)
         self.assertEqual(component_config.decision.dqn_hidden_size, 32)
         self.assertEqual(component_config.decision.tau, 0.02)
+
+
+class TestPerformanceConfig(unittest.TestCase):
+    """Test cases for PerformanceConfig validation."""
+
+    def test_max_learning_updates_per_step_defaults_to_non_negative(self):
+        config = PerformanceConfig()
+        self.assertGreaterEqual(config.max_learning_updates_per_step, 0)
+
+    def test_max_learning_updates_per_step_rejects_negative_values(self):
+        with self.assertRaises(ValueError):
+            PerformanceConfig(max_learning_updates_per_step=-1)
 
 
 if __name__ == '__main__':

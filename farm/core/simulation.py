@@ -559,9 +559,24 @@ def run_simulation(
 
         perf_cfg = getattr(config, "performance", None)
         defer_learning_training = bool(getattr(perf_cfg, "defer_learning_training", True))
-        max_learning_updates_per_step = int(
-            max(0, getattr(perf_cfg, "max_learning_updates_per_step", 4))
-        )
+        raw_max_learning_updates = getattr(perf_cfg, "max_learning_updates_per_step", 4)
+        try:
+            parsed_max_learning_updates = int(raw_max_learning_updates)
+        except (TypeError, ValueError):
+            logger.warning(
+                "invalid_max_learning_updates_per_step_defaulted",
+                configured_value=raw_max_learning_updates,
+                default_value=4,
+            )
+            parsed_max_learning_updates = 4
+
+        max_learning_updates_per_step = max(0, parsed_max_learning_updates)
+        if max_learning_updates_per_step != parsed_max_learning_updates:
+            logger.warning(
+                "invalid_max_learning_updates_per_step_clamped",
+                configured_value=raw_max_learning_updates,
+                clamped_value=max_learning_updates_per_step,
+            )
         environment.defer_learning_training = defer_learning_training
         round_robin_cursor = 0
 

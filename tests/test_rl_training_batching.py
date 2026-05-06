@@ -49,6 +49,7 @@ def test_run_simulation_limits_deferred_learning_updates_per_step(tmp_path):
     agent_a = _StubAgent("stub-a", train_results=scripted_results.copy())
     agent_b = _StubAgent("stub-b", train_results=scripted_results.copy())
     stub_agents = [agent_a, agent_b]
+    step_training_call_totals: list[int] = []
 
     def _inject_agents(environment) -> None:
         environment.defer_learning_training = True
@@ -57,6 +58,10 @@ def test_run_simulation_limits_deferred_learning_updates_per_step(tmp_path):
         environment.agents = [agent.agent_id for agent in stub_agents]
         environment.agent_selection = environment.agents[0]
 
+    def _on_step_end(_environment, _step_index: int) -> None:
+        total_calls = agent_a.train_call_count + agent_b.train_call_count
+        step_training_call_totals.append(total_calls)
+
     with patch("farm.core.simulation.create_initial_agents", return_value=[]):
         run_simulation(
             num_steps=steps,
@@ -64,6 +69,7 @@ def test_run_simulation_limits_deferred_learning_updates_per_step(tmp_path):
             path=str(tmp_path),
             save_config=False,
             on_environment_ready=_inject_agents,
+            on_step_end=_on_step_end,
             disable_console_logging=True,
         )
 
@@ -71,3 +77,10 @@ def test_run_simulation_limits_deferred_learning_updates_per_step(tmp_path):
     assert agent_a.train_call_count + agent_b.train_call_count <= expected_max_calls
     assert agent_a.train_call_count >= 1
     assert agent_b.train_call_count >= 1
+    assert len(step_training_call_totals) == steps
+
+    previous_total = 0
+    for step_total in step_training_call_totals:
+        calls_this_step = step_total - previous_total
+        assert calls_this_step <= config.performance.max_learning_updates_per_step
+        previous_total = step_total
