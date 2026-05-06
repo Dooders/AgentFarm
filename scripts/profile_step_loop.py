@@ -21,7 +21,7 @@ import pstats
 import sys
 import time
 from io import StringIO
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from farm.config import SimulationConfig
@@ -120,7 +120,7 @@ def main() -> int:
         "--warmup-steps",
         type=int,
         default=5,
-        help="Steps to run before starting the profiler (excludes one-time setup)",
+        help="Steps to run before enabling the profiler (same run; setup not in profile)",
     )
     args = parser.parse_args()
 
@@ -147,32 +147,34 @@ def main() -> int:
     print(f"  in-mem db: {config.database.use_in_memory_db}")
     print()
 
-    if args.warmup_steps > 0:
-        t0 = time.time()
-        run_simulation(
-            num_steps=args.warmup_steps,
-            config=config,
-            path=None,
-            save_config=False,
-            disable_console_logging=True,
-        )
-        print(f"  warmup wall: {time.time() - t0:.2f}s")
-
-    config = build_config(args.width, args.height, args.agents, train=not args.no_train)
-    config.seed = args.seed
-
+    total_steps = args.warmup_steps + args.steps
     profiler = cProfile.Profile()
-    t0 = time.time()
-    profiler.enable()
+    profile_wall_start: Optional[float] = None
+    run_start = time.time()
+
+    def on_step_end(_env: object, step_idx: int) -> None:
+        nonlocal profile_wall_start
+        if step_idx == args.warmup_steps - 1:
+            profile_wall_start = time.time()
+            profiler.enable()
+
+    if args.warmup_steps == 0:
+        profile_wall_start = time.time()
+        profiler.enable()
+
     env = run_simulation(
-        num_steps=args.steps,
+        num_steps=total_steps,
         config=config,
         path=None,
         save_config=False,
         disable_console_logging=True,
+        on_step_end=on_step_end if args.warmup_steps > 0 else None,
     )
     profiler.disable()
-    wall = time.time() - t0
+    run_end = time.time()
+    if args.warmup_steps > 0 and profile_wall_start is not None:
+        print(f"  warmup wall: {profile_wall_start - run_start:.2f}s")
+    wall = run_end - profile_wall_start if profile_wall_start is not None else 0.0
 
     profiler.dump_stats(args.out)
 
