@@ -48,8 +48,8 @@ jobs:
 
       - name: Run critical deterministic simulation regression
         run: |
-          timeout 10m python -m pytest -vv -o addopts='' -m "determinism_regression and not slow and not integration" \
-            tests/test_deterministic_pytest.py \
+          timeout 10m python -m pytest -vv -o addopts='' \
+            tests/test_deterministic_pytest.py::test_determinism_regression_critical \
             --tb=short \
             --durations=10
 
