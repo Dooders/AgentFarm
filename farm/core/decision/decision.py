@@ -876,6 +876,50 @@ class DecisionModule:
             and hasattr(self.agent.environment.db, "logger")
         )
 
+    def _should_train_algorithm(self) -> bool:
+        """Return whether the current algorithm is ready for a training step."""
+        if self.algorithm is None:
+            return False
+
+        should_train_fn = getattr(self.algorithm, "should_train", None)
+        if not callable(should_train_fn):
+            return False
+
+        try:
+            return bool(should_train_fn())
+        except Exception as exc:
+            logger.warning(
+                "Failed to evaluate should_train for agent %s: %s",
+                self.agent_id,
+                exc,
+            )
+            return False
+
+    def train_if_ready(self) -> bool:
+        """Run one algorithm training step when the module is ready.
+
+        Returns:
+            bool: True when a training update executed, otherwise False.
+        """
+        if self.algorithm is None or not self._should_train_algorithm():
+            return False
+
+        train_fn = getattr(self.algorithm, "train", None)
+        if not callable(train_fn):
+            return False
+
+        try:
+            train_fn(batch=None)
+            self._is_trained = True
+            return True
+        except Exception as exc:
+            logger.warning(
+                "Failed to train algorithm for agent %s: %s",
+                self.agent_id,
+                exc,
+            )
+            return False
+
     def update(
         self,
         state: torch.Tensor,
@@ -884,6 +928,7 @@ class DecisionModule:
         next_state: torch.Tensor,
         done: bool,
         enabled_actions: Optional[List[int]] = None,
+        train_now: bool = True,
     ):
         """Update the decision module with experience, respecting curriculum restrictions.
 
@@ -894,6 +939,7 @@ class DecisionModule:
             next_state: Next state
             done: Whether episode is done
             enabled_actions: Optional list of enabled action indices at time of action
+            train_now: Whether to execute an immediate training update if ready
         """
         try:
             # Convert action index back to full action space if curriculum is active
@@ -974,10 +1020,9 @@ class DecisionModule:
                     except Exception as e:
                         logger.warning(f"Failed to log learning experience for agent {self.agent_id}: {e}")
 
-                # Train if it's time to train
-                if hasattr(self.algorithm, "should_train") and self.algorithm.should_train():
-                    self.algorithm.train(batch=None)
-                    self._is_trained = True
+                # Train if it's time to train and caller hasn't deferred updates.
+                if train_now:
+                    self.train_if_ready()
 
             # For SB3 algorithms (fallback), simulate learning process
             elif (

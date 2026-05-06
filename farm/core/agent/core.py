@@ -475,6 +475,26 @@ class AgentCore:
             except Exception:
                 pass
 
+    def train_learning_if_ready(self) -> bool:
+        """Run one deferred learning update if the behavior exposes it."""
+        decision_module = getattr(self.behavior, "decision_module", None)
+        if decision_module is None:
+            return False
+
+        train_if_ready = getattr(decision_module, "train_if_ready", None)
+        if not callable(train_if_ready):
+            return False
+
+        try:
+            return bool(train_if_ready())
+        except Exception as exc:
+            logger.warning(
+                "Failed deferred learning update for agent %s: %s",
+                self.agent_id,
+                exc,
+            )
+            return False
+
     def act(self) -> None:
         """
         Alias for step() for consistency with agent lifecycle.
@@ -632,6 +652,11 @@ class AgentCore:
         # Get next state (uses cache when nothing changed, e.g. pass/no-op)
         next_state_tensor = self._create_observation()
 
+        train_now = not (
+            self.environment is not None
+            and getattr(self.environment, "defer_learning_training", False)
+        )
+
         # Update behavior with experience
         try:
             self.behavior.update(
@@ -640,6 +665,7 @@ class AgentCore:
                 reward=reward,
                 next_state=next_state_tensor,
                 done=not self.alive,
+                train_now=train_now,
             )
         except Exception as e:
             # Log but don't crash on behavior update failure

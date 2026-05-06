@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from farm.core.observations import ObservationConfig, StorageMode
 
-from .config import RedisMemoryConfig, SimulationConfig, VisualizationConfig
+from .config import PerformanceConfig, RedisMemoryConfig, SimulationConfig, VisualizationConfig
 
 
 def _python_type_to_schema_type(annotation: Any) -> str:
@@ -231,6 +231,23 @@ def generate_combined_config_schema() -> Dict[str, Any]:
     sim_props = _dataclass_to_properties(
         SimulationConfig, known_enums=simulation_known_enums
     )
+    performance_props = _dataclass_to_properties(PerformanceConfig)
+    if "max_learning_updates_per_step" in performance_props:
+        performance_props["max_learning_updates_per_step"]["minimum"] = 0
+    for key in (
+        "agent_processing_batch_size",
+        "resource_processing_batch_size",
+        "enable_parallel_processing",
+        "max_worker_threads",
+        "enable_memory_pooling",
+        "memory_pool_size_mb",
+        "enable_state_caching",
+        "cache_ttl_seconds",
+        "defer_learning_training",
+        "max_learning_updates_per_step",
+    ):
+        if key in performance_props:
+            sim_props[key] = performance_props[key]
     # Remove nested sections from simulation section to avoid duplication
     # These are handled as separate top-level sections in the schema
     for nested in ("visualization", "redis", "observation"):

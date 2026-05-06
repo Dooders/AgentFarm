@@ -45,7 +45,7 @@ PyTorch C++/CUDA.
 
 ## Top-20 by cumulative time — with training
 
-```
+```text
 rank  ncalls    tottime   %tt    cumtime    percall  function
    1    4119     0.003   0.0%    35.039   0.008507  farm/core/agent/core.py:478(act)
    2    4118     0.073   0.2%    35.034   0.008508  farm/core/agent/core.py:429(step)
@@ -65,7 +65,7 @@ rank  ncalls    tottime   %tt    cumtime    percall  function
 
 ## Top-20 by self (`tottime`) — with training
 
-```
+```text
 rank  ncalls   tottime   %tt    function
    1     690    4.408  11.8%   <method 'run_backward' of 'torch._C._EngineBase'>
    2    8280    3.879  10.4%   <method 'sqrt' of 'torch._C.TensorBase'>
@@ -106,7 +106,7 @@ rank  ncalls   tottime   %tt    function
 
 ## Top-20 by cumulative time — no training (inference only)
 
-```
+```text
 rank  ncalls    tottime   %tt    cumtime    percall  function
    1    4352     0.005   0.0%    13.579   0.003120  farm/core/agent/core.py:478(act)
    2    4351     0.066   0.4%    13.573   0.003120  farm/core/agent/core.py:429(step)
@@ -123,7 +123,7 @@ rank  ncalls    tottime   %tt    cumtime    percall  function
 
 ## Top-20 by self (`tottime`) — no training
 
-```
+```text
 rank   ncalls   tottime   %tt    function
    1      660    1.462   9.8%   <method 'uniform_' of 'torch._C.TensorBase'>   (init noise)
    2    25125    1.019   6.8%   farm/core/observations.py:144(apply_to_dense)
@@ -291,6 +291,74 @@ policies and DB into a foreign‑language interface for no measurable benefit.
 
 ---
 
+## Post-change verification (deferred RL scheduler vs immediate training)
+
+After implementing the deferred RL training scheduler (`performance.defer_learning_training=true`,
+`performance.max_learning_updates_per_step=4`), we reran the same Stage 0 workload and
+compared it against a forced immediate-training run on the same seed and config:
+
+- grid: 30x30
+- agents: 30 (10/10/10)
+- steps: 100 (+5 warmup)
+- seed: `1234567890`
+- in-memory DB enabled
+
+| Scenario | wall (s) | steps/sec | ms / step | alive at end |
+|---|---:|---:|---:|---:|
+| **deferred scheduler** (new default) | **22.085** | **4.53** | **220.85** | 56 |
+| **forced immediate training** (`defer_learning_training=false`) | 36.077 | 2.77 | 360.77 | 53 |
+
+Observed improvement on this profile:
+
+- **Wall-time reduction:** `(36.077 - 22.085) / 36.077 = 38.8%`
+- `tianshou.py:1104(train_on_batch)` cumulative time:
+  - immediate: **21.2985 s**
+  - deferred: **7.1386 s**
+  - reduction: **66.5%**
+- Training-call count in the profile top table:
+  - immediate: **690** `train_on_batch` calls
+  - deferred: **232** `train_on_batch` calls
+
+Reproduction commands used for this verification:
+
+```bash
+source venv/bin/activate
+PYTHONHASHSEED=0 python -m scripts.profile_step_loop --steps 100 \
+  --out simulations/profile_step_loop_deferred.prof
+
+# forced immediate-training comparison (defer_learning_training=false)
+PYTHONHASHSEED=0 python - <<'PY'
+from farm.config import SimulationConfig
+from farm.core.simulation import run_simulation
+import cProfile, pstats, time, os
+
+cfg = SimulationConfig.from_centralized_config(environment="development")
+cfg.environment.width = 30
+cfg.environment.height = 30
+cfg.population.system_agents = 10
+cfg.population.independent_agents = 10
+cfg.population.control_agents = 10
+cfg.population.max_population = 60
+cfg.database.use_in_memory_db = True
+cfg.database.persist_db_on_completion = False
+cfg.database.enable_validation = False
+cfg.performance.defer_learning_training = False
+
+run_simulation(num_steps=5, config=cfg, path=None, save_config=False, disable_console_logging=True)
+
+prof = cProfile.Profile()
+prof.enable()
+t0 = time.time()
+run_simulation(num_steps=100, config=cfg, path=None, save_config=False, disable_console_logging=True)
+prof.disable()
+print("wall", time.time() - t0)
+os.makedirs("simulations", exist_ok=True)
+prof.dump_stats("simulations/profile_step_loop_immediate.prof")
+PY
+```
+
+---
+
 ## Files / artifacts
 
 - `scripts/profile_step_loop.py` — reproducible Stage 0 profiler.
@@ -298,6 +366,10 @@ policies and DB into a foreign‑language interface for no measurable benefit.
 - `simulations/profile_step_loop.txt` — text top‑80 cumulative + tottime.
 - `simulations/profile_step_loop_notrain.prof` — binary cProfile (no training).
 - `simulations/profile_step_loop_notrain.txt` — text top‑80 cumulative + tottime.
+- `simulations/profile_step_loop_deferred.prof` — binary cProfile (deferred RL scheduler).
+- `simulations/profile_step_loop_deferred.txt` — text top‑80 cumulative + tottime.
+- `simulations/profile_step_loop_immediate.prof` — binary cProfile (forced immediate training).
+- `simulations/profile_step_loop_immediate.txt` — text top‑80 cumulative + tottime.
 - `simulations/profile_step_loop*_summary.json` — aggregate statistics for repeated runs.
 
 View interactively with `snakeviz simulations/profile_step_loop.prof` (already

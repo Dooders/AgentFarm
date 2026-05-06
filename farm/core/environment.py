@@ -381,6 +381,11 @@ class Environment(AECEnv):
         self._agents_acted_this_cycle = 0
         self._cycle_complete = False
 
+        # Simulation-level optimization: collect RL experiences during agent
+        # execution, then run bounded deferred training updates once per global
+        # step in the simulation loop.
+        self.defer_learning_training = False
+
         # Initialize resource manager
         self.resource_manager = ResourceManager(
             width=self.width,

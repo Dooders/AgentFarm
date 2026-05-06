@@ -507,6 +507,18 @@ class PerformanceConfig:
     enable_state_caching: bool = True  # Whether to enable state caching
     cache_ttl_seconds: int = 60  # Time-to-live for cached states in seconds
 
+    # RL training orchestration
+    defer_learning_training: bool = True  # Collect experience during agent steps and train in a step-level pass
+    max_learning_updates_per_step: int = 4  # Cap deferred RL updates executed after each global simulation step
+
+    def __post_init__(self) -> None:
+        """Validate performance config values that affect RL training orchestration."""
+        if self.max_learning_updates_per_step < 0:
+            raise ValueError(
+                "performance.max_learning_updates_per_step must be >= 0 "
+                f"(got {self.max_learning_updates_per_step!r})"
+            )
+
 
 @dataclass
 class ActionRewardConfig:
@@ -1378,6 +1390,8 @@ class SimulationConfig:
                     "memory_pool_size_mb",
                     "enable_state_caching",
                     "cache_ttl_seconds",
+                    "defer_learning_training",
+                    "max_learning_updates_per_step",
                 ],
             ),
             "action_rewards": (

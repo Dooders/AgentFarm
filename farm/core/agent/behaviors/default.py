@@ -65,6 +65,7 @@ class DefaultAgentBehavior(IAgentBehavior):
         reward: float,
         next_state: torch.Tensor,
         done: bool,
+        train_now: bool = True,
     ) -> None:
         """
         No learning in default behavior.
@@ -75,6 +76,7 @@ class DefaultAgentBehavior(IAgentBehavior):
             reward: Reward received
             next_state: State after action
             done: Whether episode ended
+            train_now: Whether to execute training immediately (unused)
         """
         pass
     

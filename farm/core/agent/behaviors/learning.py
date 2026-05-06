@@ -133,6 +133,7 @@ class LearningAgentBehavior(IAgentBehavior):
         reward: float,
         next_state: torch.Tensor,
         done: bool,
+        train_now: bool = True,
     ) -> None:
         """
         Update DecisionModule with experience.
@@ -143,6 +144,7 @@ class LearningAgentBehavior(IAgentBehavior):
             reward: Reward received
             next_state: State after action
             done: Whether episode ended
+            train_now: Whether to execute training immediately after storing experience
         """
         try:
             # Convert action to index
@@ -155,6 +157,7 @@ class LearningAgentBehavior(IAgentBehavior):
                 reward=reward,
                 next_state=next_state,
                 done=done,
+                train_now=train_now,
             )
         except Exception as e:
             # Log but don't crash on update failure
