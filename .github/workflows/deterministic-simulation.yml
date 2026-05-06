@@ -2,9 +2,14 @@ name: Deterministic Simulation Check
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
+  workflow_dispatch:
+
+env:
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
 
 permissions:
   contents: read
@@ -12,37 +17,54 @@ permissions:
 jobs:
   deterministic-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-          
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        
-    - name: Install package
-      run: |
-        pip install -e .
-        
-    - name: Run deterministic simulation test
-      run: |
-        python tests/test_deterministic.py --environment testing --steps 50 --seed 42
-        
-    - name: Run extended deterministic test
-      run: |
-        python tests/test_deterministic.py --environment testing --steps 100 --seed 123
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+            setup.py
+
+      - name: Install package and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run deterministic component pytest suite
+        run: |
+          timeout 5m python -m pytest -vv -o addopts='' -m "determinism and not slow and not integration" \
+            tests/test_component_determinism.py \
+            --tb=short \
+            --durations=10
+
+      - name: Run critical deterministic simulation regression
+        run: |
+          timeout 10m python -m pytest -vv -o addopts='' \
+            tests/test_deterministic_pytest.py::test_determinism_regression_critical \
+            --tb=short \
+            --durations=10
+
+      - name: Run deterministic CLI smoke test
+        run: |
+          timeout 8m python tests/test_deterministic.py --environment testing --steps 50 --seed 42
+
+      - name: Run extended deterministic CLI smoke test
+        run: |
+          timeout 12m python tests/test_deterministic.py --environment testing --steps 100 --seed 123
+
+      - name: Upload simulation artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-simulation-output
+          path: simulations/
+          if-no-files-found: ignore
