@@ -224,6 +224,11 @@ class TestGenerateCombinedConfigSchema(unittest.TestCase):
             self.assertIn("enum", sim_props["position_discretization_method"])
             self.assertIn("floor", sim_props["position_discretization_method"]["enum"])
 
+    def test_simulation_includes_performance_rl_batching_fields(self):
+        sim_props = self.schema["sections"]["simulation"]["properties"]
+        self.assertIn("defer_learning_training", sim_props)
+        self.assertIn("max_learning_updates_per_step", sim_props)
+
     def test_visualization_section(self):
         vis = self.schema["sections"]["visualization"]
         self.assertEqual(vis["title"], "Visualization")
