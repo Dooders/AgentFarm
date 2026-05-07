@@ -22,6 +22,165 @@ Suggested grouping:
 
 ## Entries
 
+### 2026-05-05
+
+#### Added
+
+- **Deferred batch RL training scheduler** — added per-step deferred batching so agent learning updates can be grouped and applied more efficiently during simulation steps. ([#836](https://github.com/Dooders/AgentFarm/pull/836))
+- **Deterministic simulation workflow expansion** — broadened deterministic CI coverage to better exercise regression paths and reproducibility checks. ([#839](https://github.com/Dooders/AgentFarm/pull/839))
+- **Stage 0 step-loop profiling baseline** — introduced baseline cProfile artifacts and reporting for the 30x30 / 30-agent scenario to ground later performance work. ([#834](https://github.com/Dooders/AgentFarm/pull/834))
+
+#### Changed
+
+- Simulation config validation now enforces non-negative `max_learning_updates_per_step`, making invalid scheduler settings fail fast at config load time.
+- Test automation now includes explicit deterministic pytest execution and a nightly heavy-tests workflow to improve continuous regression coverage.
+
+#### Docs
+
+- GitHub Pages docs received a minimalist, content-first redesign with updated layout styling and navigation polish. ([#837](https://github.com/Dooders/AgentFarm/pull/837))
+
+---
+
+### 2026-05-04
+
+#### Added
+
+- **Intrinsic evolution resource-buffer analysis** — added comparison/reporting support to evaluate buffered-resource behavior in intrinsic evolution experiments.
+
+#### Changed
+
+- Refined runtime logging levels across core environment/decision paths to reduce noise while keeping actionable diagnostics.
+- Removed obsolete intrinsic-evolution artifact files tied to superseded memory-size experiments to keep experiment outputs focused.
+
+#### Fixed
+
+- Fixed duplicated `estimation_step` keyword handling in `DQNPolicy` and streamlined action-materialization to avoid redundant work.
+
+---
+
+### 2026-05-03
+
+#### Added
+
+- **Tier 1 evolvable gene wiring** — enabled and fully wired chromosome A/B Tier 1 loci into live simulation behavior, with supporting tests/docs updates. ([#832](https://github.com/Dooders/AgentFarm/pull/832))
+
+#### Docs
+
+- Expanded glossary cross-linking and terminology explanations to improve discoverability of key AgentFarm concepts.
+
+#### Fixed
+
+- Anchored `.gitignore` handling for `experiments/` to repository root, preventing accidental overmatching in nested paths.
+
+---
+
+### 2026-05-01
+
+#### Changed
+
+- Refactored memory-mapped storage configuration/implementation to simplify setup and improve maintainability.
+- Enhanced environmental and temporal grid handling with lazy allocation to reduce unnecessary upfront allocations.
+- Consolidated duplicated zero-padding window logic and removed an unused `VISIBILITY` world-layer path.
+
+#### Fixed
+
+- Applied cleanup passes for repeated empty-except and unused-import findings raised by automated review checks.
+
+---
+
+### 2026-04-30
+
+#### Added
+
+- **GPU-accelerated spatial computations** with CPU fallback paths — introduced GPU kernel support for spatial-index operations while preserving CPU execution compatibility. ([#827](https://github.com/Dooders/AgentFarm/pull/827))
+
+#### Changed
+
+- Applied post-review refinements to GPU kernel behavior, `SpatialIndex` docs, initial-conditions validation messaging, and related tests/examples.
+
+#### Fixed
+
+- `run_simulation` no longer rebuilds initial-diversity config from `--seed` alone, preventing unintentional config mutation.
+
+---
+
+### 2026-04-29
+
+#### Added
+
+- **Speciation quality/cadence upgrades** — added stability-score-aware quality bundling and support for separate clustering cadence in `GeneTrajectoryLogger` snapshots. ([#819](https://github.com/Dooders/AgentFarm/pull/819))
+- **Cross-type pollination option** — introduced `allow_cross_type_pollination` for co-parent selection policy control. ([#821](https://github.com/Dooders/AgentFarm/pull/821))
+- **Initial genotype diversity seeding** — implemented platform-wide initial-diversity seeding hooks and expanded intrinsic runner handling for initial-conditions setup. ([#825](https://github.com/Dooders/AgentFarm/pull/825))
+
+#### Fixed
+
+- Corrected speciation index derivation/cache behavior and tightened edge-case handling around zero-chromosome snapshots and cluster-matching quality calculations.
+
+#### Docs
+
+- Updated intrinsic-evolution and snapshot-field documentation to clarify new `speciation_quality`/initial-conditions behavior.
+
+---
+
+### 2026-04-28
+
+#### Added
+
+- **Auto-tuned DBSCAN clustering parameters** — added data-driven `eps`/`min_samples` suggestion and auto-tuning support for speciation clustering. ([#812](https://github.com/Dooders/AgentFarm/pull/812))
+- **Improved cluster matching mechanics** — upgraded matching beyond greedy centroid pairing, with stronger validation around distance gates/thresholds. ([#814](https://github.com/Dooders/AgentFarm/pull/814))
+- **Richer speciation quality metrics** — added multi-metric quality bundling beyond silhouette-only scoring for more informative speciation diagnostics. ([#816](https://github.com/Dooders/AgentFarm/pull/816))
+
+#### Fixed
+
+- Hardened Hungarian/gating and percentile-validation edge cases in speciation matching, plus supporting comments/tests for numeric-stability behavior.
+
+---
+
+### 2026-04-27
+
+#### Added
+
+- **Optional feature scaling before clustering** — added pre-clustering scaling controls for speciation workflows to stabilize distance-sensitive clustering runs. ([#807](https://github.com/Dooders/AgentFarm/pull/807))
+
+#### Changed
+
+- Improved speciation clustering validation and defaults to make clustering behavior more robust across datasets.
+
+#### Docs
+
+- Added intrinsic evolution experiment documentation updates with accompanying data artifact references.
+
+---
+
+### 2026-04-26
+
+#### Added
+
+- **Intrinsic evolution experiment tooling** — added runner CLI flows, experiment outputs, and analysis scripts for repeated intrinsic evolution study workflows. ([#797](https://github.com/Dooders/AgentFarm/pull/797))
+
+#### Changed
+
+- Improved plotting and lineage handling in speciation analysis outputs for clearer trajectory interpretation.
+- Applied review-driven hardening around docs and projection/validation behaviors in intrinsic evolution flows.
+
+#### Fixed
+
+- `GeneTrajectoryLogger` speciation now works without an output directory and correctly resets lineage tracking after extinction events.
+
+---
+
+### 2026-04-25
+
+#### Added
+
+- **Speciation/niche detection over chromosome trajectories** for intrinsic evolution experiments, including clustering-based lineage interpretation and niche-oriented analysis hooks. ([#794](https://github.com/Dooders/AgentFarm/pull/794))
+
+#### Fixed
+
+- Applied automated cleanup for repeated empty-except and unused-import issues detected in review automation during the speciation integration cycle.
+
+---
+
 ### 2026-04-24
 
 #### Added
