@@ -243,8 +243,8 @@ def _classify_and_order_genes(
         else:
             convergent.append((gene, magnitude))
 
-    flipping.sort(key=lambda item: item[1], reverse=True)
-    convergent.sort(key=lambda item: item[1], reverse=True)
+    flipping.sort(key=lambda gene_flip: gene_flip[1], reverse=True)
+    convergent.sort(key=lambda gene_mean_abs: gene_mean_abs[1], reverse=True)
 
     flip_names = [name for name, _ in flipping][:top_n]
     conv_names = [name for name, _ in convergent]
