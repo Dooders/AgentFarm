@@ -122,7 +122,7 @@ a {
   text-decoration-color: color-mix(in srgb, var(--link) 65%, transparent);
   transition: color 0.12s ease, text-decoration-color 0.12s ease;
 }
-a:visited {
+.prose a:visited {
   color: var(--link-visited);
 }
 a:hover {
@@ -208,7 +208,7 @@ samp {
 .site-footer__brand img {
   display: block;
 }
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
   .site-header__logo,
   .site-footer__brand img {
     filter: invert(1);
