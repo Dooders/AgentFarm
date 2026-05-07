@@ -1,7 +1,7 @@
 ---
-
-## layout: page
+layout: page
 title: "Does the Resource Buffer Pick the Genes? Three Stable Profiles Compared"
+---
 
 A natural follow-up to the [hyperparameter genome experiments](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.html)
 is whether the *amount* of food in the world changes *what* gets selected,
@@ -185,4 +185,3 @@ artifact links, see
 - [Intrinsic evolution experiment docs](../experiments/intrinsic_evolution/intrinsic_evolution.html)
 - [Hyperparameter chromosome design](../design/hyperparameter_chromosome.html)
 - [Hyperparameter genome devlog](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.html)
-

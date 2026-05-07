@@ -1,8 +1,7 @@
 ---
-
-## layout: page
-
+layout: page
 title: "Evolving Hyperparameter Genomes in Foraging and Learning Agents"
+---
 
 A recurring question in evolutionary computation and agent-based modeling is
 simple: how much adaptive behavior can emerge under ecological constraints
@@ -146,4 +145,3 @@ inheritance/ecology combinations produce robust gains across runs.
 - [Hyperparameter chromosome design](../design/hyperparameter_chromosome.html)
 - [Intrinsic evolution experiment docs](../experiments/intrinsic_evolution/intrinsic_evolution.html)
 - [Resource-buffer follow-up devlog](2026-05-04-resource-buffer-shapes-intrinsic-evolution.html)
-

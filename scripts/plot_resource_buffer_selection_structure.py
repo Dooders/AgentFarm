@@ -150,7 +150,7 @@ def _parse_args() -> argparse.Namespace:
         "--top-n-genes",
         type=int,
         default=12,
-        help="Show top N genes by mean absolute effect size.",
+        help="Show top N genes (sign-flipping first by flip magnitude, then convergent by mean absolute effect size).",
     )
     parser.add_argument(
         "--output",
@@ -246,7 +246,7 @@ def _classify_and_order_genes(
     flipping.sort(key=lambda item: item[1], reverse=True)
     convergent.sort(key=lambda item: item[1], reverse=True)
 
-    flip_names = [name for name, _ in flipping]
+    flip_names = [name for name, _ in flipping][:top_n]
     conv_names = [name for name, _ in convergent]
 
     remaining = max(0, top_n - len(flip_names))
