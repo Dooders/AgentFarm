@@ -79,9 +79,9 @@ Actions are registered with default weights:
 
 ## Action Selection Process
 
-Action selection is handled by the `DecisionModule` in `farm/core/decision/decision.py`, which uses reinforcement learning (default: DQN via Stable Baselines3) to choose actions based on the current state.
+Action selection is handled by the `DecisionModule` in `farm/core/decision/decision.py`, which uses configurable algorithms (default: DQN via the Tianshou wrappers) to choose actions from the current state.
 
-In `BaseAgent.decide_action()`:
+In `AgentCore.step()`:
 
 1. Create state representation (position, resources, health, etc.)
 2. Determine enabled actions based on curriculum phase
@@ -90,8 +90,7 @@ In `BaseAgent.decide_action()`:
 
 The DecisionModule supports:
 - Epsilon-greedy exploration
-- Shared feature encoding
-- Multiple algorithms (DQN default)
+- Multiple algorithms (DQN default, plus PPO/SAC/A2C/DDPG and traditional ML options)
 - Per-agent models for personalized learning
 
 Curriculum learning progressively enables actions through phases defined in config.
@@ -114,7 +113,7 @@ Actions use environment services like spatial indexing for efficiency and log in
 
 - Actions generate rewards used for RL training
 - State transitions stored for experience replay
-- Specialized DQN modules in `farm/core/decision/` for behaviors like movement
+- Replay-buffer based learning via algorithm wrappers in `farm/core/decision/algorithms/`
 - Training occurs after each action via `DecisionModule.update()`
 
 ## Usage Example

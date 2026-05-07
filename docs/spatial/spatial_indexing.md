@@ -66,7 +66,6 @@ nearest_resource = spatial_index.get_nearest(position, ["resources"])   # O(log 
 **Key Features:**
 
 - **Continuous Position Support**: Handles floating-point coordinates
-- **Bilinear Interpolation**: Smooth position representation for continuous movement
 - **Multi-Entity Type Queries**: Separate trees for agents and resources
 - **Automatic Cache Invalidation**: Rebuilds when positions change significantly
 
@@ -146,9 +145,9 @@ nearest = env.spatial_index.get_nearest((42, 18), ["resources_hash"])  # hash ne
 
 | Strategy | Build Time | Query Time | Memory Usage | Best For |
 |----------|------------|------------|--------------|----------|
-| **KD-Tree** | O(n log n) | O(log n) | ~200 KB/100 agents | Radial queries, nearest neighbor |
-| **Quadtree** | O(n log n) | O(log n) | ~150 KB/100 agents | Range queries, dynamic updates |
-| **Spatial Hash** | O(n) | ~O(1) avg | ~120 KB/100 agents | Frequent neighbor queries, dynamic updates |
+| **KD-Tree** | O(n log n) | O(log n) | Implementation-dependent | Radial queries, nearest neighbor |
+| **Quadtree** | O(n log n) | O(log n) average | Implementation-dependent | Range queries, dynamic updates |
+| **Spatial Hash** | O(n) | ~O(1) average neighborhood lookups | Implementation-dependent | Frequent neighbor queries, dynamic updates |
 
 ### Scaling Analysis
 
@@ -169,40 +168,39 @@ nearest = env.spatial_index.get_nearest((42, 18), ["resources_hash"])  # hash ne
 
 ### Optimization Strategies
 
-**Change Detection**: Only rebuild when positions actually change
-**Incremental Updates**: Partial tree updates for small changes
-**Query Batching**: Multiple queries in single tree traversal
-**Caching**: Cache frequent proximity queries
-**Dual Indexing**: Use KD-trees for radial queries, Quadtrees for range queries
+- **Change Detection**: Only rebuild when positions actually change
+- **Batch Updates**: Queue and flush position updates in batches
+- **Dirty Region Tracking**: Restrict update work to touched regions
+- **Partial Flushing**: Process a bounded number of pending updates for responsiveness
+- **Dual/Named Indexing**: Mix KD-tree, Quadtree, and Spatial Hash indices by query type
 
 
 ---
 
 ## Configuration
 
-### Basic Configuration
+Configure spatial indexing through `SimulationConfig.environment.spatial_index`
+using `SpatialIndexConfig`:
 
-```yaml
-# Spatial indexing settings
-spatial_index_enabled: true       # Enable spatial indexing
-spatial_analysis: true            # Analyze spatial patterns
+```python
+from farm.config.config import SpatialIndexConfig
+
+spatial_config = SpatialIndexConfig(
+    enable_batch_updates=True,
+    region_size=50.0,
+    max_batch_size=100,
+    max_regions=1000,
+    enable_quadtree_indices=False,
+    enable_spatial_hash_indices=True,
+    spatial_hash_cell_size=15.0,
+    performance_monitoring=True,
+    debug_queries=False,
+    dirty_region_batch_size=10,
+)
 ```
 
-### Advanced Configuration
-
-```yaml
-# Performance tuning
-spatial_update_batch_size: 100     # Batch size for position updates
-spatial_query_timeout: 0.01        # Query timeout in seconds
-
-# Memory management
-spatial_memory_pool_size: 1000     # Size of tensor reuse pool
-spatial_gc_threshold: 0.8          # Memory usage threshold for garbage collection
-
-# Debugging and monitoring
-spatial_debug_queries: false       # Log spatial queries
-spatial_performance_metrics: true  # Collect performance metrics
-```
+If `config.environment.spatial_index` is not set, the environment initializes
+`SpatialIndex` with default batch-update settings.
 
 ### When to Use KD-Tree Indexing
 
@@ -231,17 +229,18 @@ env = Environment(
     width=100,
     height=100,
     resource_distribution="uniform",
-    spatial_index_enabled=True
 )
 
 # Access spatial index
 spatial_index = env.spatial_index
 
 # Query nearby agents
-nearby_agents = spatial_index.get_nearby(agent.position, radius=5, ["agents"])
+nearby = spatial_index.get_nearby(agent.position, 5.0, ["agents"])
+nearby_agents = nearby.get("agents", [])
 
 # Query nearest resource
-nearest_resource = spatial_index.get_nearest(agent.position, ["resources"])
+nearest = spatial_index.get_nearest(agent.position, ["resources"])
+nearest_resource = nearest.get("resources")
 ```
 
 ### Enabling Quadtree Indices
@@ -261,7 +260,6 @@ spatial_index.update_entity_position(
     agent, old_position, new_position
 )
 
-# Get detailed Quadtree statistics
 # Get detailed Quadtree statistics
 quadtree_stats = spatial_index.get_quadtree_stats("agents_quadtree")
 print(f"Quadtree depth: {quadtree_stats}")
@@ -286,10 +284,12 @@ in_rect = spatial_index.get_nearby_range((rx, ry, rw, rh), ["agents_hash"])
 ```python
 # Multi-type proximity query
 nearby_entities = spatial_index.get_nearby(
-    position=agent.position,
-    radius=10,
-    entity_types=["agents", "resources", "obstacles"]
+    agent.position,
+    10.0,
+    ["agents", "resources"]
 )
+nearby_agents = nearby_entities.get("agents", [])
+nearby_resources = nearby_entities.get("resources", [])
 
 # Filtered queries with custom conditions
 nearby_allies = [
@@ -300,8 +300,10 @@ nearby_allies = [
 # Spatial analysis for decision making
 def evaluate_position_safety(self, position):
     """Evaluate safety of a position based on nearby threats."""
-    threats = spatial_index.get_nearby(position, self.threat_radius, ["enemies"])
-    allies = spatial_index.get_nearby(position, self.support_radius, ["allies"])
+    threats_result = spatial_index.get_nearby(position, self.threat_radius, ["agents"])
+    allies_result = spatial_index.get_nearby(position, self.support_radius, ["agents"])
+    threats = [a for a in threats_result.get("agents", []) if a.team != self.team]
+    allies = [a for a in allies_result.get("agents", []) if a.team == self.team]
 
     threat_score = len(threats) * self.threat_weight
     support_score = len(allies) * self.support_weight
@@ -350,11 +352,15 @@ local_x = max(0, min(2*config.R, local_x))
 # Combat target selection using spatial index
 def find_combat_target(self, agent, max_range):
     """Find closest enemy within attack range."""
-    nearby_enemies = spatial_index.get_nearby(
+    nearby_result = spatial_index.get_nearby(
         agent.position,
         max_range,
-        ["enemies"]
+        ["agents"]
     )
+    nearby_enemies = [
+        other for other in nearby_result.get("agents", [])
+        if other is not agent and other.agent_type != agent.agent_type
+    ]
 
     if nearby_enemies:
         # Get actual distance to closest enemy
@@ -379,20 +385,22 @@ def find_combat_target(self, agent, max_range):
 # Resource gathering with spatial awareness
 def find_optimal_resource(self, agent, resource_type):
     """Find best resource considering competition."""
-    nearby_resources = spatial_index.get_nearby(
+    nearby_result = spatial_index.get_nearby(
         agent.position,
         self.search_radius,
         [resource_type]
     )
+    nearby_resources = nearby_result.get(resource_type, [])
 
     # Filter out heavily contested resources
     optimal_resources = []
     for resource in nearby_resources:
-        competitors = spatial_index.get_nearby(
+        competitors_result = spatial_index.get_nearby(
             resource.position,
             self.competition_radius,
             ["agents"]
         )
+        competitors = competitors_result.get("agents", [])
         if len(competitors) < self.max_competitors:
             optimal_resources.append(resource)
 
@@ -411,11 +419,15 @@ def find_optimal_resource(self, agent, resource_type):
 # Social behavior using spatial awareness
 def find_social_partners(self, agent):
     """Find nearby allies for social interactions."""
-    nearby_allies = spatial_index.get_nearby(
+    nearby_result = spatial_index.get_nearby(
         agent.position,
         self.social_radius,
-        ["allies"]
+        ["agents"]
     )
+    nearby_allies = [
+        other for other in nearby_result.get("agents", [])
+        if other is not agent and other.agent_type == agent.agent_type
+    ]
 
     # Prioritize based on relationship strength and distance
     potential_partners = []
@@ -442,12 +454,13 @@ def find_social_partners(self, agent):
 # Navigation assistance using spatial index
 def plan_navigation_path(self, start_pos, goal_pos):
     """Plan path considering spatial obstacles."""
-    # Get obstacles along potential path
-    path_obstacles = spatial_index.get_nearby(
+    # If you register an "obstacles" named index, query it directly.
+    path_result = spatial_index.get_nearby(
         start_pos,
         self.path_lookahead,
         ["obstacles"]
     )
+    path_obstacles = path_result.get("obstacles", [])
 
     # Adjust path based on obstacle positions
     adjusted_path = self.adjust_path_for_obstacles(
@@ -608,8 +621,8 @@ The AgentFarm spatial indexing system provides the foundation for efficient spat
 
 The spatial indexing system enables:
 
-- **Efficient proximity queries** for real-time agent interactions using O(log n) queries
-- **Dual indexing strategies**: KD-trees for radial queries, Quadtrees for range queries
+- **Efficient proximity queries** for real-time agent interactions
+- **Multiple indexing strategies**: KD-tree, Quadtree, and Spatial Hash
 - **Scalable spatial awareness** supporting thousands of agents with optimized change detection
 - **Memory-efficient storage** with intelligent cache invalidation and position tracking
 - **Dynamic updates**: Efficient position changes without full index rebuilds

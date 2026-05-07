@@ -65,258 +65,115 @@ AgentFarm provides multiple reinforcement learning algorithms that enable agents
 
 #### Deep Q-Learning (DQN)
 
-The primary RL algorithm in AgentFarm uses Deep Q-Networks with several enhancements:
+AgentFarm supports DQN through two paths:
+
+1. **Active decision path (recommended):** `DecisionModule` + Tianshou `DQNWrapper`
+2. **Standalone module path:** `BaseDQNModule` for direct experiments
 
 **Key Features:**
-- **Double Q-Learning**: Reduces overestimation bias
-- **Experience Replay**: Breaks correlation in training data
-- **Target Networks**: Stabilizes learning
-- **Soft Updates**: Gradual target network synchronization
-- **Shared Feature Extraction**: Efficient multi-task learning
+- **Experience Replay**: Uniform or prioritized replay
+- **Target Networks**: Stable Q-target updates
+- **Configurable Exploration**: Epsilon parameters via `DecisionConfig`
+- **PER Diagnostics**: Replay metrics exposed during training
+- **Action Masking Support**: Works with curriculum-restricted action sets
 
-**Basic DQN Usage:**
+**Recommended DQN configuration (active decision path):**
+
+```python
+from farm.core.decision.config import DecisionConfig
+
+decision_config = DecisionConfig(
+    algorithm_type="dqn",
+    learning_rate=1e-3,
+    gamma=0.99,
+    epsilon_start=1.0,
+    epsilon_min=0.01,
+    epsilon_decay=0.995,
+    target_update_freq=500,
+    rl_buffer_size=10000,
+    rl_batch_size=32,
+    rl_train_freq=4,
+    replay_strategy="prioritized",  # or "uniform"
+    per_alpha=0.6,
+    per_beta_start=0.4,
+    per_beta_end=1.0,
+    per_beta_steps=100_000,
+    per_epsilon=1e-6,
+)
+```
+
+In normal simulations, this config is wired into each agent's decision module by the
+agent factory / behavior stack.
+
+**Standalone module path (for direct Q-learning experiments):**
 
 ```python
 from farm.core.decision.base_dqn import BaseDQNConfig, BaseDQNModule
 
-# Configure DQN
-config = BaseDQNConfig(
-    learning_rate=0.001,
-    gamma=0.99,              # Discount factor
-    epsilon_start=1.0,       # Initial exploration rate
-    epsilon_min=0.01,        # Minimum exploration rate
-    epsilon_decay=0.995,     # Exploration decay
-    memory_size=10000,       # Experience replay buffer size
-    batch_size=32,           # Training batch size
-    target_update_freq=100,  # Target network update frequency
-    tau=0.005               # Soft update parameter
-)
-
-# Create DQN module
-dqn = BaseDQNModule(
-    input_dim=state_dimension,
-    output_dim=num_actions,
-    config=config
-)
-
-# Training loop
-for episode in range(num_episodes):
-    state = environment.reset()
-    done = False
-    
-    while not done:
-        # Select action
-        action = dqn.select_action(state)
-        
-        # Execute action
-        next_state, reward, done = environment.step(action)
-        
-        # Store experience
-        dqn.store_experience(state, action, reward, next_state, done)
-        
-        # Train if enough experiences
-        if len(dqn.memory) >= config.batch_size:
-            batch = random.sample(dqn.memory, config.batch_size)
-            dqn.train(batch)
-        
-        state = next_state
-```
-
-**Hierarchical Action Selection:**
-
-AgentFarm uses specialized DQN modules for different action types:
-
-```python
-from farm.core.agent import BaseAgent
-
-class LearningAgent(BaseAgent):
-    """Agent with hierarchical RL decision-making."""
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
-        # Specialized modules for different actions
-        self.move_module = MoveDQNModule(config)
-        self.attack_module = AttackDQNModule(config)
-        self.gather_module = GatherDQNModule(config)
-        self.share_module = ShareDQNModule(config)
-        
-    def decide_action(self):
-        """Multi-level decision making."""
-        # Level 1: Select action type
-        state = self.get_state_tensor()
-        action_type = self.select_action_type(state)
-        
-        # Level 2: Select specific action parameters
-        if action_type == "move":
-            direction = self.move_module.select_action(state)
-            return {"action_type": "move", "direction": direction}
-        elif action_type == "attack":
-            target = self.attack_module.select_target(state)
-            return {"action_type": "attack", "target": target}
-        # ... other action types
-        
-    def update_learning(self, action, reward, next_state):
-        """Update all relevant modules."""
-        # Update the module that was used
-        if action["action_type"] == "move":
-            self.move_module.store_experience(
-                self.last_state, 
-                action["direction"], 
-                reward, 
-                next_state, 
-                False
-            )
-            if len(self.move_module.memory) >= self.move_module.config.batch_size:
-                batch = random.sample(
-                    self.move_module.memory, 
-                    self.move_module.config.batch_size
-                )
-                self.move_module.train(batch)
-```
-
-**Shared Feature Extraction:**
-
-Improve learning efficiency with shared encoders:
-
-> **Note**: The `SharedEncoder` class is planned for a future release. Currently, shared feature extraction can be implemented using PyTorch's module sharing or custom neural network architectures.
-
-```python
-import torch.nn as nn
-
-# Create shared encoder manually
-class SharedEncoder(nn.Module):
-    def __init__(self, input_dim, hidden_size):
-        super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(input_dim, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size)
-        )
-
-    def forward(self, x):
-        return self.encoder(x)
-
-# Create shared encoder
-shared_encoder = SharedEncoder(state_dimension, 64)
-
-# Use across multiple modules (manually sharing the encoder)
-move_module = MoveDQNModule(
-    input_dim=state_dimension,
-    output_dim=4,
-    config=config,
-    shared_encoder=shared_encoder
-)
-
-attack_module = AttackDQNModule(
-    input_dim=state_dimension,
-    output_dim=5,
-    config=config,
-    shared_encoder=shared_encoder  # Reuse same encoder
-)
+config = BaseDQNConfig(learning_rate=1e-3, gamma=0.99, epsilon_start=1.0)
+dqn = BaseDQNModule(input_dim=state_dim, output_dim=num_actions, config=config)
 ```
 
 #### Additional RL Algorithms
 
-AgentFarm supports multiple RL algorithms through integration with Stable Baselines3:
+AgentFarm supports multiple RL algorithms through the decision module's Tianshou wrappers.
 
 **Proximal Policy Optimization (PPO):**
 ```python
-from farm.core.decision import DecisionConfig, DecisionModule
+from farm.core.decision.config import DecisionConfig
 
-# Configure PPO
 config = DecisionConfig(
     algorithm_type="ppo",
     rl_state_dim=8,
     algorithm_params={
-        'learning_rate': 3e-4,
-        'n_steps': 2048,
-        'batch_size': 64,
-        'n_epochs': 10,
-        'gamma': 0.99,
-        'gae_lambda': 0.95,
-        'clip_range': 0.2,
-        'ent_coef': 0.01
+        "lr": 3e-4,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "eps_clip": 0.2,
+        "ent_coef": 0.01,
     }
 )
-
-# Create decision module
-decision = DecisionModule(agent=agent, config=config)
-
-# PPO automatically handles:
-# - Policy optimization
-# - Value function learning
-# - Advantage estimation
-# - Entropy regularization
 ```
 
 **Soft Actor-Critic (SAC):**
 ```python
+from farm.core.decision.config import DecisionConfig
+
 config = DecisionConfig(
     algorithm_type="sac",
     rl_state_dim=8,
     algorithm_params={
-        'learning_rate': 3e-4,
-        'buffer_size': 100000,
-        'learning_starts': 1000,
-        'batch_size': 256,
-        'tau': 0.005,
-        'gamma': 0.99,
-        'ent_coef': 'auto',  # Automatic entropy tuning
+        "lr": 3e-4,
+        "gamma": 0.99,
+        "tau": 0.005,
+        "alpha": 0.2,
     }
 )
-
-# SAC features:
-# - Entropy-regularized learning
-# - Off-policy training
-# - Continuous action support
-# - Maximum entropy objective
 ```
 
 **Available RL Algorithms:**
 - **PPO** (Proximal Policy Optimization): On-policy, good for most tasks
 - **SAC** (Soft Actor-Critic): Off-policy, maximum entropy
 - **A2C** (Advantage Actor-Critic): Synchronous actor-critic
-- **TD3** (Twin Delayed DDPG): Deterministic policy gradient
+- **DDPG** (Deep Deterministic Policy Gradient): Actor-critic for continuous-style control
 - **DQN** (Deep Q-Network): Value-based, discrete actions
 
 #### Curriculum Learning
 
-Gradually increase task complexity for better learning:
+Gradually increase task complexity by restricting available actions in phases:
 
 ```python
 from farm.config import SimulationConfig
+from farm.core.decision.config import DecisionConfig
 
-# Define curriculum phases
-config = SimulationConfig(
+config = SimulationConfig.from_centralized_config(environment="development")
+config.decision = DecisionConfig(
     curriculum_phases=[
-        {
-            'steps': 100,
-            'enabled_actions': ['move', 'gather'],
-            'description': 'Learn basic movement and resource gathering'
-        },
-        {
-            'steps': 200,
-            'enabled_actions': ['move', 'gather', 'share'],
-            'description': 'Add cooperative sharing'
-        },
-        {
-            'steps': 300,
-            'enabled_actions': ['move', 'gather', 'share', 'attack'],
-            'description': 'Introduce competition'
-        },
-        {
-            'steps': -1,  # Unlimited
-            'enabled_actions': ['move', 'gather', 'share', 'attack', 'reproduce'],
-            'description': 'Full action space'
-        }
+        {"steps": 100, "enabled_actions": ["move", "gather"]},
+        {"steps": 300, "enabled_actions": ["move", "gather", "share", "attack"]},
+        {"steps": -1, "enabled_actions": ["move", "gather", "share", "attack", "reproduce"]},
     ]
 )
-
-# Curriculum is automatically applied during simulation
-# - Agents focus on simpler tasks first
-# - Gradually build complex behaviors
-# - Better convergence and stability
 ```
 
 ---
@@ -692,7 +549,8 @@ offspring = Genome.to_agent(
     agent_id="offspring_001",
     position=(50, 50),
     environment=environment,
-    agent_factory=BaseAgent
+    # Pass your actual factory/callable that builds agents in your setup.
+    agent_factory=agent_factory
 )
 ```
 
@@ -816,14 +674,14 @@ def run_evolutionary_simulation(
                 f"gen{generation}_child{len(new_population)}",
                 random_position(),
                 environment,
-                BaseAgent
+                agent_factory
             )
             child2 = Genome.to_agent(
                 child2_genome,
                 f"gen{generation}_child{len(new_population)+1}",
                 random_position(),
                 environment,
-                BaseAgent
+                agent_factory
             )
             
             new_population.extend([child1, child2])
@@ -963,12 +821,10 @@ Metrics include validation loss and action agreement **before** training and **b
 Coordinate multiple agents:
 
 ```python
-class CoordinatedLearningAgent(BaseAgent):
+class CoordinatedLearningAgent:
     """Agent that learns with awareness of other agents."""
     
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
         # Shared experience pool
         self.shared_memory = kwargs.get('shared_memory')
         
@@ -1058,9 +914,9 @@ config = SimulationConfig(
 # Create device
 device = create_device_from_config(config)
 
-# Move models to device
-agent.move_module.q_network.to(device)
-agent.move_module.target_network.to(device)
+# Optional: move standalone BaseDQNModule networks to device
+dqn_module.q_network.to(device)
+dqn_module.target_network.to(device)
 
 # Training automatically uses GPU
 # Speed improvements:
@@ -1074,14 +930,16 @@ agent.move_module.target_network.to(device)
 Train multiple agents simultaneously:
 
 ```python
-def batch_train_agents(agents: List[BaseAgent], batch_size: int = 32):
+def batch_train_agents(agents: list[object], batch_size: int = 32):
     """Train multiple agents in parallel."""
     
     # Collect experiences from all agents
     all_experiences = []
     for agent in agents:
-        if len(agent.memory) > 0:
-            all_experiences.extend(list(agent.memory))
+        # Each agent is expected to expose an experience collection.
+        memory = getattr(agent, "memory", None)
+        if memory:
+            all_experiences.extend(list(memory))
     
     # Sample mini-batch
     if len(all_experiences) >= batch_size:
@@ -1110,7 +968,6 @@ Complete example: ML-enhanced agent simulation with automated analysis.
 
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
-from farm.core.agent import BaseAgent
 from farm.analysis.service import AnalysisService, AnalysisRequest
 import torch
 
