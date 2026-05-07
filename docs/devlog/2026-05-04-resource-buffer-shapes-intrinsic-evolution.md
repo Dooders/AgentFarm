@@ -1,9 +1,7 @@
 ---
-layout: page
-title: "Does the Resource Buffer Pick the Genes? Three Stable Profiles Compared"
----
 
-# Does the resource buffer pick the genes? Three stable profiles compared
+## layout: page
+title: "Does the Resource Buffer Pick the Genes? Three Stable Profiles Compared"
 
 A natural follow-up to the [hyperparameter genome experiments](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.html)
 is whether the *amount* of food in the world changes *what* gets selected,
@@ -26,19 +24,21 @@ This post is the narrative.
 
 ## What was held fixed, what changed
 
-Every run is 1000 logged steps after a 200-step warmup, single seed (42),
-30 founders seeded by independent mutation, mutation rate 0.15 / scale 0.10,
-crossover off, GMM
+Every run is 1,000 logged steps after a 200-step warmup, single seed (42),  
+30 founders seeded by independent mutation, mutation rate 0.15 / scale 0.10,  
+crossover off, GMM  
 [speciation](../glossary.html) tracking, and `selection_pressure="low"` (a
 small density-dependent reproduction cost, no global carrying-cap term).
 
 The only thing that varies is the resource buffer:
 
-| Variant | Initial resources / agent | Resource nodes | Regen rate |
-| --- | --- | --- | --- |
-| conservative | 8 | 32 | 0.14 |
-| balanced | 10 | 34 | 0.15 |
-| buffered | 12 | 36 | 0.16 |
+
+| Variant      | Initial resources / agent | Resource nodes | Regen rate |
+| ------------ | ------------------------- | -------------- | ---------- |
+| conservative | 8                         | 32             | 0.14       |
+| balanced     | 10                        | 34             | 0.15       |
+| buffered     | 12                        | 36             | 0.16       |
+
 
 The deltas are small on purpose. I wanted to see how sensitive the
 selection signal is to a modest change in food, not crash one of the
@@ -49,11 +49,13 @@ simulations.
 After the 200-step warmup, the populations look very different. After 1000
 more steps, they look much more alike:
 
-| Variant | Post-warmup pop | Peak | Mean | Final | Final speciation idx |
-| --- | --- | --- | --- | --- | --- |
-| conservative | 135 | 137 | 87.8 | 88 | 0.684 |
-| balanced | 100 | 120 | 96.4 | 92 | 0.711 |
-| buffered | 165 | 171 | 111.1 | 99 | 0.753 |
+
+| Variant      | Post-warmup pop | Peak | Mean  | Final | Final speciation idx |
+| ------------ | --------------- | ---- | ----- | ----- | -------------------- |
+| conservative | 135             | 137  | 87.8  | 88    | 0.684                |
+| balanced     | 100             | 120  | 96.4  | 92    | 0.711                |
+| buffered     | 165             | 171  | 111.1 | 99    | 0.753                |
+
 
 So the resource buffer mostly stretches the *transient*. By the end, all
 three are in the 88–99 range. What it does *not* equalise is the genome
@@ -67,15 +69,15 @@ less wandery, smaller networks, and a small but consistent shift toward
 more prioritised replay and slower target-network syncing:
 
 - `attack_weight` and `share_weight` both fall — by 9–28% depending on
-  variant. Aggression and altruism are both expensive when there is no
-  explicit signal that either one pays off.
+variant. Aggression and altruism are both expensive when there is no
+explicit signal that either one pays off.
 - `move_mult_no_resources` falls 15–22% in all three. Wandering when
-  hungry doesn't survive selection.
+hungry doesn't survive selection.
 - `memory_size` falls 8–28% and `dqn_hidden_size` falls 12–22%. Smaller
-  brains beat bigger brains when the rest of the policy is fixed and
-  reproduction is what matters.
+brains beat bigger brains when the rest of the policy is fixed and
+reproduction is what matters.
 - `per_alpha` rises 4–12% and `target_update_freq` rises 5–34%. Both are
-  consistent with selection for more stable, less-thrashy learning.
+consistent with selection for more stable, less-thrashy learning.
 
 This is the most robust pattern in the comparison: it shows up regardless
 of how much food the world has. With low selection pressure and no
@@ -85,12 +87,14 @@ crossover, agents drift toward the cheapest viable behavioural profile.
 
 The fun part. A handful of genes flip direction by buffer:
 
-| Gene | conservative | balanced | buffered |
-| --- | --- | --- | --- |
-| `learning_rate` | -8.3% | -6.0% | **+23.1%** |
-| `ensemble_size` | **-25.9%** | -8.8% | +2.6% |
-| `reproduce_mult_wealthy` | -4.6% | +0.4% | **+8.4%** |
-| `reproduce_mult_poor` | **+21.2%** | +0.8% | -5.2% |
+
+| Gene                     | conservative | balanced | buffered   |
+| ------------------------ | ------------ | -------- | ---------- |
+| `learning_rate`          | -8.3%        | -6.0%    | **+23.1%** |
+| `ensemble_size`          | **-25.9%**   | -8.8%    | +2.6%      |
+| `reproduce_mult_wealthy` | -4.6%        | +0.4%    | **+8.4%**  |
+| `reproduce_mult_poor`    | **+21.2%**   | +0.8%    | -5.2%      |
+
 
 `learning_rate` is the clearest one. With more food the population selects
 *for* faster learners (+23% in buffered); with less food it selects for
@@ -120,11 +124,11 @@ toward one type. The three runs all start in the 0.65–0.73 range and
 diverge:
 
 - Conservative: 0.732 → 0.713 → 0.684 — monotonically declining.
-  Clusters merge.
+Clusters merge.
 - Balanced: 0.708 → 0.654 → 0.711 — V-shape. The population briefly
-  consolidates and then re-splits.
+consolidates and then re-splits.
 - Buffered: 0.653 → 0.729 → 0.753 — monotonically rising. Clusters
-  separate further over time.
+separate further over time.
 
 Resource buffer not only sets *what* evolves on average, it sets *how
 much* the population can afford to spread out in chromosome space. With
@@ -163,13 +167,13 @@ splits might either amplify or wash out. I haven't tested that yet.
 
 A few obvious follow-ups:
 
-- A small seed sweep per profile (4–8 seeds) to bracket the
-  speciation-trajectory direction and the `learning_rate` shift.
-- Longer conservative runs to see if the falling speciation index
-  resolves into a single dominant cluster or stabilises around k=2.
-- Re-run buffered with crossover enabled, to test whether gene flow
-  collapses the rising speciation pattern or leaves it intact.
-- Add `stress` and `legacy` profiles to widen the buffer axis.
+- [A small seed sweep per profile (4-8 seeds) to bracket the
+  speciation-trajectory direction and the `learning_rate` shift.](https://github.com/Dooders/AgentFarm/issues/843)
+- [Longer conservative runs to see if the falling speciation index
+  resolves into a single dominant cluster or stabilises around k=2.](https://github.com/Dooders/AgentFarm/issues/844)
+- [Re-run buffered with crossover enabled, to test whether gene flow
+  collapses the rising speciation pattern or leaves it intact.](https://github.com/Dooders/AgentFarm/issues/845)
+- [Add `stress` and `legacy` profiles to widen the buffer axis.](https://github.com/Dooders/AgentFarm/issues/846)
 
 For the full numerical results, side-by-side tables, and per-variant
 artifact links, see
@@ -181,3 +185,4 @@ artifact links, see
 - [Intrinsic evolution experiment docs](../experiments/intrinsic_evolution/intrinsic_evolution.html)
 - [Hyperparameter chromosome design](../design/hyperparameter_chromosome.html)
 - [Hyperparameter genome devlog](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.html)
+

@@ -4,8 +4,6 @@
 
 title: "Evolving Hyperparameter Genomes in Foraging and Learning Agents"
 
-# Evolving Hyperparameter Genomes in Foraging and Learning Agents
-
 A recurring question in evolutionary computation and agent-based modeling is
 simple: how much adaptive behavior can emerge under ecological constraints
 like finite resources and costly reproduction, without a hand-crafted fitness
@@ -31,23 +29,10 @@ gene vector:
 **Chromosome A - learning / RL hyperparameters.** Knobs that shape *how* the
 agent learns during its lifetime:
 
-- Core DQN: `learning_rate`, `gamma`, `tau`, `batch_size`,
-`target_update_freq`, `dqn_hidden_size`, `rl_train_freq`, `memory_size`.
-- Exploration schedule: `epsilon_start`, `epsilon_min`, `epsilon_decay`.
-- Prioritized experience replay: `per_alpha`, `per_beta_start`, `per_beta_end`.
-- Ensembling: `ensemble_size`.
-
 **Chromosome B - action-policy priors.** Knobs that shape *what* the agent is
 biased toward doing before learning kicks in:
 
-- Base action weights: `move_weight`, `gather_weight`, `share_weight`,
-`attack_weight`, `reproduce_weight`.
-- State-conditional multipliers (e.g. low resources, wealthy, desperate):
-`move_mult_no_resources`, `gather_mult_low_resources`, `share_mult_wealthy`,
-`share_mult_poor`, `attack_mult_desperate`, `attack_mult_stable`,
-`reproduce_mult_wealthy`, `reproduce_mult_poor`.
-- Policy thresholds: `attack_starvation_threshold`, `attack_defense_threshold`,
-`reproduce_resource_threshold`.
+![Hyperparameter chromosome anatomy](figures/chromosome_map.png)
 
 Integer-valued genes (`memory_size`, `batch_size`, `target_update_freq`,
 `dqn_hidden_size`, `rl_train_freq`, `ensemble_size`) are stored as real values
@@ -106,12 +91,12 @@ chromosome** is passed on; the offspring builds a fresh decision module. No
 Q-values, weights, or replay buffers cross the generational boundary.
 
 That makes the system
-[Baldwinian](../glossary.html): evolution tunes the *priors* and *learning
+Baldwinian: evolution tunes the *priors* and *learning
 dynamics* (how fast to learn, how much to discount the future, how aggressively
 to explore), and each generation has to acquire its own experience inside
 those priors.
 
-## What this experiment is and isn't
+## Scope and limits of this experiment
 
 **It is:**
 
@@ -145,12 +130,12 @@ Current capabilities in this line of work:
 
 Open questions and next targets:
 
-- Run broader multi-seed cohorts per profile and treat trends as distributions,
-  not single trajectories.
-- Push farther on inherited payload design (policy priors/module state) to test
-  when richer inheritance helps versus overfits to local ecology.
-- Add explicit Baldwinian-vs-Lamarckian A/B runs under matched settings to
-  quantify when warm-starting offspring is worth the stability trade-off.
+- [Run broader multi-seed cohorts per profile and treat trends as distributions,
+  not single trajectories.](https://github.com/Dooders/AgentFarm/issues/847)
+- [Push farther on inherited payload design (policy priors/module state) to test
+  when richer inheritance helps versus overfits to local ecology.](https://github.com/Dooders/AgentFarm/issues/848)
+- [Add explicit Baldwinian-vs-Lamarckian A/B runs under matched settings to
+  quantify when warm-starting offspring is worth the stability trade-off.](https://github.com/Dooders/AgentFarm/issues/849)
 
 The practical focus is no longer whether the mechanism exists, but which
 inheritance/ecology combinations produce robust gains across runs.
