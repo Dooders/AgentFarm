@@ -2,312 +2,102 @@
 
 ## Overview
 
-AgentFarm uses Deep Q-Learning (DQN) for learning optimal policies across multiple action types. The system implements a hierarchical approach with shared feature extraction to improve learning efficiency and reduce computational overhead.
+AgentFarm currently supports DQN through two paths:
 
-## Shared Feature Extraction
+1. **Active decision path (recommended):** `DecisionModule` + Tianshou `DQNWrapper`.
+2. **Standalone legacy module:** `BaseDQNModule` in `farm/core/decision/base_dqn.py`.
 
-### SharedEncoder Architecture
+The active path is what gets used when `DecisionConfig.algorithm_type="dqn"` and Tianshou is available.
 
-The system uses a `SharedEncoder` to extract common features across all action modules, reducing redundancy and improving learning efficiency:
+## Current DQN Stack (Active Path)
 
-```python
-class SharedEncoder(nn.Module):
-    def __init__(self, input_dim: int, hidden_size: int):
-        super().__init__()
-        self.fc = nn.Linear(input_dim, hidden_size)
-    
-    def forward(self, x):
-        return F.relu(self.fc(x))  # Shared features
-```
+### `DecisionConfig` controls algorithm and replay settings
 
-### Benefits of Shared Encoding
+`DecisionConfig` includes DQN parameters (`learning_rate`, `gamma`, `target_update_freq`, epsilon fields), plus replay controls:
 
-- **Reduced Parameter Count**: Common features (position, health, resources) are learned once
-- **Improved Training Stability**: Shared representations provide consistent feature extraction
-- **Better Generalization**: Common patterns are learned across all action types
-- **Computational Efficiency**: Avoids redundant feature extraction
+- `replay_strategy`: `"uniform"` or `"prioritized"`
+- `per_alpha`, `per_beta_start`, `per_beta_end`, `per_beta_steps`, `per_epsilon`
 
-### Integration with BaseQNetwork
-
-The `BaseQNetwork` class has been modified to optionally use the shared encoder:
-
-```python
-class BaseQNetwork(nn.Module):
-    def __init__(self, input_dim: int, output_dim: int, hidden_size: int = 64, 
-                 shared_encoder: Optional[SharedEncoder] = None) -> None:
-        super().__init__()
-        self.shared_encoder = shared_encoder
-        effective_input = hidden_size if shared_encoder else input_dim
-        # ... rest of network architecture
-```
-
-## Core DQN Components
-
-### BaseDQNConfig
-
-Configuration class for all DQN modules with sensible defaults:
-
-```python
-class BaseDQNConfig:
-    target_update_freq: int = 100
-    memory_size: int = 10000
-    learning_rate: float = 0.001
-    gamma: float = 0.99
-    epsilon_start: float = 1.0
-    epsilon_min: float = 0.01
-    epsilon_decay: float = 0.995
-    dqn_hidden_size: int = 64
-    batch_size: int = 32
-    tau: float = 0.005
-```
-
-### BaseQNetwork
-
-Neural network architecture with layer normalization and dropout:
-
-```python
-class BaseQNetwork(nn.Module):
-    def __init__(self, input_dim: int, output_dim: int, hidden_size: int = 64):
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Linear(input_dim, hidden_size),
-            nn.LayerNorm(hidden_size),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(hidden_size, hidden_size),
-            nn.LayerNorm(hidden_size),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(hidden_size, output_dim),
-        )
-```
-
-### BaseDQNModule
-
-Core DQN functionality with experience replay and target networks:
-
-```python
-class BaseDQNModule:
-    def __init__(self, input_dim: int, output_dim: int, config: BaseDQNConfig):
-        # Initialize networks, optimizer, and memory
-        self.q_network = BaseQNetwork(input_dim, output_dim, config.dqn_hidden_size)
-        self.target_network = BaseQNetwork(input_dim, output_dim, config.dqn_hidden_size)
-        self.optimizer = optim.Adam(self.q_network.parameters(), lr=config.learning_rate)
-        self.memory = deque(maxlen=config.memory_size)
-```
-
-## Training Process
-
-### Experience Replay
-
-Experiences are stored in a replay buffer for stable learning:
-
-```python
-def store_experience(self, state, action, reward, next_state, done):
-    self.memory.append((state, action, reward, next_state, done))
-```
-
-### Prioritized Experience Replay (PER)
-
-The active decision RL wrappers support both uniform replay and PER through `DecisionConfig`.
+Example:
 
 ```python
 from farm.core.decision.config import DecisionConfig
 
 config = DecisionConfig(
     algorithm_type="dqn",
-    replay_strategy="prioritized",   # "uniform" or "prioritized"
-    per_alpha=0.6,                   # prioritization strength
-    per_beta_start=0.4,              # initial IS correction
-    per_beta_end=1.0,                # anneal beta toward full correction
-    per_beta_steps=100_000,          # annealing horizon
-    per_epsilon=1e-6,                # numerical stability floor
+    replay_strategy="prioritized",
+    learning_rate=1e-3,
+    gamma=0.99,
+    target_update_freq=500,
+    epsilon_start=1.0,
+    epsilon_min=0.01,
 )
 ```
 
-Implementation notes:
+### `DecisionModule` initializes `DQNWrapper`
 
-- New transitions are inserted with the current max priority to guarantee early replay.
-- Sampling returns replay `indices` and normalized `is_weights` for bias correction.
-- Priorities are updated after optimizer steps from TD-error estimates.
-- Beta is annealed each training update and replay diagnostics are emitted in training metrics (`replay_beta`, `replay_priority_*`, `replay_is_weight_mean`).
+`DecisionModule` builds a per-agent algorithm instance and forwards replay/PER settings into the Tianshou wrapper.
 
-Tuning guidance:
+For DQN, the wrapper creates an adaptive Q-network:
 
-- Increase `per_alpha` to emphasize high-error transitions; start around `0.6`.
-- Start `per_beta_start` lower (`0.3` to `0.5`) and anneal toward `1.0`.
-- Keep `per_epsilon` small but positive to avoid zero-probability starvation.
-- Use `replay_strategy="uniform"` for ablations and baseline comparisons.
+- **3D observations** (for example `(C, H, W)`): CNN backbone + MLP head.
+- **1D/2D observations**: fully connected MLP.
 
-### Training Step
+### Target network update behavior
 
-The training process uses Double Q-Learning to reduce overestimation bias:
+In the active Tianshou DQN path:
 
-```python
-def train(self, batch):
-    # Unpack batch
-    states = torch.stack([x[0] for x in batch])
-    actions = torch.tensor([x[1] for x in batch])
-    rewards = torch.tensor([x[2] for x in batch])
-    next_states = torch.stack([x[3] for x in batch])
-    dones = torch.tensor([x[4] for x in batch])
-    
-    # Get current Q values
-    current_q_values = self.q_network(states).gather(1, actions)
-    
-    # Compute target Q values using Double Q-Learning
-    with torch.no_grad():
-        next_actions = self.q_network(next_states).argmax(1, keepdim=True)
-        next_q_values = self.target_network(next_states).gather(1, next_actions)
-        target_q_values = rewards.unsqueeze(1) + (1 - dones.unsqueeze(1)) * self.gamma * next_q_values
-    
-    # Compute loss and update
-    loss = self.criterion(current_q_values, target_q_values)
-    self.optimizer.zero_grad()
-    loss.backward()
-    self.optimizer.step()
-```
+- `target_update_freq` is used for **hard target sync cadence**.
+- The wrapper currently enforces **1-step replay targets** (`n_step` overridden to `1` in the custom replay integration path).
 
-### Soft Target Updates
+## Replay Buffer and PER
 
-Target network is updated using soft updates for stability:
+The active wrappers use `PrioritizedReplayBuffer` (`farm/core/decision/algorithms/rl_base.py`), which supports:
 
-```python
-def _soft_update_target_network(self):
-    for target_param, local_param in zip(self.target_network.parameters(), self.q_network.parameters()):
-        target_param.data.copy_(self.tau * local_param.data + (1.0 - self.tau) * target_param.data)
-```
+- **Uniform replay** and **prioritized replay** behind one API.
+- New transitions inserted with current max priority (or `1.0` initially).
+- Sample output that always includes:
+  - `indices` (for priority updates)
+  - `is_weights` (importance-sampling weights; all ones under uniform replay)
+- Beta annealing via `update_beta()` during prioritized training.
+
+Training metrics expose replay diagnostics, including:
+
+- `replay_beta`
+- `replay_priority_min`, `replay_priority_max`, `replay_priority_mean`
+- `replay_is_weight_mean`
+
+## Training Flow (Active Path)
+
+1. Agent interaction stores transitions through `DecisionModule.update(...)`.
+2. Wrapper appends to replay and increments step count.
+3. `should_train()` gates updates using:
+   - replay length >= `batch_size`
+   - `step_count % train_freq == 0`
+4. `train_on_batch()` samples replay, trains policy, then updates PER priorities (if enabled).
 
 ## Action Selection
 
-### Epsilon-Greedy Strategy
+`DecisionModule.decide_action(...)` supports:
 
-Action selection uses epsilon-greedy exploration with state caching:
+- Action masks for curriculum constraints.
+- Optional per-action weight biasing (`action_weights`).
+- Algorithm probability paths when available (`predict_proba`), with fallback weighted-random behavior.
 
-```python
-def select_action(self, state_tensor: torch.Tensor, epsilon: Optional[float] = None) -> int:
-    if epsilon is None:
-        epsilon = self.epsilon
-    
-    if random.random() < epsilon:
-        return random.randint(0, self.output_dim - 1)
-    
-    with torch.no_grad():
-        return self.q_network(state_tensor).argmax().item()
-```
+## Standalone Legacy DQN Module (`BaseDQNModule`)
 
-### State Caching
+`BaseDQNModule` remains available and implements a conventional DQN loop:
 
-Performance optimization through state caching:
+- `BaseQNetwork` with LayerNorm + Dropout.
+- `deque` replay memory.
+- Double-DQN target construction in `train(...)`.
+- Soft target updates with `tau`.
+- Optional gradient clipping.
+- Epsilon-greedy action selection with a small state-action cache.
 
-```python
-# Cache tensor hash for repeated states
-state_hash = hash(state_tensor.cpu().numpy().tobytes())
-if state_hash in self._state_cache:
-    return self._state_cache[state_hash]
-```
+This module is still useful for direct module-level experiments, but the main agent decision pipeline uses `DecisionModule` + wrappers.
 
-## Module-Specific Implementations
+## Notes on Accuracy
 
-### Movement Module
-
-```python
-class MoveQNetwork(BaseQNetwork):
-    def __init__(self, input_dim: int, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None):
-        super().__init__(input_dim, output_dim=4, hidden_size=hidden_size, shared_encoder=shared_encoder)
-```
-
-### Attack Module
-
-```python
-class AttackQNetwork(BaseQNetwork):
-    def __init__(self, input_dim: int, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None):
-        super().__init__(input_dim, output_dim=5, hidden_size=hidden_size, shared_encoder=shared_encoder)
-```
-
-## Unified Training
-
-The `BaseAgent` class implements centralized training for all modules:
-
-```python
-def train_all_modules(self):
-    """Unified training for all action modules."""
-    for module in [self.move_module, self.attack_module, self.share_module, 
-                   self.gather_module, self.select_module]:
-        if hasattr(module, 'train') and len(module.memory) >= module.config.batch_size:
-            batch = random.sample(module.memory, module.config.batch_size)
-            module.train(batch)
-```
-
-## Performance Optimizations
-
-### Gradient Clipping
-
-Prevents exploding gradients during training:
-
-```python
-torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=1.0)
-```
-
-### Device Management
-
-Automatic GPU/CPU device selection:
-
-```python
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-```
-
-### Memory Management
-
-Efficient experience replay with size limits:
-
-```python
-self.memory: Deque = deque(maxlen=config.memory_size)
-```
-
-## Configuration Examples
-
-### Basic Configuration
-
-```python
-config = BaseDQNConfig(
-    learning_rate=0.001,
-    gamma=0.99,
-    epsilon_start=1.0,
-    epsilon_min=0.01,
-    epsilon_decay=0.995
-)
-```
-
-### Module-Specific Configuration
-
-```python
-class MoveConfig(BaseDQNConfig):
-    move_base_cost: float = -0.1
-    move_resource_approach_reward: float = 0.3
-    move_resource_retreat_penalty: float = -0.2
-```
-
-## Best Practices
-
-1. **Use Shared Encoder**: Initialize one `SharedEncoder` per agent and pass to all modules
-2. **Curriculum Learning**: Start with simpler actions and gradually add complexity
-3. **Rule-Based Simplification**: Use rule-based logic for simple actions like reproduction
-4. **Unified Training**: Train all modules together for better coordination
-5. **State Caching**: Enable state caching for performance-critical applications
-
-## Troubleshooting
-
-### Common Issues
-
-1. **High Loss Values**: Check learning rate and batch size
-2. **Poor Convergence**: Verify reward structure and exploration parameters
-3. **Memory Issues**: Reduce memory_size or batch_size
-4. **Slow Training**: Enable GPU acceleration and state caching
-
-### Debugging Tips
-
-- Monitor epsilon decay to ensure proper exploration
-- Check reward distributions for balanced learning
-- Verify target network updates are occurring
-- Use gradient clipping to prevent instability
+- The codebase does **not** currently define `SharedEncoder`, `MoveQNetwork`, or `AttackQNetwork` in the DQN path.
+- Agent orchestration has shifted from a monolithic `train_all_modules()` pattern to per-algorithm readiness checks (`train_if_ready` / `should_train`) in the decision layer.

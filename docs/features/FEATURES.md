@@ -105,7 +105,7 @@ From simple parameter adjustments to complete behavioral overhauls, customize ag
 Integrate state-of-the-art reinforcement learning, evolutionary algorithms, and machine learning analytics to create truly adaptive agents and extract deep insights from simulation data.
 
 **Key Capabilities:**
-- 🧠 **Reinforcement Learning**: DQN, PPO, SAC, A2C, TD3 algorithms
+- 🧠 **Reinforcement Learning**: DQN, PPO, SAC, A2C, DDPG algorithms
 - 📊 **Automated Analysis**: ML-powered pattern recognition and clustering
 - 🔮 **Behavior Prediction**: Forecast agent actions and outcomes
 - 🧬 **Evolutionary Algorithms**: Genetic evolution and natural selection
@@ -456,7 +456,7 @@ create_reproducibility_report(analysis_params, results)
 - [x] Three spatial indexing strategies
 - [x] Batch update system with incremental improvements
 - [x] Comprehensive data architecture
-- [x] Multiple RL algorithms (DQN, PPO, SAC, A2C, TD3)
+- [x] Multiple RL algorithms (DQN, PPO, SAC, A2C, DDPG)
 - [x] 20+ chart types and visualizations
 - [x] Parameter sweep tools
 - [x] Structured logging system
