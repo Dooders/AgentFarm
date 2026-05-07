@@ -20,6 +20,13 @@
   --code-bg: #f7f7f8;
   --code-border: #e5e7eb;
   --code-text: #111827;
+  --code-comment: #6b7280;
+  --code-keyword: #4c1d95;
+  --code-string: #0f766e;
+  --code-number: #0b7285;
+  --code-function: #1d4ed8;
+  --code-operator: #374151;
+  --code-name: #1f2937;
 
   --radius-sm: 4px;
   --radius: 6px;
@@ -53,6 +60,13 @@
     --code-bg: #161618;
     --code-border: #2a2a2e;
     --code-text: #ececef;
+    --code-comment: #8a8a92;
+    --code-keyword: #c4b5fd;
+    --code-string: #5eead4;
+    --code-number: #67e8f9;
+    --code-function: #93c5fd;
+    --code-operator: #d1d5db;
+    --code-name: #ececef;
   }
 }
 
@@ -357,6 +371,91 @@ samp {
   border: 0;
   padding: 0;
   color: inherit;
+}
+
+/* ==========================================================================
+   Rouge syntax highlighting for fenced code blocks
+   ========================================================================== */
+.prose .highlighter-rouge,
+.prose div.highlight {
+  margin: 0 0 1em;
+}
+
+.prose .highlighter-rouge pre,
+.prose div.highlight pre {
+  margin: 0;
+}
+
+.prose .highlight .c,
+.prose .highlight .cm,
+.prose .highlight .c1,
+.prose .highlight .cs {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.prose .highlight .k,
+.prose .highlight .kc,
+.prose .highlight .kd,
+.prose .highlight .kn,
+.prose .highlight .kp,
+.prose .highlight .kr,
+.prose .highlight .kt {
+  color: var(--code-keyword);
+  font-weight: 600;
+}
+
+.prose .highlight .s,
+.prose .highlight .sa,
+.prose .highlight .sb,
+.prose .highlight .sc,
+.prose .highlight .sd,
+.prose .highlight .s2,
+.prose .highlight .se,
+.prose .highlight .sh,
+.prose .highlight .si,
+.prose .highlight .sx,
+.prose .highlight .sr,
+.prose .highlight .s1,
+.prose .highlight .ss {
+  color: var(--code-string);
+}
+
+.prose .highlight .m,
+.prose .highlight .mb,
+.prose .highlight .mf,
+.prose .highlight .mh,
+.prose .highlight .mi,
+.prose .highlight .il,
+.prose .highlight .mo {
+  color: var(--code-number);
+}
+
+.prose .highlight .na,
+.prose .highlight .nb,
+.prose .highlight .nc,
+.prose .highlight .nd,
+.prose .highlight .ne,
+.prose .highlight .nf,
+.prose .highlight .nl,
+.prose .highlight .nn,
+.prose .highlight .nx,
+.prose .highlight .py,
+.prose .highlight .vc,
+.prose .highlight .vg,
+.prose .highlight .vi,
+.prose .highlight .vm {
+  color: var(--code-name);
+}
+
+.prose .highlight .nf,
+.prose .highlight .fm {
+  color: var(--code-function);
+}
+
+.prose .highlight .o,
+.prose .highlight .ow {
+  color: var(--code-operator);
 }
 .prose table {
   width: 100%;
