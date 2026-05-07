@@ -20,8 +20,8 @@ The core design shift was to model tunable parameters as explicit genes inside a
 
 Design details:
 
-- [Hyperparameter Chromosome Design](../design/hyperparameter_chromosome.md)
-- [Convergence Experiment Notes](../experiments/hyperparameter_evolution_convergence.md)
+- [Hyperparameter Chromosome Design](/design/hyperparameter_chromosome/)
+- [Convergence Experiment Notes](/experiments/hyperparameter_evolution_convergence/)
 
 ## Why This Design
 

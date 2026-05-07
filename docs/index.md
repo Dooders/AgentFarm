@@ -164,22 +164,22 @@ env = run_simulation(
           <span>bash</span>
         </div>
 <pre class="codeblock__body"><span class="tk-cm"># 1. Clone</span>
-git clone https://github.com/Dooders/AgentFarm.git
-cd AgentFarm
+<span class="tk-fn">git</span> <span class="tk-kw">clone</span> <span class="tk-str">https://github.com/Dooders/AgentFarm.git</span>
+<span class="tk-fn">cd</span> AgentFarm
 
 <span class="tk-cm"># 2. Virtualenv + install</span>
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
+<span class="tk-fn">python</span> <span class="tk-kw">-m</span> <span class="tk-fn">venv</span> venv
+<span class="tk-fn">source</span> venv/bin/activate
+<span class="tk-fn">pip</span> <span class="tk-kw">install</span> <span class="tk-kw">-r</span> requirements.txt
+<span class="tk-fn">pip</span> <span class="tk-kw">install</span> <span class="tk-kw">-e</span> .
 
 <span class="tk-cm"># 3. Run a small simulation</span>
-python run_simulation.py \
-  --environment development \
-  --steps 500
+<span class="tk-fn">python</span> run_simulation.py \
+  <span class="tk-kw">--environment</span> <span class="tk-str">development</span> \
+  <span class="tk-kw">--steps</span> <span class="tk-num">500</span>
 
 <span class="tk-cm"># 4. Run the test suite</span>
-pytest -q
+<span class="tk-fn">pytest</span> <span class="tk-kw">-q</span>
 </pre>
       </div>
     </div>
