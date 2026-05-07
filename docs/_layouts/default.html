@@ -27,6 +27,13 @@
 </head>
 <body class="page page--{{ page.layout | default: 'default' }}">
   {% include header.html %}
+  <aside class="site-notice" role="note" aria-label="Project status">
+    <div class="container">
+      <p class="site-notice__text">
+        AgentFarm is in active development and still incomplete.
+      </p>
+    </div>
+  </aside>
 
   <main id="content" class="site-main">
     {% unless page.layout == "home" %}
