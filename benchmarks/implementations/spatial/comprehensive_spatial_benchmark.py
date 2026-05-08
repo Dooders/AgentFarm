@@ -13,11 +13,15 @@ Features:
 - Batch update performance testing
 """
 
+import argparse
 import gc
 import hashlib
+import json
 import math
 import os
+import platform
 import random
+import subprocess
 import sys
 import time
 import tracemalloc
@@ -72,6 +76,7 @@ class SpatialBenchmarkConfig:
         distributions: List[str] = None,
         test_iterations: int = 5,
         warmup_iterations: int = 2,
+        random_seed: Optional[int] = None,
     ):
         self.world_width = world_width
         self.world_height = world_height
@@ -85,6 +90,7 @@ class SpatialBenchmarkConfig:
         ]
         self.test_iterations = test_iterations
         self.warmup_iterations = warmup_iterations
+        self.random_seed = random_seed
 
 
 class SpatialBenchmark:
@@ -449,6 +455,11 @@ class SpatialBenchmark:
         self, entities: List[MockEntity], update_fraction: float = 0.1
     ) -> Dict[str, Any]:
         """Benchmark batch update performance."""
+        if self.config.random_seed is not None:
+            # Deterministic subset of entities to move for this population size.
+            random.seed(self.config.random_seed + 7919 * len(entities))
+            np.random.seed(self.config.random_seed + 7919 * len(entities))
+
         results = {
             "batch_update_time": 0.0,
             "individual_update_time": 0.0,
@@ -533,6 +544,10 @@ class SpatialBenchmark:
         """Run comprehensive spatial indexing benchmark suite."""
         print("Starting Comprehensive Spatial Indexing Benchmark Suite")
         print("=" * 60)
+
+        if self.config.random_seed is not None:
+            random.seed(self.config.random_seed)
+            np.random.seed(self.config.random_seed)
 
         all_results = []
 
@@ -824,6 +839,143 @@ class SpatialBenchmark:
         return "\n".join(report)
 
 
+def _verification_metadata(random_seed: int) -> Dict[str, Any]:
+    """Host and revision metadata stored next to benchmark timings."""
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    try:
+        git_rev = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        git_rev = "unknown"
+    return {
+        "random_seed": random_seed,
+        "pythonhashseed": os.environ.get("PYTHONHASHSEED"),
+        "python_version": sys.version.split()[0],
+        "platform": platform.platform(),
+        "processor": platform.processor() or "unknown",
+        "git_revision": git_rev,
+        "generator": "comprehensive_spatial_benchmark.py --verified",
+        "world": "1000x1000",
+        "warmup_iterations": 1,
+        "test_iterations": 3,
+        "query_workload": "100 random radius queries + 50 nearest-neighbor queries per run",
+    }
+
+
+def write_verified_spatial_markdown(payload: Dict[str, Any], path: str) -> None:
+    """Write a human-readable summary for the committed verified JSON artifact."""
+    lines: List[str] = []
+    lines.append("# Verified spatial benchmark")
+    lines.append("")
+    lines.append(
+        "**Generated file — do not edit numbers by hand.** "
+        "Regenerate with `PYTHONHASHSEED=0 python benchmarks/implementations/spatial/comprehensive_spatial_benchmark.py --verified` "
+        "from the repository root (after `pip install -e .`)."
+    )
+    lines.append("")
+    lines.append("## Run metadata")
+    lines.append("")
+    for key in sorted(payload.get("verification", {}).keys()):
+        lines.append(f"- **{key}**: `{payload['verification'][key]}`")
+    lines.append("")
+    lines.append("## Index build and radius-query timings")
+    lines.append("")
+    lines.append(
+        "Each cell is the mean over measured iterations after warmup. "
+        "AgentFarm timings include the `SpatialIndex` orchestration layer; "
+        "SciPy / scikit-learn rows time their respective library trees directly."
+    )
+    lines.append("")
+    standard = [
+        r
+        for r in payload.get("results", [])
+        if "build_time" in r and "distribution" in r and "implementation" in r
+    ]
+    distributions = sorted({r["distribution"] for r in standard})
+    impl_order = [
+        "AgentFarm KD-Tree",
+        "AgentFarm Quadtree",
+        "AgentFarm Spatial Hash",
+        "SciPy KD-Tree",
+        "Scikit-learn KD-Tree",
+        "Scikit-learn BallTree",
+    ]
+    for dist in distributions:
+        lines.append(f"### Distribution: `{dist}`")
+        lines.append("")
+        lines.append("| Implementation | Entities | Build (ms) | Avg radius query (µs) | Memory (MB) |")
+        lines.append("|------------------|----------|-------------|------------------------|-------------|")
+        rows = [r for r in standard if r["distribution"] == dist]
+        rows.sort(key=lambda r: (r["entity_count"], impl_order.index(r["implementation"]) if r["implementation"] in impl_order else 99))
+        for r in rows:
+            b_ms = r["build_time"] * 1000.0
+            q_us = r["avg_query_time"] * 1e6
+            mem = r["memory_usage"]
+            lines.append(
+                f"| {r['implementation']} | {r['entity_count']} | {b_ms:.3f} | {q_us:.2f} | {mem:.3f} |"
+            )
+        lines.append("")
+    batch_rows = [r for r in payload.get("results", []) if r.get("implementation") == "AgentFarm Batch Updates"]
+    if batch_rows:
+        lines.append("## Batch vs immediate position updates (microbenchmark)")
+        lines.append("")
+        lines.append(
+            "For each population, 10% of entities receive a new position. "
+            "**Batch path**: queue moves then `process_batch_updates(force=True)`. "
+            "**Immediate path**: batching disabled, `update_entity_position` per move. "
+            "This is not an end-to-end simulation profile; it isolates update mechanics."
+        )
+        lines.append("")
+        lines.append("| Entities | Batch path (ms) | Immediate path (ms) | Immediate / batch |")
+        lines.append("|----------|-----------------|----------------------|-------------------|")
+        batch_rows.sort(key=lambda r: r["entity_count"])
+        for r in batch_rows:
+            b_ms = r["batch_update_time"] * 1000.0
+            i_ms = r["individual_update_time"] * 1000.0
+            ratio = (r["individual_update_time"] / r["batch_update_time"]) if r["batch_update_time"] else 0.0
+            lines.append(f"| {r['entity_count']} | {b_ms:.3f} | {i_ms:.3f} | {ratio:.2f}× |")
+        lines.append("")
+    text = "\n".join(lines) + "\n"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def run_verified_spatial_artifacts() -> Dict[str, Any]:
+    """Deterministic benchmark run; writes JSON + Markdown under benchmarks/results/."""
+    seed = 42
+    config = SpatialBenchmarkConfig(
+        entity_counts=[100, 500, 1000, 2000],
+        query_radii=[5.0, 10.0, 20.0, 50.0],
+        distributions=["uniform", "clustered"],
+        test_iterations=3,
+        warmup_iterations=1,
+        random_seed=seed,
+    )
+    benchmark = SpatialBenchmark(config)
+    results = benchmark.run_comprehensive_benchmark()
+    results["verification"] = _verification_metadata(seed)
+
+    out_dir = os.path.join(os.getcwd(), "benchmarks", "results")
+    os.makedirs(out_dir, exist_ok=True)
+    json_path = os.path.join(out_dir, "spatial_benchmark_verified.json")
+    md_path = os.path.join(out_dir, "SPATIAL_BENCHMARK_VERIFIED.md")
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
+
+    write_verified_spatial_markdown(results, md_path)
+
+    print("\nVerified benchmark artifacts written:")
+    print(f"  {json_path}")
+    print(f"  {md_path}")
+    return results
+
+
 def main():
     """Run the comprehensive spatial indexing benchmark."""
     config = SpatialBenchmarkConfig(
@@ -839,9 +991,6 @@ def main():
 
     # Generate and save report
     report = benchmark.generate_performance_report(results)
-
-    # Save results
-    import json
 
     # Use relative path from current working directory
     results_dir = os.path.join(os.getcwd(), "benchmarks", "results")
@@ -866,4 +1015,15 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Spatial indexing benchmark suite.")
+    parser.add_argument(
+        "--verified",
+        action="store_true",
+        help="Run deterministic suite (seed=42) and write benchmarks/results/spatial_benchmark_verified.json "
+        "and benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md",
+    )
+    args = parser.parse_args()
+    if args.verified:
+        run_verified_spatial_artifacts()
+    else:
+        main()

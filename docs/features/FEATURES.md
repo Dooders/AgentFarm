@@ -312,11 +312,7 @@ env.spatial_index.get_nearby_range(bounds, ["agents_quadtree"])
 env.spatial_index.get_nearby(pos, 3.0, ["agents_hash"])
 ```
 
-**Performance:**
-- **Build Time**: 1.26ms for 1,000 entities
-- **Query Time**: 4.85μs average (beats Scikit-learn by 5x)
-- **Memory**: <0.1MB per 1,000 entities
-- **Scalability**: Handles hundreds of entities efficiently
+**Performance:** Committed, reproducible timings live in [`benchmarks/results/spatial_benchmark_verified.json`](../../benchmarks/results/spatial_benchmark_verified.json) and the Markdown summary [`benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md`](../../benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md). Regenerate with `PYTHONHASHSEED=0 python benchmarks/implementations/spatial/comprehensive_spatial_benchmark.py --verified` from the repo root.
 
 📖 **[Full Documentation →](spatial_indexing_performance.md)**
 
@@ -493,8 +489,8 @@ create_reproducibility_report(analysis_params, results)
 | **Max Agents** | 200+ | Tested with spatial indexing |
 | **Steps per Second** | 2.5-8.6 | Depends on agent count (fewer = faster) |
 | **Memory Usage** | ~200MB | 1,000 agents, full logging |
-| **Spatial Query** | 4.85μs | Average KD-tree query |
-| **Batch Updates** | 2-3% faster | vs. individual updates |
+| **Spatial Query** | See verified JSON | Radius-query means in `spatial_benchmark_verified.json` |
+| **Batch Updates** | See verified JSON | Microbenchmark rows in the same artifact |
 
 ### Scalability
 
