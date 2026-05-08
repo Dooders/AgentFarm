@@ -503,6 +503,14 @@ samp {
   border-radius: var(--radius);
   border: 1px solid var(--border);
 }
+.prose .mermaid {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+}
+.prose .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
 
 /* ==========================================================================
    Home page — minimalist sections
