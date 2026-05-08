@@ -5,7 +5,7 @@
 ## Run metadata
 
 - **generator**: `comprehensive_spatial_benchmark.py --verified`
-- **git_revision**: `e340c890f7478d0ce73b03fdf8e8de9d190ce6a0`
+- **git_revision**: `1b7bd2220ccd5f2ead28c785082cc20aa2081dd8`
 - **platform**: `Linux-6.12.58+-x86_64-with-glibc2.39`
 - **processor**: `x86_64`
 - **python_version**: `3.12.3`
@@ -24,59 +24,59 @@ Each cell is the mean over measured iterations after warmup. AgentFarm timings i
 
 | Implementation | Entities | Build (ms) | Avg radius query (µs) | Memory (MB) |
 |------------------|----------|-------------|------------------------|-------------|
-| AgentFarm KD-Tree | 100 | 0.350 | 5.10 | 0.007 |
-| AgentFarm Quadtree | 100 | 1.195 | 3.33 | 0.040 |
-| AgentFarm Spatial Hash | 100 | 0.534 | 2.78 | 0.030 |
-| SciPy KD-Tree | 100 | 0.148 | 3.97 | 0.003 |
-| Scikit-learn KD-Tree | 100 | 0.360 | 23.21 | 0.006 |
-| Scikit-learn BallTree | 100 | 0.353 | 43.12 | 0.006 |
-| AgentFarm KD-Tree | 500 | 0.937 | 5.08 | 0.035 |
-| AgentFarm Quadtree | 500 | 6.210 | 6.44 | 0.165 |
-| AgentFarm Spatial Hash | 500 | 2.184 | 3.17 | 0.135 |
-| SciPy KD-Tree | 500 | 0.220 | 4.26 | 0.009 |
-| Scikit-learn KD-Tree | 500 | 0.445 | 24.53 | 0.012 |
-| Scikit-learn BallTree | 500 | 0.465 | 25.84 | 0.012 |
-| AgentFarm KD-Tree | 1000 | 1.621 | 5.36 | 0.071 |
-| AgentFarm Quadtree | 1000 | 11.561 | 6.70 | 0.337 |
-| AgentFarm Spatial Hash | 1000 | 4.180 | 3.70 | 0.233 |
-| SciPy KD-Tree | 1000 | 0.290 | 4.38 | 0.017 |
-| Scikit-learn KD-Tree | 1000 | 0.563 | 27.22 | 0.020 |
-| Scikit-learn BallTree | 1000 | 0.524 | 24.55 | 0.020 |
-| AgentFarm KD-Tree | 2000 | 2.972 | 5.56 | 0.138 |
-| AgentFarm Quadtree | 2000 | 24.268 | 11.22 | 0.670 |
-| AgentFarm Spatial Hash | 2000 | 8.473 | 5.51 | 0.415 |
-| SciPy KD-Tree | 2000 | 0.432 | 4.56 | 0.032 |
-| Scikit-learn KD-Tree | 2000 | 0.686 | 26.46 | 0.035 |
-| Scikit-learn BallTree | 2000 | 0.660 | 25.51 | 0.035 |
+| AgentFarm KD-Tree | 100 | 0.290 | 4.81 | 0.007 |
+| AgentFarm Quadtree | 100 | 1.164 | 3.35 | 0.040 |
+| AgentFarm Spatial Hash | 100 | 0.507 | 2.85 | 0.030 |
+| SciPy KD-Tree | 100 | 0.110 | 3.78 | 0.003 |
+| Scikit-learn KD-Tree | 100 | 0.306 | 23.26 | 0.006 |
+| Scikit-learn BallTree | 100 | 0.291 | 23.12 | 0.006 |
+| AgentFarm KD-Tree | 500 | 0.851 | 4.95 | 0.035 |
+| AgentFarm Quadtree | 500 | 5.287 | 5.65 | 0.165 |
+| AgentFarm Spatial Hash | 500 | 2.140 | 3.22 | 0.135 |
+| SciPy KD-Tree | 500 | 0.182 | 3.99 | 0.009 |
+| Scikit-learn KD-Tree | 500 | 0.413 | 24.26 | 0.012 |
+| Scikit-learn BallTree | 500 | 0.391 | 24.19 | 0.012 |
+| AgentFarm KD-Tree | 1000 | 1.500 | 5.09 | 0.071 |
+| AgentFarm Quadtree | 1000 | 11.689 | 6.77 | 0.337 |
+| AgentFarm Spatial Hash | 1000 | 3.896 | 3.64 | 0.233 |
+| SciPy KD-Tree | 1000 | 0.225 | 4.08 | 0.017 |
+| Scikit-learn KD-Tree | 1000 | 0.440 | 24.73 | 0.020 |
+| Scikit-learn BallTree | 1000 | 0.421 | 24.58 | 0.020 |
+| AgentFarm KD-Tree | 2000 | 2.780 | 5.42 | 0.138 |
+| AgentFarm Quadtree | 2000 | 23.356 | 10.51 | 0.670 |
+| AgentFarm Spatial Hash | 2000 | 7.522 | 5.04 | 0.415 |
+| SciPy KD-Tree | 2000 | 0.362 | 4.17 | 0.032 |
+| Scikit-learn KD-Tree | 2000 | 0.627 | 25.27 | 0.035 |
+| Scikit-learn BallTree | 2000 | 0.556 | 25.00 | 0.035 |
 
 ### Distribution: `uniform`
 
 | Implementation | Entities | Build (ms) | Avg radius query (µs) | Memory (MB) |
 |------------------|----------|-------------|------------------------|-------------|
-| AgentFarm KD-Tree | 100 | 0.336 | 4.98 | 0.007 |
-| AgentFarm Quadtree | 100 | 1.033 | 3.61 | 0.036 |
-| AgentFarm Spatial Hash | 100 | 0.507 | 2.92 | 0.031 |
-| SciPy KD-Tree | 100 | 0.125 | 3.90 | 0.003 |
-| Scikit-learn KD-Tree | 100 | 0.326 | 23.78 | 0.006 |
-| Scikit-learn BallTree | 100 | 0.315 | 23.56 | 0.006 |
-| AgentFarm KD-Tree | 500 | 0.861 | 5.05 | 0.035 |
-| AgentFarm Quadtree | 500 | 5.038 | 5.57 | 0.163 |
-| AgentFarm Spatial Hash | 500 | 2.339 | 3.31 | 0.141 |
-| SciPy KD-Tree | 500 | 0.246 | 4.25 | 0.009 |
-| Scikit-learn KD-Tree | 500 | 0.496 | 24.57 | 0.012 |
-| Scikit-learn BallTree | 500 | 0.436 | 24.27 | 0.012 |
-| AgentFarm KD-Tree | 1000 | 1.628 | 5.32 | 0.071 |
-| AgentFarm Quadtree | 1000 | 11.039 | 7.19 | 0.342 |
-| AgentFarm Spatial Hash | 1000 | 4.149 | 3.62 | 0.270 |
-| SciPy KD-Tree | 1000 | 0.300 | 4.50 | 0.017 |
-| Scikit-learn KD-Tree | 1000 | 0.548 | 24.90 | 0.020 |
-| Scikit-learn BallTree | 1000 | 0.535 | 24.35 | 0.020 |
-| AgentFarm KD-Tree | 2000 | 2.972 | 5.73 | 0.138 |
-| AgentFarm Quadtree | 2000 | 26.512 | 11.16 | 0.670 |
-| AgentFarm Spatial Hash | 2000 | 8.278 | 5.14 | 0.505 |
-| SciPy KD-Tree | 2000 | 0.444 | 4.67 | 0.032 |
-| Scikit-learn KD-Tree | 2000 | 0.722 | 25.63 | 0.035 |
-| Scikit-learn BallTree | 2000 | 0.759 | 33.58 | 0.035 |
+| AgentFarm KD-Tree | 100 | 0.316 | 4.81 | 0.007 |
+| AgentFarm Quadtree | 100 | 1.021 | 3.72 | 0.036 |
+| AgentFarm Spatial Hash | 100 | 0.490 | 2.99 | 0.031 |
+| SciPy KD-Tree | 100 | 0.103 | 3.75 | 0.003 |
+| Scikit-learn KD-Tree | 100 | 0.313 | 23.55 | 0.006 |
+| Scikit-learn BallTree | 100 | 0.306 | 23.42 | 0.006 |
+| AgentFarm KD-Tree | 500 | 0.831 | 4.98 | 0.035 |
+| AgentFarm Quadtree | 500 | 5.018 | 5.64 | 0.163 |
+| AgentFarm Spatial Hash | 500 | 2.123 | 3.28 | 0.141 |
+| SciPy KD-Tree | 500 | 0.170 | 4.16 | 0.009 |
+| Scikit-learn KD-Tree | 500 | 0.390 | 24.66 | 0.012 |
+| Scikit-learn BallTree | 500 | 0.391 | 24.21 | 0.012 |
+| AgentFarm KD-Tree | 1000 | 1.493 | 5.23 | 0.071 |
+| AgentFarm Quadtree | 1000 | 10.712 | 7.22 | 0.342 |
+| AgentFarm Spatial Hash | 1000 | 3.986 | 3.79 | 0.270 |
+| SciPy KD-Tree | 1000 | 0.247 | 4.22 | 0.017 |
+| Scikit-learn KD-Tree | 1000 | 0.474 | 25.01 | 0.020 |
+| Scikit-learn BallTree | 1000 | 0.440 | 24.43 | 0.020 |
+| AgentFarm KD-Tree | 2000 | 2.748 | 5.49 | 0.138 |
+| AgentFarm Quadtree | 2000 | 22.359 | 10.38 | 0.670 |
+| AgentFarm Spatial Hash | 2000 | 7.784 | 4.77 | 0.505 |
+| SciPy KD-Tree | 2000 | 0.385 | 4.33 | 0.032 |
+| Scikit-learn KD-Tree | 2000 | 0.633 | 25.64 | 0.035 |
+| Scikit-learn BallTree | 2000 | 0.553 | 24.87 | 0.035 |
 
 ## Batch vs immediate position updates (microbenchmark)
 
@@ -84,7 +84,26 @@ For each population, 10% of entities receive a new position. **Batch path**: que
 
 | Entities | Batch path (ms) | Immediate path (ms) | Immediate / batch |
 |----------|-----------------|----------------------|-------------------|
-| 100 | 0.453 | 0.013 | 0.03× |
-| 500 | 1.292 | 0.028 | 0.02× |
-| 1000 | 1.773 | 0.053 | 0.03× |
+| 100 | 0.452 | 0.011 | 0.02× |
+| 500 | 1.273 | 0.027 | 0.02× |
+| 1000 | 1.794 | 0.053 | 0.03× |
+
+## Interleaved step workload (simulation-style)
+
+Interleaved simulation steps on a single KD-tree named index: each step applies random moves then random radius queries. Batch mode queues moves (large flush thresholds so moves are not auto-flushed mid-step); immediate mode calls update_entity_position per move. Compares total wall time over identical schedules.
+
+**Parameters:**
+- `index_type`: `kdtree`
+- `moves_per_step`: `18`
+- `num_steps`: `35`
+- `queries_per_step`: `25`
+- `timed_iterations`: `5`
+- `warmup_iterations`: `2`
+
+| Entities | Batch mean (s) | Immediate mean (s) | Immediate / batch | ms/step batch | ms/step immediate |
+|----------|----------------|-------------------|-------------------|---------------|-------------------|
+| 500 | 0.0161 | 0.0113 | 0.70× | 0.459 | 0.322 |
+| 1000 | 0.0233 | 0.0180 | 0.77× | 0.665 | 0.515 |
+
+Interpretation: **Immediate / batch** is `immediate_mean_s / batch_mean_s`. Values **less than 1** mean immediate updates finished with **lower** total wall time for the same schedule (immediate wins here). Values **greater than 1** mean batching amortized work better overall on this harness.
 

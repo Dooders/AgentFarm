@@ -41,6 +41,17 @@ def test_spatial_benchmark_verified_json_exists_and_schema() -> None:
     for r in batch:
         assert "batch_update_time" in r and "individual_update_time" in r
 
+    sw = payload.get("step_workload_benchmark")
+    assert sw is not None, "JSON should include step_workload_benchmark from --verified run"
+    assert "results" in sw and len(sw["results"]) == 2
+    for row in sw["results"]:
+        assert row["entity_count"] in (500, 1000)
+        assert "batch_total_time_mean_s" in row
+        assert "immediate_total_time_mean_s" in row
+        assert "immediate_over_batch" in row
+        assert row["batch_total_time_mean_s"] > 0
+        assert row["immediate_total_time_mean_s"] > 0
+
 
 @pytest.mark.unit
 def test_spatial_benchmark_verified_markdown_exists() -> None:
@@ -50,3 +61,4 @@ def test_spatial_benchmark_verified_markdown_exists() -> None:
     text = _VERIFIED_MD.read_text(encoding="utf-8")
     assert "Verified spatial benchmark" in text
     assert "Distribution:" in text
+    assert "Interleaved step workload" in text

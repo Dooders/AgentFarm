@@ -53,7 +53,7 @@ Regenerate from the repository root (after `pip install -e .`):
 PYTHONHASHSEED=0 python benchmarks/implementations/spatial/comprehensive_spatial_benchmark.py --verified
 ```
 
-`tests/benchmarks/test_spatial_benchmark_verified_artifact.py` asserts that both files exist and that the JSON contains the expected schema (including fixed RNG seed `42`). When you intentionally change spatial performance characteristics, re-run the command above and commit the refreshed artifacts alongside your code.
+`tests/benchmarks/test_spatial_benchmark_verified_artifact.py` asserts that both files exist and that the JSON contains the expected schema (including fixed RNG seed `42`) plus the **interleaved step workload** block (`step_workload_benchmark`) for simulation-style batch vs immediate comparison. When you intentionally change spatial performance characteristics, re-run the command above and commit the refreshed artifacts alongside your code.
 
 ---
 

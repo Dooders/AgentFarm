@@ -540,6 +540,158 @@ class SpatialBenchmark:
 
         return results
 
+    def _build_interleaved_schedule(
+        self,
+        entity_count: int,
+        num_steps: int,
+        moves_per_step: int,
+        queries_per_step: int,
+        schedule_seed: int,
+    ):
+        """Deterministic move + query schedule for simulation-style timing."""
+        random.seed(schedule_seed)
+        np.random.seed(schedule_seed)
+        w, h = self.config.world_width, self.config.world_height
+        entities = self.generate_entities(entity_count, "uniform")
+        initial_snapshot = [tuple(e.position) for e in entities]
+        rng_moves: List[List[Tuple[int, Tuple[float, float]]]] = []
+        rng_queries: List[List[Tuple[float, float, float]]] = []
+        for _ in range(num_steps):
+            k = min(moves_per_step, len(entities))
+            idxs = random.sample(range(len(entities)), k)
+            rng_moves.append(
+                [(i, (random.uniform(0, w), random.uniform(0, h))) for i in idxs]
+            )
+            rng_queries.append(
+                [
+                    (
+                        random.uniform(0, w),
+                        random.uniform(0, h),
+                        float(random.choice(self.config.query_radii)),
+                    )
+                    for _ in range(queries_per_step)
+                ]
+            )
+        return entities, initial_snapshot, rng_moves, rng_queries
+
+    def _run_interleaved_playback(
+        self,
+        entities: List[MockEntity],
+        initial_snapshot: List[Tuple[float, float]],
+        rng_moves: List[List[Tuple[int, Tuple[float, float]]]],
+        rng_queries: List[List[Tuple[float, float, float]]],
+        batch_mode: bool,
+    ) -> float:
+        """One full synthetic 'step loop': apply moves, then spatial queries (seconds)."""
+        w, h = self.config.world_width, self.config.world_height
+        for ent, pos in zip(entities, initial_snapshot):
+            ent.position = pos
+
+        spatial_index = SpatialIndex(
+            w,
+            h,
+            enable_batch_updates=batch_mode,
+            region_size=50.0,
+            max_batch_size=256,
+            flush_interval_seconds=3600.0,
+            max_pending_updates_before_flush=1000,
+            dirty_region_batch_size=10,
+        )
+        spatial_index.register_index(
+            name="test_entities",
+            data_reference=entities,
+            position_getter=lambda e: e.position,
+            filter_func=lambda e: e.alive,
+            index_type="kdtree",
+        )
+        spatial_index.update()
+
+        start = time.perf_counter()
+        for step, moves in enumerate(rng_moves):
+            for idx, new_pos in moves:
+                ent = entities[idx]
+                old_pos = ent.position
+                if batch_mode:
+                    spatial_index.add_position_update(
+                        ent, old_pos, new_pos, "test_entities"
+                    )
+                else:
+                    spatial_index.update_entity_position(ent, old_pos, new_pos)
+                ent.position = new_pos
+            for x, y, rad in rng_queries[step]:
+                spatial_index.get_nearby((x, y), rad, ["test_entities"])
+        return time.perf_counter() - start
+
+    def collect_step_workload_benchmark(self) -> Dict[str, Any]:
+        """
+        Interleaved move + query workload (simulation-style).
+
+        Each step applies ``moves_per_step`` position changes on a registered KD
+        index, then runs ``queries_per_step`` radius queries. Batching queues
+        moves until reads call ``update()`` (via ``get_nearby``); the immediate
+        path applies ``update_entity_position`` per move. Schedules are shared
+        so batch vs immediate timings are comparable.
+        """
+        num_steps = 35
+        moves_per_step = 18
+        queries_per_step = 25
+        warmup = 2
+        timed = 5
+        rows: List[Dict[str, Any]] = []
+        seed_base = self.config.random_seed or 0
+        for entity_count in (500, 1000):
+            schedule_seed = seed_base + 10_000 + entity_count
+            entities, snapshot, rng_moves, rng_queries = self._build_interleaved_schedule(
+                entity_count, num_steps, moves_per_step, queries_per_step, schedule_seed
+            )
+            batch_samples: List[float] = []
+            immediate_samples: List[float] = []
+            total_iters = warmup + timed
+            for it in range(total_iters):
+                batch_samples.append(
+                    self._run_interleaved_playback(
+                        entities, snapshot, rng_moves, rng_queries, True
+                    )
+                )
+                immediate_samples.append(
+                    self._run_interleaved_playback(
+                        entities, snapshot, rng_moves, rng_queries, False
+                    )
+                )
+            batch_mean = float(np.mean(batch_samples[warmup:]))
+            immediate_mean = float(np.mean(immediate_samples[warmup:]))
+            rows.append(
+                {
+                    "entity_count": entity_count,
+                    "batch_total_time_mean_s": batch_mean,
+                    "immediate_total_time_mean_s": immediate_mean,
+                    "immediate_over_batch": (
+                        immediate_mean / batch_mean if batch_mean > 0 else 0.0
+                    ),
+                    "per_step_batch_ms": batch_mean / num_steps * 1000.0,
+                    "per_step_immediate_ms": immediate_mean / num_steps * 1000.0,
+                }
+            )
+
+        return {
+            "description": (
+                "Interleaved simulation steps on a single KD-tree named index: "
+                "each step applies random moves then random radius queries. "
+                "Batch mode queues moves (large flush thresholds so moves are not "
+                "auto-flushed mid-step); immediate mode calls update_entity_position "
+                "per move. Compares total wall time over identical schedules."
+            ),
+            "parameters": {
+                "num_steps": num_steps,
+                "moves_per_step": moves_per_step,
+                "queries_per_step": queries_per_step,
+                "index_type": "kdtree",
+                "warmup_iterations": warmup,
+                "timed_iterations": timed,
+            },
+            "results": rows,
+        }
+
     def run_comprehensive_benchmark(self) -> Dict[str, Any]:
         """Run comprehensive spatial indexing benchmark suite."""
         print("Starting Comprehensive Spatial Indexing Benchmark Suite")
@@ -939,6 +1091,34 @@ def write_verified_spatial_markdown(payload: Dict[str, Any], path: str) -> None:
             ratio = (r["individual_update_time"] / r["batch_update_time"]) if r["batch_update_time"] else 0.0
             lines.append(f"| {r['entity_count']} | {b_ms:.3f} | {i_ms:.3f} | {ratio:.2f}× |")
         lines.append("")
+    step = payload.get("step_workload_benchmark")
+    if step:
+        lines.append("## Interleaved step workload (simulation-style)")
+        lines.append("")
+        lines.append(step.get("description", ""))
+        lines.append("")
+        params = step.get("parameters", {})
+        if params:
+            lines.append("**Parameters:**")
+            for k in sorted(params.keys()):
+                lines.append(f"- `{k}`: `{params[k]}`")
+            lines.append("")
+        lines.append("| Entities | Batch mean (s) | Immediate mean (s) | Immediate / batch | ms/step batch | ms/step immediate |")
+        lines.append("|----------|----------------|-------------------|-------------------|---------------|-------------------|")
+        for r in step.get("results", []):
+            lines.append(
+                f"| {r['entity_count']} | {r['batch_total_time_mean_s']:.4f} | "
+                f"{r['immediate_total_time_mean_s']:.4f} | {r['immediate_over_batch']:.2f}× | "
+                f"{r['per_step_batch_ms']:.3f} | {r['per_step_immediate_ms']:.3f} |"
+            )
+        lines.append("")
+        lines.append(
+            "Interpretation: **Immediate / batch** is `immediate_mean_s / batch_mean_s`. "
+            "Values **less than 1** mean immediate updates finished with **lower** total wall time "
+            "for the same schedule (immediate wins here). Values **greater than 1** mean "
+            "batching amortized work better overall on this harness."
+        )
+        lines.append("")
     text = "\n".join(lines) + "\n"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -959,6 +1139,8 @@ def run_verified_spatial_artifacts() -> Dict[str, Any]:
     benchmark = SpatialBenchmark(config)
     results = benchmark.run_comprehensive_benchmark()
     results["verification"] = _verification_metadata(seed)
+    print("\nRunning interleaved step workload (moves + queries per step)...")
+    results["step_workload_benchmark"] = benchmark.collect_step_workload_benchmark()
 
     out_dir = os.path.join(os.getcwd(), "benchmarks", "results")
     os.makedirs(out_dir, exist_ok=True)
