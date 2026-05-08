@@ -124,6 +124,8 @@ from farm.core.environment import Environment
 env = Environment(width=100, height=100, resource_distribution="uniform")
 env.enable_quadtree_indices()
 
+# assume `agent` is an agent-like object with .position
+
 # Rectangular range queries (dict: index name -> entities)
 agents_in_area = env.spatial_index.get_nearby_range(
     bounds=(25, 25, 20, 20),  # x, y, width, height
@@ -313,7 +315,7 @@ env = Environment(width=200, height=200, resource_distribution="uniform")
 env.enable_quadtree_indices()        # For range queries
 env.enable_spatial_hash_indices()    # For fast neighbors
 
-# Use appropriate index for each query type
+# Use appropriate index for each query type (agent defined elsewhere)
 
 # Radial query → KD-tree (default, best for radius)
 allies = env.spatial_index.get_nearby(
