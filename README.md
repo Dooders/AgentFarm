@@ -8,6 +8,8 @@ This repository is being developed to support research in the [Dooders](https://
 
 > **Note**: This project is currently in active development. APIs and features may change between releases. See the [Contributing Guidelines](CONTRIBUTING.md) for information on getting involved.
 
+**Choosing a framework:** AgentFarm targets research workflows and is still evolving. If you need a mature, battle-tested agent-based modeling stack, consider [Mesa](https://github.com/projectmesa/mesa) or other widely used ABM frameworks. For reinforcement learning, established ecosystems such as [Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3), [RLlib](https://docs.ray.io/en/latest/rllib/index.html), and [CleanRL](https://github.com/vwxyzjn/cleanrl) are often better fits when reliability and community scale matter most.
+
 ## Key Features
 
 ### [Agent-Based Modeling & Analysis](docs/features/agent_based_modeling_analysis.md)

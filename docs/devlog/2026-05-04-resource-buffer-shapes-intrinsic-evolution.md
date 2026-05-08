@@ -22,6 +22,8 @@ The raw numbers and side-by-side tables live in
 [stable profile comparison](../experiments/intrinsic_evolution/stable_profile_comparison.md).
 This post is the narrative.
 
+![Resource buffer shapes selection direction and population structure](figures/resource_buffer_selection_structure.png)
+
 ## What was held fixed, what changed
 
 Every run is 1,000 logged steps after a 200-step warmup, single seed (42),  

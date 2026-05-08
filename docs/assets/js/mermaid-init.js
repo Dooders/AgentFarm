@@ -6,7 +6,7 @@
 
   window.mermaid.initialize({
     startOnLoad: false,
-    securityLevel: "loose",
+    securityLevel: "strict",
   });
 
   mermaidBlocks.forEach((codeBlock, index) => {
