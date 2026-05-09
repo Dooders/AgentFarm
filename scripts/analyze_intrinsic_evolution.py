@@ -104,47 +104,47 @@ def _plot_gene_trajectories(
     if not gene_names:
         return None
 
-    plt.style.use("seaborn-v0_8-whitegrid")
-    fig, axes = plt.subplots(
-        len(gene_names),
-        1,
-        figsize=(10, max(3.0, 2.35 * len(gene_names))),
-        sharex=True,
-    )
-    if len(gene_names) == 1:
-        axes = [axes]
-
-    for ax, gene in zip(axes, gene_names):
-        means = np.array([row["gene_stats"].get(gene, {}).get("mean", np.nan) for row in trajectory])
-        stds = np.array([row["gene_stats"].get(gene, {}).get("std", 0.0) for row in trajectory])
-        mins = np.array([row["gene_stats"].get(gene, {}).get("min", np.nan) for row in trajectory])
-        maxs = np.array([row["gene_stats"].get(gene, {}).get("max", np.nan) for row in trajectory])
-
-        # Lighten the full observed range so variability is visible without
-        # overpowering the central tendency band.
-        ax.fill_between(steps, mins, maxs, color="#9aa0a6", alpha=0.10, linewidth=0)
-        ax.fill_between(
-            steps,
-            means - stds,
-            means + stds,
-            color="#4C9EE3",
-            alpha=0.25,
-            linewidth=0,
+    with plt.style.context("seaborn-v0_8-whitegrid"):
+        fig, axes = plt.subplots(
+            len(gene_names),
+            1,
+            figsize=(10, max(3.0, 2.35 * len(gene_names))),
+            sharex=True,
         )
-        ax.plot(steps, means, color="#0B5CAD", lw=2.0, label="mean")
-        ax.scatter([steps[0], steps[-1]], [means[0], means[-1]], color="#0B5CAD", s=18, zorder=3)
-        ax.set_ylabel(gene, fontsize=11)
-        ax.grid(alpha=0.20)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
+        if len(gene_names) == 1:
+            axes = [axes]
 
-    axes[0].legend(["observed range", "mean ± std", "mean"], loc="upper right", fontsize=9, frameon=False)
-    axes[-1].set_xlabel("step")
-    fig.suptitle("Intrinsic Evolution: Gene Trajectories", fontsize=15, y=0.995)
-    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.985])
-    out = output / "gene_trajectories.png"
-    fig.savefig(out, dpi=140, bbox_inches="tight")
-    plt.close(fig)
+        for ax, gene in zip(axes, gene_names):
+            means = np.array([row["gene_stats"].get(gene, {}).get("mean", np.nan) for row in trajectory])
+            stds = np.array([row["gene_stats"].get(gene, {}).get("std", 0.0) for row in trajectory])
+            mins = np.array([row["gene_stats"].get(gene, {}).get("min", np.nan) for row in trajectory])
+            maxs = np.array([row["gene_stats"].get(gene, {}).get("max", np.nan) for row in trajectory])
+
+            # Lighten the full observed range so variability is visible without
+            # overpowering the central tendency band.
+            ax.fill_between(steps, mins, maxs, color="#9aa0a6", alpha=0.10, linewidth=0)
+            ax.fill_between(
+                steps,
+                means - stds,
+                means + stds,
+                color="#4C9EE3",
+                alpha=0.25,
+                linewidth=0,
+            )
+            ax.plot(steps, means, color="#0B5CAD", lw=2.0, label="mean")
+            ax.scatter([steps[0], steps[-1]], [means[0], means[-1]], color="#0B5CAD", s=18, zorder=3)
+            ax.set_ylabel(gene, fontsize=11)
+            ax.grid(alpha=0.20)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+        axes[0].legend(["observed range", "mean ± std", "mean"], loc="upper right", fontsize=9, frameon=False)
+        axes[-1].set_xlabel("step")
+        fig.suptitle("Intrinsic Evolution: Gene Trajectories", fontsize=15, y=0.995)
+        fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.985])
+        out = output / "gene_trajectories.png"
+        fig.savefig(out, dpi=140, bbox_inches="tight")
+        plt.close(fig)
     return out
 
 
@@ -260,31 +260,31 @@ def _plot_speciation_index(
         return None
     steps = np.array([row["step"] for row in trajectory])
     idx = np.array([row.get("speciation_index", 0.0) for row in trajectory])
-    plt.style.use("seaborn-v0_8-whitegrid")
-    fig, ax = plt.subplots(figsize=(10, 3.6))
-    ax.plot(steps, idx, color="#8c564b", lw=2.1)
-    ax.scatter([steps[0], steps[-1]], [idx[0], idx[-1]], color="#8c564b", s=24, zorder=3)
-    ax.axhline(float(np.nanmean(idx)), color="#8c564b", alpha=0.35, lw=1.2, ls="--")
-    ax.text(
-        float(steps[-1]),
-        float(np.nanmean(idx)),
-        f" mean={np.nanmean(idx):.3f}",
-        ha="left",
-        va="center",
-        fontsize=9,
-        color="#6e4b47",
-    )
-    ax.set_xlabel("step")
-    ax.set_ylabel("speciation index")
-    ax.set_ylim(-0.05, 1.05)
-    ax.grid(alpha=0.25)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.set_title("Speciation Index Over Time (Silhouette of GMM Clusters)")
-    fig.tight_layout()
-    out = output / "speciation_index.png"
-    fig.savefig(out, dpi=140, bbox_inches="tight")
-    plt.close(fig)
+    with plt.style.context("seaborn-v0_8-whitegrid"):
+        fig, ax = plt.subplots(figsize=(10, 3.6))
+        ax.plot(steps, idx, color="#8c564b", lw=2.1)
+        ax.scatter([steps[0], steps[-1]], [idx[0], idx[-1]], color="#8c564b", s=24, zorder=3)
+        ax.axhline(float(np.nanmean(idx)), color="#8c564b", alpha=0.35, lw=1.2, ls="--")
+        ax.text(
+            float(steps[-1]),
+            float(np.nanmean(idx)),
+            f" mean={np.nanmean(idx):.3f}",
+            ha="left",
+            va="center",
+            fontsize=9,
+            color="#6e4b47",
+        )
+        ax.set_xlabel("step")
+        ax.set_ylabel("speciation index")
+        ax.set_ylim(-0.05, 1.05)
+        ax.grid(alpha=0.25)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.set_title("Speciation Index Over Time (Silhouette of GMM Clusters)")
+        fig.tight_layout()
+        out = output / "speciation_index.png"
+        fig.savefig(out, dpi=140, bbox_inches="tight")
+        plt.close(fig)
     return out
 
 

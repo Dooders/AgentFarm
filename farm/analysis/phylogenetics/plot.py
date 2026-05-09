@@ -392,7 +392,7 @@ def plot_phylogenetic_tree(
             lineage_of=lineage_of,
             rendered_roots=rendered_roots,
             lineage_palette=lineage_palette,
-            show_lineage_bands=False,
+            show_lineage_bands=bool(color_by_lineage and rendered_roots),
         )
 
     except Exception as exc:
@@ -544,7 +544,9 @@ def plot_intrinsic_lineage_tree(
             lineage_of=lineage_of,
             rendered_roots=rendered_roots,
             lineage_palette=lineage_palette,
-            show_lineage_bands=False,
+            show_lineage_bands=bool(
+                color_by_lineage and not use_gene_colouring and rendered_roots
+            ),
             gene_colorbar=gene_colorbar,
         )
 
