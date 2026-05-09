@@ -51,12 +51,39 @@ def _get_cmap(name: str) -> Any:
         return plt.cm.get_cmap(name)  # type: ignore[attr-defined]
 
 
+def _build_lineage_palette(roots: List[str]) -> Dict[str, Any]:
+    """Return a colour for each root id, drawing from a wide qualitative palette.
+
+    Cycles through tab20 + tab20b + tab20c (60 distinct colours) so adjacent
+    founders rarely share a hue.
+    """
+    palette_cmaps = [_get_cmap("tab20"), _get_cmap("tab20b"), _get_cmap("tab20c")]
+    palette: List[Any] = []
+    for cmap in palette_cmaps:
+        for i in range(20):
+            palette.append(cmap(i / 19.0 if i else 0.0))
+    return {root: palette[idx % len(palette)] for idx, root in enumerate(roots)}
+
+
 def _prune_and_layout_layered_dendrogram(
     df: PhylogeneticTree,
     max_depth: Optional[int],
     max_nodes: int,
-) -> Tuple[Dict[str, PhylogeneticNode], Dict[str, Tuple[float, float]], List[int]]:
-    """Prune to render set and assign layered dendrogram coordinates (shared by tree plotters)."""
+) -> Tuple[
+    Dict[str, PhylogeneticNode],
+    Dict[str, Tuple[float, float]],
+    List[int],
+    Dict[str, str],
+    List[str],
+]:
+    """Prune to render set and assign tidy hierarchical coordinates.
+
+    Children are placed centered above their leaf descendants, so each
+    subtree forms a contiguous horizontal band and parent → child edges
+    flow downward without crossing other lineages. For DAG inputs (multi-
+    parent), a single primary parent is used for layout while every parent
+    edge is still drawn at render time.
+    """
     effective_max_depth = max_depth
     if effective_max_depth is None and len(df.nodes) > max_nodes:
         effective_max_depth = _DEFAULT_MAX_DEPTH_LARGE
@@ -69,32 +96,66 @@ def _prune_and_layout_layered_dendrogram(
         render_ids = {nid for nid, n in df.nodes.items() if n.depth >= 0}
 
     if len(render_ids) > max_nodes:
-        by_depth: Dict[int, List[str]] = defaultdict(list)
+        by_depth_ids: Dict[int, List[str]] = defaultdict(list)
         for nid in sorted(render_ids):
-            by_depth[df.nodes[nid].depth].append(nid)
-        per_level = max(1, max_nodes // max(1, len(by_depth)))
+            by_depth_ids[df.nodes[nid].depth].append(nid)
+        per_level = max(1, max_nodes // max(1, len(by_depth_ids)))
         render_ids = set()
-        for depth_level in sorted(by_depth):
-            render_ids.update(sorted(by_depth[depth_level])[:per_level])
+        for depth_level in sorted(by_depth_ids):
+            render_ids.update(sorted(by_depth_ids[depth_level])[:per_level])
 
     nodes_to_render = {nid: df.nodes[nid] for nid in render_ids}
 
-    by_depth_render: Dict[int, List[str]] = defaultdict(list)
+    children: Dict[str, List[str]] = defaultdict(list)
+    primary_parent: Dict[str, Optional[str]] = {}
     for nid, node in nodes_to_render.items():
-        by_depth_render[node.depth].append(nid)
-    for depth_level in by_depth_render:
-        by_depth_render[depth_level].sort()
+        rendered_parents = [p for p in node.parent_ids if p in nodes_to_render]
+        if rendered_parents:
+            parent = rendered_parents[0]
+            primary_parent[nid] = parent
+            children[parent].append(nid)
+        else:
+            primary_parent[nid] = None
+    for cs in children.values():
+        cs.sort()
+
+    rendered_roots: List[str] = sorted(
+        nid for nid, parent in primary_parent.items() if parent is None
+    )
+
+    leaf_count: Dict[str, int] = {}
+
+    def _compute_leaves(nid: str) -> int:
+        if nid in leaf_count:
+            return leaf_count[nid]
+        kids = children.get(nid, [])
+        leaf_count[nid] = 1 if not kids else sum(_compute_leaves(c) for c in kids)
+        return leaf_count[nid]
+
+    total_leaves = max(1, sum(_compute_leaves(r) for r in rendered_roots))
 
     positions: Dict[str, Tuple[float, float]] = {}
-    depths_present = sorted(by_depth_render.keys())
-    for depth_level in depths_present:
-        ids_at_depth = by_depth_render[depth_level]
-        count = len(ids_at_depth)
-        for i, nid in enumerate(ids_at_depth):
-            x = (i + 1) / (count + 1)
-            positions[nid] = (x, -depth_level)
+    cursor = [0.0]
+    lineage_of: Dict[str, str] = {}
 
-    return nodes_to_render, positions, depths_present
+    def _assign(nid: str, root_id: str) -> float:
+        lineage_of[nid] = root_id
+        depth = nodes_to_render[nid].depth
+        kids = children.get(nid, [])
+        if not kids:
+            x = (cursor[0] + 0.5) / total_leaves
+            cursor[0] += 1.0
+        else:
+            child_xs = [_assign(c, root_id) for c in kids]
+            x = sum(child_xs) / len(child_xs)
+        positions[nid] = (x, -depth)
+        return x
+
+    for root_id in rendered_roots:
+        _assign(root_id, root_id)
+
+    depths_present = sorted({n.depth for n in nodes_to_render.values()})
+    return nodes_to_render, positions, depths_present, lineage_of, rendered_roots
 
 
 def _render_layered_dendrogram_figure(
@@ -108,17 +169,49 @@ def _render_layered_dendrogram_figure(
     title: str,
     output_basename: str,
     log_prefix: str,
-    show_lineage_legend: bool = False,
-    lineage_legend_cmap: Any = None,
+    lineage_of: Optional[Dict[str, str]] = None,
+    rendered_roots: Optional[List[str]] = None,
+    lineage_palette: Optional[Dict[str, Any]] = None,
+    show_lineage_bands: bool = False,
     gene_colorbar: Optional[Tuple[Any, Any, str]] = None,
 ) -> Any:
-    """Draw edges, nodes, axes, optional lineage legend or gene colorbar, save PNG."""
+    """Draw edges, nodes, axes, optional gene colorbar or lineage bands, save PNG."""
     import matplotlib.pyplot as plt
-    import matplotlib.patches as mpatches
 
-    fig_width = max(8.0, len(nodes_to_render) / 5)
-    fig_height = max(5.0, (len(depths_present) + 1) * 0.8)
-    fig, ax = plt.subplots(figsize=(min(fig_width, 24.0), min(fig_height, 16.0)))
+    n_render = max(len(nodes_to_render), 1)
+    fig_width = min(20.0, max(9.0, n_render / 9.0))
+    fig_height = min(12.0, max(4.0, (len(depths_present) + 1) * 1.1))
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+
+    if (
+        show_lineage_bands
+        and lineage_of
+        and rendered_roots
+        and lineage_palette
+    ):
+        extents: Dict[str, Tuple[float, float]] = {}
+        for nid, root in lineage_of.items():
+            x = positions[nid][0]
+            lo, hi = extents.get(root, (x, x))
+            extents[root] = (min(lo, x), max(hi, x))
+        ordered = sorted(rendered_roots, key=lambda r: extents.get(r, (0, 0))[0])
+        y_top = 0.5
+        y_bot = -max(depths_present) - 0.6
+        for i, root in enumerate(ordered):
+            lo, hi = extents.get(root, (0.0, 0.0))
+            pad = 0.004
+            colour = lineage_palette.get(root, (0.5, 0.5, 0.5, 1.0))
+            ax.axvspan(
+                max(lo - pad, -0.02),
+                min(hi + pad, 1.02),
+                ymin=0.0,
+                ymax=1.0,
+                color=colour,
+                alpha=0.06 if i % 2 == 0 else 0.10,
+                zorder=0,
+                linewidth=0,
+            )
+        ax.set_ylim(y_bot, y_top)
 
     for nid, node in nodes_to_render.items():
         if nid not in positions:
@@ -127,55 +220,64 @@ def _render_layered_dendrogram_figure(
         for pid in node.parent_ids:
             if pid in positions:
                 x_parent, y_parent = positions[pid]
+                # Elbow edge: down from parent, across, then into child anchor.
+                y_mid = y_parent - 0.55
                 ax.plot(
-                    [x_parent, x_child],
-                    [y_parent, y_child],
-                    color=(0.6, 0.6, 0.6),
-                    linewidth=0.8,
+                    [x_parent, x_parent, x_child, x_child],
+                    [y_parent, y_mid, y_mid, y_child],
+                    color=(0.55, 0.55, 0.6),
+                    linewidth=0.7,
+                    alpha=0.6,
                     zorder=1,
+                    solid_capstyle="round",
+                    solid_joinstyle="round",
                 )
 
-    node_size = max(20, min(60, 400 // max(len(nodes_to_render), 1)))
+    node_size = max(28, min(110, 1400 // n_render))
+    root_size = int(node_size * 1.6)
     for nid, (x, y) in positions.items():
         colour = colour_map.get(nid, (0.5, 0.5, 0.5, 1.0))
-        marker = "*" if nodes_to_render[nid].is_root else "o"
+        is_root = nodes_to_render[nid].is_root
         ax.scatter(
             x,
             y,
-            s=node_size,
+            s=root_size if is_root else node_size,
             c=[colour],
-            marker=marker,
-            zorder=2,
-            linewidths=0.3,
-            edgecolors="black",
+            marker="*" if is_root else "o",
+            zorder=3,
+            linewidths=0.4,
+            edgecolors="white",
         )
 
-    ax.set_xlim(0, 1)
-    ax.set_ylim(-max(depths_present) - 0.5, 0.5)
-    ax.set_xlabel("Relative position within depth level")
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-max(depths_present) - 0.6, 0.6)
+    ax.set_xlabel("")
     ax.set_ylabel("Depth from founder")
-    ax.set_title(title)
+    ax.set_title(title, fontsize=13)
     ax.set_yticks([-d for d in depths_present])
     ax.set_yticklabels([str(d) for d in depths_present])
     ax.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
+    for spine_name in ("top", "right", "bottom"):
+        ax.spines[spine_name].set_visible(False)
+    ax.grid(False)
+    ax.yaxis.grid(True, linestyle=":", linewidth=0.6, alpha=0.45)
 
     if gene_colorbar is not None:
         gcmap, gnorm, gene_label = gene_colorbar
         sm = plt.cm.ScalarMappable(cmap=gcmap, norm=gnorm)
         sm.set_array([])
         plt.colorbar(sm, ax=ax, label=gene_label, fraction=0.03, pad=0.04)
-    elif show_lineage_legend and df.roots and lineage_legend_cmap is not None:
-        handles = []
-        for idx, root_id in enumerate(df.roots[:10]):
-            patch = mpatches.Patch(
-                color=lineage_legend_cmap(idx % 10), label=f"Lineage: {root_id}"
-            )
-            handles.append(patch)
-        if len(df.roots) > 10:
-            handles.append(
-                mpatches.Patch(color="white", label=f"… +{len(df.roots) - 10} more")
-            )
-        ax.legend(handles=handles, loc="upper right", fontsize=7, framealpha=0.7)
+    elif show_lineage_bands and rendered_roots:
+        ax.text(
+            0.99,
+            1.02,
+            f"{len(rendered_roots)} founder lineages (each colored band = one lineage)",
+            transform=ax.transAxes,
+            fontsize=8,
+            color="#555",
+            ha="right",
+            va="bottom",
+        )
 
     if df.is_dag:
         ax.text(
@@ -258,39 +360,20 @@ def plot_phylogenetic_tree(
         return None
 
     try:
-        nodes_to_render, positions, depths_present = _prune_and_layout_layered_dendrogram(
-            df, max_depth, max_nodes
-        )
+        (
+            nodes_to_render,
+            positions,
+            depths_present,
+            lineage_of,
+            rendered_roots,
+        ) = _prune_and_layout_layered_dendrogram(df, max_depth, max_nodes)
 
         colour_map: Dict[str, Any] = {}
-        lineage_legend_cmap = None
-        if color_by_lineage and df.roots:
-            lineage_legend_cmap = _get_cmap("tab10")
-            lineage_colour: Dict[str, Any] = {}
-            for idx, root_id in enumerate(df.roots):
-                lineage_colour[root_id] = lineage_legend_cmap(idx % 10)
-
-            def _get_lineage_colour(nid: str) -> Any:
-                visited_set: Set[str] = set()
-                current = nid
-                while current in nodes_to_render:
-                    if current in visited_set:
-                        break
-                    visited_set.add(current)
-                    if current in lineage_colour:
-                        return lineage_colour[current]
-                    node = nodes_to_render[current]
-                    parents = [p for p in node.parent_ids if p in nodes_to_render]
-                    if not parents:
-                        break
-                    current = parents[0]
-                return lineage_colour.get(
-                    df.roots[0] if df.roots else list(nodes_to_render)[0],
-                    (0.5, 0.5, 0.5, 1.0),
-                )
-
-            for nid in nodes_to_render:
-                colour_map[nid] = _get_lineage_colour(nid)
+        lineage_palette: Dict[str, Any] = {}
+        if color_by_lineage and rendered_roots:
+            lineage_palette = _build_lineage_palette(rendered_roots)
+            for nid, root in lineage_of.items():
+                colour_map[nid] = lineage_palette.get(root, (0.5, 0.5, 0.5, 1.0))
         else:
             default_colour = (0.2, 0.4, 0.8, 0.8)
             for nid in nodes_to_render:
@@ -306,8 +389,10 @@ def plot_phylogenetic_tree(
             title=title,
             output_basename="phylogenetics_tree.png",
             log_prefix="plot_phylogenetic_tree",
-            show_lineage_legend=bool(color_by_lineage and df.roots),
-            lineage_legend_cmap=lineage_legend_cmap,
+            lineage_of=lineage_of,
+            rendered_roots=rendered_roots,
+            lineage_palette=lineage_palette,
+            show_lineage_bands=bool(color_by_lineage and rendered_roots),
         )
 
     except Exception as exc:
@@ -381,14 +466,18 @@ def plot_intrinsic_lineage_tree(
         return None
 
     try:
-        nodes_to_render, positions, depths_present = _prune_and_layout_layered_dendrogram(
-            df, max_depth, max_nodes
-        )
+        (
+            nodes_to_render,
+            positions,
+            depths_present,
+            lineage_of,
+            rendered_roots,
+        ) = _prune_and_layout_layered_dendrogram(df, max_depth, max_nodes)
 
         colour_map: Dict[str, Any] = {}
         use_gene_colouring = False
         gene_colorbar: Optional[Tuple[Any, Any, str]] = None
-        lineage_legend_cmap = None
+        lineage_palette: Dict[str, Any] = {}
 
         if gene and chromosomes:
             gene_values: Dict[str, float] = {}
@@ -433,33 +522,10 @@ def plot_intrinsic_lineage_tree(
             )
 
         if not use_gene_colouring:
-            if color_by_lineage and df.roots:
-                lineage_legend_cmap = _get_cmap("tab10")
-                lineage_colour: Dict[str, Any] = {}
-                for idx, root_id in enumerate(df.roots):
-                    lineage_colour[root_id] = lineage_legend_cmap(idx % 10)
-
-                def _get_lineage_colour(nid: str) -> Any:
-                    visited_set: Set[str] = set()
-                    current = nid
-                    while current in nodes_to_render:
-                        if current in visited_set:
-                            break
-                        visited_set.add(current)
-                        if current in lineage_colour:
-                            return lineage_colour[current]
-                        node = nodes_to_render[current]
-                        parents = [p for p in node.parent_ids if p in nodes_to_render]
-                        if not parents:
-                            break
-                        current = parents[0]
-                    return lineage_colour.get(
-                        df.roots[0] if df.roots else list(nodes_to_render)[0],
-                        (0.5, 0.5, 0.5, 1.0),
-                    )
-
-                for nid in nodes_to_render:
-                    colour_map[nid] = _get_lineage_colour(nid)
+            if color_by_lineage and rendered_roots:
+                lineage_palette = _build_lineage_palette(rendered_roots)
+                for nid, root in lineage_of.items():
+                    colour_map[nid] = lineage_palette.get(root, (0.5, 0.5, 0.5, 1.0))
             else:
                 default_colour = (0.2, 0.4, 0.8, 0.8)
                 for nid in nodes_to_render:
@@ -475,10 +541,12 @@ def plot_intrinsic_lineage_tree(
             title=title,
             output_basename="intrinsic_lineage_tree.png",
             log_prefix="plot_intrinsic_lineage_tree",
-            show_lineage_legend=bool(
-                color_by_lineage and not use_gene_colouring and df.roots
+            lineage_of=lineage_of,
+            rendered_roots=rendered_roots,
+            lineage_palette=lineage_palette,
+            show_lineage_bands=bool(
+                color_by_lineage and not use_gene_colouring and rendered_roots
             ),
-            lineage_legend_cmap=lineage_legend_cmap,
             gene_colorbar=gene_colorbar,
         )
 

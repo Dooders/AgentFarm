@@ -29,7 +29,7 @@ This post is the narrative.
 Every run is 1,000 logged steps after a 200-step warmup, single seed (42),  
 30 founders seeded by independent mutation, mutation rate 0.15 / scale 0.10,  
 crossover off, GMM  
-[speciation](../glossary.md) tracking, and `selection_pressure="low"` (a
+[speciation](../glossary.md#speciation) tracking, and `selection_pressure="low"` (a
 small density-dependent reproduction cost, no global carrying-cap term).
 
 The only thing that varies is the resource buffer:
@@ -117,8 +117,7 @@ when poor.
 
 ## Reading the speciation traces
 
-The speciation index is a
-[silhouette score](../glossary.md) on chromosome-space clusters (see
+The speciation index is a silhouette score on chromosome-space clusters (see
 [intrinsic evolution docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)).
 Higher means clusters are better separated. Plotting it over time tells
 you whether the population is splitting into niches or collapsing back
@@ -137,11 +136,13 @@ much* the population can afford to spread out in chromosome space. With
 abundant food, sub-populations have room to drift apart from each other.
 With tight food, the survivors look more and more alike.
 
-The relevant figures are the per-run `speciation_index.png` and
-`gene_trajectories.png` under each
-`experiments/intrinsic_evolution_stable_*/analysis/` folder.
+![Speciation index over time (silhouette score)](figures/speciation_index_intrinsic_evolution.png)
+
+![Gene trajectories over time](figures/gene_trajectories_intrinsic_evolution.png)
 
 ## Lineage trees
+
+![Intrinsic lineage tree (colored by learning_rate)](figures/intrinsic_lineage_tree_intrinsic_evolution.png)
 
 All three runs hit the same maximum lineage depth of 3 (great-grandchildren
 make it to the final snapshot), but the breadth differs. Buffered keeps
