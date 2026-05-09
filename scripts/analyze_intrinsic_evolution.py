@@ -14,7 +14,7 @@ Reads the artifacts written by
 - ``cluster_lineage_sizes.png`` -- per-cluster size over snapshot steps.
 - ``speciation_clusters_step{first,mid,last}.png`` -- chromosome-space
   scatter at three representative snapshots.
-- ``lineage_tree.png`` -- intrinsic lineage DAG, coloured by ``learning_rate``.
+- ``lineage_tree.png`` -- intrinsic lineage DAG, colored by ``learning_rate``.
 - ``lineage_summary.png`` -- surviving-lineage count and depth over time.
 - ``analysis_summary.json`` -- machine-readable rollup of headline metrics.
 - ``analysis_summary.md`` -- human-readable rollup of headline metrics.
@@ -104,7 +104,13 @@ def _plot_gene_trajectories(
     if not gene_names:
         return None
 
-    fig, axes = plt.subplots(len(gene_names), 1, figsize=(9, 2.5 * len(gene_names)), sharex=True)
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, axes = plt.subplots(
+        len(gene_names),
+        1,
+        figsize=(10, max(3.0, 2.35 * len(gene_names))),
+        sharex=True,
+    )
     if len(gene_names) == 1:
         axes = [axes]
 
@@ -114,17 +120,28 @@ def _plot_gene_trajectories(
         mins = np.array([row["gene_stats"].get(gene, {}).get("min", np.nan) for row in trajectory])
         maxs = np.array([row["gene_stats"].get(gene, {}).get("max", np.nan) for row in trajectory])
 
-        ax.plot(steps, means, color="#1f77b4", lw=1.6, label="mean")
-        ax.fill_between(steps, means - stds, means + stds, color="#1f77b4", alpha=0.20, label="± std")
-        ax.plot(steps, mins, color="#888", lw=0.6, ls=":", label="min/max")
-        ax.plot(steps, maxs, color="#888", lw=0.6, ls=":")
-        ax.set_ylabel(gene)
-        ax.grid(alpha=0.25)
+        # Lighten the full observed range so variability is visible without
+        # overpowering the central tendency band.
+        ax.fill_between(steps, mins, maxs, color="#9aa0a6", alpha=0.10, linewidth=0)
+        ax.fill_between(
+            steps,
+            means - stds,
+            means + stds,
+            color="#4C9EE3",
+            alpha=0.25,
+            linewidth=0,
+        )
+        ax.plot(steps, means, color="#0B5CAD", lw=2.0, label="mean")
+        ax.scatter([steps[0], steps[-1]], [means[0], means[-1]], color="#0B5CAD", s=18, zorder=3)
+        ax.set_ylabel(gene, fontsize=11)
+        ax.grid(alpha=0.20)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
 
-    axes[0].legend(loc="upper right", fontsize=8)
+    axes[0].legend(["observed range", "mean ± std", "mean"], loc="upper right", fontsize=9, frameon=False)
     axes[-1].set_xlabel("step")
-    fig.suptitle("Intrinsic evolution: gene trajectories")
-    fig.tight_layout()
+    fig.suptitle("Intrinsic Evolution: Gene Trajectories", fontsize=15, y=0.995)
+    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.985])
     out = output / "gene_trajectories.png"
     fig.savefig(out, dpi=140, bbox_inches="tight")
     plt.close(fig)
@@ -243,13 +260,27 @@ def _plot_speciation_index(
         return None
     steps = np.array([row["step"] for row in trajectory])
     idx = np.array([row.get("speciation_index", 0.0) for row in trajectory])
-    fig, ax = plt.subplots(figsize=(9, 3))
-    ax.plot(steps, idx, color="#8c564b")
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(10, 3.6))
+    ax.plot(steps, idx, color="#8c564b", lw=2.1)
+    ax.scatter([steps[0], steps[-1]], [idx[0], idx[-1]], color="#8c564b", s=24, zorder=3)
+    ax.axhline(float(np.nanmean(idx)), color="#8c564b", alpha=0.35, lw=1.2, ls="--")
+    ax.text(
+        float(steps[-1]),
+        float(np.nanmean(idx)),
+        f" mean={np.nanmean(idx):.3f}",
+        ha="left",
+        va="center",
+        fontsize=9,
+        color="#6e4b47",
+    )
     ax.set_xlabel("step")
     ax.set_ylabel("speciation index")
     ax.set_ylim(-0.05, 1.05)
     ax.grid(alpha=0.25)
-    ax.set_title("Speciation index over time (silhouette of GMM clusters)")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.set_title("Speciation Index Over Time (Silhouette of GMM Clusters)")
     fig.tight_layout()
     out = output / "speciation_index.png"
     fig.savefig(out, dpi=140, bbox_inches="tight")
@@ -549,7 +580,7 @@ def main() -> int:
                 ctx,
                 gene="learning_rate",
                 chromosomes=chromosomes,
-                title="Intrinsic Lineage Tree (coloured by learning_rate)",
+                title="Intrinsic Lineage Tree (colored by learning_rate)",
             )
             artifacts["lineage_tree"] = str(tree_path) if tree_path else None
 

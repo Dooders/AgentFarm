@@ -480,19 +480,44 @@ samp {
 }
 .prose table {
   width: 100%;
-  border-collapse: collapse;
-  margin: 1.2em 0;
+  margin: 1.25em 0 1.45em;
   font-size: 0.94em;
+  line-height: 1.45;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border-strong) 35%, transparent);
 }
-.prose th,
-.prose td {
+.prose thead th {
+  text-align: left;
+  padding: 9px 12px;
+  font-weight: 650;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-muted) 90%, var(--surface));
+  border-bottom: 1px solid var(--border-strong);
+  vertical-align: bottom;
+}
+.prose tbody td {
   text-align: left;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
+  vertical-align: top;
 }
-.prose th {
-  font-weight: 600;
-  color: var(--text);
+.prose tbody tr:last-child td {
+  border-bottom: 0;
+}
+.prose th + th,
+.prose td + td {
+  border-left: 1px solid var(--border);
+}
+.prose tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--surface-muted) 45%, var(--surface));
+}
+.prose tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-muted) 70%, var(--surface));
 }
 .prose hr {
   border: 0;
