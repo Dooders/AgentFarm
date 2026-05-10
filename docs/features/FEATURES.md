@@ -270,15 +270,15 @@ row = agent_repo.get_agent_by_id("agent_001")
 
 ### 7. Spatial Indexing & Performance
 
-**State-of-the-art spatial data structures for maximum performance**
+**Spatial indices for proximity-heavy simulations**
 
-Multiple spatial indexing strategies optimized for different query patterns, with batch update processing for incremental improvements.
+Multiple spatial indexing strategies optimized for different query patterns, with optional batching for bursty movement.
 
 **Key Capabilities:**
-- 🌳 **Three Index Types**: KD-tree, Quadtree, Spatial Hash Grid
-- ⚡ **Batch Updates**: Incremental reduction in computational overhead
-- 🎯 **Query Optimization**: Choose optimal index per query type
-- 📊 **Performance Monitoring**: Real-time metrics and benchmarking
+- **Three index types**: KD-tree (built with SciPy `cKDTree` inside `SpatialIndex`), quadtree, spatial hash
+- **Batch updates**: Queue moves and flush explicitly or via `Environment.process_batch_spatial_updates`
+- **Query routing**: Pass `index_names=[...]` to target the registered index for each query
+- **Measured performance**: Committed artifacts under `benchmarks/results/` (see full doc)
 
 **Quick example:**
 ```python
@@ -307,16 +307,13 @@ env.enable_spatial_hash_indices(15.0)
 
 pos = (50.0, 50.0)
 bounds = (40.0, 40.0, 20.0, 20.0)  # (x, y, width, height)
-env.spatial_index.get_nearby(pos, 5.0, ["agents"])
-env.spatial_index.get_nearby_range(bounds, ["agents_quadtree"])
-env.spatial_index.get_nearby(pos, 3.0, ["agents_hash"])
+# get_nearby / get_nearby_range return dict[str, list] keyed by index name
+radius_hits = env.spatial_index.get_nearby(pos, 5.0, ["agents"])
+range_hits = env.spatial_index.get_nearby_range(bounds, ["agents_quadtree"])
+hash_hits = env.spatial_index.get_nearby(pos, 3.0, ["agents_hash"])
 ```
 
-**Performance:**
-- **Build Time**: 1.26ms for 1,000 entities
-- **Query Time**: 4.85μs average (beats Scikit-learn by 5x)
-- **Memory**: <0.1MB per 1,000 entities
-- **Scalability**: Handles hundreds of entities efficiently
+**Performance:** Committed, reproducible timings live in [`benchmarks/results/spatial_benchmark_verified.json`](../../benchmarks/results/spatial_benchmark_verified.json) and the Markdown summary [`benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md`](../../benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md). Regenerate with `PYTHONHASHSEED=0 python benchmarks/implementations/spatial/comprehensive_spatial_benchmark.py --verified` from the repo root.
 
 📖 **[Full Documentation →](spatial_indexing_performance.md)**
 
@@ -493,8 +490,8 @@ create_reproducibility_report(analysis_params, results)
 | **Max Agents** | 200+ | Tested with spatial indexing |
 | **Steps per Second** | 2.5-8.6 | Depends on agent count (fewer = faster) |
 | **Memory Usage** | ~200MB | 1,000 agents, full logging |
-| **Spatial Query** | 4.85μs | Average KD-tree query |
-| **Batch Updates** | 2-3% faster | vs. individual updates |
+| **Spatial Query** | See verified JSON | Radius-query means in `spatial_benchmark_verified.json` |
+| **Batch Updates** | See verified JSON | Microbenchmark rows in the same artifact |
 
 ### Scalability
 

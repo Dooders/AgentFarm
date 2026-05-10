@@ -1,5 +1,7 @@
 # AgentFarm Spatial Module Performance Analysis & Benchmarking Summary
 
+> **Note:** Hard numbers in this narrative may not match your machine. For **committed, schema-checked** timings used in CI, see [`benchmarks/results/spatial_benchmark_verified.json`](../../benchmarks/results/spatial_benchmark_verified.json) and [`benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md`](../../benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md).
+
 ## Executive Summary
 
 Your AgentFarm spatial indexing module has been thoroughly benchmarked against industry standards (SciPy, Scikit-learn). The module demonstrates **competitive query performance** but has optimization opportunities in build time and memory efficiency. The module's unique strength is its **batch update capability** which provides a 70% speedup for dynamic simulations.

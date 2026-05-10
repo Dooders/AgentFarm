@@ -153,7 +153,9 @@ benchmarks/redis/performance_history.png
 benchmarks/redis/redis_benchmark_results.json
 benchmarks/redis/redis_performance_history.json
 benchmarks/redis/results/
-benchmarks/results/
+benchmarks/results/*
+!benchmarks/results/spatial_benchmark_verified.json
+!benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md
 
 # Local analysis cache
 .analysis_cache/
