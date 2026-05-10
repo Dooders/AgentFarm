@@ -22,17 +22,14 @@
      - [Real-Time Performance Metrics](#real-time-performance-metrics)
      - [Profiling and Optimization](#profiling-and-optimization)
      - [Benchmarking](#benchmarking)
-   - [5. Scalable Architecture](#5-scalable-architecture)
-     - [Scaling Characteristics](#scaling-characteristics)
-     - [Performance vs Industry Standards](#performance-vs-industry-standards)
-     - [Optimization Strategies](#optimization-strategies)
+   - [5. Scalable architecture](#5-scalable-architecture)
+     - [Optimization strategies](#optimization-strategies)
 3. [Advanced Usage](#advanced-usage)
    - [Priority-Based Updates](#priority-based-updates)
    - [Custom Query Filters](#custom-query-filters)
    - [Spatial Analysis](#spatial-analysis)
-4. [Performance Benchmarks](#performance-benchmarks)
-   - [Real-World Performance](#real-world-performance)
-5. [Example: Complete Performance Optimization](#example-complete-performance-optimization)
+4. [Performance benchmarks](#performance-benchmarks)
+5. [Example: complete performance optimization](#example-complete-performance-optimization)
 6. [Additional Resources](#additional-resources)
    - [Documentation](#documentation)
    - [Benchmarks](#benchmarks)
@@ -41,9 +38,28 @@
 
 ---
 
+## Verified performance (repository artifacts)
+
+Quantitative timings belong in **committed benchmark output**, not hand-edited prose.
+
+| Artifact | Purpose |
+|----------|---------|
+| [`benchmarks/results/spatial_benchmark_verified.json`](../../benchmarks/results/spatial_benchmark_verified.json) | Raw timings, batch microbenchmark rows, and host metadata |
+| [`benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md`](../../benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md) | Markdown tables generated from that JSON |
+
+Regenerate from the repository root (after `pip install -e .`):
+
+```bash
+PYTHONHASHSEED=0 python benchmarks/implementations/spatial/comprehensive_spatial_benchmark.py --verified
+```
+
+`tests/benchmarks/test_spatial_benchmark_verified_artifact.py` asserts that both files exist and that the JSON contains the expected schema (including fixed RNG seed `42`) plus the **interleaved step workload** block (`step_workload_benchmark`) for simulation-style batch vs immediate comparison. When you intentionally change spatial performance characteristics, re-run the command above and commit the refreshed artifacts alongside your code.
+
+---
+
 ## Overview
 
-AgentFarm's Spatial Indexing & Performance system provides state-of-the-art spatial data structures and optimization techniques for efficient large-scale multi-agent simulations. With multiple indexing strategies, batch update processing, and comprehensive performance monitoring, the system can handle thousands of agents with minimal computational overhead.
+AgentFarm’s spatial stack combines KD-tree (via SciPy `cKDTree` inside `SpatialIndex`), optional quadtree and spatial-hash indices, batch position updates with dirty-region tracking, and lightweight runtime stats. It is intended for large multi-agent worlds where proximity queries dominate; always validate latency on your own workloads (see [Verified performance](#verified-performance-repository-artifacts)).
 
 ### Why Spatial Indexing Matters
 
@@ -69,39 +85,33 @@ AgentFarm implements three complementary spatial indexing strategies, each optim
 ```python
 from farm.core.environment import Environment
 
-# KD-trees are enabled by default
-env = Environment(
-    width=100,
-    height=100,
-    spatial_index_enabled=True
-)
+# KD-backed agent/resource indices are created with the environment.
+env = Environment(width=100, height=100, resource_distribution="uniform")
 
-# Efficient radial queries: O(log n)
-nearby_agents = env.spatial_index.get_nearby(
+# Radius query: returns a dict mapping index name -> entities
+nearby_by_index = env.spatial_index.get_nearby(
     position=(50, 50),
     radius=10.0,
-    entity_types=["agents"]
+    index_names=["agents"],
 )
+nearby_agents = nearby_by_index.get("agents", [])
 
-# Nearest neighbor queries: O(log n)
-nearest_resource = env.spatial_index.get_nearest(
+# Nearest neighbor: dict mapping index name -> entity or None
+nearest_by_index = env.spatial_index.get_nearest(
     position=(25, 25),
-    entity_types=["resources"]
+    index_names=["resources"],
 )
+nearest_resource = nearest_by_index.get("resources")
 ```
 
 **Key Features:**
-- **Sub-linear Query Time**: O(log n) average for both radius and nearest neighbor
+- **Sub-linear Query Time**: Typical tree-backed radius and nearest-neighbor queries scale roughly as O(log n) in many regimes (depends on radius, density, and implementation).
 - **Continuous Positions**: Supports floating-point coordinates
-- **Bilinear Interpolation**: Smooth position representation
 - **Automatic Cache Invalidation**: Rebuilds only when positions change
 - **Multi-Entity Support**: Separate trees for agents, resources, obstacles
+- **SciPy-backed KD path**: Default KD queries use `scipy.spatial.cKDTree` inside `SpatialIndex` (AgentFarm adds orchestration, batching, and extra indices)
 
-**Performance Characteristics:**
-- Build Time: ~1.26ms for 1000 entities
-- Query Time: ~4.85μs per query
-- Memory: ~0.1MB per 1000 entities
-- Scaling: Near-optimal sub-linear scaling
+**Measured performance:** Do not rely on hand-copied microsecond figures in feature docs. Run the deterministic harness and read the committed artifacts ([`benchmarks/results/spatial_benchmark_verified.json`](../../benchmarks/results/spatial_benchmark_verified.json) and [`benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md`](../../benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md)); see [Verified performance](#verified-performance-repository-artifacts).
 
 #### Quadtree Indexing
 
@@ -111,21 +121,23 @@ nearest_resource = env.spatial_index.get_nearest(
 from farm.core.environment import Environment
 
 # Enable Quadtree indices
-env = Environment(width=100, height=100)
+env = Environment(width=100, height=100, resource_distribution="uniform")
 env.enable_quadtree_indices()
 
-# Rectangular range queries: O(log n) average
+# assume `agent` is an agent-like object with .position
+
+# Rectangular range queries (dict: index name -> entities)
 agents_in_area = env.spatial_index.get_nearby_range(
     bounds=(25, 25, 20, 20),  # x, y, width, height
-    entity_types=["agents_quadtree"]
-)
+    index_names=["agents_quadtree"],
+)["agents_quadtree"]
 
 # Radius queries (also supported)
 nearby = env.spatial_index.get_nearby(
     position=(50, 50),
     radius=15.0,
-    entity_types=["agents_quadtree"]
-)
+    index_names=["agents_quadtree"],
+)["agents_quadtree"]
 
 # Efficient dynamic updates
 env.spatial_index.update_entity_position(
@@ -147,11 +159,7 @@ print(f"Node count: {stats['node_count']}")
 - **Spatial Locality**: Nearby entities grouped in hierarchy
 - **Memory Efficient**: Hierarchical structure reduces cache misses
 
-**Performance Characteristics:**
-- Build Time: ~8.84ms for 1000 entities
-- Query Time: ~6.76μs per query
-- Memory: ~0.3MB per 1000 entities
-- Scaling: Good O(log n) for range queries
+**Measured performance:** Use the verified benchmark artifacts linked above (same harness for all index types).
 
 **When to Use Quadtree:**
 - Area-of-effect abilities (explosions, spells)
@@ -168,27 +176,27 @@ print(f"Node count: {stats['node_count']}")
 from farm.core.environment import Environment
 
 # Enable Spatial Hash indices
-env = Environment(width=100, height=100)
+env = Environment(width=100, height=100, resource_distribution="uniform")
 env.enable_spatial_hash_indices(cell_size=5.0)  # Optional cell size
 
-# Fast neighborhood queries: O(1) average
+# Fast neighborhood queries (typical cost scales with local density / bucket count)
 nearby = env.spatial_index.get_nearby(
     position=(50, 50),
     radius=10.0,
-    entity_types=["agents_hash"]
-)
+    index_names=["agents_hash"],
+)["agents_hash"]
 
-# Nearest neighbor (via grid expansion)
+# Nearest neighbor (grid expansion inside SpatialIndex)
 nearest = env.spatial_index.get_nearest(
     position=(42, 18),
-    entity_types=["resources_hash"]
-)
+    index_names=["resources_hash"],
+)["resources_hash"]
 
 # Range queries also supported
 in_rect = env.spatial_index.get_nearby_range(
     bounds=(30, 30, 20, 20),
-    entity_types=["agents_hash"]
-)
+    index_names=["agents_hash"],
+)["agents_hash"]
 ```
 
 **Key Features:**
@@ -198,11 +206,7 @@ in_rect = env.spatial_index.get_nearby_range(
 - **Hotspot Robust**: Performs well under non-uniform distributions
 - **Simple Implementation**: Easy to debug and understand
 
-**Performance Characteristics:**
-- Build Time: ~3.12ms for 1000 entities
-- Query Time: ~3.61μs per query
-- Memory: ~0.2MB per 1000 entities
-- Scaling: Near-constant time for local queries
+**Measured performance:** Use the verified benchmark artifacts linked above.
 
 **When to Use Spatial Hash:**
 - Large, frequently changing populations
@@ -214,7 +218,7 @@ in_rect = env.spatial_index.get_nearby_range(
 
 ### 2. Batch Spatial Updates
 
-Dirty region tracking system that provides modest performance improvements for spatial updates.
+Position changes can be **queued** and applied through `process_batch_updates`, coordinated with dirty-region tracking when batching is enabled. Whether that is faster than immediate updates for your scenario is workload-dependent; see the **batch vs immediate** table in [`SPATIAL_BENCHMARK_VERIFIED.md`](../../benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md).
 
 #### How Batch Updates Work
 
@@ -226,43 +230,39 @@ Instead of rebuilding spatial indices every time an entity moves, batch updates:
 
 ```python
 from farm.config import SpatialIndexConfig, SimulationConfig
+from farm.core.environment import Environment
 
-# Configure batch updates
 spatial_config = SpatialIndexConfig(
     enable_batch_updates=True,
-    region_size=50.0,                  # Size of each dirty region
-    max_batch_size=100,                # Max updates per batch
-    max_regions=1000,                  # Max regions to track
-    dirty_region_batch_size=10,        # Regions per batch
-    performance_monitoring=True
+    region_size=50.0,
+    max_batch_size=100,
+    max_regions=1000,
+    dirty_region_batch_size=10,
+    performance_monitoring=True,
 )
 
-config = SimulationConfig(
-    width=200,
-    height=200,
-    spatial_index_config=spatial_config
+config = SimulationConfig()
+config.environment.width = 200
+config.environment.height = 200
+config.environment.spatial_index = spatial_config
+
+env = Environment(
+    width=config.environment.width,
+    height=config.environment.height,
+    resource_distribution="uniform",
+    config=config,
 )
 
-# Create environment with batch updates
-env = Environment(width=200, height=200, config=config)
+# When batching is on, prefer add_position_update(...) or API paths that queue moves,
+# then flush explicitly when you need queries to see every move:
+env.spatial_index.flush_pending_updates()
 
-# Position updates are automatically batched
-for agent in agents:
-    agent.move_to(new_position)  # Queued for batch processing
+# Or use the Environment helper (delegates to SpatialIndex.process_batch_updates)
+env.process_batch_spatial_updates(force=True)
 
-# Batch is automatically processed when:
-# 1. Flush interval expires (default: 1 second)
-# 2. Max pending updates reached (default: 50)
-# 3. Explicit flush requested
-
-# Manual flush if needed
-env.spatial_index.flush_updates()
-
-# Check statistics
 stats = env.get_spatial_performance_stats()
-print(f"Batch updates: {stats['batch_updates']['total_batch_updates']}")
-print(f"Avg batch size: {stats['batch_updates']['average_batch_size']:.1f}")
-print(f"Efficiency gain: {stats['batch_updates']['efficiency_percentage']:.1%}")
+print(stats["batch_updates"]["total_batch_updates"], "batch flushes so far")
+print(stats["batch_updates"]["pending_updates_count"], "updates still queued")
 ```
 
 #### Partial Flushing
@@ -274,29 +274,22 @@ For fine-grained control over update timing:
 processed = env.spatial_index.flush_partial_updates(max_updates=25)
 print(f"Processed {processed} updates")
 
-# Check remaining
-pending = len(env.spatial_index._pending_position_updates)
-print(f"Remaining: {pending}")
+pending = env.spatial_index.get_batch_update_stats()["pending_updates_count"]
+print(f"Remaining pending: {pending}")
 
-# Use in responsive applications
-total_processed = 0
-while env.spatial_index.has_pending_updates():
-    # Process small batch
+# Incremental flushing loop (pseudo-code for a frame budget)
+while env.spatial_index.get_batch_update_stats()["pending_updates_count"] > 0:
     processed = env.spatial_index.flush_partial_updates(max_updates=10)
-    total_processed += processed
-    
-    # Maintain responsiveness
+    if processed == 0:
+        break
     handle_user_input()
     render_frame()
-    
-print(f"Total processed: {total_processed}")
 ```
 
 **Benefits:**
-- **Modest Reduction** in update overhead for dynamic simulations (2-3% speedup)
-- **Improved Scalability**: Performance scales better with population
-- **Data Integrity**: Ensures consistent state across indices
-- **Fine-Grained Control**: Partial flushing for responsive apps
+- **Amortized index work**: Many moves can share one rebuild / dirty-region pass instead of paying per call (exact win is scenario-specific; see verified tables).
+- **Data integrity**: `get_nearby` / `get_nearest` call `update()` first unless `allow_stale_reads=True`, so reads see flushed state by default.
+- **Fine-grained control**: `flush_partial_updates` lets you spend a bounded amount of work per frame.
 
 **When to Use:**
 - Simulations with frequent agent movement
@@ -316,32 +309,32 @@ Use multiple spatial indices simultaneously for optimal performance.
 from farm.core.environment import Environment
 
 # Create environment with multiple indices
-env = Environment(width=200, height=200)
+env = Environment(width=200, height=200, resource_distribution="uniform")
 
 # Enable all index types
 env.enable_quadtree_indices()        # For range queries
 env.enable_spatial_hash_indices()    # For fast neighbors
 
-# Use appropriate index for each query type
+# Use appropriate index for each query type (agent defined elsewhere)
 
 # Radial query → KD-tree (default, best for radius)
 allies = env.spatial_index.get_nearby(
     position=agent.position,
     radius=5.0,
-    entity_types=["agents"]  # Uses KD-tree
+    index_names=["agents"]  # Uses KD-tree
 )
 
 # Range query → Quadtree (best for rectangles)
 enemies_in_area = env.spatial_index.get_nearby_range(
     bounds=(x, y, width, height),
-    entity_types=["agents_quadtree"]
+    index_names=["agents_quadtree"]
 )
 
 # Frequent neighbor queries → Spatial Hash (fastest average)
 nearby_resources = env.spatial_index.get_nearby(
     position=agent.position,
     radius=3.0,
-    entity_types=["resources_hash"]
+    index_names=["resources_hash"]
 )
 ```
 
@@ -355,28 +348,29 @@ nearby_resources = env.spatial_index.get_nearby(
 | **Frequent neighbors** | Spatial Hash | ~O(1) | Dynamic crowds |
 | **Dynamic updates** | Spatial Hash | O(1) | Moving entities |
 
-#### Custom Named Indices
+`index_names` values (for example `agents`, `agents_quadtree`, `agents_hash`) must match indices registered on `SpatialIndex`—`Environment` sets these up when you enable optional indices.
 
-Create specialized indices for specific entity types:
+#### Custom named indices
+
+Register a dedicated index over your own entity list (here, hypothetical `projectiles`):
 
 ```python
-# Define custom index for projectiles
-projectile_config = {
-    "index_type": "spatial_hash",
-    "cell_size": 2.0,
-    "enable_batch_updates": True
-}
+projectiles = []  # populate with objects exposing .position
 
-env.spatial_index.add_named_index(
+env.spatial_index.register_index(
     "projectiles",
-    projectile_config
+    data_reference=projectiles,
+    position_getter=lambda p: p.position,
+    filter_func=lambda p: getattr(p, "alive", True),
+    index_type="spatial_hash",
+    cell_size=2.0,
 )
+env.spatial_index.update()
 
-# Use custom index
 nearby_projectiles = env.spatial_index.get_nearby(
     position=agent.position,
     radius=10.0,
-    entity_types=["projectiles"]
+    index_names=["projectiles"],
 )
 ```
 
@@ -389,40 +383,21 @@ Comprehensive metrics and statistics for optimization.
 #### Real-Time Performance Metrics
 
 ```python
-# Get detailed performance statistics
+# get_spatial_performance_stats() merges SpatialIndex.get_stats(),
+# nested batch counters from get_batch_update_stats(), and perception metadata.
 stats = env.get_spatial_performance_stats()
 
-# Query performance
-print("Query Performance:")
-print(f"  Total queries: {stats['queries']['total_count']}")
-print(f"  Avg query time: {stats['queries']['avg_time_ms']:.3f}ms")
-print(f"  Max query time: {stats['queries']['max_time_ms']:.3f}ms")
-print(f"  Queries per second: {stats['queries']['queries_per_second']:.1f}")
+print("Agents / resources tracked by index:", stats["agent_count"], stats["resource_count"])
+print("KD-trees built?", stats["agent_kdtree_exists"], stats["resource_kdtree_exists"])
+print("Positions dirty?", stats["positions_dirty"])
 
-# Update performance
-print("\nUpdate Performance:")
-print(f"  Total updates: {stats['updates']['total_count']}")
-print(f"  Avg update time: {stats['updates']['avg_time_ms']:.3f}ms")
-print(f"  Updates per second: {stats['updates']['updates_per_second']:.1f}")
+batch = stats["batch_updates"]
+print("Batch flushes:", batch["total_batch_updates"])
+print("Entities processed in batches:", batch["total_individual_updates"])
+print("Avg batch size:", batch["average_batch_size"])
+print("Pending queued moves:", batch["pending_updates_count"])
 
-# Batch update efficiency
-print("\nBatch Updates:")
-print(f"  Total batches: {stats['batch_updates']['total_batch_updates']}")
-print(f"  Avg batch size: {stats['batch_updates']['average_batch_size']:.1f}")
-print(f"  Efficiency gain: {stats['batch_updates']['efficiency_percentage']:.1%}")
-
-# Memory usage
-print("\nMemory:")
-print(f"  Total memory: {stats['memory']['total_mb']:.2f}MB")
-print(f"  Per entity: {stats['memory']['per_entity_kb']:.2f}KB")
-
-# Index statistics
-print("\nIndex Statistics:")
-for index_name, index_stats in stats['indices'].items():
-    print(f"  {index_name}:")
-    print(f"    Entity count: {index_stats['entity_count']}")
-    print(f"    Memory: {index_stats['memory_mb']:.2f}MB")
-    print(f"    Last rebuild: {index_stats['last_rebuild_ms']:.3f}ms")
+print("Perception profile keys:", stats["perception"].keys())
 ```
 
 #### Profiling and Optimization
@@ -433,12 +408,14 @@ from farm.utils import log_performance
 # Profile spatial operations
 @log_performance(operation_name="spatial_query", slow_threshold_ms=1.0)
 def find_nearby_threats(agent):
-    """Find threats near agent."""
-    return env.spatial_index.get_nearby(
+    """Return hostile agents within perception radius."""
+    hits = env.spatial_index.get_nearby(
         position=agent.position,
         radius=agent.threat_radius,
-        entity_types=["enemies"]
+        index_names=["agents"],
     )
+    candidates = hits.get("agents", [])
+    return [a for a in candidates if getattr(a, "team", None) != getattr(agent, "team", None)]
 
 # Automatically logs:
 # - Execution time
@@ -458,162 +435,59 @@ with log_simulation(simulation_id="perf_test"):
 
 #### Benchmarking
 
-Compare performance across configurations:
+Use the checked-in harness described in [Verified performance](#verified-performance-repository-artifacts). It compares AgentFarm’s `SpatialIndex` orchestration (KD-tree, quadtree, and spatial-hash modes) against SciPy `cKDTree` and scikit-learn tree queries under identical synthetic workloads, records memory from `tracemalloc`, and appends a small batch-update microbenchmark.
 
-> **Note**: The `run_spatial_benchmark` function is planned for a future release. Currently, spatial performance benchmarking can be implemented using the existing spatial index APIs and timing utilities.
-
-```python
-# Custom spatial benchmarking implementation
-import time
-from farm.core.spatial.index import SpatialIndex
-
-def run_custom_spatial_benchmark():
-    """Custom spatial performance benchmark."""
-    entity_counts = [100, 500, 1000, 2000]
-    implementations = ["kdtree", "quadtree", "spatial_hash"]
-    results = []
-
-    for impl_name in implementations:
-        for count in entity_counts:
-            # Generate test entities
-            entities = generate_test_entities(count)
-
-            # Create appropriate index
-            if impl_name == "kdtree":
-                index = SpatialIndex.kd_tree_index()
-            elif impl_name == "quadtree":
-                index = SpatialIndex.quadtree_index()
-            else:  # spatial_hash
-                index = SpatialIndex.spatial_hash_index()
-
-            # Benchmark build time
-            start = time.perf_counter()
-            for entity in entities:
-                index.add_entity(entity)
-            build_time = (time.perf_counter() - start) * 1000  # ms
-
-            # Benchmark query time
-            query_times = []
-            for _ in range(100):
-                start = time.perf_counter()
-                results = index.query_radius((50, 50), 10.0)
-                query_times.append((time.perf_counter() - start) * 1e6)  # μs
-
-            avg_query_time = sum(query_times) / len(query_times)
-
-            results.append({
-                'name': f"{impl_name}_{count}",
-                'build_time_ms': build_time,
-                'query_time_us': avg_query_time,
-                'memory_mb': estimate_memory_usage(index),
-                'efficiency_score': calculate_efficiency(build_time, avg_query_time)
-            })
-
-    return results
-
-# Run benchmark
-results = run_custom_spatial_benchmark()
-
-# Analyze results
-print("Benchmark Results:")
-for impl in results:
-    print(f"\n{impl['name']}:")
-    print(f"  Build time: {impl['build_time_ms']:.2f}ms")
-    print(f"  Query time: {impl['query_time_us']:.2f}μs")
-    print(f"  Memory: {impl['memory_mb']:.2f}MB")
-    print(f"  Efficiency score: {impl['efficiency_score']:.3f}")
-
-# Generate report
-generate_benchmark_report(results, output="spatial_benchmark.md")
-```
+For ad hoc experiments in notebooks, wrap `get_nearby` / `get_nearest` with `time.perf_counter()` and always record entity count, world size, query radius distribution, and hardware.
 
 ---
 
-### 5. Scalable Architecture
+### 5. Scalable architecture
 
-Efficiently handle thousands of agents with minimal performance degradation.
+Large populations benefit from choosing the right index and tuning batch flush policy; see the verified tables for how build and query costs grew on the reference machine when scaling from 100 to 2 000 entities.
 
-#### Scaling Characteristics
-
-**AgentFarm Spatial Indices - Scaling Analysis:**
-
-| Implementation | 100 Entities | 1000 Entities | 10000 Entities | Scaling Factor |
-|----------------|--------------|---------------|----------------|----------------|
-| **KD-Tree Build** | 0.35ms | 1.41ms | 19.2ms | 0.94 log(n) |
-| **KD-Tree Query** | 4.46μs | 5.02μs | 18.6μs | 0.87 log(n) |
-| **Quadtree Build** | 0.91ms | 9.15ms | 197ms | 1.02 log(n) |
-| **Quadtree Query** | 3.10μs | 7.62μs | 141μs | 0.95 log(n) |
-| **Hash Build** | 0.45ms | 3.48ms | 45ms | 0.89 linear |
-| **Hash Query** | 2.69μs | 3.39μs | 45μs | 0.71 const |
-
-#### Performance vs Industry Standards
-
-**Compared to SciPy and Scikit-learn:**
-
-| Metric | AgentFarm KD-Tree | SciPy KD-Tree | Scikit-learn |
-|--------|-------------------|---------------|--------------|
-| **Build Time** | 1.26ms (avg) | 0.23ms ⭐ | 0.40ms |
-| **Query Time** | 4.85μs (avg) | 3.95μs ⭐ | 23.48μs |
-| **Memory** | 0.1MB/1000 | 0.0MB ⭐ | 0.0MB |
-| **Batch Updates** | 2-3% speedup | N/A | N/A |
-| **Multi-Index** | Yes ⭐ | No | No |
-
-**Key Advantages:**
-- **Query Performance**: Beats Scikit-learn (4.85μs vs 23.48μs)
-- **Batch Updates**: Provides incremental improvement for dynamic simulations
-- **Flexibility**: Multiple index types for different query patterns
-- **Specialization**: Quadtree optimized for range queries
-
-#### Optimization Strategies
+#### Optimization strategies
 
 ```python
-# 1. Use appropriate index for query type
-# Radial → KD-tree
-nearby = env.spatial_index.get_nearby(pos, radius, ["agents"])
-
-# Range → Quadtree
+# 1. Use appropriate index for query type (index_names are registered index keys)
+nearby = env.spatial_index.get_nearby(pos, radius, ["agents"])  # dict[str, list]
 in_area = env.spatial_index.get_nearby_range(bounds, ["agents_quadtree"])
-
-# Frequent → Spatial Hash
 neighbors = env.spatial_index.get_nearby(pos, radius, ["agents_hash"])
 
-# 2. Enable batch updates
-config = SpatialIndexConfig(
-    enable_batch_updates=True,
-    max_batch_size=100
-)
+# 2. Tune batching via SpatialIndexConfig on SimulationConfig.environment.spatial_index
+from farm.config import SpatialIndexConfig
 
-# 3. Tune flush policies
-config.flush_interval_seconds = 0.5  # More frequent flushes
-config.max_pending_updates_before_flush = 25  # Smaller batches
+spatial_cfg = SpatialIndexConfig(enable_batch_updates=True, max_batch_size=100, region_size=50.0)
 
-# 4. Use partial flushing for responsiveness
-while has_pending:
-    env.spatial_index.flush_partial_updates(max_updates=10)
+# 3. Flush policy knobs (flush_interval_seconds, max_pending_updates_before_flush) exist on
+#    SpatialIndex.__init__. Environment forwards a subset of SpatialIndexConfig fields today;
+#    extend wiring if you need those parameters from config.
+
+# 4. Partial flushing when you need bounded work per frame
+while env.spatial_index.get_batch_update_stats()["pending_updates_count"]:
+    processed = env.spatial_index.flush_partial_updates(max_updates=10)
+    if processed == 0:
+        break
     yield_control()
 
-# 5. Cache frequent queries
+# 5. Cache frequent queries (get_nearby returns a dict)
 class Agent:
     def __init__(self):
-        self._nearby_cache = {}
+        self._nearby_cache: list = []
         self._cache_timestamp = 0
-        
-    def get_nearby(self, radius):
-        # Cache valid for 10 steps
+
+    def nearby_allies(self, radius):
         if self.env.current_step - self._cache_timestamp > 10:
-            self._nearby_cache = self.env.spatial_index.get_nearby(
-                self.position, radius, ["agents"]
-            )
+            result = self.env.spatial_index.get_nearby(self.position, radius, ["agents"])
+            self._nearby_cache = result.get("agents", [])
             self._cache_timestamp = self.env.current_step
         return self._nearby_cache
 
-# 6. Use allow_stale_reads for non-critical queries
-# Faster, but may return slightly outdated results
+# 6. allow_stale_reads skips the implicit flush inside reads (stale reads are possible)
 nearby = env.spatial_index.get_nearby(
     position=agent.position,
     radius=10.0,
-    entity_types=["agents"],
-    allow_stale_reads=True  # Skip batch flush
+    index_names=["agents"],
+    allow_stale_reads=True,
 )
 ```
 
@@ -633,22 +507,24 @@ from farm.core.spatial.index import (
     PRIORITY_CRITICAL
 )
 
-# Set entity priority
-env.spatial_index.update_position(
-    entity=background_agent,
-    old_position=old_pos,
-    new_position=new_pos,
-    priority=PRIORITY_LOW  # Process last
+# Set entity priority (batch queue; use entity_type matching your index)
+env.spatial_index.add_position_update(
+    background_agent,
+    old_pos,
+    new_pos,
+    entity_type="agent",
+    priority=PRIORITY_LOW,
 )
 
-env.spatial_index.update_position(
-    entity=player,
-    old_position=old_pos,
-    new_position=new_pos,
-    priority=PRIORITY_CRITICAL  # Process first
+env.spatial_index.add_position_update(
+    player,
+    old_pos,
+    new_pos,
+    entity_type="agent",
+    priority=PRIORITY_CRITICAL,
 )
 
-# Higher priority updates processed first in batch
+# Higher priority updates are processed first when the batch flushes.
 ```
 
 ### Custom Query Filters
@@ -656,53 +532,45 @@ env.spatial_index.update_position(
 Create specialized spatial queries:
 
 ```python
-def find_vulnerable_targets(self, agent, max_range):
-    """Find low-health enemies within range."""
-    
-    # Get all nearby entities
-    nearby = env.spatial_index.get_nearby(
+def find_vulnerable_targets(agent, max_range):
+    """Illustrative filter on top of a radius query (returns agent objects, not IDs)."""
+    nearby_map = env.spatial_index.get_nearby(
         position=agent.position,
         radius=max_range,
-        entity_types=["agents"]
+        index_names=["agents"],
     )
-    
-    # Filter for vulnerable enemies
     vulnerable = []
-    for aid in nearby:
-        target = env.get_agent(aid)
-        if (target.team != agent.team and 
-            target.health < target.max_health * 0.3):
-            vulnerable.append(aid)
-    
+    for target in nearby_map.get("agents", []):
+        if getattr(target, "team", None) != getattr(agent, "team", None) and getattr(
+            target, "health", 0
+        ) < getattr(target, "max_health", 1) * 0.3:
+            vulnerable.append(target)
     return vulnerable
 
-def find_resource_clusters(self, min_cluster_size=3):
-    """Find areas with high resource density."""
-    
+
+def find_resource_clusters(min_cluster_size=3):
+    """Illustrative density check using the resources index."""
     clusters = []
     checked = set()
-    
-    for resource in env.resources.values():
-        if resource.id in checked:
+    for resource in env.resources:
+        rid = getattr(resource, "id", id(resource))
+        if rid in checked:
             continue
-            
-        # Find nearby resources
-        nearby = env.spatial_index.get_nearby(
+        nearby_map = env.spatial_index.get_nearby(
             position=resource.position,
             radius=5.0,
-            entity_types=["resources"]
+            index_names=["resources"],
         )
-        
+        nearby = nearby_map.get("resources", [])
         if len(nearby) >= min_cluster_size:
-            # Found a cluster
-            cluster = {
-                'center': resource.position,
-                'resources': nearby,
-                'density': len(nearby) / (math.pi * 5.0 ** 2)
-            }
-            clusters.append(cluster)
-            checked.update(nearby)
-    
+            clusters.append(
+                {
+                    "center": resource.position,
+                    "resources": list(nearby),
+                    "density": len(nearby) / (math.pi * 5.0**2),
+                }
+            )
+            checked.update(getattr(r, "id", id(r)) for r in nearby)
     return clusters
 ```
 
@@ -712,232 +580,98 @@ Analyze spatial patterns:
 
 ```python
 def analyze_spatial_distribution(env):
-    """Analyze entity distribution patterns."""
-    
-    # Divide space into grid
+    """Bucket live agents onto a coarse grid (agents is iterable, not necessarily a dict)."""
     grid_size = 10
     grid = defaultdict(int)
-    
-    for agent in env.agents.values():
+
+    for agent in env.agents:
         grid_x = int(agent.position[0] // grid_size)
         grid_y = int(agent.position[1] // grid_size)
         grid[(grid_x, grid_y)] += 1
-    
-    # Calculate metrics
+
     densities = list(grid.values())
-    
-    analysis = {
-        'mean_density': np.mean(densities),
-        'max_density': np.max(densities),
-        'std_density': np.std(densities),
-        'num_hotspots': sum(1 for d in densities if d > np.mean(densities) + np.std(densities)),
-        'clustering_coefficient': calculate_clustering(env)
+    return {
+        "mean_density": float(np.mean(densities)) if densities else 0.0,
+        "max_density": float(np.max(densities)) if densities else 0.0,
+        "std_density": float(np.std(densities)) if densities else 0.0,
     }
-    
-    return analysis
+
 
 def calculate_clustering(env, radius=10.0):
-    """Calculate how clustered entities are."""
-    
+    """Average local occupancy from radius queries."""
     clustering_scores = []
-    
-    for agent in env.agents.values():
-        nearby = env.spatial_index.get_nearby(
+    for agent in env.agents:
+        nearby_map = env.spatial_index.get_nearby(
             position=agent.position,
             radius=radius,
-            entity_types=["agents"]
+            index_names=["agents"],
         )
-        
-        # Score based on local density
-        density = len(nearby) / (math.pi * radius ** 2)
+        nearby = nearby_map.get("agents", [])
+        density = len(nearby) / (math.pi * radius**2)
         clustering_scores.append(density)
-    
-    return np.mean(clustering_scores)
+    return float(np.mean(clustering_scores)) if clustering_scores else 0.0
 ```
 
 ---
 
-## Performance Benchmarks
+## Performance benchmarks
 
-### Real-World Performance
-
-**Test Configuration:**
-- Environment: 1000×1000 world
-- Entities: 100-10,000
-- Queries: 100 radius + 50 nearest
-- Hardware: Standard development machine
-
-**Results:**
-
-| Entity Count | KD-Tree Query | Quadtree Query | Hash Query | Build Time |
-|--------------|---------------|----------------|------------|------------|
-| 100 | 4.46μs | 3.10μs | 2.69μs | 0.35ms |
-| 500 | 4.78μs | 5.40μs | 3.10μs | 0.78ms |
-| 1,000 | 5.02μs | 7.62μs | 3.39μs | 1.41ms |
-| 2,000 | 5.12μs | 10.94μs | 5.28μs | 2.50ms |
-| 10,000 | 18.6μs | 141μs | 45μs | 19.2ms |
-
-**Batch Update Performance:**
-
-Based on actual benchmark results, batch updates provide modest improvements:
-
-| Scenario | Batch Time | Individual Time | Measured Speedup |
-|----------|------------|-----------------|------------------|
-| 100 entities | ~0.46ms | ~1.10ms | **2.4%** |
-| 500 entities | ~1.05ms | ~2.66ms | **2.5%** |
-| 1000 entities | ~1.56ms | ~5.42ms | **3.5%** |
+Timings for the bundled harness (100–2 000 entities, uniform and clustered layouts, SciPy and scikit-learn baselines) live in the verified artifacts linked at the top of this page. Open [`SPATIAL_BENCHMARK_VERIFIED.md`](../../benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md) for tables; use the JSON if you are plotting regressions.
 
 ---
 
-## Example: Complete Performance Optimization
+## Example: complete performance optimization
 
 ```python
 #!/usr/bin/env python3
-"""
-Complete spatial indexing performance optimization example.
-Demonstrates all optimization techniques.
-"""
+"""Short simulation with multi-index setup; pair with the verified harness for hard numbers."""
 
-from farm.config import SimulationConfig, SpatialIndexConfig
-from farm.core.simulation import run_simulation
-from farm.core.environment import Environment
 import time
 
-def main():
-    print("=== Spatial Indexing Performance Demo ===\n")
-    
-    # Step 1: Configure optimized spatial indexing
-    print("Step 1: Configuring spatial indices...")
-    
+from farm.config import SimulationConfig, SpatialIndexConfig
+from farm.core.environment import Environment
+from farm.core.simulation import run_simulation
+
+
+def main() -> None:
     spatial_config = SpatialIndexConfig(
-        # Batch updates for dynamic environments
         enable_batch_updates=True,
         region_size=50.0,
         max_batch_size=100,
-        
-        # Performance monitoring
         performance_monitoring=True,
-        
-        # Responsive flush policy
-        flush_interval_seconds=0.5,
-        max_pending_updates_before_flush=25,
-        dirty_region_batch_size=10
+        dirty_region_batch_size=10,
     )
-    
-    config = SimulationConfig(
-        width=200,
-        height=200,
-        system_agents=500,
-        independent_agents=500,
-        max_steps=1000,
-        spatial_index_config=spatial_config,
-        seed=42
-    )
-    
-    # Step 2: Create environment with multiple indices
-    print("\nStep 2: Initializing environment...")
-    
+    config = SimulationConfig(seed=42, max_steps=120)
+    config.environment.width = 200
+    config.environment.height = 200
+    config.environment.spatial_index = spatial_config
+    config.population.system_agents = 40
+    config.population.independent_agents = 40
+
     env = Environment(
-        width=config.width,
-        height=config.height,
-        config=config
+        width=config.environment.width,
+        height=config.environment.height,
+        config=config,
     )
-    
-    # Enable all index types
     env.enable_quadtree_indices()
-    env.enable_spatial_hash_indices(cell_size=5.0)
-    
-    print("  Enabled indices:")
-    print("    - KD-Tree (default, radial queries)")
-    print("    - Quadtree (range queries)")
-    print("    - Spatial Hash (neighbor queries)")
-    
-    # Step 3: Run simulation with performance tracking
-    print("\nStep 3: Running simulation...")
-    
-    start_time = time.time()
-    results = run_simulation(config)
-    elapsed = time.time() - start_time
-    
-    print(f"  Simulation complete in {elapsed:.2f}s")
-    print(f"  Final population: {results['surviving_agents']}")
-    
-    # Step 4: Analyze spatial performance
-    print("\nStep 4: Analyzing spatial performance...")
-    
-    stats = env.get_spatial_performance_stats()
-    
-    print("\n  Query Performance:")
-    print(f"    Total queries: {stats['queries']['total_count']:,}")
-    print(f"    Avg time: {stats['queries']['avg_time_ms']:.3f}ms")
-    print(f"    Throughput: {stats['queries']['queries_per_second']:.1f} queries/sec")
-    
-    print("\n  Batch Update Efficiency:")
-    print(f"    Total batches: {stats['batch_updates']['total_batch_updates']}")
-    print(f"    Avg batch size: {stats['batch_updates']['average_batch_size']:.1f}")
-    print(f"    Efficiency gain: {stats['batch_updates']['efficiency_percentage']:.1%}")
-    
-    print("\n  Memory Usage:")
-    print(f"    Total: {stats['memory']['total_mb']:.2f}MB")
-    print(f"    Per entity: {stats['memory']['per_entity_kb']:.2f}KB")
-    
-    # Step 5: Demonstrate different query types
-    print("\nStep 5: Query performance comparison...")
-    
-    test_position = (100, 100)
-    test_radius = 20.0
-    num_tests = 1000
-    
-    # KD-Tree radial query
-    start = time.perf_counter()
-    for _ in range(num_tests):
-        nearby_kd = env.spatial_index.get_nearby(
-            test_position, test_radius, ["agents"]
-        )
-    kdtree_time = (time.perf_counter() - start) / num_tests * 1000000
-    
-    # Quadtree range query
-    bounds = (90, 90, 20, 20)
-    start = time.perf_counter()
-    for _ in range(num_tests):
-        nearby_quad = env.spatial_index.get_nearby_range(
-            bounds, ["agents_quadtree"]
-        )
-    quadtree_time = (time.perf_counter() - start) / num_tests * 1000000
-    
-    # Spatial Hash query
-    start = time.perf_counter()
-    for _ in range(num_tests):
-        nearby_hash = env.spatial_index.get_nearby(
-            test_position, test_radius, ["agents_hash"]
-        )
-    hash_time = (time.perf_counter() - start) / num_tests * 1000000
-    
-    print(f"  KD-Tree (radial): {kdtree_time:.2f}μs")
-    print(f"  Quadtree (range): {quadtree_time:.2f}μs")
-    print(f"  Spatial Hash: {hash_time:.2f}μs")
-    
-    # Step 6: Recommendations
-    print("\n=== Performance Recommendations ===")
-    
-    if stats['batch_updates']['efficiency_percentage'] > 0.5:
-        print("  ✓ Batch updates working efficiently")
-    else:
-        print("  ⚠ Consider enabling batch updates")
-    
-    if stats['queries']['avg_time_ms'] < 0.1:
-        print("  ✓ Query performance excellent")
-    elif stats['queries']['avg_time_ms'] < 1.0:
-        print("  ✓ Query performance good")
-    else:
-        print("  ⚠ Query performance could be improved")
-    
-    if stats['memory']['per_entity_kb'] < 1.0:
-        print("  ✓ Memory usage efficient")
-    else:
-        print("  ⚠ High memory per entity")
-    
-    print("\n=== Demo Complete ===")
+    env.enable_spatial_hash_indices(5.0)
+
+    t0 = time.perf_counter()
+    env_after = run_simulation(config.max_steps, config)
+    elapsed = time.perf_counter() - t0
+    print(f"Simulation finished in {elapsed:.2f}s")
+
+    stats = env_after.get_spatial_performance_stats()
+    print("Tracked spatial queries:", stats["queries"]["total_count"])
+
+    # Local micro-sample (not the committed benchmark artifact)
+    pos, radius, n = (100.0, 100.0), 20.0, 200
+    t1 = time.perf_counter()
+    for _ in range(n):
+        env_after.spatial_index.get_nearby(pos, radius, ["agents"])
+    per_query_us = (time.perf_counter() - t1) / n * 1e6
+    print(f"Sample get_nearby mean: {per_query_us:.2f} μs ({n} iterations)")
+
 
 if __name__ == "__main__":
     main()
@@ -949,11 +683,12 @@ if __name__ == "__main__":
 
 ### Documentation
 - [Spatial Indexing Details](../spatial/spatial_indexing.md) - Technical implementation
-- [Performance Summary](../spatial/spatial_module_performance_summary.md) - Benchmark results
+- [Verified tables (generated)](../../benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md) - Committed benchmark output
 - [Configuration Guide](../config/configuration_guide.md) - Spatial config options
 
 ### Benchmarks
-- [Spatial Benchmark Report](../../benchmarks/reports/0.1.0/spatial_benchmark_report.md)
+- [`spatial_benchmark_verified.json`](../../benchmarks/results/spatial_benchmark_verified.json) - Raw verified timings
+- [Historical report (0.1.0 snapshot)](../../benchmarks/reports/0.1.0/spatial_benchmark_report.md) - Legacy narrative; prefer verified artifacts above
 - [Benchmarks](../../benchmarks/README.md)
 
 ### Implementation
