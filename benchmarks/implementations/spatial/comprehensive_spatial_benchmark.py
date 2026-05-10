@@ -77,6 +77,8 @@ class SpatialBenchmarkConfig:
         test_iterations: int = 5,
         warmup_iterations: int = 2,
         random_seed: Optional[int] = None,
+        num_radius_queries: int = 100,
+        num_nearest_neighbor_queries: int = 50,
     ):
         self.world_width = world_width
         self.world_height = world_height
@@ -91,6 +93,8 @@ class SpatialBenchmarkConfig:
         self.test_iterations = test_iterations
         self.warmup_iterations = warmup_iterations
         self.random_seed = random_seed
+        self.num_radius_queries = num_radius_queries
+        self.num_nearest_neighbor_queries = num_nearest_neighbor_queries
 
 
 class SpatialBenchmark:
@@ -230,7 +234,7 @@ class SpatialBenchmark:
 
         # Generate test queries
         test_queries = []
-        for _ in range(100):
+        for _ in range(self.config.num_radius_queries):
             x = random.uniform(0, self.config.world_width)
             y = random.uniform(0, self.config.world_height)
             radius = random.choice(self.config.query_radii)
@@ -247,7 +251,7 @@ class SpatialBenchmark:
 
         # Test nearest neighbor queries
         nearest_times = []
-        for _ in range(50):
+        for _ in range(self.config.num_nearest_neighbor_queries):
             x = random.uniform(0, self.config.world_width)
             y = random.uniform(0, self.config.world_height)
             start_time = time.perf_counter()
@@ -291,7 +295,7 @@ class SpatialBenchmark:
 
         # Generate test queries
         test_queries = []
-        for _ in range(100):
+        for _ in range(self.config.num_radius_queries):
             x = random.uniform(0, self.config.world_width)
             y = random.uniform(0, self.config.world_height)
             radius = random.choice(self.config.query_radii)
@@ -309,7 +313,7 @@ class SpatialBenchmark:
 
         # Test nearest neighbor queries
         nearest_times = []
-        for _ in range(50):
+        for _ in range(self.config.num_nearest_neighbor_queries):
             x = random.uniform(0, self.config.world_width)
             y = random.uniform(0, self.config.world_height)
             start_time = time.perf_counter()
@@ -355,7 +359,7 @@ class SpatialBenchmark:
 
         # Generate test queries
         test_queries = []
-        for _ in range(100):
+        for _ in range(self.config.num_radius_queries):
             x = random.uniform(0, self.config.world_width)
             y = random.uniform(0, self.config.world_height)
             radius = random.choice(self.config.query_radii)
@@ -373,7 +377,7 @@ class SpatialBenchmark:
 
         # Test nearest neighbor queries
         nearest_times = []
-        for _ in range(50):
+        for _ in range(self.config.num_nearest_neighbor_queries):
             x = random.uniform(0, self.config.world_width)
             y = random.uniform(0, self.config.world_height)
             start_time = time.perf_counter()
@@ -419,7 +423,7 @@ class SpatialBenchmark:
 
         # Generate test queries
         test_queries = []
-        for _ in range(100):
+        for _ in range(self.config.num_radius_queries):
             x = random.uniform(0, self.config.world_width)
             y = random.uniform(0, self.config.world_height)
             radius = random.choice(self.config.query_radii)
@@ -437,7 +441,7 @@ class SpatialBenchmark:
 
         # Test nearest neighbor queries
         nearest_times = []
-        for _ in range(50):
+        for _ in range(self.config.num_nearest_neighbor_queries):
             x = random.uniform(0, self.config.world_width)
             y = random.uniform(0, self.config.world_height)
             start_time = time.perf_counter()
@@ -991,7 +995,7 @@ class SpatialBenchmark:
         return "\n".join(report)
 
 
-def _verification_metadata(random_seed: int) -> Dict[str, Any]:
+def _verification_metadata(config: SpatialBenchmarkConfig) -> Dict[str, Any]:
     """Host and revision metadata stored next to benchmark timings."""
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     try:
@@ -1004,17 +1008,20 @@ def _verification_metadata(random_seed: int) -> Dict[str, Any]:
     except (OSError, subprocess.CalledProcessError):
         git_rev = "unknown"
     return {
-        "random_seed": random_seed,
+        "random_seed": config.random_seed,
         "pythonhashseed": os.environ.get("PYTHONHASHSEED"),
         "python_version": sys.version.split()[0],
         "platform": platform.platform(),
         "processor": platform.processor() or "unknown",
         "git_revision": git_rev,
         "generator": "comprehensive_spatial_benchmark.py --verified",
-        "world": "1000x1000",
-        "warmup_iterations": 1,
-        "test_iterations": 3,
-        "query_workload": "100 random radius queries + 50 nearest-neighbor queries per run",
+        "world": f"{config.world_width:g}x{config.world_height:g}",
+        "warmup_iterations": config.warmup_iterations,
+        "test_iterations": config.test_iterations,
+        "query_workload": (
+            f"{config.num_radius_queries} random radius queries + "
+            f"{config.num_nearest_neighbor_queries} nearest-neighbor queries per run"
+        ),
     }
 
 
@@ -1138,7 +1145,7 @@ def run_verified_spatial_artifacts() -> Dict[str, Any]:
     )
     benchmark = SpatialBenchmark(config)
     results = benchmark.run_comprehensive_benchmark()
-    results["verification"] = _verification_metadata(seed)
+    results["verification"] = _verification_metadata(config)
     print("\nRunning interleaved step workload (moves + queries per step)...")
     results["step_workload_benchmark"] = benchmark.collect_step_workload_benchmark()
 
