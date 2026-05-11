@@ -36,9 +36,11 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from PIL import Image
 
 
@@ -209,6 +211,27 @@ def _load_step_state(
     return agents, resources
 
 
+def _load_timeline_series(
+    conn: sqlite3.Connection, max_step: int
+) -> pd.DataFrame:
+    """Load per-step totals for the sparkline timeline panel."""
+    timeline = pd.read_sql_query(
+        """
+        SELECT step_number, total_agents, total_resources
+        FROM simulation_steps
+        WHERE step_number <= ?
+        ORDER BY step_number
+        """,
+        conn,
+        params=(max_step,),
+    )
+    if timeline.empty:
+        return pd.DataFrame(
+            columns=["step_number", "total_agents", "total_resources"]
+        )
+    return timeline
+
+
 def _load_death_markers_by_step(
     conn: sqlite3.Connection,
 ) -> dict[int, list[tuple[float, float]]]:
@@ -309,12 +332,16 @@ def _render_frame(
     step_number: int,
     birth_markers: list[tuple[float, float]],
     death_markers: list[tuple[float, float]],
+    timeline: pd.DataFrame,
     fig_inches: float,
     dpi: int,
 ) -> Image.Image:
     """Render one frame of the foraging grid as a PIL image."""
     fig: Figure = plt.figure(figsize=(fig_inches, fig_inches), dpi=dpi)
     ax = fig.add_subplot(111)
+    divider = make_axes_locatable(ax)
+    # Append directly under the map so width matches the square grid exactly.
+    ax_timeline = divider.append_axes("bottom", size="14%", pad=0.06)
 
     # Light grid background to convey the discrete cell structure of the world.
     ax.set_xlim(0, bounds.width)
@@ -435,14 +462,119 @@ def _render_frame(
             label="Agent death",
         ),
     ]
-    ax.legend(handles=legend_handles, loc="upper right", fontsize=8, framealpha=0.9)
-
-    ax.set_title(
-        f"Foraging — step {step_number:>4d}  ·  "
-        f"agents: {len(agents):d}  ·  resources: {len(resources):d}",
-        fontsize=10,
+    ax.legend(
+        handles=legend_handles,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.0),
+        ncol=4,
+        fontsize=8,
+        framealpha=0.9,
+        columnspacing=1.0,
+        handletextpad=0.5,
+        borderpad=0.4,
     )
-    fig.tight_layout(pad=0.8)
+
+    ax.set_title(f"Foraging — step {step_number:>4d}", fontsize=10)
+    if not timeline.empty:
+        step_values = timeline["step_number"]
+        agent_values = timeline["total_agents"]
+        resource_values = timeline["total_resources"]
+        agents_min = float(agent_values.min())
+        agents_max = float(agent_values.max())
+        normalized_agents = (agent_values - agents_min) / max(
+            agents_max - agents_min, 1.0
+        )
+
+        # Log compression dampens the large early resource swing.
+        resource_log = np.log1p(resource_values)
+        resources_min = float(resource_log.min())
+        resources_max = float(resource_log.max())
+        normalized_resources = (resource_log - resources_min) / max(
+            resources_max - resources_min, 1e-9
+        )
+        max_timeline_step = int(step_values.max())
+
+        # Smooth both series for a cleaner sparkline panel.
+        smooth_window = max(5, min(31, len(step_values) // 30))
+        smoothed_agents = pd.Series(normalized_agents).rolling(
+            window=smooth_window, center=True, min_periods=1
+        ).mean()
+        smoothed_resources = pd.Series(normalized_resources).rolling(
+            window=smooth_window, center=True, min_periods=1
+        ).mean()
+
+        # Draw full series lightly as context.
+        ax_timeline.plot(
+            step_values,
+            smoothed_agents,
+            color=DEFAULT_AGENT_COLOR,
+            linewidth=1.3,
+            alpha=0.28,
+            zorder=1,
+        )
+        ax_timeline.plot(
+            step_values,
+            smoothed_resources,
+            color="#2ca02c",
+            linewidth=1.3,
+            alpha=0.28,
+            zorder=1,
+        )
+
+        # Fade the future region to the right of current step.
+        ax_timeline.axvspan(
+            step_number,
+            max_timeline_step,
+            color="white",
+            alpha=0.28,
+            zorder=2,
+        )
+
+        # Re-draw historical segment as clear lines.
+        history = timeline[timeline["step_number"] <= step_number]
+        history_agents = pd.Series(
+            (history["total_agents"] - agents_min) / max(agents_max - agents_min, 1.0)
+        ).rolling(window=smooth_window, center=True, min_periods=1).mean()
+        history_resources = pd.Series(
+            (np.log1p(history["total_resources"]) - resources_min)
+            / max(resources_max - resources_min, 1e-9)
+        ).rolling(window=smooth_window, center=True, min_periods=1).mean()
+        ax_timeline.plot(
+            history["step_number"],
+            history_agents,
+            color=DEFAULT_AGENT_COLOR,
+            linewidth=2.0,
+            alpha=1.0,
+            zorder=3,
+        )
+        ax_timeline.plot(
+            history["step_number"],
+            history_resources,
+            color="#2ca02c",
+            linewidth=2.0,
+            alpha=1.0,
+            zorder=3,
+        )
+        ax_timeline.axvline(
+            step_number, color="#444444", linewidth=1.3, alpha=0.9, zorder=4
+        )
+
+        ax_timeline.set_xlim(0, max_timeline_step)
+        ax_timeline.set_ylim(0, 1.05)
+        ax_timeline.margins(x=0.0)
+
+    # Sparkline-like minimal styling.
+    ax_timeline.tick_params(
+        bottom=False,
+        left=False,
+        labelbottom=False,
+        labelleft=False,
+    )
+    for spine in ax_timeline.spines.values():
+        spine.set_color("#d2d2d2")
+    ax_timeline.spines["top"].set_visible(False)
+    ax_timeline.set_facecolor("#f8f9fb")
+    fig.subplots_adjust(left=0.055, right=0.995, top=0.955, bottom=0.06)
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=dpi)
@@ -490,6 +622,7 @@ def make_foraging_gif(args: argparse.Namespace) -> Path:
         projected_death_markers = _project_markers_onto_render_steps(
             steps, death_markers_by_step
         )
+        timeline = _load_timeline_series(conn, max_step=steps[-1])
 
         print(
             f"Rendering {len(steps)} frames from {db_path} "
@@ -506,6 +639,7 @@ def make_foraging_gif(args: argparse.Namespace) -> Path:
                 step_number=step,
                 birth_markers=projected_birth_markers.get(step, []),
                 death_markers=projected_death_markers.get(step, []),
+                timeline=timeline,
                 fig_inches=args.fig_inches,
                 dpi=args.dpi,
             )
