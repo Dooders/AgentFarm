@@ -82,6 +82,19 @@ the agent's resource pool. Foraging is one of the actions the RL policy
 chooses among, so the evolved learning hyperparameters and the foraging
 behavior are coupled through the decision module.
 
+![Foraging on the environment grid: agents (blue) gathering from resource nodes (green) over time.](figures/foraging-grid.gif)
+
+The GIF above is a 50x50 world rendered from a sample run; you can regenerate
+it (or render any other simulation) with
+[`scripts/make_foraging_gif.py`](../../scripts/make_foraging_gif.py):
+
+```bash
+python scripts/make_foraging_gif.py \
+    --db-path docs/sample/simulation.db \
+    --output docs/devlog/figures/foraging-grid.gif \
+    --max-steps 1000 --step-stride 6 --fps 12
+```
+
 ## Learning during life - Baldwinian, not Lamarckian
 
 Within an agent's lifetime, a `DecisionModule` driven by RL updates from
