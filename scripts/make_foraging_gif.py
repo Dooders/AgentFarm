@@ -291,22 +291,6 @@ def _load_birth_markers_by_step(
     return by_step
 
 
-def _project_deaths_onto_render_steps(
-    render_steps: list[int],
-    death_markers_by_step: dict[int, list[tuple[float, float]]],
-) -> dict[int, list[tuple[float, float]]]:
-    """Map each death to the first rendered frame at/after death time."""
-    if not render_steps:
-        return {}
-    projected: dict[int, list[tuple[float, float]]] = {}
-    for death_step in sorted(death_markers_by_step):
-        target_step = next((s for s in render_steps if s >= death_step), None)
-        if target_step is None:
-            continue
-        projected.setdefault(target_step, []).extend(death_markers_by_step[death_step])
-    return projected
-
-
 def _project_markers_onto_render_steps(
     render_steps: list[int],
     markers_by_step: dict[int, list[tuple[float, float]]],
