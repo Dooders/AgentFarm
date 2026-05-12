@@ -203,7 +203,9 @@ plots:
 
 - Replicate each profile across a small seed sweep (e.g. seeds 42, 7, 19,
   101) to confirm the speciation-trajectory direction is a property of the
-  buffer rather than a single-seed artefact.
+  buffer rather than a single-seed artefact.  See
+  `scripts/run_stable_profile_seed_sweep.py` for the runner and
+  `scripts/analyze_stable_profile_seed_sweep.py` for aggregation.
 - Extend conservative to ~5000 steps to see whether the cluster-merging
   trend completes (single dominant cluster) or stabilises around k=2.
 - Re-run the buffered profile with crossover enabled to test whether the
