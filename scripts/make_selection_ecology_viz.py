@@ -233,11 +233,11 @@ def _load_action_budget(conn: sqlite3.Connection) -> pd.DataFrame:
                 delta = np.nan
 
         if row.action_type == "gather":
-            gathered = 0.0
-            if np.isfinite(delta) and delta > 0:
-                gathered = float(delta)
-            else:
-                gathered = float(details.get("amount_gathered", 0.0) or 0.0)
+            gathered = (
+                float(delta)
+                if np.isfinite(delta) and delta > 0
+                else float(details.get("amount_gathered", 0.0) or 0.0)
+            )
             if gathered > 0:
                 gathered_by_agent[aid] = gathered_by_agent.get(aid, 0.0) + gathered
             continue
