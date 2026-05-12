@@ -20,6 +20,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Dict, List
+from unittest.mock import patch
+
+import numpy as np
 
 _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _repo_root not in sys.path:
@@ -28,19 +31,26 @@ if _repo_root not in sys.path:
 
 # ── Import helpers from both scripts ─────────────────────────────────────────
 
+from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
+    STABLE_SUB_PROFILES,
+)
+from scripts import run_stable_profile_seed_sweep as runner_mod  # noqa: E402
 from scripts.run_stable_profile_seed_sweep import (  # noqa: E402
     DEFAULT_PROFILES,
     DEFAULT_SEEDS,
-    STABLE_SUB_PROFILES,
 )
 from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
+    SIGN_AGREEMENT_THRESHOLD,
+    SLOPE_EPSILON,
     _aggregate_profile,
     _assess_robustness,
     _build_markdown,
     _classify_speciation_direction,
     _discover_runs,
     _extract_run_metrics,
+    _gene_flip_robust,
     _mean,
+    _mean_trajectory,
     _pct_shift,
     _speciation_slope,
     _t_ci,
@@ -324,9 +334,9 @@ class TestAggregateProfile(unittest.TestCase):
 
     def test_basic_aggregation(self):
         runs = [
-            self._make_run(0.72, 0.001, 20.0),
-            self._make_run(0.74, 0.0015, 22.0),
-            self._make_run(0.70, 0.0008, 18.0),
+            self._make_run(0.72, 0.01, 20.0),
+            self._make_run(0.74, 0.015, 22.0),
+            self._make_run(0.70, 0.008, 18.0),
         ]
         agg = _aggregate_profile(runs)
         self.assertEqual(agg["n_seeds"], 3)
@@ -338,8 +348,8 @@ class TestAggregateProfile(unittest.TestCase):
 
     def test_sign_agreement_all_negative(self):
         runs = [
-            self._make_run(0.68, -0.001, -8.0),
-            self._make_run(0.66, -0.0012, -6.0),
+            self._make_run(0.68, -0.01, -8.0),
+            self._make_run(0.66, -0.012, -6.0),
         ]
         agg = _aggregate_profile(runs)
         lr_agg = agg["per_gene"]["learning_rate"]
@@ -347,10 +357,11 @@ class TestAggregateProfile(unittest.TestCase):
         self.assertAlmostEqual(lr_agg["sign_agreement"], 1.0)
 
     def test_modal_direction_selection(self):
+        # Use slopes well above SLOPE_EPSILON (1e-3) so direction is unambiguous.
         runs = [
-            self._make_run(0.7, 0.001, 20.0),   # diverging
-            self._make_run(0.7, 0.0012, 21.0),   # diverging
-            self._make_run(0.7, -0.0005, -5.0),  # merging
+            self._make_run(0.7, 0.01, 20.0),   # diverging
+            self._make_run(0.7, 0.012, 21.0),   # diverging
+            self._make_run(0.7, -0.005, -5.0),  # merging
         ]
         agg = _aggregate_profile(runs)
         self.assertEqual(agg["speciation_direction_modal"], "diverging")
@@ -358,9 +369,9 @@ class TestAggregateProfile(unittest.TestCase):
 
     def test_ci_wider_than_mean(self):
         runs = [
-            self._make_run(0.68, -0.001, -8.0),
-            self._make_run(0.72, 0.001, 20.0),
-            self._make_run(0.70, 0.0005, 5.0),
+            self._make_run(0.68, -0.01, -8.0),
+            self._make_run(0.72, 0.01, 20.0),
+            self._make_run(0.70, 0.005, 5.0),
         ]
         agg = _aggregate_profile(runs)
         sf = agg["speciation_final"]
@@ -614,6 +625,230 @@ class TestEndToEndPipeline(unittest.TestCase):
         self.assertTrue(robustness["learning_rate_flip_robust"])
         self.assertTrue(robustness["speciation_direction_robust"].get("buffered", False))
         self.assertTrue(robustness["speciation_direction_robust"].get("conservative", False))
+
+
+# ── Tests: _t_ci respects the alpha argument ─────────────────────────────────
+
+class TestTCiAlphaContract(unittest.TestCase):
+    def test_default_alpha_matches_95_percent_table(self):
+        # Reference: t(df=4, 0.975) ≈ 2.776; for sample [1,2,3,4,5] (n=5, sd≈1.5811)
+        # half-width = 2.776 * 1.5811 / sqrt(5) ≈ 1.9624.
+        xs = [1.0, 2.0, 3.0, 4.0, 5.0]
+        lo, hi = _t_ci(xs)
+        self.assertAlmostEqual((hi - lo) / 2, 1.9624, places=2)
+
+    def test_smaller_alpha_widens_interval(self):
+        xs = [1.0, 2.0, 3.0, 4.0, 5.0]
+        lo95, hi95 = _t_ci(xs, alpha=0.05)
+        lo99, hi99 = _t_ci(xs, alpha=0.01)
+        self.assertGreater(hi99 - lo99, hi95 - lo95)
+
+    def test_large_n_uses_correct_critical_value(self):
+        # For df=20, t(0.975) ≈ 2.086, NOT 2.0 (the old fallback).
+        # For sample of size 21 with stdev 1, half-width should be ~2.086/sqrt(21) ≈ 0.4553.
+        xs = [0.0] * 11 + [1.0] * 10  # mean 10/21, stdev ≈ 0.5118
+        lo, hi = _t_ci(xs)
+        half_width = (hi - lo) / 2
+        # Old (buggy) fallback would have given ~2.0 / sqrt(21) * stdev ≈ 0.2233.
+        # Correct value is ~2.086 / sqrt(21) * 0.5118 ≈ 0.2331.
+        self.assertGreater(half_width, 0.225)
+        self.assertLess(half_width, 0.245)
+
+
+# ── Tests: _pct_shift edge cases ─────────────────────────────────────────────
+
+class TestPctShiftEdgeCases(unittest.TestCase):
+    def test_tiny_initial_returns_nan(self):
+        # Avoid astronomic percentage shifts when |initial| is effectively zero.
+        self.assertTrue(math.isnan(_pct_shift(1e-15, 1.0)))
+        self.assertTrue(math.isnan(_pct_shift(-1e-15, 1.0)))
+
+    def test_normal_initial_returns_finite_shift(self):
+        self.assertFalse(math.isnan(_pct_shift(1e-6, 2e-6)))
+
+
+# ── Tests: _mean_trajectory restricts to common interval ─────────────────────
+
+class TestMeanTrajectory(unittest.TestCase):
+    def test_returns_none_for_empty(self):
+        self.assertIsNone(_mean_trajectory([]))
+
+    def test_uses_common_interval_not_longest(self):
+        # seed A runs to step 1000 with a constant value of 0.8.
+        # seed B dies at step 200 with a constant value of 0.2.
+        # If we naively used seed A's grid and np.interp-padded seed B,
+        # the mean past step 200 would be (0.8 + 0.2)/2 = 0.5 — wrong, since B
+        # has no real data there.  The correct behaviour is to truncate the
+        # common grid to [0, 200] where both seeds have real data.
+        a_steps = np.array([0, 100, 200, 500, 1000], dtype=float)
+        a_vals = np.array([0.8, 0.8, 0.8, 0.8, 0.8])
+        b_steps = np.array([0, 100, 200], dtype=float)
+        b_vals = np.array([0.2, 0.2, 0.2])
+
+        result = _mean_trajectory([(a_steps, a_vals), (b_steps, b_vals)])
+        self.assertIsNotNone(result)
+        grid, mean = result
+        self.assertAlmostEqual(grid[0], 0.0, places=6)
+        self.assertAlmostEqual(grid[-1], 200.0, places=6)
+        for v in mean:
+            self.assertAlmostEqual(v, 0.5, places=6)
+
+    def test_returns_none_when_no_overlap(self):
+        a_steps = np.array([0, 100], dtype=float)
+        a_vals = np.array([0.5, 0.5])
+        b_steps = np.array([200, 300], dtype=float)
+        b_vals = np.array([0.5, 0.5])
+        self.assertIsNone(_mean_trajectory([(a_steps, a_vals), (b_steps, b_vals)]))
+
+
+# ── Tests: _gene_flip_robust direction-agnostic ──────────────────────────────
+
+class TestGeneFlipRobust(unittest.TestCase):
+    def _agg(self, mean_pct_shift, sign_agreement):
+        return {
+            "per_gene": {
+                "g": {
+                    "mean_pct_shift": mean_pct_shift,
+                    "sign_agreement": sign_agreement,
+                }
+            }
+        }
+
+    def test_detects_positive_then_negative(self):
+        aggs = {
+            "buffered": self._agg(20.0, 1.0),
+            "conservative": self._agg(-8.0, 1.0),
+        }
+        self.assertTrue(_gene_flip_robust(aggs, "g", "buffered", "conservative"))
+
+    def test_detects_negative_then_positive(self):
+        # Generalisation past the original buffered>0/conservative<0 hard-coding.
+        aggs = {
+            "buffered": self._agg(-15.0, 0.9),
+            "conservative": self._agg(10.0, 0.9),
+        }
+        self.assertTrue(_gene_flip_robust(aggs, "g", "buffered", "conservative"))
+
+    def test_rejects_when_within_profile_unstable(self):
+        aggs = {
+            "buffered": self._agg(20.0, 0.5),
+            "conservative": self._agg(-8.0, 1.0),
+        }
+        self.assertFalse(_gene_flip_robust(aggs, "g", "buffered", "conservative"))
+
+    def test_returns_false_when_one_profile_missing(self):
+        aggs = {"buffered": self._agg(20.0, 1.0)}
+        self.assertFalse(_gene_flip_robust(aggs, "g", "buffered", "conservative"))
+
+
+# ── Tests: n_alive missing field ─────────────────────────────────────────────
+
+class TestNAliveMissingField(unittest.TestCase):
+    def test_missing_n_alive_yields_nan_pop_metrics(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            traj = [{"step": s, "speciation_index": 0.6} for s in [0, 100, 200]]
+            snaps = []
+            _write_run_dir(base, "conservative", 42, traj, snaps)
+            metrics = _extract_run_metrics(base / "stable_conservative" / "seed_42")
+            self.assertIsNotNone(metrics)
+            # n_alive missing → metric is NaN, NOT 0.
+            self.assertTrue(math.isnan(metrics["population_mean"]))
+            self.assertTrue(math.isnan(metrics["population_final"]))
+
+
+# ── Tests: SLOPE_EPSILON wider band makes 'stable' reachable ─────────────────
+
+class TestSlopeEpsilon(unittest.TestCase):
+    def test_small_drift_classified_stable(self):
+        # Slope 5e-4 per step → 5e-2 per 100 steps would be diverging,
+        # but our slope unit is /100 steps, so a per-step slope of 5e-6
+        # gives slope/100 = 5e-4, well below SLOPE_EPSILON=1e-3.
+        traj = _make_trajectory([0, 100, 200, 300], [0.700, 0.7005, 0.7010, 0.7015])
+        slope = _speciation_slope(traj)
+        self.assertLess(abs(slope), SLOPE_EPSILON)
+        self.assertEqual(_classify_speciation_direction(slope), "stable")
+
+
+# ── Tests: dry-run / fail-fast / empty-sweep flow ────────────────────────────
+
+class TestSweepRunnerFlow(unittest.TestCase):
+    """Smoke-test the runner CLI surface without launching real simulations."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_dry_run_exits_zero_without_running(self):
+        out_dir = Path(self.tmp.name) / "dry"
+        argv = [
+            "run_stable_profile_seed_sweep.py",
+            "--profiles", "conservative",
+            "--seeds", "42",
+            "--output-dir", str(out_dir),
+            "--dry-run",
+        ]
+        with patch.object(sys, "argv", argv):
+            rc = runner_mod.main()
+        self.assertEqual(rc, 0)
+        # Dry-run must NOT create the output directory.
+        self.assertFalse(out_dir.exists())
+
+    def test_execute_sweep_aborts_on_fail_fast(self):
+        out_dir = Path(self.tmp.name) / "ff"
+        argv = [
+            "--profiles", "conservative", "balanced",
+            "--seeds", "1", "2",
+            "--output-dir", str(out_dir),
+            "--fail-fast",
+        ]
+        args = runner_mod._build_parser().parse_args(argv)
+
+        call_log: List[Any] = []
+
+        def fake_run_one(profile, seed, _args, _output_dir, _logger):
+            call_log.append((profile, seed))
+            success = len(call_log) == 1
+            return success, {
+                "profile": profile,
+                "seed": seed,
+                "status": "ok" if success else "error",
+                "elapsed_seconds": 0.0,
+                "num_steps_completed": 0,
+                "final_population": 0,
+                "error": None if success else "boom",
+                "run_dir": "x",
+            }
+
+        with patch.object(runner_mod, "_run_one", side_effect=fake_run_one):
+            records, n_ok, n_fail = runner_mod._execute_sweep(
+                args, out_dir, _NullLogger()
+            )
+
+        # Should have aborted after the first failure (= second invocation),
+        # without consuming the remaining (profile, seed) pairs.
+        self.assertEqual(len(call_log), 2)
+        self.assertEqual(n_ok, 1)
+        self.assertEqual(n_fail, 1)
+        self.assertEqual(len(records), 2)
+
+
+class _NullLogger:
+    """Drop-in stand-in for structlog.BoundLogger that swallows everything."""
+
+    def info(self, *_args, **_kwargs):
+        pass
+
+    def error(self, *_args, **_kwargs):
+        pass
+
+    def warning(self, *_args, **_kwargs):
+        pass
+
+    def debug(self, *_args, **_kwargs):
+        pass
 
 
 if __name__ == "__main__":

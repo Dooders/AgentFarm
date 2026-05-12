@@ -28,11 +28,11 @@ from farm.core.initial_diversity import (
     InitialDiversityMetrics,
     SeedingMode,
 )
-from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger as RealGeneTrajectoryLogger
 from farm.runners.intrinsic_evolution_experiment import (
     IntrinsicEvolutionExperiment,
     IntrinsicEvolutionExperimentConfig,
     IntrinsicEvolutionPolicy,
+    SpeciationConfig,
 )
 
 
@@ -297,32 +297,24 @@ class TestRunnerOrchestration(unittest.TestCase):
                 metadata["initial_diversity_metrics"]["mode"], "independent_mutation"
             )
 
-    def test_runner_persists_speciation_settings_when_logger_enables_it(self):
+    def test_runner_persists_speciation_settings_when_enabled_via_config(self):
         side_effect, _env = self._stub_run_simulation(num_agents=2, num_steps=2)
         with tempfile.TemporaryDirectory() as output_dir, patch(
             "farm.runners.intrinsic_evolution_experiment.run_simulation",
             side_effect=side_effect,
-        ), patch(
-            "farm.runners.intrinsic_evolution_experiment.GeneTrajectoryLogger"
-        ) as logger_cls:
-            def _make_logger(*args, **kwargs):
-                return RealGeneTrajectoryLogger(
-                    *args,
-                    enable_speciation=True,
-                    speciation_algorithm="gmm",
-                    speciation_max_k=7,
-                    speciation_seed=123,
-                    speciation_scaler="robust",
-                    **kwargs,
-                )
-
-            logger_cls.side_effect = _make_logger
-
+        ):
             cfg = IntrinsicEvolutionExperimentConfig(
                 num_steps=2,
                 snapshot_interval=1,
                 output_dir=output_dir,
                 seed=123,
+                speciation=SpeciationConfig(
+                    enabled=True,
+                    algorithm="gmm",
+                    max_k=7,
+                    seed=123,
+                    scaler="robust",
+                ),
             )
             IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
 
@@ -335,6 +327,38 @@ class TestRunnerOrchestration(unittest.TestCase):
             self.assertEqual(metadata["speciation"]["max_k"], 7)
             self.assertEqual(metadata["speciation"]["seed"], 123)
             self.assertEqual(metadata["speciation"]["scaler"], "robust")
+
+    def test_runner_passes_speciation_kwargs_into_gene_logger(self):
+        """Regression: SpeciationConfig fields must reach the underlying logger."""
+        side_effect, _env = self._stub_run_simulation(num_agents=2, num_steps=1)
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ), patch(
+            "farm.runners.intrinsic_evolution_experiment.GeneTrajectoryLogger"
+        ) as logger_cls:
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=1,
+                snapshot_interval=1,
+                output_dir=output_dir,
+                seed=42,
+                speciation=SpeciationConfig(
+                    enabled=True,
+                    algorithm="dbscan",
+                    max_k=3,
+                    seed=99,
+                    scaler="standard",
+                ),
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+            self.assertEqual(logger_cls.call_count, 1)
+            kwargs = logger_cls.call_args.kwargs
+            self.assertTrue(kwargs["enable_speciation"])
+            self.assertEqual(kwargs["speciation_algorithm"], "dbscan")
+            self.assertEqual(kwargs["speciation_max_k"], 3)
+            self.assertEqual(kwargs["speciation_seed"], 99)
+            self.assertEqual(kwargs["speciation_scaler"], "standard")
 
     def test_final_result_uses_last_hooked_state(self):
         """Final metadata aligns with callback telemetry, not post-loop finalization."""

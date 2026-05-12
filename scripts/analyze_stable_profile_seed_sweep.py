@@ -38,21 +38,21 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
+from scipy.stats import t as student_t  # noqa: E402
 
-_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _repo_root not in sys.path:
-    sys.path.insert(0, _repo_root)
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -89,14 +89,17 @@ DIRECTION_FLIP_GENES: List[str] = [
 
 # Speciation trajectory slope threshold (per 100 steps) for classifying
 # direction: |slope| < SLOPE_EPSILON → "stable".
-SLOPE_EPSILON = 1e-4
+#
+# 1e-3 means the trajectory must drift by at least ~0.001 per 100 steps
+# (i.e. ~0.01 over a 1000-step run) to be classified as moving.  Anything
+# slower than that is washed out by per-step speciation-index noise and is
+# better called "stable".  The previous value (1e-4) effectively eliminated
+# the "stable" class — every realistic run was labelled diverging or merging.
+SLOPE_EPSILON = 1e-3
 
-# 95% two-sided t-distribution multiplier for small N; exact values for
-# n = 2..10 used by _t_ci below.
-_T95 = {
-    1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776,
-    5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262,
-}
+# Sign-agreement threshold used by the within-profile and across-profile
+# robustness checks.  Centralised so the analyzer and its tests agree.
+SIGN_AGREEMENT_THRESHOLD = 0.75
 
 
 # ── I/O helpers ──────────────────────────────────────────────────────────────
@@ -112,7 +115,6 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
                 try:
                     rows.append(json.loads(line))
                 except json.JSONDecodeError:
-                    # Ignore malformed JSONL rows, but warn so data loss is visible.
                     print(
                         f"Warning: skipping malformed JSON in {path} at line {lineno}",
                         file=sys.stderr,
@@ -120,42 +122,80 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
     return rows
 
 
-def _read_json(path: Path) -> Dict[str, Any]:
-    if not path.exists():
-        return {}
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
-
-
 # ── Statistical helpers ───────────────────────────────────────────────────────
 
-def _mean(xs: List[float]) -> float:
+def _mean(xs: Sequence[float]) -> float:
     return float(sum(xs) / len(xs)) if xs else float("nan")
 
 
-def _variance(xs: List[float]) -> float:
+def _variance(xs: Sequence[float]) -> float:
     if len(xs) < 2:
         return float("nan")
     m = _mean(xs)
     return float(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
 
 
-def _t_ci(xs: List[float], alpha: float = 0.05) -> Tuple[float, float]:
-    """Return (lower, upper) two-sided (1-alpha) t confidence interval."""
+def _t_ci(xs: Sequence[float], alpha: float = 0.05) -> Tuple[float, float]:
+    """Two-sided (1 - ``alpha``) Student-t confidence interval for the mean.
+
+    Uses ``scipy.stats.t.ppf`` so the critical value is exact for any df,
+    not pinned to a hand-crafted 95% lookup table.
+    """
     n = len(xs)
     if n < 2:
         m = _mean(xs)
         return m, m
     m = _mean(xs)
     se = math.sqrt(_variance(xs) / n)
-    t = _T95.get(n - 1, 2.0)  # fall back to ~2 for n ≥ 11
-    return m - t * se, m + t * se
+    crit = float(student_t.ppf(1.0 - alpha / 2.0, df=n - 1))
+    return m - crit * se, m + crit * se
 
 
 def _pct_shift(initial: float, final: float) -> float:
-    if math.isnan(initial) or math.isnan(final) or initial == 0.0:
+    """Percent change ``initial → final``.
+
+    Returns NaN when either input is NaN or when ``|initial| < 1e-12``: with
+    a tiny baseline the percent-change blows up and is more misleading than
+    useful for a downstream comparison.
+    """
+    if math.isnan(initial) or math.isnan(final) or abs(initial) < 1e-12:
         return float("nan")
     return 100.0 * (final - initial) / abs(initial)
+
+
+def _sign_agreement(values: Sequence[float]) -> float:
+    """Fraction of seeds whose sign matches the modal sign (zeros excluded)."""
+    if not values:
+        return 0.0
+    signs = [1 if v > 0 else (-1 if v < 0 else 0) for v in values]
+    return abs(sum(signs)) / len(signs)
+
+
+def _mean_trajectory(
+    traces: Sequence[Tuple[np.ndarray, np.ndarray]],
+    n_grid: int = 200,
+) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    """Compute a per-step mean across (steps, values) traces with different ranges.
+
+    Restricts the common step grid to the **intersection** of the per-trace
+    step ranges so every contributing seed has real data at every grid point;
+    this avoids the np.interp right-edge bias where shorter (early-extinction)
+    seeds would otherwise contribute their final value out to the end of the
+    longest trace.
+
+    Returns ``None`` when no seed covers a non-empty common interval.
+    """
+    if not traces:
+        return None
+    common_start = max(float(steps[0]) for steps, _ in traces)
+    common_end = min(float(steps[-1]) for steps, _ in traces)
+    if not common_end > common_start:
+        return None
+    grid = np.linspace(common_start, common_end, num=n_grid)
+    interp = np.stack(
+        [np.interp(grid, steps, vals) for steps, vals in traces], axis=0
+    )
+    return grid, interp.mean(axis=0)
 
 
 def _speciation_slope(trajectory: List[Dict[str, Any]]) -> float:
@@ -240,9 +280,15 @@ def _extract_run_metrics(run_dir: Path) -> Optional[Dict[str, Any]]:
     }
 
     # ── Population metrics ────────────────────────────────────────────────────
-    n_alive = [r.get("n_alive", 0) for r in trajectory]
-    pop_mean = _mean([float(x) for x in n_alive])
-    pop_final = float(n_alive[-1]) if n_alive else float("nan")
+    # Skip rows that don't carry n_alive instead of defaulting to 0; a missing
+    # field is data loss (e.g. schema drift), not a population of zero.
+    n_alive_vals = [
+        float(r["n_alive"])
+        for r in trajectory
+        if r.get("n_alive") is not None
+    ]
+    pop_mean = _mean(n_alive_vals) if n_alive_vals else float("nan")
+    pop_final = n_alive_vals[-1] if n_alive_vals else float("nan")
 
     return {
         "speciation_final": speciation_final,
@@ -261,66 +307,67 @@ def _extract_run_metrics(run_dir: Path) -> Optional[Dict[str, Any]]:
 
 # ── Aggregation ───────────────────────────────────────────────────────────────
 
+def _summarise(values: Sequence[float]) -> Dict[str, Any]:
+    """Mean, sample variance, and 95% CI of a list of floats (NaNs filtered upstream)."""
+    if not values:
+        return {
+            "mean": float("nan"),
+            "variance": float("nan"),
+            "ci95": [float("nan"), float("nan")],
+            "n": 0,
+        }
+    lo, hi = _t_ci(values)
+    return {
+        "mean": _mean(values),
+        "variance": _variance(values),
+        "ci95": [lo, hi],
+        "n": len(values),
+    }
+
+
 def _aggregate_profile(runs: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Aggregate per-seed metrics for a single profile."""
     n = len(runs)
 
-    def _agg_scalar(key: str) -> Dict[str, Any]:
-        vals = [r[key] for r in runs if not math.isnan(r.get(key, float("nan")))]
-        if not vals:
-            return {"mean": float("nan"), "variance": float("nan"), "ci95": [float("nan"), float("nan")], "n": 0}
-        lo, hi = _t_ci(vals)
-        return {
-            "mean": _mean(vals),
-            "variance": _variance(vals),
-            "ci95": [lo, hi],
-            "n": len(vals),
-        }
+    def _scalar_values(key: str) -> List[float]:
+        return [r[key] for r in runs if not math.isnan(r[key])]
 
     agg: Dict[str, Any] = {
         "n_seeds": n,
-        "speciation_final": _agg_scalar("speciation_final"),
-        "speciation_mean": _agg_scalar("speciation_mean"),
-        "speciation_slope": _agg_scalar("speciation_slope"),
+        "speciation_final": _summarise(_scalar_values("speciation_final")),
+        "speciation_mean": _summarise(_scalar_values("speciation_mean")),
+        "speciation_slope": _summarise(_scalar_values("speciation_slope")),
         "speciation_directions": [r["speciation_direction"] for r in runs],
-        "population_mean": _agg_scalar("population_mean"),
-        "population_final": _agg_scalar("population_final"),
+        "population_mean": _summarise(_scalar_values("population_mean")),
+        "population_final": _summarise(_scalar_values("population_final")),
     }
 
-    # Direction agreement: what fraction of seeds agree on the modal direction?
     directions = [r["speciation_direction"] for r in runs]
-    dir_counts = Counter(directions)
-    modal_dir, modal_count = dir_counts.most_common(1)[0]
+    modal_dir, modal_count = Counter(directions).most_common(1)[0]
     agg["speciation_direction_modal"] = modal_dir
     agg["speciation_direction_agreement"] = modal_count / n if n else float("nan")
 
-    # Gene-level aggregation
-    gene_names = set()
+    gene_names: set[str] = set()
     for r in runs:
-        gene_names.update(r.get("gene_pct_shift", {}).keys())
+        gene_names.update(r["gene_pct_shift"].keys())
 
     per_gene: Dict[str, Dict[str, Any]] = {}
     for gene in sorted(gene_names):
         vals = [
             r["gene_pct_shift"][gene]
             for r in runs
-            if gene in r.get("gene_pct_shift", {})
-            and not math.isnan(r["gene_pct_shift"][gene])
+            if gene in r["gene_pct_shift"] and not math.isnan(r["gene_pct_shift"][gene])
         ]
         if not vals:
             continue
-        lo, hi = _t_ci(vals)
-        signs = [1 if v > 0 else (-1 if v < 0 else 0) for v in vals]
-        sign_agreement = abs(sum(signs)) / len(signs) if signs else 0.0
         per_gene[gene] = {
-            "mean_pct_shift": _mean(vals),
-            "variance": _variance(vals),
-            "ci95": [lo, hi],
-            "n": len(vals),
-            "sign_agreement": sign_agreement,
+            **_summarise(vals),
+            "sign_agreement": _sign_agreement(vals),
             "all_positive": all(v > 0 for v in vals),
             "all_negative": all(v < 0 for v in vals),
         }
+        # _summarise emits "n" too; rename for parity with the previous schema.
+        per_gene[gene]["mean_pct_shift"] = per_gene[gene].pop("mean")
     agg["per_gene"] = per_gene
 
     return agg
@@ -328,38 +375,46 @@ def _aggregate_profile(runs: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 # ── Robustness assessment ─────────────────────────────────────────────────────
 
+def _gene_flip_robust(
+    profile_aggs: Dict[str, Dict[str, Any]],
+    gene: str,
+    profile_a: str,
+    profile_b: str,
+) -> bool:
+    """True iff ``gene`` flips sign between two profiles with within-profile robustness.
+
+    Direction-agnostic: matches both ``profile_a > 0, profile_b < 0`` and the reverse.
+    """
+    a = profile_aggs.get(profile_a, {}).get("per_gene", {}).get(gene)
+    b = profile_aggs.get(profile_b, {}).get("per_gene", {}).get(gene)
+    if not a or not b:
+        return False
+    if a.get("sign_agreement", 0) < SIGN_AGREEMENT_THRESHOLD:
+        return False
+    if b.get("sign_agreement", 0) < SIGN_AGREEMENT_THRESHOLD:
+        return False
+    a_mean = a.get("mean_pct_shift", 0.0)
+    b_mean = b.get("mean_pct_shift", 0.0)
+    return (a_mean > 0 and b_mean < 0) or (a_mean < 0 and b_mean > 0)
+
+
 def _assess_robustness(
     profile_aggs: Dict[str, Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Classify genes and speciation direction as robust or seed-sensitive."""
     profiles = [p for p in PROFILE_ORDER if p in profile_aggs]
 
-    # Speciation-direction robustness per profile: is the modal direction
-    # seen in >= 75% of seeds?
-    spec_direction_robust: Dict[str, bool] = {}
-    for p in profiles:
-        agg = profile_aggs[p]
-        spec_direction_robust[p] = agg.get("speciation_direction_agreement", 0.0) >= 0.75
+    spec_direction_robust: Dict[str, bool] = {
+        p: profile_aggs[p].get("speciation_direction_agreement", 0.0)
+        >= SIGN_AGREEMENT_THRESHOLD
+        for p in profiles
+    }
 
-    # Gene direction-flip between profiles: is learning_rate robustly
-    # positive in buffered and negative in conservative?
-    learning_rate_flip_robust = False
-    if "buffered" in profile_aggs and "conservative" in profile_aggs:
-        buf_lr = profile_aggs["buffered"]["per_gene"].get("learning_rate", {})
-        con_lr = profile_aggs["conservative"]["per_gene"].get("learning_rate", {})
-        if buf_lr.get("all_positive") and con_lr.get("all_negative"):
-            learning_rate_flip_robust = True
-        elif (
-            buf_lr.get("mean_pct_shift", 0) > 0
-            and con_lr.get("mean_pct_shift", 0) < 0
-            and buf_lr.get("sign_agreement", 0) >= 0.75
-            and con_lr.get("sign_agreement", 0) >= 0.75
-        ):
-            learning_rate_flip_robust = True
+    learning_rate_flip_robust = _gene_flip_robust(
+        profile_aggs, "learning_rate", "buffered", "conservative"
+    )
 
-    # Per-gene: robust convergence across all profiles (same sign in every
-    # profile's seeds with >= 75% within-profile sign agreement)
-    gene_names = set()
+    gene_names: set[str] = set()
     for agg in profile_aggs.values():
         gene_names.update(agg.get("per_gene", {}).keys())
 
@@ -368,33 +423,27 @@ def _assess_robustness(
     seed_sensitive: List[str] = []
 
     for gene in sorted(gene_names):
-        per_profile_means = []
-        per_profile_sign_agreement = []
+        means: List[float] = []
+        agreements: List[float] = []
         for p in profiles:
             g = profile_aggs[p].get("per_gene", {}).get(gene)
-            if g:
-                per_profile_means.append(g["mean_pct_shift"])
-                per_profile_sign_agreement.append(g["sign_agreement"])
-            else:
-                per_profile_means.append(float("nan"))
-                per_profile_sign_agreement.append(0.0)
+            if g is None:
+                continue
+            means.append(g["mean_pct_shift"])
+            agreements.append(g["sign_agreement"])
 
-        valid_means = [m for m in per_profile_means if not math.isnan(m)]
-        valid_agreement = [a for a in per_profile_sign_agreement]
-
-        if not valid_means:
+        if not means:
             continue
 
-        within_profile_robust = all(a >= 0.75 for a in valid_agreement if not math.isnan(a))
-        signs = [1 if m > 0 else -1 if m < 0 else 0 for m in valid_means]
-        all_same_sign = len(set(signs)) == 1 and 0 not in signs
+        within_profile_robust = all(a >= SIGN_AGREEMENT_THRESHOLD for a in agreements)
+        signs = {1 if m > 0 else -1 if m < 0 else 0 for m in means}
+        all_same_sign = len(signs) == 1 and 0 not in signs
 
         if not within_profile_robust:
             seed_sensitive.append(gene)
         elif all_same_sign:
             convergent_robust.append(gene)
         else:
-            # Different signs across profiles but each is stable within seeds
             direction_flip_robust.append(gene)
 
     return {
@@ -425,8 +474,7 @@ def _plot_speciation_trajectories(
     for ax, profile in zip(axes, profiles):
         color = PROFILE_COLORS.get(profile, "#333333")
         runs = profile_runs[profile]
-        all_steps: Optional[np.ndarray] = None
-        all_traces: List[np.ndarray] = []
+        traces: List[Tuple[np.ndarray, np.ndarray]] = []
 
         for run in runs:
             traj = run.get("trajectory", [])
@@ -440,20 +488,13 @@ def _plot_speciation_trajectories(
             steps = np.array([s[0] for s in spec])
             vals = np.array([s[1] for s in spec])
             ax.plot(steps, vals, color=color, alpha=0.35, lw=1.2)
-            if all_steps is None or len(steps) > len(all_steps):
-                all_steps = steps
-            all_traces.append((steps, vals))
+            traces.append((steps, vals))
 
-        # Mean ribbon across seeds (interpolated to a common step grid)
-        if all_steps is not None and len(all_traces) > 1:
-            common_steps = all_steps
-            interp_traces = []
-            for steps, vals in all_traces:
-                interp_vals = np.interp(common_steps, steps, vals)
-                interp_traces.append(interp_vals)
-            stack = np.stack(interp_traces, axis=0)
-            mean_trace = stack.mean(axis=0)
-            ax.plot(common_steps, mean_trace, color=color, lw=2.5, label="mean")
+        if len(traces) > 1:
+            mean = _mean_trajectory(traces)
+            if mean is not None:
+                grid, mean_trace = mean
+                ax.plot(grid, mean_trace, color=color, lw=2.5, label="mean")
 
         ax.set_title(profile, fontsize=12, color=color, fontweight="bold")
         ax.set_xlabel("step")
@@ -665,7 +706,7 @@ def _build_markdown(
             assessment = "consistently ↑"
         elif lr.get("all_negative"):
             assessment = "consistently ↓"
-        elif sa >= 0.75:
+        elif sa >= SIGN_AGREEMENT_THRESHOLD:
             sign_str = "↑" if lr["mean_pct_shift"] > 0 else "↓"
             assessment = f"predominantly {sign_str}"
         else:
@@ -680,10 +721,13 @@ def _build_markdown(
     lines.append("")
 
     if robustness["learning_rate_flip_robust"]:
+        buf_lr = profile_aggs.get("buffered", {}).get("per_gene", {}).get("learning_rate", {})
+        con_lr = profile_aggs.get("conservative", {}).get("per_gene", {}).get("learning_rate", {})
+        buf_dir = "↑" if buf_lr.get("mean_pct_shift", 0) > 0 else "↓"
+        con_dir = "↑" if con_lr.get("mean_pct_shift", 0) > 0 else "↓"
         lines.append(
-            "**learning_rate direction flip is robust across seeds:** "
-            "buffered consistently selects faster learners; "
-            "conservative consistently selects slower learners."
+            f"**learning_rate direction flip is robust across seeds:** "
+            f"buffered seeds shift {buf_dir}; conservative seeds shift {con_dir}."
         )
     else:
         lines.append(
