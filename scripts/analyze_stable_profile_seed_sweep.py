@@ -106,13 +106,17 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
     if not path.exists():
         return rows
     with path.open(encoding="utf-8") as fh:
-        for line in fh:
+        for lineno, line in enumerate(fh, start=1):
             line = line.strip()
             if line:
                 try:
                     rows.append(json.loads(line))
                 except json.JSONDecodeError:
-                    pass
+                    # Ignore malformed JSONL rows, but warn so data loss is visible.
+                    print(
+                        f"Warning: skipping malformed JSON in {path} at line {lineno}",
+                        file=sys.stderr,
+                    )
     return rows
 
 
