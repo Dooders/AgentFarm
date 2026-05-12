@@ -93,7 +93,8 @@ metrics = obs.get_metrics()
 
 ## 🔬 Research & Experiments
 
-- [Experiments](experiments.md) - Experiment design and implementation
+- [Experiments](experiments.md) - Catalog of currently defined experiments (intrinsic evolution, hyperparameter convergence, cohort runner, memory agent, one of a kind, rabbit's foot)
+- [ExperimentRunner](experiment_runner.md) - Generic multi-iteration simulation runner
 - Experiment case studies (see [Usage Examples](usage_examples.md))
 
 ## 📖 Specialized Guides & Tutorials
