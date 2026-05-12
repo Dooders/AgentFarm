@@ -607,8 +607,10 @@ def _build_markdown(
     # ── Speciation summary ────────────────────────────────────────────────────
     lines += ["## Speciation index", ""]
     lines += [
-        "| Profile | Seeds | Mean final | 95% CI | Mean slope/100 steps | "
-        "Modal direction | Direction agreement |",
+        (
+            "| Profile | Seeds | Mean final | 95% CI | Mean slope/100 steps | "
+            + "Modal direction | Direction agreement |"
+        ),
         "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for profile in profiles:
