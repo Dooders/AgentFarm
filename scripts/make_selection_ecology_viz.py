@@ -183,14 +183,23 @@ def _safe_json(details: object) -> dict:
     return {}
 
 
+def _agent_resources_from_details(details: dict) -> tuple[object | None, object | None]:
+    """Read per-agent resource levels from action details (matches farm/analysis/actions/data.py)."""
+    before = details.get("agent_resources_before")
+    if before is None:
+        before = details.get("resources_before")
+    after = details.get("agent_resources_after")
+    if after is None:
+        after = details.get("resources_after")
+    return before, after
+
+
 def _load_action_budget(conn: sqlite3.Connection) -> pd.DataFrame:
     actions = pd.read_sql_query(
         """
         SELECT
             agent_id,
             action_type,
-            resources_before,
-            resources_after,
             details
         FROM agent_actions
         WHERE action_type IN ('gather', 'reproduce')
@@ -215,11 +224,13 @@ def _load_action_budget(conn: sqlite3.Connection) -> pd.DataFrame:
         details = _safe_json(row.details)
         aid = str(row.agent_id)
 
-        before = row.resources_before
-        after = row.resources_after
+        before, after = _agent_resources_from_details(details)
         delta = np.nan
         if before is not None and after is not None:
-            delta = float(after) - float(before)
+            try:
+                delta = float(after) - float(before)
+            except (TypeError, ValueError):
+                delta = np.nan
 
         if row.action_type == "gather":
             gathered = 0.0
@@ -236,11 +247,12 @@ def _load_action_budget(conn: sqlite3.Connection) -> pd.DataFrame:
             if np.isfinite(delta) and delta < 0:
                 paid_cost = float(-delta)
             else:
-                # Fallback when before/after fields are unavailable.
-                before_d = details.get("resources_before")
-                after_d = details.get("resources_after")
-                if before_d is not None and after_d is not None:
-                    paid_cost = max(0.0, float(before_d) - float(after_d))
+                # Fallback when delta is not a usable negative change (same keys as primary path).
+                if before is not None and after is not None:
+                    try:
+                        paid_cost = max(0.0, float(before) - float(after))
+                    except (TypeError, ValueError):
+                        paid_cost = 0.0
                 else:
                     paid_cost = 0.0
 
@@ -358,7 +370,7 @@ def _plot_ecology_timeseries(ax: plt.Axes, steps: pd.DataFrame) -> None:
     labels = [h.get_label() for h in handles]
     ax.legend(handles, labels, loc="upper right", frameon=False, fontsize=8.5)
 
-    ax.annotate(
+    ax_right.annotate(
         f"end: {int(steps['total_agents'].iloc[-1])} agents",
         xy=(steps["step_number"].iloc[-1], smoothed_agents.iloc[-1]),
         xytext=(-90, 18),
