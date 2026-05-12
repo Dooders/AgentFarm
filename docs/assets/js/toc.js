@@ -93,9 +93,12 @@
     };
 
     applyDefaultPanelState();
-    tocPanel.addEventListener("toggle", () => {
-      panelTouchedByUser = true;
-    });
+    const panelSummary = tocPanel.querySelector("summary");
+    if (panelSummary) {
+      panelSummary.addEventListener("click", () => {
+        panelTouchedByUser = true;
+      });
+    }
     desktopQuery.addEventListener("change", applyDefaultPanelState);
   }
 
