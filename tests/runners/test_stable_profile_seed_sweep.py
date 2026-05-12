@@ -45,7 +45,6 @@ from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
     _speciation_slope,
     _t_ci,
     _variance,
-    PROFILE_ORDER,
 )
 
 
