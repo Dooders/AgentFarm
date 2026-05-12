@@ -243,7 +243,6 @@ def _load_action_budget(conn: sqlite3.Connection) -> pd.DataFrame:
             continue
 
         if row.action_type == "reproduce":
-            paid_cost = 0.0
             if np.isfinite(delta) and delta < 0:
                 paid_cost = float(-delta)
             else:
