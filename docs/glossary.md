@@ -62,6 +62,18 @@ In AgentFarm, ecology is modeled as **emergent interaction structure across agen
 
 In this library, ecology is the interaction layer that connects agent behavior and environment rules to emergent evolutionary context.
 
+## Dynamic tipping region
+
+A [dynamic tipping region](#dynamic-tipping-region) is a moving range of system conditions where small changes can trigger a large shift in population behavior or dominant strategy.
+
+In AgentFarm, a dynamic tipping region is modeled as a **time-varying transition zone in state or parameter space**:
+
+- The "region" is dynamic because thresholds are not fixed; they move as population composition, resource pressure, and interaction patterns change.
+- Near this zone, the same intervention (for example a small hyperparameter or resource change) can produce very different outcomes depending on current context.
+- Crossing the region can produce regime shifts such as rapid changes in cluster dominance, [selection](#selection) pressure, or persistence of [polymorphism](#polymorphism).
+
+In this library, the term is used to describe where adaptive systems are most sensitive to context and most likely to transition between quasi-stable evolutionary states.
+
 ## Energy
 
 Energy is a quantitative resource reserve that supports [activity](#action), maintenance, and survival.
