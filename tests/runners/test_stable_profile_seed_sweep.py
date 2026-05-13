@@ -40,7 +40,6 @@ from scripts.run_stable_profile_seed_sweep import (  # noqa: E402
     DEFAULT_SEEDS,
 )
 from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
-    SIGN_AGREEMENT_THRESHOLD,
     SLOPE_EPSILON,
     _aggregate_profile,
     _assess_robustness,
