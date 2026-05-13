@@ -396,7 +396,7 @@ class AgentBehaviorConfig:
     perception_radius: int = 2
     base_attack_strength: int = 2
     base_defense_strength: int = 2
-    initial_resource_level: int = 0
+    initial_resource_level: float = 0.0
     starvation_threshold: float = 10
     offspring_cost: int = 3
     min_reproduction_resources: int = 8

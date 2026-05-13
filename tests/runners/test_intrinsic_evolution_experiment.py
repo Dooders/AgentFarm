@@ -734,6 +734,12 @@ class TestInitialConditionsConfig(unittest.TestCase):
         with self.assertRaises(ValueError):
             InitialConditionsConfig(initial_agent_resource_level=-1.0)
 
+    def test_fractional_initial_agent_resource_level_is_accepted(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        cfg = InitialConditionsConfig(initial_agent_resource_level=9.5)
+        self.assertAlmostEqual(cfg.resolve()["initial_agent_resource_level"], 9.5)
+
     def test_negative_initial_resource_count_raises(self):
         from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
 
@@ -899,6 +905,31 @@ class TestInitialConditionsAppliedToConfig(unittest.TestCase):
 
         passed_config = run_mock.call_args.kwargs["config"]
         self.assertEqual(passed_config.agent_behavior.initial_resource_level, 42)
+
+    def test_fractional_agent_resource_override_not_truncated(self):
+        """Fine resource sweeps must preserve fractional startup resources."""
+        with patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation"
+        ) as run_mock:
+            from farm.runners.intrinsic_evolution_experiment import (
+                InitialConditionsConfig,
+                IntrinsicEvolutionExperiment,
+                IntrinsicEvolutionExperimentConfig,
+            )
+
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=1,
+                snapshot_interval=1,
+                seed=2,
+                initial_conditions=InitialConditionsConfig(
+                    profile="legacy",
+                    initial_agent_resource_level=9.5,
+                ),
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+        passed_config = run_mock.call_args.kwargs["config"]
+        self.assertAlmostEqual(passed_config.agent_behavior.initial_resource_level, 9.5)
 
     def test_caller_base_config_not_modified(self):
         """The runner must operate on a copy; the caller's config must remain unchanged."""

@@ -129,7 +129,7 @@ def _preset_or_scale_to_pressure_config(
 class _InitialConditionsPreset:
     """Internal container for the values that an initial-conditions preset sets."""
 
-    initial_agent_resource_level: Optional[int]
+    initial_agent_resource_level: Optional[float]
     """Starting resource level for each newly-spawned agent (``None`` = no override)."""
     initial_resource_count: Optional[int]
     """Number of resource nodes placed at simulation start (``None`` = no override)."""
@@ -277,7 +277,7 @@ class InitialConditionsConfig:
 
     profile: Optional[InitialConditionsProfileName] = "stable"
     # Per-field manual overrides (win over preset when set)
-    initial_agent_resource_level: Optional[int] = None
+    initial_agent_resource_level: Optional[float] = None
     initial_resource_count: Optional[int] = None
     resource_regen_rate: Optional[float] = None
     resource_regen_amount: Optional[int] = None
@@ -291,14 +291,19 @@ class InitialConditionsConfig:
                 f"got {self.profile!r}."
             )
         if self.initial_agent_resource_level is not None:
-            if not isinstance(self.initial_agent_resource_level, int):
+            if isinstance(self.initial_agent_resource_level, bool) or not isinstance(
+                self.initial_agent_resource_level, (int, float)
+            ):
                 raise ValueError(
-                    "initial_agent_resource_level must be an integer when set; "
+                    "initial_agent_resource_level must be a finite number when set; "
                     f"got {type(self.initial_agent_resource_level).__name__}."
                 )
-            if self.initial_agent_resource_level < 0:
+            if (
+                not math.isfinite(float(self.initial_agent_resource_level))
+                or float(self.initial_agent_resource_level) < 0.0
+            ):
                 raise ValueError(
-                    "initial_agent_resource_level must be a non-negative integer when set."
+                    "initial_agent_resource_level must be a finite non-negative number when set."
                 )
         if self.initial_resource_count is not None and self.initial_resource_count < 0:
             raise ValueError("initial_resource_count must be non-negative when set.")
@@ -653,7 +658,7 @@ class IntrinsicEvolutionExperiment:
             )
         resolved_ic = self.config.initial_conditions.resolve()
         if resolved_ic.get("initial_agent_resource_level") is not None:
-            resolved_ic["initial_agent_resource_level"] = int(
+            resolved_ic["initial_agent_resource_level"] = float(
                 resolved_ic["initial_agent_resource_level"]
             )
             run_config.agent_behavior.initial_resource_level = resolved_ic[
