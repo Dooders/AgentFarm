@@ -226,7 +226,7 @@ def _plot_probabilities(
         if probability.n > 0
         and probability.range_min is not None
         and probability.range_max is not None
-        and probability.p == probability.p
+        and not math.isnan(probability.p)
     ]
     if not usable:
         return None
