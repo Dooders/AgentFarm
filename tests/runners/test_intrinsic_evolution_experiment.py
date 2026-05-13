@@ -28,11 +28,11 @@ from farm.core.initial_diversity import (
     InitialDiversityMetrics,
     SeedingMode,
 )
-from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger as RealGeneTrajectoryLogger
 from farm.runners.intrinsic_evolution_experiment import (
     IntrinsicEvolutionExperiment,
     IntrinsicEvolutionExperimentConfig,
     IntrinsicEvolutionPolicy,
+    SpeciationConfig,
 )
 
 
@@ -297,32 +297,24 @@ class TestRunnerOrchestration(unittest.TestCase):
                 metadata["initial_diversity_metrics"]["mode"], "independent_mutation"
             )
 
-    def test_runner_persists_speciation_settings_when_logger_enables_it(self):
+    def test_runner_persists_speciation_settings_when_enabled_via_config(self):
         side_effect, _env = self._stub_run_simulation(num_agents=2, num_steps=2)
         with tempfile.TemporaryDirectory() as output_dir, patch(
             "farm.runners.intrinsic_evolution_experiment.run_simulation",
             side_effect=side_effect,
-        ), patch(
-            "farm.runners.intrinsic_evolution_experiment.GeneTrajectoryLogger"
-        ) as logger_cls:
-            def _make_logger(*args, **kwargs):
-                return RealGeneTrajectoryLogger(
-                    *args,
-                    enable_speciation=True,
-                    speciation_algorithm="gmm",
-                    speciation_max_k=7,
-                    speciation_seed=123,
-                    speciation_scaler="robust",
-                    **kwargs,
-                )
-
-            logger_cls.side_effect = _make_logger
-
+        ):
             cfg = IntrinsicEvolutionExperimentConfig(
                 num_steps=2,
                 snapshot_interval=1,
                 output_dir=output_dir,
                 seed=123,
+                speciation=SpeciationConfig(
+                    enabled=True,
+                    algorithm="gmm",
+                    max_k=7,
+                    seed=123,
+                    scaler="robust",
+                ),
             )
             IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
 
@@ -335,6 +327,38 @@ class TestRunnerOrchestration(unittest.TestCase):
             self.assertEqual(metadata["speciation"]["max_k"], 7)
             self.assertEqual(metadata["speciation"]["seed"], 123)
             self.assertEqual(metadata["speciation"]["scaler"], "robust")
+
+    def test_runner_passes_speciation_kwargs_into_gene_logger(self):
+        """Regression: SpeciationConfig fields must reach the underlying logger."""
+        side_effect, _env = self._stub_run_simulation(num_agents=2, num_steps=1)
+        with tempfile.TemporaryDirectory() as output_dir, patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation",
+            side_effect=side_effect,
+        ), patch(
+            "farm.runners.intrinsic_evolution_experiment.GeneTrajectoryLogger"
+        ) as logger_cls:
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=1,
+                snapshot_interval=1,
+                output_dir=output_dir,
+                seed=42,
+                speciation=SpeciationConfig(
+                    enabled=True,
+                    algorithm="dbscan",
+                    max_k=3,
+                    seed=99,
+                    scaler="standard",
+                ),
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+            self.assertEqual(logger_cls.call_count, 1)
+            kwargs = logger_cls.call_args.kwargs
+            self.assertTrue(kwargs["enable_speciation"])
+            self.assertEqual(kwargs["speciation_algorithm"], "dbscan")
+            self.assertEqual(kwargs["speciation_max_k"], 3)
+            self.assertEqual(kwargs["speciation_seed"], 99)
+            self.assertEqual(kwargs["speciation_scaler"], "standard")
 
     def test_final_result_uses_last_hooked_state(self):
         """Final metadata aligns with callback telemetry, not post-loop finalization."""
@@ -710,6 +734,12 @@ class TestInitialConditionsConfig(unittest.TestCase):
         with self.assertRaises(ValueError):
             InitialConditionsConfig(initial_agent_resource_level=-1.0)
 
+    def test_fractional_initial_agent_resource_level_is_accepted(self):
+        from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
+
+        cfg = InitialConditionsConfig(initial_agent_resource_level=9.5)
+        self.assertAlmostEqual(cfg.resolve()["initial_agent_resource_level"], 9.5)
+
     def test_negative_initial_resource_count_raises(self):
         from farm.runners.intrinsic_evolution_experiment import InitialConditionsConfig
 
@@ -875,6 +905,31 @@ class TestInitialConditionsAppliedToConfig(unittest.TestCase):
 
         passed_config = run_mock.call_args.kwargs["config"]
         self.assertEqual(passed_config.agent_behavior.initial_resource_level, 42)
+
+    def test_fractional_agent_resource_override_not_truncated(self):
+        """Fine resource sweeps must preserve fractional startup resources."""
+        with patch(
+            "farm.runners.intrinsic_evolution_experiment.run_simulation"
+        ) as run_mock:
+            from farm.runners.intrinsic_evolution_experiment import (
+                InitialConditionsConfig,
+                IntrinsicEvolutionExperiment,
+                IntrinsicEvolutionExperimentConfig,
+            )
+
+            cfg = IntrinsicEvolutionExperimentConfig(
+                num_steps=1,
+                snapshot_interval=1,
+                seed=2,
+                initial_conditions=InitialConditionsConfig(
+                    profile="legacy",
+                    initial_agent_resource_level=9.5,
+                ),
+            )
+            IntrinsicEvolutionExperiment(SimulationConfig(), cfg).run()
+
+        passed_config = run_mock.call_args.kwargs["config"]
+        self.assertAlmostEqual(passed_config.agent_behavior.initial_resource_level, 9.5)
 
     def test_caller_base_config_not_modified(self):
         """The runner must operate on a copy; the caller's config must remain unchanged."""

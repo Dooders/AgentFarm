@@ -45,12 +45,12 @@ from farm.core.initial_diversity import (  # noqa: E402
     InitialDiversityConfig,
     SeedingMode,
 )
-from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger  # noqa: E402
 from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
     InitialConditionsConfig,
     IntrinsicEvolutionExperiment,
     IntrinsicEvolutionExperimentConfig,
     IntrinsicEvolutionPolicy,
+    SpeciationConfig,
 )
 from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
@@ -110,7 +110,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--initial-agent-resource-level",
-        type=int,
+        type=float,
         default=None,
         help="Override: starting resource level for each agent (overrides profile).",
     )
@@ -281,6 +281,14 @@ def _build_run(args: argparse.Namespace) -> IntrinsicEvolutionExperiment:
         transient_window=args.transient_window,
     )
 
+    speciation = SpeciationConfig(
+        enabled=args.enable_speciation,
+        algorithm=args.speciation_algorithm,
+        max_k=args.speciation_max_k,
+        seed=args.seed,
+        scaler=args.speciation_scaler,
+    )
+
     config = IntrinsicEvolutionExperimentConfig(
         num_steps=args.num_steps,
         snapshot_interval=args.snapshot_interval,
@@ -289,6 +297,7 @@ def _build_run(args: argparse.Namespace) -> IntrinsicEvolutionExperiment:
         ),
         initial_conditions=initial_conditions,
         policy=policy,
+        speciation=speciation,
         output_dir=args.output_dir,
         seed=args.seed,
     )
@@ -335,37 +344,9 @@ def main() -> int:
         enable_speciation=args.enable_speciation,
     )
 
-    # The runner internally constructs its own GeneTrajectoryLogger without a
-    # speciation toggle, so when the user opts in we monkey-patch
-    # GeneTrajectoryLogger so the runner picks up our extended logger.  This
-    # keeps the runner code unchanged while still exposing speciation here.
-    if args.enable_speciation:
-        import farm.runners.intrinsic_evolution_experiment as runner_mod
-
-        original_logger_cls = runner_mod.GeneTrajectoryLogger
-
-        def _make_logger(*pos, **kw):
-            return original_logger_cls(
-                *pos,
-                enable_speciation=True,
-                speciation_algorithm=args.speciation_algorithm,
-                speciation_max_k=args.speciation_max_k,
-                speciation_seed=args.seed,
-                speciation_scaler=args.speciation_scaler,
-                **kw,
-            )
-
-        runner_mod.GeneTrajectoryLogger = _make_logger  # type: ignore[assignment]
-        try:
-            start = time.time()
-            result = _build_run(args).run()
-            elapsed = time.time() - start
-        finally:
-            runner_mod.GeneTrajectoryLogger = original_logger_cls
-    else:
-        start = time.time()
-        result = _build_run(args).run()
-        elapsed = time.time() - start
+    start = time.time()
+    result = _build_run(args).run()
+    elapsed = time.time() - start
 
     summary = {
         "elapsed_seconds": round(elapsed, 3),
@@ -377,8 +358,6 @@ def main() -> int:
     }
     print(json.dumps(summary, indent=2))
 
-    # Touch the underlying GeneTrajectoryLogger to make sure speciation flag
-    # is not silently dropped: report it in the summary file too.
     summary_path = os.path.join(args.output_dir, "run_summary.json")
     with open(summary_path, "w", encoding="utf-8") as handle:
         json.dump(summary, handle, indent=2)

@@ -34,7 +34,7 @@ from farm.core.initial_diversity import (
     SeedingMode,
 )
 from farm.core.simulation import run_simulation
-from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger
+from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger, VALID_SCALERS
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -129,7 +129,7 @@ def _preset_or_scale_to_pressure_config(
 class _InitialConditionsPreset:
     """Internal container for the values that an initial-conditions preset sets."""
 
-    initial_agent_resource_level: Optional[int]
+    initial_agent_resource_level: Optional[float]
     """Starting resource level for each newly-spawned agent (``None`` = no override)."""
     initial_resource_count: Optional[int]
     """Number of resource nodes placed at simulation start (``None`` = no override)."""
@@ -201,6 +201,35 @@ _INITIAL_CONDITIONS_PRESETS: Dict[str, _InitialConditionsPreset] = {
 }
 
 
+# ── Stable sub-profile overrides ──────────────────────────────────────────────
+# Named perturbations of the "stable" preset used to study how buffer level
+# (initial agent resources / environmental supply) shifts speciation
+# trajectories.  Used by ``scripts/run_stable_profile_seed_sweep.py`` and the
+# matching analyzer.  Promoted into the runner module so callers don't need
+# to maintain a parallel copy.
+
+STABLE_SUB_PROFILES: Dict[str, Dict[str, Any]] = {
+    "conservative": {
+        "initial_agent_resource_level": 8,
+        "initial_resource_count": 32,
+        "resource_regen_rate": 0.14,
+        "resource_regen_amount": 3,
+    },
+    "balanced": {
+        "initial_agent_resource_level": 10,
+        "initial_resource_count": 34,
+        "resource_regen_rate": 0.15,
+        "resource_regen_amount": 3,
+    },
+    "buffered": {
+        "initial_agent_resource_level": 12,
+        "initial_resource_count": 36,
+        "resource_regen_rate": 0.16,
+        "resource_regen_amount": 3,
+    },
+}
+
+
 @dataclass(frozen=True)
 class InitialConditionsConfig:
     """Initial-conditions configuration for an intrinsic evolution run.
@@ -248,7 +277,7 @@ class InitialConditionsConfig:
 
     profile: Optional[InitialConditionsProfileName] = "stable"
     # Per-field manual overrides (win over preset when set)
-    initial_agent_resource_level: Optional[int] = None
+    initial_agent_resource_level: Optional[float] = None
     initial_resource_count: Optional[int] = None
     resource_regen_rate: Optional[float] = None
     resource_regen_amount: Optional[int] = None
@@ -262,14 +291,19 @@ class InitialConditionsConfig:
                 f"got {self.profile!r}."
             )
         if self.initial_agent_resource_level is not None:
-            if not isinstance(self.initial_agent_resource_level, int):
+            if isinstance(self.initial_agent_resource_level, bool) or not isinstance(
+                self.initial_agent_resource_level, (int, float)
+            ):
                 raise ValueError(
-                    "initial_agent_resource_level must be an integer when set; "
+                    "initial_agent_resource_level must be a finite number when set; "
                     f"got {type(self.initial_agent_resource_level).__name__}."
                 )
-            if self.initial_agent_resource_level < 0:
+            if (
+                not math.isfinite(float(self.initial_agent_resource_level))
+                or float(self.initial_agent_resource_level) < 0.0
+            ):
                 raise ValueError(
-                    "initial_agent_resource_level must be a non-negative integer when set."
+                    "initial_agent_resource_level must be a finite non-negative number when set."
                 )
         if self.initial_resource_count is not None and self.initial_resource_count < 0:
             raise ValueError("initial_resource_count must be non-negative when set.")
@@ -484,6 +518,44 @@ class IntrinsicEvolutionPolicy:
 
 
 @dataclass(frozen=True)
+class SpeciationConfig:
+    """Speciation-tracking configuration for the intrinsic-evolution runner.
+
+    Mirrors the speciation-related kwargs of
+    :class:`farm.runners.gene_trajectory_logger.GeneTrajectoryLogger`, with
+    ``enabled=False`` by default so existing call sites remain unchanged.
+
+    All validation is delegated to ``GeneTrajectoryLogger`` at construction
+    time so the rules live in one place.
+    """
+
+    enabled: bool = False
+    algorithm: str = "gmm"
+    max_k: int = 5
+    seed: int = 0
+    scaler: str = "none"
+
+    def __post_init__(self) -> None:
+        if self.algorithm not in ("gmm", "dbscan"):
+            raise ValueError("speciation algorithm must be 'gmm' or 'dbscan'.")
+        if self.scaler not in VALID_SCALERS:
+            raise ValueError(
+                f"speciation scaler must be one of {VALID_SCALERS!r}; got {self.scaler!r}."
+            )
+        if self.max_k < 1:
+            raise ValueError("speciation max_k must be at least 1.")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "algorithm": self.algorithm,
+            "max_k": self.max_k,
+            "seed": self.seed,
+            "scaler": self.scaler,
+        }
+
+
+@dataclass(frozen=True)
 class IntrinsicEvolutionExperimentConfig:
     """Top-level config for the intrinsic evolution runner.
 
@@ -496,6 +568,11 @@ class IntrinsicEvolutionExperimentConfig:
     reduce early boom-bust dynamics.  Defaults to the ``"stable"`` profile;
     use ``InitialConditionsConfig(profile="legacy")`` to reproduce the
     pre-feature behavior exactly.
+
+    ``speciation`` controls cluster-based speciation tracking inside the
+    gene-trajectory logger.  Defaults to ``enabled=False``; set
+    ``SpeciationConfig(enabled=True, ...)`` to emit speciation indices and
+    cluster-lineage records into the run's output directory.
     """
 
     num_steps: int = 2000
@@ -505,6 +582,7 @@ class IntrinsicEvolutionExperimentConfig:
         default_factory=InitialConditionsConfig
     )
     policy: IntrinsicEvolutionPolicy = field(default_factory=IntrinsicEvolutionPolicy)
+    speciation: SpeciationConfig = field(default_factory=SpeciationConfig)
     output_dir: Optional[str] = None
     seed: Optional[int] = None
 
@@ -543,13 +621,6 @@ class IntrinsicEvolutionExperiment:
     ) -> None:
         self.base_config = base_config
         self.config = config
-        self._last_speciation_config: Dict[str, Any] = {
-            "enabled": False,
-            "algorithm": None,
-            "max_k": None,
-            "seed": None,
-            "scaler": None,
-        }
 
     def run(self) -> IntrinsicEvolutionResult:
         """Execute the configured number of steps and persist artifacts."""
@@ -560,9 +631,15 @@ class IntrinsicEvolutionExperiment:
         if self.config.output_dir:
             os.makedirs(self.config.output_dir, exist_ok=True)
 
+        speciation = self.config.speciation
         gene_logger = GeneTrajectoryLogger(
             output_dir=self.config.output_dir,
             snapshot_interval=self.config.snapshot_interval,
+            enable_speciation=speciation.enabled,
+            speciation_algorithm=speciation.algorithm,
+            speciation_max_k=speciation.max_k,
+            speciation_seed=speciation.seed,
+            speciation_scaler=speciation.scaler,
         )
 
         policy = self.config.policy
@@ -581,7 +658,7 @@ class IntrinsicEvolutionExperiment:
             )
         resolved_ic = self.config.initial_conditions.resolve()
         if resolved_ic.get("initial_agent_resource_level") is not None:
-            resolved_ic["initial_agent_resource_level"] = int(
+            resolved_ic["initial_agent_resource_level"] = float(
                 resolved_ic["initial_agent_resource_level"]
             )
             run_config.agent_behavior.initial_resource_level = resolved_ic[
@@ -793,13 +870,6 @@ class IntrinsicEvolutionExperiment:
                 on_step_end=_on_step_end,
             )
         finally:
-            self._last_speciation_config = {
-                "enabled": bool(getattr(gene_logger, "_enable_speciation", False)),
-                "algorithm": getattr(gene_logger, "_speciation_algorithm", None),
-                "max_k": getattr(gene_logger, "_speciation_max_k", None),
-                "seed": getattr(gene_logger, "_speciation_seed", None),
-                "scaler": getattr(gene_logger, "_speciation_scaler", None),
-            }
             gene_logger.close()
 
         startup_transient_metrics = _compute_startup_transient_metrics(
@@ -860,7 +930,7 @@ class IntrinsicEvolutionExperiment:
                 if initial_diversity_metrics is not None
                 else None
             ),
-            "speciation": dict(self._last_speciation_config),
+            "speciation": self.config.speciation.to_dict(),
             "seed": self.config.seed,
         }
         with open(metadata_path, "w", encoding="utf-8") as handle:

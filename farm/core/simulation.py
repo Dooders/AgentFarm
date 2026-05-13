@@ -216,7 +216,7 @@ def create_initial_agents(
         agent = factory.create_learning_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(initial_resource_level),
+            initial_resources=initial_resource_level,
             config=agent_config,
             environment=environment,
             agent_type="system",
@@ -230,7 +230,7 @@ def create_initial_agents(
         agent = factory.create_learning_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(initial_resource_level),
+            initial_resources=initial_resource_level,
             config=agent_config,
             environment=environment,
             agent_type="independent",
@@ -244,7 +244,7 @@ def create_initial_agents(
         agent = factory.create_learning_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(initial_resource_level),
+            initial_resources=initial_resource_level,
             config=agent_config,
             environment=environment,
             agent_type="control",
@@ -258,7 +258,7 @@ def create_initial_agents(
         agent = factory.create_learning_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(initial_resource_level),
+            initial_resources=initial_resource_level,
             config=agent_config,
             environment=environment,
             agent_type="order",
@@ -272,7 +272,7 @@ def create_initial_agents(
         agent = factory.create_learning_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(initial_resource_level),
+            initial_resources=initial_resource_level,
             config=agent_config,
             environment=environment,
             agent_type="chaos",
