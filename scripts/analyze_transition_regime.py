@@ -287,7 +287,7 @@ def _plot_mechanisms(
 
 def _format_float(value: Any, digits: int = 3) -> str:
     if isinstance(value, float):
-        if value != value:
+        if math.isnan(value):
             return "n/a"
         return f"{value:.{digits}f}"
     return str(value)
