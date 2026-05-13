@@ -6,6 +6,24 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/devlog/2026-05-12-seed-sweep-reality-check/' | relative_url }}">
+      <span class="post-card__date">2026-05-12</span>
+      <h3 class="post-card__title">When one seed disagrees with six</h3>
+      <p class="post-card__excerpt">
+        A 6-seed-per-profile follow-up to the resource-buffer comparison.
+        Speciation always diverges; the learning_rate and ensemble_size
+        "flips" were single-seed artifacts; a couple of gene-level
+        patterns survive but only as magnitude trends.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/' | relative_url }}">Prior devlog</a>,
+      <a href="{{ '/experiments/intrinsic_evolution/intrinsic_evolution/' | relative_url }}">Intrinsic evolution docs</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/' | relative_url }}">
       <span class="post-card__date">2026-05-04</span>
       <h3 class="post-card__title">Does the resource buffer pick the genes?</h3>

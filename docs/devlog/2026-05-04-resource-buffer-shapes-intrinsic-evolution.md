@@ -3,6 +3,12 @@ layout: page
 title: "Does the Resource Buffer Pick the Genes? Three Stable Profiles Compared"
 ---
 
+> **Update (2026-05-12):** A 6-seed-per-profile follow-up revisited these
+> claims. The robust signal is that speciation diverges across all three
+> profiles; the single-seed `learning_rate`/`ensemble_size` direction-flip
+> findings were not robust under replication. See
+> [When one seed disagrees with six](2026-05-12-seed-sweep-reality-check.md).
+
 A natural follow-up to the [hyperparameter genome experiments](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.md)
 is whether the *amount* of food in the world changes *what* gets selected,
 not just how many agents survive. So I ran the
