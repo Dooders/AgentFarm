@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -185,7 +186,7 @@ def _plot_modes(
         assignment = by_run.get(metric.run_dir)
         if assignment is None:
             continue
-        if not metric.final_speciation == metric.final_speciation:
+        if math.isnan(metric.final_speciation):
             continue
         color = MODE_COLORS.get(assignment.mode, "#6B7280")
         marker = "x" if metric.intervention != "baseline" else "o"
