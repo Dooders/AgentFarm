@@ -295,7 +295,7 @@ def extract_transition_run_metrics(
     late_pairs = spec_pairs[late_start:] if spec_pairs else []
 
     n_alive = _finite_values(row.get("n_alive") for row in trajectory)
-    early_window_size = min(50, max(1, int(len(trajectory) * 0.1))) if trajectory else 0
+    early_window_size = min(50, len(trajectory)) if trajectory else 0
     early_rows = trajectory[:early_window_size]
     late_rows = trajectory[late_start:] if trajectory else []
     early_alive = _finite_values(row.get("n_alive") for row in early_rows)
@@ -478,7 +478,7 @@ def classify_modes(
             parameter_value=metric.parameter_value,
             intervention=metric.intervention,
             mode=mode,
-            confidence=float(proba[row_index, label_int]),
+            confidence=float(proba[label_int]),
             classifier="gmm",
             score=metric.late_speciation_mean,
             features={feature: metric.feature_value(feature) for feature in mode_features},
