@@ -268,7 +268,7 @@ def _plot_mechanisms(
     if not mechanisms:
         return None
     names = [mechanism.mechanism for mechanism in mechanisms]
-    effects = [mechanism.effect_size if mechanism.effect_size == mechanism.effect_size else 0.0 for mechanism in mechanisms]
+    effects = [mechanism.effect_size if not math.isnan(mechanism.effect_size) else 0.0 for mechanism in mechanisms]
     colors = ["#2E7D32" if mechanism.supported else "#9CA3AF" for mechanism in mechanisms]
     fig, ax = plt.subplots(figsize=(7, 3.6))
     ax.bar(names, effects, color=colors, alpha=0.85)
