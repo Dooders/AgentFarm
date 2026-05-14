@@ -56,7 +56,11 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 from farm.config import SimulationConfig  # noqa: E402
-from farm.core.hyperparameter_chromosome import BoundaryMode, MutationMode  # noqa: E402
+from farm.core.hyperparameter_chromosome import (  # noqa: E402
+    BoundaryMode,
+    CrossoverMode,
+    MutationMode,
+)
 from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode  # noqa: E402
 from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
     STABLE_SUB_PROFILES,
@@ -70,6 +74,12 @@ from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
 DEFAULT_SEEDS: List[int] = [42, 7, 19, 101, 137, 256]
 DEFAULT_PROFILES: List[str] = ["conservative", "balanced", "buffered"]
+
+CROSSOVER_MODES: List[str] = [m.value for m in CrossoverMode]
+COPARENT_STRATEGIES: List[str] = [
+    "nearest_alive_same_type",
+    "random_alive_same_type",
+]
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -132,6 +142,67 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--crossover-enabled",
+        action="store_true",
+        help=(
+            "Enable in-situ chromosome crossover during reproduction. When set, each "
+            "reproduction picks a co-parent and runs the configured crossover operator "
+            "before mutation. When unset (default), reproduction inherits the parent's "
+            "chromosome unchanged (modulo mutation)."
+        ),
+    )
+    parser.add_argument(
+        "--crossover-mode",
+        type=str,
+        default="uniform",
+        choices=CROSSOVER_MODES,
+        help="Crossover operator (only used when --crossover-enabled is set).",
+    )
+    parser.add_argument(
+        "--blend-alpha",
+        type=float,
+        default=0.5,
+        help="BLX-alpha for blend crossover (only used when --crossover-mode=blend).",
+    )
+    parser.add_argument(
+        "--num-crossover-points",
+        type=int,
+        default=2,
+        help=(
+            "Number of pivots for multi-point crossover "
+            "(only used when --crossover-mode=multi_point)."
+        ),
+    )
+    parser.add_argument(
+        "--coparent-strategy",
+        type=str,
+        default="nearest_alive_same_type",
+        choices=COPARENT_STRATEGIES,
+        help="How to pick the co-parent when crossover is enabled.",
+    )
+    parser.add_argument(
+        "--coparent-max-radius",
+        type=float,
+        default=None,
+        help="Spatial cap on the co-parent search (None = unbounded).",
+    )
+    parser.add_argument(
+        "--allow-cross-type-pollination",
+        action="store_true",
+        help=(
+            "Allow co-parents of any agent_type. When unset (default), only "
+            "same-type agents are eligible."
+        ),
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "Skip per-(profile, seed) runs whose output directory already contains "
+            "a completed metadata file with num_steps_completed >= --num-steps."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print the planned (profile, seed) matrix and resolved overrides, then exit.",
@@ -163,7 +234,15 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
         mutation_scale=args.mutation_scale,
         mutation_mode=MutationMode.GAUSSIAN,
         boundary_mode=BoundaryMode.REFLECT,
-        crossover_enabled=False,
+        crossover_enabled=bool(getattr(args, "crossover_enabled", False)),
+        crossover_mode=CrossoverMode(getattr(args, "crossover_mode", "uniform")),
+        blend_alpha=float(getattr(args, "blend_alpha", 0.5)),
+        num_crossover_points=int(getattr(args, "num_crossover_points", 2)),
+        coparent_strategy=getattr(args, "coparent_strategy", "nearest_alive_same_type"),
+        coparent_max_radius=getattr(args, "coparent_max_radius", None),
+        allow_cross_type_pollination=bool(
+            getattr(args, "allow_cross_type_pollination", False)
+        ),
         selection_pressure=args.selection_pressure,
         seed=seed,
     )
@@ -292,6 +371,23 @@ def _run_one(
         return False, record
 
 
+def _crossover_settings_dict(args: argparse.Namespace) -> Dict[str, Any]:
+    """Snapshot of the resolved crossover-related CLI args for the manifest."""
+    return {
+        "crossover_enabled": bool(getattr(args, "crossover_enabled", False)),
+        "crossover_mode": str(getattr(args, "crossover_mode", "uniform")),
+        "blend_alpha": float(getattr(args, "blend_alpha", 0.5)),
+        "num_crossover_points": int(getattr(args, "num_crossover_points", 2)),
+        "coparent_strategy": str(
+            getattr(args, "coparent_strategy", "nearest_alive_same_type")
+        ),
+        "coparent_max_radius": getattr(args, "coparent_max_radius", None),
+        "allow_cross_type_pollination": bool(
+            getattr(args, "allow_cross_type_pollination", False)
+        ),
+    }
+
+
 def _print_dry_run_plan(args: argparse.Namespace, output_dir: Path) -> None:
     print("Stable-profile seed sweep — DRY RUN")
     print(f"  output_dir : {output_dir}")
@@ -300,6 +396,7 @@ def _print_dry_run_plan(args: argparse.Namespace, output_dir: Path) -> None:
     print(f"  num_steps  : {args.num_steps} (warmup {args.warmup_steps}, "
           f"snapshot/{args.snapshot_interval})")
     print(f"  disk_db    : {getattr(args, 'disk_database', False)}")
+    print(f"  crossover  : {_crossover_settings_dict(args)}")
     print(f"  total runs : {len(args.profiles) * len(args.seeds)}")
     print()
     print("Resolved sub-profile overrides:")
@@ -372,6 +469,7 @@ def main() -> int:
         "mutation_rate": args.mutation_rate,
         "mutation_scale": args.mutation_scale,
         "selection_pressure": args.selection_pressure,
+        "crossover": _crossover_settings_dict(args),
         "sub_profile_overrides": {p: STABLE_SUB_PROFILES[p] for p in args.profiles},
         "runs": sweep_records,
         "n_ok": n_ok,
