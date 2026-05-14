@@ -49,7 +49,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
@@ -124,6 +124,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Abort the entire sweep on the first run failure.",
     )
     parser.add_argument(
+        "--disk-database",
+        action="store_true",
+        help=(
+            "Use disk-backed SQLite instead of :memory: for each run (recommended for long "
+            "horizons). Writes simulation_<id>.db under each seed output directory."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print the planned (profile, seed) matrix and resolved overrides, then exit.",
@@ -136,6 +144,10 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
     overrides = STABLE_SUB_PROFILES[profile]
 
     base_config = SimulationConfig.from_centralized_config(environment=args.environment)
+    if getattr(args, "disk_database", False):
+        base_config.database.use_in_memory_db = False
+        base_config.database.persist_db_on_completion = True
+
     base_config.initial_diversity = InitialDiversityConfig(
         mode=SeedingMode.INDEPENDENT_MUTATION,
         mutation_rate=args.initial_diversity_mutation_rate,
@@ -183,6 +195,40 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
     return IntrinsicEvolutionExperiment(base_config, exp_config)
 
 
+def _maybe_resume_skip(
+    run_dir: Path,
+    args: argparse.Namespace,
+    record: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """If ``args.resume`` and prior metadata shows a full run, return a completed record.
+
+    Otherwise return ``None`` so the caller should execute the simulation.
+    """
+    if not getattr(args, "resume", False):
+        return None
+    meta_path = run_dir / "intrinsic_evolution_metadata.json"
+    if not meta_path.is_file():
+        return None
+    try:
+        with meta_path.open(encoding="utf-8") as fh:
+            meta = json.load(fh)
+        completed = meta.get("num_steps_completed")
+        if completed is None:
+            return None
+        if int(completed) < int(args.num_steps):
+            return None
+        record.update(
+            status="skipped_done",
+            elapsed_seconds=0.0,
+            num_steps_completed=int(completed),
+            final_population=meta.get("final_population"),
+            error=None,
+        )
+        return record
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return None
+
+
 def _run_one(
     profile: str,
     seed: int,
@@ -192,9 +238,6 @@ def _run_one(
 ) -> Tuple[bool, Dict[str, Any]]:
     """Execute a single (profile, seed) experiment and return its manifest record."""
     run_dir = output_dir / f"stable_{profile}" / f"seed_{seed}"
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    logger.info("seed_sweep_run_start", profile=profile, seed=seed, run_dir=str(run_dir))
 
     record: Dict[str, Any] = {
         "profile": profile,
@@ -206,6 +249,21 @@ def _run_one(
         "final_population": None,
         "error": None,
     }
+
+    skipped = _maybe_resume_skip(run_dir, args, record)
+    if skipped is not None:
+        logger.info(
+            "seed_sweep_run_skipped_resume",
+            profile=profile,
+            seed=seed,
+            run_dir=str(run_dir),
+            num_steps_completed=record.get("num_steps_completed"),
+        )
+        return True, record
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info("seed_sweep_run_start", profile=profile, seed=seed, run_dir=str(run_dir))
 
     try:
         experiment = _build_run(profile, seed, args, run_dir)
@@ -241,6 +299,7 @@ def _print_dry_run_plan(args: argparse.Namespace, output_dir: Path) -> None:
     print(f"  seeds      : {args.seeds}")
     print(f"  num_steps  : {args.num_steps} (warmup {args.warmup_steps}, "
           f"snapshot/{args.snapshot_interval})")
+    print(f"  disk_db    : {getattr(args, 'disk_database', False)}")
     print(f"  total runs : {len(args.profiles) * len(args.seeds)}")
     print()
     print("Resolved sub-profile overrides:")
@@ -306,6 +365,7 @@ def main() -> int:
         "sweep_type": "stable_profile_seed_sweep",
         "profiles": args.profiles,
         "seeds": args.seeds,
+        "disk_database": getattr(args, "disk_database", False),
         "num_steps": args.num_steps,
         "warmup_steps": args.warmup_steps,
         "snapshot_interval": args.snapshot_interval,
