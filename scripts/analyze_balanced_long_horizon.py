@@ -386,8 +386,10 @@ def _build_markdown(
                 f"| {_fmt(_ci_width(clf), 4)} |"
             ),
             "",
-            "*Compare sweep uses the same late-window definition; if its horizon is shorter than "
-            "the window, late slope equals the full-run slope for that directory.*",
+            (
+                "*Compare sweep uses the same late-window definition; if its horizon is shorter than "
+                + "the window, late slope equals the full-run slope for that directory.*"
+            ),
             "",
         ]
 
