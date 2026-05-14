@@ -182,18 +182,19 @@ def _classify_collapse_verdict(
     *lower* and/or *less rising* than the baseline (i.e. negative paired
     deltas with both robustness criteria satisfied).
     """
-    robust = (
+    final_robust = (
         spec_final_delta.get("sign_agreement", 0.0) >= SIGN_AGREEMENT_THRESHOLD
         and _ci_excludes_zero(spec_final_delta.get("ci95", []))
-    ) or (
+    )
+    slope_robust = (
         spec_slope_delta.get("sign_agreement", 0.0) >= SIGN_AGREEMENT_THRESHOLD
         and _ci_excludes_zero(spec_slope_delta.get("ci95", []))
     )
-    if not robust:
+    if not final_robust and not slope_robust:
         return "no robust effect"
     sf_mean = spec_final_delta.get("mean_delta", 0.0)
     sl_mean = spec_slope_delta.get("mean_delta", 0.0)
-    if sf_mean < 0 or sl_mean < 0:
+    if (final_robust and sf_mean < 0) or (slope_robust and sl_mean < 0):
         return "robustly collapses"
     return "robustly amplifies"
 

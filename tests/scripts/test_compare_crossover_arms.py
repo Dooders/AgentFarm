@@ -136,6 +136,15 @@ class TestClassifyCollapseVerdict(unittest.TestCase):
             "robustly collapses",
         )
 
+    def test_robust_amplifies_when_only_slope_evidence_positive(self):
+        # Noisy spec_final must not flip the verdict away from robust slope evidence.
+        spec_final = self._summary(-0.05, [-0.20, 0.10], 0.5)
+        spec_slope = self._summary(0.008, [0.002, 0.014], 1.0)
+        self.assertEqual(
+            _classify_collapse_verdict(spec_final, spec_slope),
+            "robustly amplifies",
+        )
+
 
 # ── _lineage_metrics ──────────────────────────────────────────────────────────
 
