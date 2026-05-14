@@ -51,7 +51,6 @@ if str(_repo_root) not in sys.path:
 
 from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
     PROFILE_COLORS,
-    SLOPE_EPSILON,
     _classify_speciation_direction,
     _discover_runs,
     _extract_run_metrics,
