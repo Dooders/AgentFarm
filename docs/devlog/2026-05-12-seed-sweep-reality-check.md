@@ -208,6 +208,12 @@ In short: publish fewer flip claims, publish more replicated patterns.
 Revising the four follow-ups at the end of the 05-04 post in light of
 the sweep:
 
+> **Update (2026-05-14):** Added execution-ready conservative long-horizon
+> command blocks (3k and 5k, multi-seed, on-disk DB) to
+> [Issue #867](https://github.com/Dooders/AgentFarm/issues/867), along with
+> a short runbook for aggregation. A completed balanced 5k long-horizon run
+> is also documented in the same issue as a reference analysis pattern.
+
 - The "small seed sweep per profile" item is now done.
 - Longer conservative runs are still worth doing, but the motivation
   changes. It's no longer "does the conservative cluster merge?" —
