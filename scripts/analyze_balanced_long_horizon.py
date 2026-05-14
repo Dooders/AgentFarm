@@ -55,6 +55,7 @@ from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
     _classify_speciation_direction,
     _discover_runs,
     _extract_run_metrics,
+    _fmt,
     _mean_trajectory,
     _read_jsonl,
     _speciation_slope,
@@ -283,18 +284,6 @@ def _ci_width(agg: Dict[str, Any]) -> float:
     if any(math.isnan(float(x)) for x in (lo, hi)):
         return float("nan")
     return float(hi) - float(lo)
-
-
-def _fmt(v: Any, decimals: int = 3) -> str:
-    if v is None:
-        return "n/a"
-    if isinstance(v, float):
-        if math.isnan(v):
-            return "n/a"
-        return f"{v:.{decimals}f}"
-    if isinstance(v, (list, tuple)):
-        return f"[{_fmt(v[0], decimals)}, {_fmt(v[1], decimals)}]"
-    return str(v)
 
 
 def _build_markdown(
