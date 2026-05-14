@@ -55,7 +55,6 @@ from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
     PROFILE_COLORS,
     PROFILE_ORDER,
     SIGN_AGREEMENT_THRESHOLD,
-    _classify_speciation_direction,
     _discover_runs,
     _extract_run_metrics,
     _mean,
