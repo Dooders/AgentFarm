@@ -560,8 +560,10 @@ def _build_markdown(
     lines += [
         "# Crossover rerun — paired-seed comparison",
         "",
-        "Compares crossover-enabled arms against the no-crossover baseline "
-        "across the three stable resource profiles, paired by seed.",
+        (
+            "Compares crossover-enabled arms against the no-crossover baseline "
+            + "across the three stable resource profiles, paired by seed."
+        ),
         "",
         "## Verdict: does gene flow collapse the rising speciation pattern?",
         "",
