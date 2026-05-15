@@ -120,6 +120,10 @@ dominant strategy.
 When introducing a new experiment, follow the structure used by the
 existing entries:
 
+- For dashboard-backed experiment types (manifest + adapter + view API),
+  follow the dedicated guide:
+  [Dashboard experiment extension guide](experiments/dashboard_experiment_extension_guide.md).
+
 1. **Create a runner** under `farm/runners/` (or extend an existing
    one). Mirror the patterns in
    [`intrinsic_evolution_experiment.py`](../farm/runners/intrinsic_evolution_experiment.py)

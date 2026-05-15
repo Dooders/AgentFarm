@@ -94,6 +94,7 @@ metrics = obs.get_metrics()
 ## 🔬 Research & Experiments
 
 - [Experiments](experiments.md) - Catalog of currently defined experiments (intrinsic evolution, hyperparameter convergence, cohort runner, memory agent, one of a kind, rabbit's foot)
+- [Dashboard experiment extension guide](experiments/dashboard_experiment_extension_guide.md) - How to add new dashboard-backed experiment types end-to-end
 - [ExperimentRunner](experiment_runner.md) - Generic multi-iteration simulation runner
 - Experiment case studies (see [Usage Examples](usage_examples.md))
 
