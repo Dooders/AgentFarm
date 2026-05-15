@@ -13,6 +13,7 @@ import pytest
 from fastapi import WebSocket
 from fastapi.testclient import TestClient
 
+from farm.experiments.interfaces import ViewDescriptor
 from farm.api.server import (
     AnalysisRequestModel,
     AnalysisResponse,
@@ -139,6 +140,128 @@ class TestFastAPIServer:
         assert payload["status"] == "success"
         assert payload["data"]["is_valid"] is True
         assert payload["data"]["normalized_manifest"]["experiment_type"] == "intrinsic_evolution"
+
+    def test_dashboard_experiment_status_unknown_run_id(self, client):
+        """GET /api/experiments/{run_id}/status returns 404 for unknown run id."""
+        with _active_experiment_runs_thread_lock:
+            active_experiment_runs.clear()
+
+        response = client.get("/api/experiments/unknown-run/status")
+
+        assert response.status_code == 404
+        payload = response.json()
+        assert "not found" in payload["detail"]
+
+    def test_dashboard_experiment_unknown_view_id(self, client):
+        """POST /api/experiments/{run_id}/views/{view_id} returns 404 for unknown views."""
+        manifest = {
+            "schema_version": 1,
+            "experiment_type": "intrinsic_evolution",
+            "experiment_name": "intrinsic-smoke",
+            "base_simulation_config": {"environment.width": 100},
+            "experiment_config": {"num_steps": 10, "snapshot_interval": 2},
+            "dashboard_preset": {"default_views": ["summary_cards"]},
+        }
+        run_id = "run_unknown_view"
+
+        with _active_experiment_runs_thread_lock:
+            active_experiment_runs.clear()
+            active_experiment_runs[run_id] = {
+                "status": "completed",
+                "created_at": datetime.now().isoformat(),
+                "manifest": manifest,
+                "runtime_options": {},
+                "run_summary": {"run_id": run_id},
+                "output_dir": "results/fake",
+            }
+
+        mock_adapter = Mock()
+        mock_adapter.get_view_data.side_effect = KeyError("Unknown view_id='does-not-exist'")
+
+        with patch("farm.api.server.experiment_registry.get", return_value=mock_adapter):
+            response = client.post(
+                f"/api/experiments/{run_id}/views/does-not-exist",
+                json={"filters": {}},
+            )
+
+        assert response.status_code == 404
+        payload = response.json()
+        assert "Unknown view_id" in payload["detail"]
+
+    def test_dashboard_experiment_run_status_views_smoke(self, client):
+        """Run intrinsic manifest, verify status lifecycle, list views, and fetch one payload."""
+        with _active_experiment_runs_thread_lock:
+            active_experiment_runs.clear()
+
+        manifest = {
+            "schema_version": 1,
+            "experiment_type": "intrinsic_evolution",
+            "experiment_name": "intrinsic-smoke",
+            "base_simulation_config": {"environment.width": 100},
+            "experiment_config": {"num_steps": 10, "snapshot_interval": 2},
+            "dashboard_preset": {"default_views": ["summary_cards"]},
+        }
+
+        mock_adapter = Mock()
+        mock_adapter.list_views.return_value = [
+            ViewDescriptor(
+                view_id="summary_cards",
+                view_type="summary_cards",
+                title="Run Summary",
+                description="Summary cards",
+            )
+        ]
+        mock_adapter.get_view_data.return_value = {
+            "view_type": "summary_cards",
+            "cards": [{"id": "steps", "label": "Steps Completed", "value": 10}],
+        }
+
+        def _mock_background_run(run_id, manifest_payload, runtime_options):
+            with _active_experiment_runs_thread_lock:
+                assert active_experiment_runs[run_id]["status"] == "pending"
+                active_experiment_runs[run_id]["status"] = "running"
+                active_experiment_runs[run_id]["status"] = "completed"
+                active_experiment_runs[run_id]["output_dir"] = "results/fake"
+                active_experiment_runs[run_id]["run_summary"] = {
+                    "run_id": run_id,
+                    "output_dir": "results/fake",
+                }
+                active_experiment_runs[run_id]["ended_at"] = datetime.now().isoformat()
+
+        with patch("farm.api.server.experiment_registry.get", return_value=mock_adapter), patch(
+            "farm.api.server._run_experiment_background",
+            side_effect=_mock_background_run,
+        ):
+            run_response = client.post(
+                "/api/experiments/run",
+                json={"manifest": manifest, "runtime_options": {"output_dir": "results/fake"}},
+            )
+
+            assert run_response.status_code == 200
+            run_payload = run_response.json()
+            assert run_payload["status"] == "accepted"
+            run_id = run_payload["run_id"]
+
+            status_response = client.get(f"/api/experiments/{run_id}/status")
+            assert status_response.status_code == 200
+            status_payload = status_response.json()
+            assert status_payload["status"] == "success"
+            assert status_payload["data"]["status"] == "completed"
+
+            views_response = client.get(f"/api/experiments/{run_id}/views")
+            assert views_response.status_code == 200
+            views_payload = views_response.json()
+            assert views_payload["status"] == "success"
+            assert views_payload["data"][0]["view_id"] == "summary_cards"
+
+            view_data_response = client.post(
+                f"/api/experiments/{run_id}/views/summary_cards",
+                json={"filters": {}},
+            )
+            assert view_data_response.status_code == 200
+            view_data_payload = view_data_response.json()
+            assert view_data_payload["status"] == "success"
+            assert view_data_payload["data"]["view_type"] == "summary_cards"
 
     def test_get_step_success(self, client, temp_db_path):
         """Test successful step retrieval."""

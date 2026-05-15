@@ -458,11 +458,16 @@ async def fetch_dashboard_view_data(run_id: str, view_id: str, request_data: Vie
 
     manifest = ExperimentManifest.parse_obj(manifest_payload)
     adapter = experiment_registry.get(manifest.experiment_type)
-    data = adapter.get_view_data(
-        run_context=run_context,
-        view_id=view_id,
-        filters=request_data.filters,
-    )
+    try:
+        data = adapter.get_view_data(
+            run_context=run_context,
+            view_id=view_id,
+            filters=request_data.filters,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "success", "data": data}
 
 
