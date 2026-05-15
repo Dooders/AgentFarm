@@ -166,7 +166,7 @@ class Editor {
         this.currentSimId = data.sim_id;
         this.currentStep = 0;
         socketService.subscribeToSimulation(this.currentSimId);
-        this.updateVisualization(data.data);
+        this.updateVisualization(data.data || {});
         this.hideLoading();
     }
 
@@ -189,12 +189,14 @@ class Editor {
     }
 
     async handleSimulationUpdated(data) {
-        this.updateVisualization(data);
-        this.updateStats(data);
-        this.updateCharts(data);
+        this.updateVisualization(data || {});
+        this.updateStats(data || {});
+        this.updateCharts(data || {});
     }
 
     updateVisualization(data) {
+        const frame = this.normalizeFrameData(data);
+
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -202,22 +204,22 @@ class Editor {
         this.drawGrid();
 
         // Draw resources
-        if (data.resources) {
-            data.resources.forEach(resource => {
+        if (frame.resources) {
+            frame.resources.forEach(resource => {
                 this.drawResource(resource);
             });
         }
 
         // Draw agents
-        if (data.agents) {
-            data.agents.forEach(agent => {
+        if (frame.agents) {
+            frame.agents.forEach(agent => {
                 this.drawAgent(agent);
             });
         }
 
         // Draw interactions if any
-        if (data.interactions) {
-            data.interactions.forEach(interaction => {
+        if (frame.interactions) {
+            frame.interactions.forEach(interaction => {
                 this.drawInteraction(interaction);
             });
         }
@@ -519,6 +521,97 @@ class Editor {
                 ${this.renderBehaviorAnalysis(data.behavior)}
             </div>
         `;
+    }
+
+    setupStats() {
+        this.stats.innerHTML = `
+            <div class="dashboard-shell">
+                <div><strong>Step:</strong> <span id="sim-step">0</span></div>
+                <div><strong>Agents:</strong> <span id="sim-agents">0</span></div>
+                <div><strong>Resources:</strong> <span id="sim-resources">0</span></div>
+            </div>
+        `;
+    }
+
+    normalizeFrameData(data) {
+        const agents = data.agents || data.agent_states || [];
+        const resources = data.resources || data.resource_states || [];
+        const interactions = data.interactions || [];
+        return { agents, resources, interactions };
+    }
+
+    updateStats(data) {
+        const frame = this.normalizeFrameData(data);
+        const stepEl = document.getElementById('sim-step');
+        const agentsEl = document.getElementById('sim-agents');
+        const resourcesEl = document.getElementById('sim-resources');
+        if (stepEl) {
+            stepEl.textContent = `${this.currentStep}`;
+        }
+        if (agentsEl) {
+            agentsEl.textContent = `${frame.agents.length}`;
+        }
+        if (resourcesEl) {
+            resourcesEl.textContent = `${frame.resources.length}`;
+        }
+    }
+
+    updateCharts(data) {
+        const frame = this.normalizeFrameData(data);
+        const metrics = data.metrics || {};
+        const popChart = this.charts.population;
+        const resourceChart = this.charts.resources;
+        if (!popChart || !resourceChart) {
+            return;
+        }
+
+        popChart.data.labels.push(this.currentStep);
+        popChart.data.datasets[0].data.push(metrics.system_agents || 0);
+        popChart.data.datasets[1].data.push(metrics.independent_agents || 0);
+        popChart.data.datasets[2].data.push(metrics.control_agents || 0);
+        popChart.update();
+
+        resourceChart.data.labels.push(this.currentStep);
+        resourceChart.data.datasets[0].data.push(
+            metrics.total_resources || frame.resources.reduce((sum, item) => sum + (item.amount || 0), 0)
+        );
+        resourceChart.update();
+    }
+
+    renderPopulationAnalysis(population = {}) {
+        return `<pre>${JSON.stringify(population, null, 2)}</pre>`;
+    }
+
+    renderResourceAnalysis(resources = {}) {
+        return `<pre>${JSON.stringify(resources, null, 2)}</pre>`;
+    }
+
+    renderBehaviorAnalysis(behavior = {}) {
+        return `<pre>${JSON.stringify(behavior, null, 2)}</pre>`;
+    }
+
+    attachAnalysisEventListeners(modal) {
+        const close = modal.querySelector('.close');
+        if (close) {
+            close.addEventListener('click', () => modal.remove());
+        }
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                modal.remove();
+            }
+        });
+        modal.querySelectorAll('.tab-btn').forEach((button) => {
+            button.addEventListener('click', () => {
+                modal.querySelectorAll('.tab-btn').forEach((candidate) => candidate.classList.remove('active'));
+                button.classList.add('active');
+                const tabId = button.dataset.tab;
+                modal.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.remove('active'));
+                const panel = modal.querySelector(`#${tabId}`);
+                if (panel) {
+                    panel.classList.add('active');
+                }
+            });
+        });
     }
 
     // Helper methods

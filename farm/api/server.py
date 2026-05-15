@@ -23,6 +23,12 @@ from farm.core.analysis import analyze_simulation
 from farm.core.services import EnvConfigService
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
+from farm.experiments import (
+    ExperimentManifest,
+    ExperimentRegistry,
+    IntrinsicEvolutionAdapter,
+    validate_experiment_manifest,
+)
 from farm.utils.logging import configure_logging, get_logger
 
 # Configure structured logging
@@ -87,11 +93,27 @@ class SimulationStatus(BaseModel):
     message: Optional[str] = None
 
 
+class ExperimentManifestRequest(BaseModel):
+    manifest: Dict[str, Any]
+
+
+class ExperimentRunRequest(BaseModel):
+    manifest: Dict[str, Any]
+    runtime_options: Optional[Dict[str, Any]] = None
+
+
+class ViewDataRequest(BaseModel):
+    filters: Dict[str, Any] = {}
+
+
 # Store active simulations
 active_simulations = {}
 
 # Store active analyses
 active_analyses = {}
+
+# Store dashboard-backed experiment runs
+active_experiment_runs = {}
 
 # Configuration for analysis resource management
 MAX_COMPLETED_ANALYSES = 100
@@ -112,10 +134,12 @@ MAX_CONCURRENT_ANALYSES = 10
 # Async locks for use in async endpoints
 _active_simulations_async_lock = asyncio.Lock()
 _active_analyses_async_lock = asyncio.Lock()
+_active_experiment_runs_async_lock = asyncio.Lock()
 
 # Thread locks for use in background tasks (thread pool context)
 _active_simulations_thread_lock = threading.Lock()
 _active_analyses_thread_lock = threading.Lock()
+_active_experiment_runs_thread_lock = threading.Lock()
 
 # Semaphore for controlling concurrent analyses (threading-based)
 _analysis_semaphore = threading.Semaphore(MAX_CONCURRENT_ANALYSES)
@@ -180,6 +204,8 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+experiment_registry = ExperimentRegistry()
+experiment_registry.register(IntrinsicEvolutionAdapter())
 
 
 def _public_simulation_summary(sim_id: str, entry: Dict[str, Any]) -> Dict[str, Any]:
@@ -225,6 +251,46 @@ def _run_simulation_background(sim_id, config, db_path):
                 active_simulations[sim_id]["status"] = "error"
                 # Store a generic message for the public API; full details are in the logs above.
                 active_simulations[sim_id]["error_message"] = "Simulation failed. Check server logs for details."
+
+
+def _run_experiment_background(
+    run_id: str,
+    manifest_payload: Dict[str, Any],
+    runtime_options: Dict[str, Any],
+) -> None:
+    """Execute a dashboard experiment in the background."""
+    try:
+        with ThreadLock(_active_experiment_runs_thread_lock):
+            if run_id in active_experiment_runs:
+                active_experiment_runs[run_id]["status"] = "running"
+
+        manifest = ExperimentManifest.parse_obj(manifest_payload)
+        adapter = experiment_registry.get(manifest.experiment_type)
+        run_summary = adapter.run_experiment(
+            run_id=run_id,
+            manifest=manifest,
+            runtime_options=runtime_options,
+        )
+
+        with ThreadLock(_active_experiment_runs_thread_lock):
+            if run_id in active_experiment_runs:
+                active_experiment_runs[run_id]["status"] = "completed"
+                active_experiment_runs[run_id]["ended_at"] = datetime.now().isoformat()
+                active_experiment_runs[run_id]["run_summary"] = run_summary
+                active_experiment_runs[run_id]["output_dir"] = run_summary.get("output_dir")
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "dashboard_experiment_failed",
+            run_id=run_id,
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+            exc_info=True,
+        )
+        with ThreadLock(_active_experiment_runs_thread_lock):
+            if run_id in active_experiment_runs:
+                active_experiment_runs[run_id]["status"] = "error"
+                active_experiment_runs[run_id]["error_message"] = str(exc)
+                active_experiment_runs[run_id]["ended_at"] = datetime.now().isoformat()
 
 
 @app.post("/api/simulation/new", response_model=SimulationResponse)
@@ -281,6 +347,123 @@ async def create_simulation(
             exc_info=True,
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/experiments/types")
+async def list_dashboard_experiment_types():
+    """List supported experiment types for no-code builders."""
+    return {"status": "success", "data": experiment_registry.list_experiment_types()}
+
+
+@app.post("/api/experiments/manifests/validate")
+async def validate_dashboard_manifest(request_data: ExperimentManifestRequest):
+    """Validate and normalize a dashboard experiment manifest."""
+    generic_result = validate_experiment_manifest(request_data.manifest)
+    if not generic_result.is_valid:
+        return {"status": "success", "data": generic_result.dict()}
+
+    manifest = ExperimentManifest.parse_obj(generic_result.normalized_manifest)
+    adapter = experiment_registry.get(manifest.experiment_type)
+    adapter_result = adapter.validate_manifest(manifest)
+    return {"status": "success", "data": adapter_result.dict()}
+
+
+@app.post("/api/experiments/run")
+async def run_dashboard_experiment(
+    request_data: ExperimentRunRequest, background_tasks: BackgroundTasks
+):
+    """Launch a dashboard-backed experiment run in the background."""
+    generic_result = validate_experiment_manifest(request_data.manifest)
+    if not generic_result.is_valid or generic_result.normalized_manifest is None:
+        raise HTTPException(status_code=400, detail=generic_result.errors)
+
+    run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{secrets.token_urlsafe(8)}"
+    normalized_manifest = generic_result.normalized_manifest
+    runtime_options = request_data.runtime_options or {}
+
+    async with AsyncLock(_active_experiment_runs_async_lock):
+        active_experiment_runs[run_id] = {
+            "status": "pending",
+            "created_at": datetime.now().isoformat(),
+            "manifest": normalized_manifest,
+            "runtime_options": runtime_options,
+            "run_summary": None,
+        }
+
+    background_tasks.add_task(
+        _run_experiment_background, run_id, normalized_manifest, runtime_options
+    )
+    return {
+        "status": "accepted",
+        "run_id": run_id,
+        "message": "Experiment run started",
+    }
+
+
+@app.get("/api/experiments/runs")
+async def list_dashboard_experiment_runs():
+    """List launched dashboard experiment runs and status."""
+    async with AsyncLock(_active_experiment_runs_async_lock):
+        runs = []
+        for run_id, value in active_experiment_runs.items():
+            runs.append(
+                {
+                    "run_id": run_id,
+                    "status": value.get("status"),
+                    "created_at": value.get("created_at"),
+                    "ended_at": value.get("ended_at"),
+                    "error_message": value.get("error_message"),
+                }
+            )
+    return {"status": "success", "data": runs}
+
+
+@app.get("/api/experiments/{run_id}/status")
+async def dashboard_experiment_status(run_id: str):
+    """Get a single dashboard experiment run status."""
+    async with AsyncLock(_active_experiment_runs_async_lock):
+        if run_id not in active_experiment_runs:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+        payload = active_experiment_runs[run_id].copy()
+    return {"status": "success", "data": payload}
+
+
+@app.get("/api/experiments/{run_id}/views")
+async def list_dashboard_views(run_id: str):
+    """List available dashboard views for the selected run."""
+    async with AsyncLock(_active_experiment_runs_async_lock):
+        run_context = active_experiment_runs.get(run_id)
+        if run_context is None:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+        manifest_payload = run_context.get("manifest")
+        if not manifest_payload:
+            raise HTTPException(status_code=400, detail="Run has no manifest payload")
+
+    manifest = ExperimentManifest.parse_obj(manifest_payload)
+    adapter = experiment_registry.get(manifest.experiment_type)
+    views = [view.to_dict() for view in adapter.list_views(run_context)]
+    return {"status": "success", "data": views}
+
+
+@app.post("/api/experiments/{run_id}/views/{view_id}")
+async def fetch_dashboard_view_data(run_id: str, view_id: str, request_data: ViewDataRequest):
+    """Fetch normalized payload for one dashboard view."""
+    async with AsyncLock(_active_experiment_runs_async_lock):
+        run_context = active_experiment_runs.get(run_id)
+        if run_context is None:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+        manifest_payload = run_context.get("manifest")
+        if not manifest_payload:
+            raise HTTPException(status_code=400, detail="Run has no manifest payload")
+
+    manifest = ExperimentManifest.parse_obj(manifest_payload)
+    adapter = experiment_registry.get(manifest.experiment_type)
+    data = adapter.get_view_data(
+        run_context=run_context,
+        view_id=view_id,
+        filters=request_data.filters,
+    )
+    return {"status": "success", "data": data}
 
 
 @app.get("/api/simulation/{sim_id}/step/{step}")
