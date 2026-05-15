@@ -1,12 +1,12 @@
 class ExperimentDashboard {
     constructor() {
+        this.currentRunId = null;
+        this.currentViews = [];
+        this.isLoadingView = false;
         this.statsRoot = document.getElementById('experiment-dashboard');
         if (!this.statsRoot) {
             return;
         }
-        this.currentRunId = null;
-        this.currentViews = [];
-        this.isLoadingView = false;
         this.init();
     }
 

@@ -268,7 +268,7 @@ def _cleanup_old_experiment_runs() -> None:
                     run_id=run_id,
                     status=info.get("status"),
                 )
-                sort_key = datetime.min.isoformat()
+                sort_key = datetime.max.isoformat()
             completed_candidates.append((run_id, sort_key))
         if len(completed_candidates) > MAX_COMPLETED_EXPERIMENT_RUNS:
             completed_candidates.sort(key=lambda item: item[1])
