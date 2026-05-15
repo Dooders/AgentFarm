@@ -19,7 +19,9 @@ from farm.api.server import (
     SimulationCreateRequest,
     SimulationResponse,
     SimulationStatus,
+    _active_experiment_runs_thread_lock,
     _active_simulations_thread_lock,
+    active_experiment_runs,
     active_simulations,
     app,
     manager,
@@ -112,6 +114,31 @@ class TestFastAPIServer:
             assert response.status_code == 500
             data = response.json()
             assert data["detail"] == "Config error"
+
+    def test_validate_dashboard_manifest_smoke(self, client):
+        """POST /api/experiments/manifests/validate returns a valid normalized payload."""
+        with _active_experiment_runs_thread_lock:
+            active_experiment_runs.clear()
+
+        manifest = {
+            "schema_version": 1,
+            "experiment_type": "intrinsic_evolution",
+            "experiment_name": "intrinsic-smoke",
+            "base_simulation_config": {"environment.width": 100},
+            "experiment_config": {"num_steps": 10, "snapshot_interval": 2},
+            "dashboard_preset": {"default_views": ["summary_cards"]},
+        }
+
+        response = client.post(
+            "/api/experiments/manifests/validate",
+            json={"manifest": manifest},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "success"
+        assert payload["data"]["is_valid"] is True
+        assert payload["data"]["normalized_manifest"]["experiment_type"] == "intrinsic_evolution"
 
     def test_get_step_success(self, client, temp_db_path):
         """Test successful step retrieval."""

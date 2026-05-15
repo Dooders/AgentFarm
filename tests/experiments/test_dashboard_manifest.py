@@ -1,8 +1,11 @@
+import pytest
+
 from farm.experiments.manifest import (
     INTRINSIC_EVOLUTION_EXPERIMENT_TYPE,
     SUPPORTED_SCHEMA_VERSION,
     validate_experiment_manifest,
 )
+from farm.experiments.interfaces import ExperimentRegistry
 
 
 def test_validate_manifest_accepts_intrinsic_payload():
@@ -33,3 +36,19 @@ def test_validate_manifest_rejects_unsupported_type():
     result = validate_experiment_manifest(payload)
     assert result.is_valid is False
     assert result.errors
+
+
+def test_registry_get_rejects_unsupported_experiment_type_with_clear_error():
+    registry = ExperimentRegistry()
+
+    class _KnownAdapter:
+        experiment_type = INTRINSIC_EVOLUTION_EXPERIMENT_TYPE
+
+    registry.register(_KnownAdapter())
+
+    with pytest.raises(KeyError) as exc_info:
+        registry.get("unknown_experiment_type")
+
+    message = str(exc_info.value)
+    assert "Unsupported experiment_type='unknown_experiment_type'" in message
+    assert INTRINSIC_EVOLUTION_EXPERIMENT_TYPE in message
