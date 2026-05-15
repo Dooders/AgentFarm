@@ -121,4 +121,23 @@ describe('ExperimentDashboard', () => {
         expect(html).toContain('Cluster Records')
         expect(html).toContain('0')
     })
+
+    test('renders no renderer fallback for unknown view types', async () => {
+        const dashboard = await bootDashboard()
+        dashboard.renderViewData({ view_type: 'unknown_renderer' })
+        expect(document.getElementById('dashboard-body').textContent).toContain('No renderer available')
+    })
+
+    test('renders empty-state messages for branch payload gaps', async () => {
+        const dashboard = await bootDashboard()
+
+        dashboard.renderViewData({ view_type: 'summary_cards', cards: [] })
+        expect(document.getElementById('dashboard-body').textContent).toContain('No summary cards')
+
+        dashboard.renderViewData({ view_type: 'timeseries', series: [] })
+        expect(document.getElementById('dashboard-body').textContent).toContain('No time series data')
+
+        dashboard.renderViewData({ view_type: 'distribution_over_time', snapshots: [] })
+        expect(document.getElementById('dashboard-body').textContent).toContain('No distribution snapshots')
+    })
 })

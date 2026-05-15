@@ -141,6 +141,19 @@ class TestFastAPIServer:
         assert payload["data"]["is_valid"] is True
         assert payload["data"]["normalized_manifest"]["experiment_type"] == "intrinsic_evolution"
 
+    def test_validate_dashboard_manifest_invalid_payload(self, client):
+        """POST /api/experiments/manifests/validate returns validation errors for bad manifests."""
+        response = client.post(
+            "/api/experiments/manifests/validate",
+            json={"manifest": {"schema_version": 999, "experiment_type": "intrinsic_evolution"}},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "success"
+        assert payload["data"]["is_valid"] is False
+        assert payload["data"]["errors"]
+
     def test_dashboard_experiment_status_unknown_run_id(self, client):
         """GET /api/experiments/{run_id}/status returns 404 for unknown run id."""
         with _active_experiment_runs_thread_lock:
@@ -151,6 +164,73 @@ class TestFastAPIServer:
         assert response.status_code == 404
         payload = response.json()
         assert "not found" in payload["detail"]
+
+    def test_dashboard_experiment_run_rejects_bad_manifest(self, client):
+        """POST /api/experiments/run returns 400 for invalid manifests."""
+        response = client.post(
+            "/api/experiments/run",
+            json={"manifest": {"schema_version": 999, "experiment_type": "intrinsic_evolution"}},
+        )
+
+        assert response.status_code == 400
+        payload = response.json()
+        assert payload["detail"]
+
+    def test_dashboard_experiment_views_unknown_run_id(self, client):
+        """GET /api/experiments/{run_id}/views returns 404 for unknown run id."""
+        response = client.get("/api/experiments/unknown-run/views")
+        assert response.status_code == 404
+        payload = response.json()
+        assert "not found" in payload["detail"]
+
+    def test_dashboard_experiment_view_data_unknown_run_id(self, client):
+        """POST /api/experiments/{run_id}/views/{view_id} returns 404 for unknown run id."""
+        response = client.post(
+            "/api/experiments/unknown-run/views/summary_cards",
+            json={"filters": {}},
+        )
+        assert response.status_code == 404
+        payload = response.json()
+        assert "not found" in payload["detail"]
+
+    def test_dashboard_experiment_views_missing_manifest(self, client):
+        """GET /api/experiments/{run_id}/views returns 400 when manifest is missing."""
+        run_id = "run_missing_manifest"
+        with _active_experiment_runs_thread_lock:
+            active_experiment_runs.clear()
+            active_experiment_runs[run_id] = {
+                "status": "completed",
+                "created_at": datetime.now().isoformat(),
+                "manifest": None,
+                "runtime_options": {},
+                "run_summary": {"run_id": run_id},
+            }
+
+        response = client.get(f"/api/experiments/{run_id}/views")
+        assert response.status_code == 400
+        payload = response.json()
+        assert "no manifest payload" in payload["detail"]
+
+    def test_dashboard_experiment_view_data_missing_manifest(self, client):
+        """POST /api/experiments/{run_id}/views/{view_id} returns 400 when manifest is missing."""
+        run_id = "run_missing_manifest_data"
+        with _active_experiment_runs_thread_lock:
+            active_experiment_runs.clear()
+            active_experiment_runs[run_id] = {
+                "status": "completed",
+                "created_at": datetime.now().isoformat(),
+                "manifest": None,
+                "runtime_options": {},
+                "run_summary": {"run_id": run_id},
+            }
+
+        response = client.post(
+            f"/api/experiments/{run_id}/views/summary_cards",
+            json={"filters": {}},
+        )
+        assert response.status_code == 400
+        payload = response.json()
+        assert "no manifest payload" in payload["detail"]
 
     def test_dashboard_experiment_unknown_view_id(self, client):
         """POST /api/experiments/{run_id}/views/{view_id} returns 404 for unknown views."""
