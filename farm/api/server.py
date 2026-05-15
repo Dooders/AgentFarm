@@ -432,12 +432,17 @@ async def dashboard_experiment_status(run_id: str):
 async def list_dashboard_views(run_id: str):
     """List available dashboard views for the selected run."""
     async with AsyncLock(_active_experiment_runs_async_lock):
-        run_context = active_experiment_runs.get(run_id)
-        if run_context is None:
+        if run_id not in active_experiment_runs:
             raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
-        manifest_payload = run_context.get("manifest")
-        if not manifest_payload:
-            raise HTTPException(status_code=400, detail="Run has no manifest payload")
+        run_context = active_experiment_runs[run_id].copy()
+    manifest_payload = run_context.get("manifest")
+    if not manifest_payload:
+        raise HTTPException(status_code=400, detail="Run has no manifest payload")
+    if not run_context.get("output_dir"):
+        raise HTTPException(
+            status_code=409,
+            detail="Experiment output is not available for this run yet or the run failed.",
+        )
 
     manifest = ExperimentManifest.parse_obj(manifest_payload)
     adapter = experiment_registry.get(manifest.experiment_type)
@@ -449,12 +454,17 @@ async def list_dashboard_views(run_id: str):
 async def fetch_dashboard_view_data(run_id: str, view_id: str, request_data: ViewDataRequest):
     """Fetch normalized payload for one dashboard view."""
     async with AsyncLock(_active_experiment_runs_async_lock):
-        run_context = active_experiment_runs.get(run_id)
-        if run_context is None:
+        if run_id not in active_experiment_runs:
             raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
-        manifest_payload = run_context.get("manifest")
-        if not manifest_payload:
-            raise HTTPException(status_code=400, detail="Run has no manifest payload")
+        run_context = active_experiment_runs[run_id].copy()
+    manifest_payload = run_context.get("manifest")
+    if not manifest_payload:
+        raise HTTPException(status_code=400, detail="Run has no manifest payload")
+    if not run_context.get("output_dir"):
+        raise HTTPException(
+            status_code=409,
+            detail="Experiment output is not available for this run yet or the run failed.",
+        )
 
     manifest = ExperimentManifest.parse_obj(manifest_payload)
     adapter = experiment_registry.get(manifest.experiment_type)
