@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import MagicMock, Mock, patch
@@ -176,6 +176,58 @@ class TestFastAPIServer:
         payload = response.json()
         assert payload["detail"]
 
+    def test_dashboard_experiment_runs_list_returns_summaries_in_created_order(self, client):
+        """GET /api/experiments/runs returns safe run summaries in created_at order."""
+        now = datetime.now().replace(microsecond=0)
+        with _active_experiment_runs_thread_lock:
+            active_experiment_runs.clear()
+            active_experiment_runs["run_late"] = {
+                "status": "completed",
+                "created_at": (now + timedelta(seconds=1)).isoformat(),
+                "ended_at": (now + timedelta(seconds=2)).isoformat(),
+                "manifest": {"experiment_name": "late"},
+                "runtime_options": {"output_dir": "/tmp/late"},
+            }
+            active_experiment_runs["run_early"] = {
+                "status": "running",
+                "created_at": now.isoformat(),
+                "manifest": {"experiment_name": "early"},
+                "runtime_options": {"output_dir": "/tmp/early"},
+            }
+
+        response = client.get("/api/experiments/runs")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "success"
+        assert [run["run_id"] for run in payload["data"]] == ["run_early", "run_late"]
+        assert payload["data"][0]["status"] == "running"
+        assert payload["data"][0].get("manifest") is None
+        assert payload["data"][0].get("runtime_options") is None
+
+    def test_dashboard_experiment_status_hides_internal_manifest_and_runtime_options(self, client):
+        """GET /api/experiments/{run_id}/status returns sanitized fields only."""
+        run_id = "run_status_safe"
+        with _active_experiment_runs_thread_lock:
+            active_experiment_runs.clear()
+            active_experiment_runs[run_id] = {
+                "status": "completed",
+                "created_at": datetime.now().isoformat(),
+                "ended_at": datetime.now().isoformat(),
+                "manifest": {"experiment_name": "private"},
+                "runtime_options": {"output_dir": "/tmp/private"},
+                "output_dir": "/tmp/private",
+            }
+
+        response = client.get(f"/api/experiments/{run_id}/status")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "success"
+        assert payload["data"]["run_id"] == run_id
+        assert payload["data"]["status"] == "completed"
+        assert payload["data"].get("manifest") is None
+        assert payload["data"].get("runtime_options") is None
+        assert payload["data"].get("output_dir") is None
+
     def test_dashboard_experiment_views_unknown_run_id(self, client):
         """GET /api/experiments/{run_id}/views returns 404 for unknown run id."""
         response = client.get("/api/experiments/unknown-run/views")
@@ -211,6 +263,26 @@ class TestFastAPIServer:
         payload = response.json()
         assert "no manifest payload" in payload["detail"]
 
+    def test_dashboard_experiment_views_pending_run_returns_409(self, client):
+        """GET /api/experiments/{run_id}/views returns 409 until run is completed."""
+        run_id = "run_pending_views"
+        with _active_experiment_runs_thread_lock:
+            active_experiment_runs.clear()
+            active_experiment_runs[run_id] = {
+                "status": "running",
+                "created_at": datetime.now().isoformat(),
+                "manifest": {
+                    "schema_version": 1,
+                    "experiment_type": "intrinsic_evolution",
+                    "experiment_name": "intrinsic-smoke",
+                },
+            }
+
+        response = client.get(f"/api/experiments/{run_id}/views")
+        assert response.status_code == 409
+        payload = response.json()
+        assert "until the run has completed" in payload["detail"]
+
     def test_dashboard_experiment_view_data_missing_manifest(self, client):
         """POST /api/experiments/{run_id}/views/{view_id} returns 400 when manifest is missing."""
         run_id = "run_missing_manifest_data"
@@ -231,6 +303,29 @@ class TestFastAPIServer:
         assert response.status_code == 400
         payload = response.json()
         assert "no manifest payload" in payload["detail"]
+
+    def test_dashboard_experiment_view_data_pending_run_returns_409(self, client):
+        """POST /api/experiments/{run_id}/views/{view_id} returns 409 until run is completed."""
+        run_id = "run_pending_view_data"
+        with _active_experiment_runs_thread_lock:
+            active_experiment_runs.clear()
+            active_experiment_runs[run_id] = {
+                "status": "pending",
+                "created_at": datetime.now().isoformat(),
+                "manifest": {
+                    "schema_version": 1,
+                    "experiment_type": "intrinsic_evolution",
+                    "experiment_name": "intrinsic-smoke",
+                },
+            }
+
+        response = client.post(
+            f"/api/experiments/{run_id}/views/summary_cards",
+            json={"filters": {}},
+        )
+        assert response.status_code == 409
+        payload = response.json()
+        assert "until the run has completed" in payload["detail"]
 
     def test_dashboard_experiment_unknown_view_id(self, client):
         """POST /api/experiments/{run_id}/views/{view_id} returns 404 for unknown views."""

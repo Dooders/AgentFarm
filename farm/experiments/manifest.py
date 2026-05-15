@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, ValidationError, root_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 
 SUPPORTED_SCHEMA_VERSION = 1
@@ -29,22 +29,22 @@ class ExperimentManifest(BaseModel):
     experiment_config: Dict[str, Any] = Field(default_factory=dict)
     dashboard_preset: DashboardPreset = Field(default_factory=DashboardPreset)
 
-    @root_validator(skip_on_failure=True)
-    def _validate_supported_values(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        schema_version = values.get("schema_version")
+    @model_validator(mode="after")
+    def _validate_supported_values(self) -> "ExperimentManifest":
+        schema_version = self.schema_version
         if schema_version != SUPPORTED_SCHEMA_VERSION:
             raise ValueError(
                 f"Unsupported schema_version={schema_version}. "
                 f"Expected {SUPPORTED_SCHEMA_VERSION}."
             )
 
-        experiment_type = values.get("experiment_type")
+        experiment_type = self.experiment_type
         if experiment_type != INTRINSIC_EVOLUTION_EXPERIMENT_TYPE:
             raise ValueError(
                 f"Unsupported experiment_type={experiment_type!r}. "
                 f"Supported values: [{INTRINSIC_EVOLUTION_EXPERIMENT_TYPE!r}]"
             )
-        return values
+        return self
 
 
 class ManifestValidationResult(BaseModel):
@@ -59,7 +59,7 @@ class ManifestValidationResult(BaseModel):
 def validate_experiment_manifest(payload: Dict[str, Any]) -> ManifestValidationResult:
     """Validate and normalize a manifest payload."""
     try:
-        manifest = ExperimentManifest.parse_obj(payload)
+        manifest = ExperimentManifest.model_validate(payload)
     except ValidationError as exc:
         errors: List[str] = []
         for issue in exc.errors():
@@ -71,5 +71,5 @@ def validate_experiment_manifest(payload: Dict[str, Any]) -> ManifestValidationR
 
     return ManifestValidationResult(
         is_valid=True,
-        normalized_manifest=manifest.dict(),
+        normalized_manifest=manifest.model_dump(),
     )

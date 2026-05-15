@@ -135,6 +135,21 @@ describe('Sidebar intrinsic experiment builder', () => {
         expect(document.getElementById('exp-status').textContent).toBe('Run run123: completed')
     })
 
+    test('starting a second poll loop clears the first interval', async () => {
+        jest.useFakeTimers()
+        const sidebar = await bootSidebar()
+        const clearIntervalSpy = jest.spyOn(global, 'clearInterval')
+
+        window.fetch.mockImplementation(() => mockJsonResponse({ status: 'success', data: { status: 'running' } }))
+
+        await sidebar.pollExperimentRun('run-first')
+        const firstInterval = sidebar.experimentPollInterval
+        await sidebar.pollExperimentRun('run-second')
+
+        expect(clearIntervalSpy).toHaveBeenCalledWith(firstInterval)
+        expect(sidebar.experimentPollInterval).not.toBe(firstInterval)
+    })
+
     test('new simulation control remains wired (regression)', async () => {
         const sidebar = await bootSidebar()
         window.fetch.mockImplementation((url) => {
@@ -159,4 +174,3 @@ describe('Sidebar intrinsic experiment builder', () => {
         })
     })
 })
-

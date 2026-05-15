@@ -65,7 +65,9 @@ class IntrinsicEvolutionAdapter(ExperimentAdapterProtocol):
             self._build_config(manifest, output_dir="results/validation_only")
         except Exception as exc:  # noqa: BLE001
             return ManifestValidationResult(is_valid=False, errors=[str(exc)])
-        return ManifestValidationResult(is_valid=True, normalized_manifest=manifest.dict())
+        return ManifestValidationResult(
+            is_valid=True, normalized_manifest=manifest.model_dump()
+        )
 
     def run_experiment(
         self,

@@ -14,7 +14,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from farm.analysis.service import AnalysisRequest, AnalysisService
 from farm.api.analysis_controller import AnalysisController
@@ -103,7 +103,7 @@ class ExperimentRunRequest(BaseModel):
 
 
 class ViewDataRequest(BaseModel):
-    filters: Dict[str, Any] = {}
+    filters: Dict[str, Any] = Field(default_factory=dict)
 
 
 # Store active simulations
@@ -119,6 +119,8 @@ active_experiment_runs = {}
 MAX_COMPLETED_ANALYSES = 100
 ANALYSIS_RETENTION_HOURS = 24
 MAX_CONCURRENT_ANALYSES = 10
+MAX_COMPLETED_EXPERIMENT_RUNS = 100
+EXPERIMENT_RUN_RETENTION_HOURS = 24
 
 # IMPORTANT: Locking Strategy
 # ===========================
@@ -221,6 +223,58 @@ def _public_simulation_summary(sim_id: str, entry: Dict[str, Any]) -> Dict[str, 
     return summary
 
 
+def _public_experiment_summary(run_id: str, entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Return API-safe experiment run fields only."""
+    summary: Dict[str, Any] = {
+        "run_id": run_id,
+        "status": entry.get("status"),
+        "created_at": entry.get("created_at"),
+        "ended_at": entry.get("ended_at"),
+    }
+    if entry.get("status") == "error":
+        summary["error_message"] = entry.get("error_message")
+    return summary
+
+
+def _cleanup_old_experiment_runs() -> None:
+    """Remove old completed/error/stopped experiment runs to bound in-memory state."""
+    with ThreadLock(_active_experiment_runs_thread_lock):
+        now = datetime.now()
+        terminal_statuses = {"completed", "error", "stopped"}
+        to_remove = set()
+
+        for run_id, info in active_experiment_runs.items():
+            if info.get("status") not in terminal_statuses:
+                continue
+            ended_at_str = info.get("ended_at")
+            if not ended_at_str:
+                continue
+            try:
+                ended_at = datetime.fromisoformat(ended_at_str)
+            except (TypeError, ValueError):
+                continue
+            age_hours = (now - ended_at).total_seconds() / 3600
+            if age_hours > EXPERIMENT_RUN_RETENTION_HOURS:
+                to_remove.add(run_id)
+
+        completed_candidates = [
+            (
+                run_id,
+                info.get("ended_at") or info.get("created_at") or "",
+            )
+            for run_id, info in active_experiment_runs.items()
+            if info.get("status") in terminal_statuses and run_id not in to_remove
+        ]
+        if len(completed_candidates) > MAX_COMPLETED_EXPERIMENT_RUNS:
+            completed_candidates.sort(key=lambda item: item[1])
+            overflow = len(completed_candidates) - MAX_COMPLETED_EXPERIMENT_RUNS
+            for run_id, _ in completed_candidates[:overflow]:
+                to_remove.add(run_id)
+
+        for run_id in to_remove:
+            active_experiment_runs.pop(run_id, None)
+
+
 def _run_simulation_background(sim_id, config, db_path):
     try:
         with ThreadLock(_active_simulations_thread_lock):
@@ -264,7 +318,7 @@ def _run_experiment_background(
             if run_id in active_experiment_runs:
                 active_experiment_runs[run_id]["status"] = "running"
 
-        manifest = ExperimentManifest.parse_obj(manifest_payload)
+        manifest = ExperimentManifest.model_validate(manifest_payload)
         adapter = experiment_registry.get(manifest.experiment_type)
         run_summary = adapter.run_experiment(
             run_id=run_id,
@@ -291,6 +345,8 @@ def _run_experiment_background(
                 active_experiment_runs[run_id]["status"] = "error"
                 active_experiment_runs[run_id]["error_message"] = str(exc)
                 active_experiment_runs[run_id]["ended_at"] = datetime.now().isoformat()
+    finally:
+        _cleanup_old_experiment_runs()
 
 
 @app.post("/api/simulation/new", response_model=SimulationResponse)
@@ -360,12 +416,12 @@ async def validate_dashboard_manifest(request_data: ExperimentManifestRequest):
     """Validate and normalize a dashboard experiment manifest."""
     generic_result = validate_experiment_manifest(request_data.manifest)
     if not generic_result.is_valid:
-        return {"status": "success", "data": generic_result.dict()}
+        return {"status": "success", "data": generic_result.model_dump()}
 
-    manifest = ExperimentManifest.parse_obj(generic_result.normalized_manifest)
+    manifest = ExperimentManifest.model_validate(generic_result.normalized_manifest)
     adapter = experiment_registry.get(manifest.experiment_type)
     adapter_result = adapter.validate_manifest(manifest)
-    return {"status": "success", "data": adapter_result.dict()}
+    return {"status": "success", "data": adapter_result.model_dump()}
 
 
 @app.post("/api/experiments/run")
@@ -380,6 +436,8 @@ async def run_dashboard_experiment(
     run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{secrets.token_urlsafe(8)}"
     normalized_manifest = generic_result.normalized_manifest
     runtime_options = request_data.runtime_options or {}
+
+    _cleanup_old_experiment_runs()
 
     async with AsyncLock(_active_experiment_runs_async_lock):
         active_experiment_runs[run_id] = {
@@ -403,28 +461,26 @@ async def run_dashboard_experiment(
 @app.get("/api/experiments/runs")
 async def list_dashboard_experiment_runs():
     """List launched dashboard experiment runs and status."""
+    _cleanup_old_experiment_runs()
     async with AsyncLock(_active_experiment_runs_async_lock):
-        runs = []
-        for run_id, value in active_experiment_runs.items():
-            runs.append(
-                {
-                    "run_id": run_id,
-                    "status": value.get("status"),
-                    "created_at": value.get("created_at"),
-                    "ended_at": value.get("ended_at"),
-                    "error_message": value.get("error_message"),
-                }
+        runs = [
+            _public_experiment_summary(run_id, value)
+            for run_id, value in sorted(
+                active_experiment_runs.items(),
+                key=lambda item: item[1].get("created_at") or "",
             )
+        ]
     return {"status": "success", "data": runs}
 
 
 @app.get("/api/experiments/{run_id}/status")
 async def dashboard_experiment_status(run_id: str):
     """Get a single dashboard experiment run status."""
+    _cleanup_old_experiment_runs()
     async with AsyncLock(_active_experiment_runs_async_lock):
         if run_id not in active_experiment_runs:
             raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
-        payload = active_experiment_runs[run_id].copy()
+        payload = _public_experiment_summary(run_id, active_experiment_runs[run_id])
     return {"status": "success", "data": payload}
 
 
@@ -438,13 +494,18 @@ async def list_dashboard_views(run_id: str):
     manifest_payload = run_context.get("manifest")
     if not manifest_payload:
         raise HTTPException(status_code=400, detail="Run has no manifest payload")
+    if run_context.get("status") != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail="Experiment output is not available until the run has completed.",
+        )
     if not run_context.get("output_dir"):
         raise HTTPException(
             status_code=409,
             detail="Experiment output is not available for this run yet or the run failed.",
         )
 
-    manifest = ExperimentManifest.parse_obj(manifest_payload)
+    manifest = ExperimentManifest.model_validate(manifest_payload)
     adapter = experiment_registry.get(manifest.experiment_type)
     views = [view.to_dict() for view in adapter.list_views(run_context)]
     return {"status": "success", "data": views}
@@ -460,13 +521,18 @@ async def fetch_dashboard_view_data(run_id: str, view_id: str, request_data: Vie
     manifest_payload = run_context.get("manifest")
     if not manifest_payload:
         raise HTTPException(status_code=400, detail="Run has no manifest payload")
+    if run_context.get("status") != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail="Experiment output is not available until the run has completed.",
+        )
     if not run_context.get("output_dir"):
         raise HTTPException(
             status_code=409,
             detail="Experiment output is not available for this run yet or the run failed.",
         )
 
-    manifest = ExperimentManifest.parse_obj(manifest_payload)
+    manifest = ExperimentManifest.model_validate(manifest_payload)
     adapter = experiment_registry.get(manifest.experiment_type)
     try:
         data = adapter.get_view_data(

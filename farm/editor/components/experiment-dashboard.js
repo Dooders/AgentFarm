@@ -1,6 +1,6 @@
 class ExperimentDashboard {
     constructor() {
-        this.statsRoot = document.getElementById('stats');
+        this.statsRoot = document.getElementById('experiment-dashboard') || document.getElementById('stats');
         this.currentRunId = null;
         this.currentViews = [];
         this.isLoadingView = false;
@@ -114,14 +114,25 @@ class ExperimentDashboard {
 
     renderViewData(data) {
         if (data.view_type === 'summary_cards') {
-            const cards = (data.cards || [])
-                .map((card) => `<div class="dashboard-card"><strong>${card.label}</strong><span>${card.value}</span></div>`)
-                .join('');
-            if (!cards) {
+            const cards = data.cards || [];
+            if (!cards.length) {
                 this.body.textContent = 'No summary cards are available for this run.';
                 return;
             }
-            this.body.innerHTML = `<div class="dashboard-card-grid">${cards}</div>`;
+            const grid = document.createElement('div');
+            grid.className = 'dashboard-card-grid';
+            cards.forEach((card) => {
+                const cardElement = document.createElement('div');
+                cardElement.className = 'dashboard-card';
+                const label = document.createElement('strong');
+                label.textContent = String(card.label ?? '');
+                const value = document.createElement('span');
+                value.textContent = String(card.value ?? '');
+                cardElement.appendChild(label);
+                cardElement.appendChild(value);
+                grid.appendChild(cardElement);
+            });
+            this.body.replaceChildren(grid);
             return;
         }
 
@@ -130,16 +141,27 @@ class ExperimentDashboard {
                 this.body.textContent = 'No time series data is available for this run.';
                 return;
             }
-            const rows = (data.series || [])
-                .map((series) => `<tr><td>${series.label}</td><td>${(series.values || []).slice(-1)[0] ?? 'n/a'}</td><td>${(series.values || []).length}</td></tr>`)
-                .join('');
-            this.body.innerHTML = `
-                <h4>${data.title || 'Time series'}</h4>
-                <table class="dashboard-table">
-                    <thead><tr><th>Series</th><th>Latest</th><th>Samples</th></tr></thead>
-                    <tbody>${rows}</tbody>
-                </table>
-            `;
+            const title = document.createElement('h4');
+            title.textContent = data.title || 'Time series';
+            const table = document.createElement('table');
+            table.className = 'dashboard-table';
+            table.innerHTML = '<thead><tr><th>Series</th><th>Latest</th><th>Samples</th></tr></thead>';
+            const body = document.createElement('tbody');
+            (data.series || []).forEach((series) => {
+                const row = document.createElement('tr');
+                const label = document.createElement('td');
+                label.textContent = String(series.label ?? '');
+                const latest = document.createElement('td');
+                latest.textContent = String((series.values || []).slice(-1)[0] ?? 'n/a');
+                const samples = document.createElement('td');
+                samples.textContent = String((series.values || []).length);
+                row.appendChild(label);
+                row.appendChild(latest);
+                row.appendChild(samples);
+                body.appendChild(row);
+            });
+            table.appendChild(body);
+            this.body.replaceChildren(title, table);
             return;
         }
 
@@ -148,32 +170,53 @@ class ExperimentDashboard {
                 this.body.textContent = 'No distribution snapshots are available for this run.';
                 return;
             }
-            const rows = (data.snapshots || [])
-                .map((snapshot) => {
-                    const genes = Object.keys(snapshot.by_gene || {}).length;
-                    return `<tr><td>${snapshot.step}</td><td>${genes}</td></tr>`;
-                })
-                .join('');
-            this.body.innerHTML = `
-                <h4>${data.title || 'Distribution over time'}</h4>
-                <table class="dashboard-table">
-                    <thead><tr><th>Step</th><th>Genes tracked</th></tr></thead>
-                    <tbody>${rows}</tbody>
-                </table>
-            `;
+            const title = document.createElement('h4');
+            title.textContent = data.title || 'Distribution over time';
+            const table = document.createElement('table');
+            table.className = 'dashboard-table';
+            table.innerHTML = '<thead><tr><th>Step</th><th>Genes tracked</th></tr></thead>';
+            const body = document.createElement('tbody');
+            (data.snapshots || []).forEach((snapshot) => {
+                const row = document.createElement('tr');
+                const step = document.createElement('td');
+                step.textContent = String(snapshot.step ?? '');
+                const genes = document.createElement('td');
+                genes.textContent = String(Object.keys(snapshot.by_gene || {}).length);
+                row.appendChild(step);
+                row.appendChild(genes);
+                body.appendChild(row);
+            });
+            table.appendChild(body);
+            this.body.replaceChildren(title, table);
             return;
         }
 
         if (data.view_type === 'lineage_or_clusters') {
             const clusterCount = (data.clusters || []).length;
             const latestIndex = data?.timeseries?.series?.[0]?.values?.slice(-1)[0] ?? 'n/a';
-            this.body.innerHTML = `
-                <h4>${data.title || 'Lineage and clusters'}</h4>
-                <div class="dashboard-card-grid">
-                    <div class="dashboard-card"><strong>Latest Speciation Index</strong><span>${latestIndex}</span></div>
-                    <div class="dashboard-card"><strong>Cluster Records</strong><span>${clusterCount}</span></div>
-                </div>
-            `;
+            const title = document.createElement('h4');
+            title.textContent = data.title || 'Lineage and clusters';
+            const grid = document.createElement('div');
+            grid.className = 'dashboard-card-grid';
+            const indexCard = document.createElement('div');
+            indexCard.className = 'dashboard-card';
+            const indexLabel = document.createElement('strong');
+            indexLabel.textContent = 'Latest Speciation Index';
+            const indexValue = document.createElement('span');
+            indexValue.textContent = String(latestIndex);
+            indexCard.appendChild(indexLabel);
+            indexCard.appendChild(indexValue);
+            const clusterCard = document.createElement('div');
+            clusterCard.className = 'dashboard-card';
+            const clusterLabel = document.createElement('strong');
+            clusterLabel.textContent = 'Cluster Records';
+            const clusterValue = document.createElement('span');
+            clusterValue.textContent = String(clusterCount);
+            clusterCard.appendChild(clusterLabel);
+            clusterCard.appendChild(clusterValue);
+            grid.appendChild(indexCard);
+            grid.appendChild(clusterCard);
+            this.body.replaceChildren(title, grid);
             return;
         }
 

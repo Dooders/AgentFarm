@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 function injectHtml() {
-    document.body.innerHTML = '<div id="stats"></div>'
+    document.body.innerHTML = '<div id="stats">Simulation stats root</div><div id="experiment-dashboard"></div>'
 }
 
 function mockJsonResponse(payload, ok = true, status = 200) {
@@ -82,6 +82,11 @@ describe('ExperimentDashboard', () => {
         expect(document.getElementById('dashboard-body').textContent).toContain('Failed to load view data: HTTP 404')
     })
 
+    test('does not overwrite simulation stats container when rendering dashboard', async () => {
+        await bootDashboard()
+        expect(document.getElementById('stats').textContent).toContain('Simulation stats root')
+    })
+
     test('renders timeseries branch', async () => {
         const dashboard = await bootDashboard()
         dashboard.renderViewData({
@@ -139,5 +144,19 @@ describe('ExperimentDashboard', () => {
 
         dashboard.renderViewData({ view_type: 'distribution_over_time', snapshots: [] })
         expect(document.getElementById('dashboard-body').textContent).toContain('No distribution snapshots')
+    })
+
+    test('renders adapter values as text content to avoid HTML injection', async () => {
+        const dashboard = await bootDashboard()
+        dashboard.renderViewData({
+            view_type: 'summary_cards',
+            cards: [{ label: '<img src=x onerror=alert(1)>', value: '<b>42</b>' }],
+        })
+
+        const body = document.getElementById('dashboard-body')
+        expect(body.innerHTML).toContain('&lt;img src=x onerror=alert(1)&gt;')
+        expect(body.innerHTML).toContain('&lt;b&gt;42&lt;/b&gt;')
+        expect(body.querySelector('img')).toBeNull()
+        expect(body.querySelector('b')).toBeNull()
     })
 })

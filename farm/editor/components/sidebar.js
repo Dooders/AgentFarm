@@ -1,6 +1,7 @@
 class Sidebar {
     constructor() {
         this.element = document.getElementById('sidebar');
+        this.experimentPollInterval = null;
         this.init();
     }
 
@@ -247,7 +248,10 @@ class Sidebar {
     }
 
     async pollExperimentRun(runId) {
-        const interval = setInterval(async () => {
+        if (this.experimentPollInterval) {
+            clearInterval(this.experimentPollInterval);
+        }
+        this.experimentPollInterval = setInterval(async () => {
             try {
                 const response = await fetch(`http://localhost:5000/api/experiments/${runId}/status`);
                 const payload = await response.json();
@@ -255,16 +259,19 @@ class Sidebar {
                 window.dispatchEvent(new CustomEvent('experiment-run-status', { detail: payload.data }));
                 this.updateExperimentStatus(`Run ${runId}: ${status}`);
                 if (status === 'completed') {
-                    clearInterval(interval);
+                    clearInterval(this.experimentPollInterval);
+                    this.experimentPollInterval = null;
                     window.dispatchEvent(new CustomEvent('experiment-run-completed', { detail: { run_id: runId } }));
                 }
                 if (status === 'error') {
-                    clearInterval(interval);
+                    clearInterval(this.experimentPollInterval);
+                    this.experimentPollInterval = null;
                     const message = payload?.data?.error_message || 'Unknown error';
                     this.updateExperimentStatus(`Run ${runId} errored: ${message}`, true);
                 }
             } catch (error) {
-                clearInterval(interval);
+                clearInterval(this.experimentPollInterval);
+                this.experimentPollInterval = null;
                 this.updateExperimentStatus(`Run polling failed: ${error.message}`, true);
             }
         }, 2000);
