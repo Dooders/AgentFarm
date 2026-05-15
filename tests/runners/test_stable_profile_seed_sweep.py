@@ -850,5 +850,101 @@ class _NullLogger:
         pass
 
 
+# ── Tests: crossover CLI flag wiring ──────────────────────────────────────────
+
+
+class TestCrossoverCLI(unittest.TestCase):
+    """Verify that the new crossover CLI flags reach IntrinsicEvolutionPolicy."""
+
+    def test_default_args_disable_crossover(self):
+        args = runner_mod._build_parser().parse_args(
+            ["--profiles", "buffered", "--seeds", "42"]
+        )
+        self.assertFalse(args.crossover_enabled)
+        self.assertEqual(args.crossover_mode, "uniform")
+        self.assertEqual(args.coparent_strategy, "nearest_alive_same_type")
+        self.assertFalse(args.allow_cross_type_pollination)
+        self.assertIsNone(args.coparent_max_radius)
+
+    def test_crossover_flags_parse(self):
+        args = runner_mod._build_parser().parse_args([
+            "--profiles", "buffered",
+            "--seeds", "42",
+            "--crossover-enabled",
+            "--crossover-mode", "blend",
+            "--blend-alpha", "0.3",
+            "--num-crossover-points", "3",
+            "--coparent-strategy", "random_alive_same_type",
+            "--coparent-max-radius", "12.5",
+            "--allow-cross-type-pollination",
+        ])
+        self.assertTrue(args.crossover_enabled)
+        self.assertEqual(args.crossover_mode, "blend")
+        self.assertAlmostEqual(args.blend_alpha, 0.3)
+        self.assertEqual(args.num_crossover_points, 3)
+        self.assertEqual(args.coparent_strategy, "random_alive_same_type")
+        self.assertAlmostEqual(args.coparent_max_radius, 12.5)
+        self.assertTrue(args.allow_cross_type_pollination)
+
+    def test_crossover_settings_dict_snapshot(self):
+        args = runner_mod._build_parser().parse_args([
+            "--crossover-enabled",
+            "--crossover-mode", "single_point",
+            "--blend-alpha", "0.7",
+        ])
+        snapshot = runner_mod._crossover_settings_dict(args)
+        self.assertTrue(snapshot["crossover_enabled"])
+        self.assertEqual(snapshot["crossover_mode"], "single_point")
+        self.assertAlmostEqual(snapshot["blend_alpha"], 0.7)
+        self.assertEqual(snapshot["coparent_strategy"], "nearest_alive_same_type")
+
+    def test_build_run_wires_crossover_into_policy(self):
+        """End-to-end: parsed CLI flags should produce a policy with matching fields.
+
+        We exercise ``_build_run`` so the wiring (rather than just the CLI
+        surface) is exercised, but only inspect attributes on the constructed
+        experiment object — no simulation steps are executed.
+        """
+        from farm.core.hyperparameter_chromosome import CrossoverMode
+
+        with tempfile.TemporaryDirectory() as tmp:
+            args = runner_mod._build_parser().parse_args([
+                "--profiles", "buffered",
+                "--seeds", "42",
+                "--output-dir", tmp,
+                "--crossover-enabled",
+                "--crossover-mode", "blend",
+                "--blend-alpha", "0.4",
+                "--num-crossover-points", "3",
+                "--coparent-strategy", "random_alive_same_type",
+                "--coparent-max-radius", "8.0",
+                "--allow-cross-type-pollination",
+            ])
+            run_dir = Path(tmp) / "stable_buffered" / "seed_42"
+            run_dir.mkdir(parents=True)
+            experiment = runner_mod._build_run("buffered", 42, args, run_dir)
+            policy = experiment.config.policy
+            self.assertTrue(policy.crossover_enabled)
+            self.assertEqual(policy.crossover_mode, CrossoverMode.BLEND)
+            self.assertAlmostEqual(policy.blend_alpha, 0.4)
+            self.assertEqual(policy.num_crossover_points, 3)
+            self.assertEqual(policy.coparent_strategy, "random_alive_same_type")
+            self.assertAlmostEqual(policy.coparent_max_radius, 8.0)
+            self.assertTrue(policy.allow_cross_type_pollination)
+
+    def test_build_run_defaults_crossover_disabled(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = runner_mod._build_parser().parse_args([
+                "--profiles", "buffered",
+                "--seeds", "42",
+                "--output-dir", tmp,
+            ])
+            run_dir = Path(tmp) / "stable_buffered" / "seed_42"
+            run_dir.mkdir(parents=True)
+            experiment = runner_mod._build_run("buffered", 42, args, run_dir)
+            policy = experiment.config.policy
+            self.assertFalse(policy.crossover_enabled)
+
+
 if __name__ == "__main__":
     unittest.main()
