@@ -257,14 +257,19 @@ def _cleanup_old_experiment_runs() -> None:
             if age_hours > EXPERIMENT_RUN_RETENTION_HOURS:
                 to_remove.add(run_id)
 
-        completed_candidates = [
-            (
-                run_id,
-                info.get("ended_at") or info.get("created_at") or "",
-            )
-            for run_id, info in active_experiment_runs.items()
-            if info.get("status") in terminal_statuses and run_id not in to_remove
-        ]
+        completed_candidates = []
+        for run_id, info in active_experiment_runs.items():
+            if info.get("status") not in terminal_statuses or run_id in to_remove:
+                continue
+            sort_key = info.get("ended_at") or info.get("created_at")
+            if not sort_key:
+                logger.warning(
+                    "experiment_run_missing_timestamps",
+                    run_id=run_id,
+                    status=info.get("status"),
+                )
+                sort_key = ""
+            completed_candidates.append((run_id, sort_key))
         if len(completed_candidates) > MAX_COMPLETED_EXPERIMENT_RUNS:
             completed_candidates.sort(key=lambda item: item[1])
             overflow = len(completed_candidates) - MAX_COMPLETED_EXPERIMENT_RUNS
