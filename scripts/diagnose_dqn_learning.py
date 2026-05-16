@@ -57,6 +57,7 @@ class AgentStats:
         "param_change_l2",
         "buffer_size_at_end",
         "epsilon_at_end",
+        "rewards",
     )
 
     def __init__(self, agent_id: str) -> None:
@@ -73,9 +74,15 @@ class AgentStats:
         self.param_change_l2: float = 0.0
         self.buffer_size_at_end: int = 0
         self.epsilon_at_end: Optional[float] = None
+        self.rewards: list = []
 
 
 _STATS: Dict[str, AgentStats] = defaultdict(lambda: AgentStats("?"))
+
+
+def reset_stats() -> None:
+    """Clear the per-process stats container (useful for repeated runs)."""
+    _STATS.clear()
 
 
 def _stats_for(agent_id: str) -> AgentStats:
@@ -113,6 +120,10 @@ def install_instrumentation() -> None:
         agent_id = getattr(self, "_diag_agent_id", "?")
         stats = _stats_for(agent_id)
         stats.store_calls += 1
+        try:
+            stats.rewards.append(float(reward))
+        except (TypeError, ValueError):
+            pass
         # Take an initial parameter sample on the very first store so that
         # comparisons later show real movement (or the absence of it).
         if stats.initial_param_sample is None and self.policy is not None:
@@ -329,6 +340,45 @@ def report(num_steps: int, lifespans: Dict[str, int]) -> None:
     print(f"Agents whose buffer reached batch size 32:  {n_filled_batch}/{n_agents}")
     print(f"Agents that ran ≥1 training gradient step:  {n_ever_trained}/{n_agents}")
     print(f"Agents whose Q-net weights actually moved:  {n_weights_moved}/{n_agents}")
+
+    # ---- Reward-trend per agent (did learning *improve* behavior?) ----
+    print("\n--- Reward trend (per-agent first-half vs second-half mean reward) ---")
+    first_means = []
+    second_means = []
+    deltas = []
+    agents_improved = 0
+    agents_with_two_halves = 0
+    for s in _STATS.values():
+        rs = s.rewards
+        if len(rs) < 8:
+            continue
+        half = len(rs) // 2
+        first = float(np.mean(rs[:half]))
+        second = float(np.mean(rs[half:]))
+        first_means.append(first)
+        second_means.append(second)
+        deltas.append(second - first)
+        agents_with_two_halves += 1
+        if second > first:
+            agents_improved += 1
+    if first_means:
+        print(f"  agents with ≥8 stored rewards:      {agents_with_two_halves}")
+        print(f"  mean first-half reward (agg):       {np.mean(first_means):+.4f}")
+        print(f"  mean second-half reward (agg):      {np.mean(second_means):+.4f}")
+        print(f"  mean (second-first) Δ per agent:    {np.mean(deltas):+.4f}")
+        print(f"  agents whose Δ > 0 (improved):      {agents_improved}/{agents_with_two_halves}")
+        # Aggregate reward stream across all agents, ordered by store time.
+        all_rewards = []
+        for s in _STATS.values():
+            all_rewards.extend(s.rewards)
+        if len(all_rewards) >= 4:
+            quartiles = np.array_split(np.asarray(all_rewards, dtype=float), 4)
+            q_means = [float(np.mean(q)) for q in quartiles]
+            print(f"  aggregate quartile means (Q1..Q4): "
+                  f"{q_means[0]:+.4f}, {q_means[1]:+.4f}, "
+                  f"{q_means[2]:+.4f}, {q_means[3]:+.4f}")
+    else:
+        print("  (insufficient reward data per agent)")
     print("=" * 78)
 
 
@@ -352,12 +402,30 @@ def main() -> int:
         help="Override max_learning_updates_per_step",
     )
     parser.add_argument("--output", default="simulations/diagnostic", help="Output directory")
+    parser.add_argument(
+        "--legacy",
+        action="store_true",
+        help=(
+            "Reproduce the pre-fix behavior on the current code: cap deferred "
+            "training at 4 updates per step and disable epsilon-greedy by "
+            "setting epsilon_start=epsilon_min=0, epsilon_decay=1. Useful as "
+            "an A/B baseline."
+        ),
+    )
     args = parser.parse_args()
 
     install_instrumentation()
 
     config = SimulationConfig.from_centralized_config(environment="development")
     perf = getattr(config, "performance", None)
+    if args.legacy and perf is not None:
+        perf.defer_learning_training = True
+        perf.max_learning_updates_per_step = 4
+        # Disable the now-functional epsilon schedule so the policy is pure
+        # greedy on a near-random Q-net -- the pre-fix behavior.
+        config.learning.epsilon_start = 0.0
+        config.learning.epsilon_min = 0.0
+        config.learning.epsilon_decay = 1.0
     if perf is not None:
         if args.no_defer:
             perf.defer_learning_training = False
@@ -365,15 +433,14 @@ def main() -> int:
             perf.max_learning_updates_per_step = int(args.max_updates)
 
     print(
-        f"[diag] config: defer_learning_training={getattr(perf, 'defer_learning_training', None)}, "
+        f"[diag] mode={'LEGACY (pre-fix)' if args.legacy else 'CURRENT (post-fix defaults)'} "
+        f"defer_learning_training={getattr(perf, 'defer_learning_training', None)}, "
         f"max_learning_updates_per_step={getattr(perf, 'max_learning_updates_per_step', None)}, "
-        f"system_agents={config.population.system_agents}, "
-        f"independent_agents={config.population.independent_agents}, "
-        f"control_agents={config.population.control_agents}, "
+        f"epsilon_start={config.learning.epsilon_start}, "
+        f"epsilon_decay={config.learning.epsilon_decay}, "
+        f"system+independent+control_agents="
+        f"{config.population.system_agents + config.population.independent_agents + config.population.control_agents}, "
         f"steps={args.steps}"
-    )
-    print(
-        f"[diag] DecisionConfig defaults expected: rl_batch_size=32, rl_train_freq=4, rl_buffer_size=10000"
     )
 
     env = run_simulation(
