@@ -251,7 +251,9 @@ memory_pool_size_mb: 100
 enable_state_caching: true
 cache_ttl_seconds: 60
 defer_learning_training: true
-max_learning_updates_per_step: 4
+# 0 = auto-scale: every ready agent gets one gradient step per env step.
+# Use a positive integer to cap the number of updates per env step.
+max_learning_updates_per_step: 0
 
 # Action reward configuration
 defend_success_reward: 0.02

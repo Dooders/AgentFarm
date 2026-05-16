@@ -509,14 +509,18 @@ class PerformanceConfig:
 
     # RL training orchestration
     defer_learning_training: bool = True  # Collect experience during agent steps and train in a step-level pass
-    max_learning_updates_per_step: int = 4  # Cap deferred RL updates executed after each global simulation step
+    # Cap on deferred RL updates executed after each global simulation step.
+    # Special value ``0`` means "auto-scale to the current alive-agent count" so
+    # every agent that is ready to train gets one gradient step per env step.
+    # A positive integer is a hard cap. Negative values are rejected.
+    max_learning_updates_per_step: int = 0
 
     def __post_init__(self) -> None:
         """Validate performance config values that affect RL training orchestration."""
         if self.max_learning_updates_per_step < 0:
             raise ValueError(
                 "performance.max_learning_updates_per_step must be >= 0 "
-                f"(got {self.max_learning_updates_per_step!r})"
+                f"(0 == auto-scale to alive agent count; got {self.max_learning_updates_per_step!r})"
             )
 
 
