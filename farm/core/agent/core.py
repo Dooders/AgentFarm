@@ -461,12 +461,23 @@ class AgentCore:
         # Get enabled actions (for curriculum learning)
         enabled_actions = self._get_enabled_actions()
 
-        # Decide and execute action
+        # Decide and execute action.
+        #
+        # Failures here used to be silently swallowed, which masked real
+        # decision/execution bugs as "the agent simply isn't learning". Log
+        # them at warning level (with the agent id and exception type) so they
+        # are visible without crashing the whole simulation.
         try:
             action = self.behavior.decide_action(self, state_tensor, enabled_actions)
             self._execute_action(action, state_tensor)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "agent_step_failed",
+                agent_id=self.agent_id,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+                exc_info=True,
+            )
 
         # Call on_step_end on all components
         for component in self._components.values():
