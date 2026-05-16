@@ -58,6 +58,9 @@ class AgentStats:
         "buffer_size_at_end",
         "epsilon_at_end",
         "rewards",
+        "actions",
+        "env_times",
+        "lifespan",
     )
 
     def __init__(self, agent_id: str) -> None:
@@ -75,6 +78,9 @@ class AgentStats:
         self.buffer_size_at_end: int = 0
         self.epsilon_at_end: Optional[float] = None
         self.rewards: list = []
+        self.actions: list = []
+        self.env_times: list = []
+        self.lifespan: int = 0
 
 
 _STATS: Dict[str, AgentStats] = defaultdict(lambda: AgentStats("?"))
@@ -115,6 +121,7 @@ def install_instrumentation() -> None:
     orig_should_train = TianshouWrapper.should_train
     orig_train_on_batch = TianshouWrapper.train_on_batch
     orig_decision_train_if_ready = DecisionModule.train_if_ready
+    orig_decision_update = DecisionModule.update
 
     def patched_store(self, state, action, reward, next_state, done, **kwargs):
         agent_id = getattr(self, "_diag_agent_id", "?")
@@ -124,6 +131,12 @@ def install_instrumentation() -> None:
             stats.rewards.append(float(reward))
         except (TypeError, ValueError):
             pass
+        try:
+            stats.actions.append(int(action))
+        except (TypeError, ValueError):
+            stats.actions.append(-1)
+        env_time = getattr(self, "_diag_env_time", None)
+        stats.env_times.append(int(env_time) if env_time is not None else -1)
         # Take an initial parameter sample on the very first store so that
         # comparisons later show real movement (or the absence of it).
         if stats.initial_param_sample is None and self.policy is not None:
@@ -155,10 +168,22 @@ def install_instrumentation() -> None:
         stats.train_ready_true += 1
         return orig_decision_train_if_ready(self)
 
+    def patched_decision_update(self, state, action, reward, next_state, done, **kwargs):
+        # Stash the current env time on the wrapper so patched_store can
+        # attach (env_time, action, reward) to its trajectory record.
+        if self.algorithm is not None:
+            try:
+                t = self.agent.services.time_service.current_time()
+                self.algorithm._diag_env_time = int(t)  # type: ignore[attr-defined]
+            except Exception:
+                self.algorithm._diag_env_time = None  # type: ignore[attr-defined]
+        return orig_decision_update(self, state, action, reward, next_state, done, **kwargs)
+
     TianshouWrapper.store_experience = patched_store  # type: ignore[assignment]
     TianshouWrapper.should_train = patched_should_train  # type: ignore[assignment]
     TianshouWrapper.train_on_batch = patched_train_on_batch  # type: ignore[assignment]
     DecisionModule.train_if_ready = patched_decision_train_if_ready  # type: ignore[assignment]
+    DecisionModule.update = patched_decision_update  # type: ignore[assignment]
 
     # Tag the wrapper with the agent id so the patched methods can attribute
     # their counts. We do this by patching DecisionModule.__init__ so that
@@ -243,7 +268,11 @@ def harvest_lifespans(env) -> Dict[str, int]:
         if death is None:
             # Some implementations don't set death_time on alive agents
             death = final_time
-        out[str(agent_id)] = max(0, int(death) - birth)
+        lifespan = max(0, int(death) - birth)
+        out[str(agent_id)] = lifespan
+        # Mirror onto the stats object so downstream analyses can filter
+        # (e.g., only consider agents that lived long enough to learn).
+        _stats_for(str(agent_id)).lifespan = lifespan
     return out
 
 
@@ -257,6 +286,139 @@ def _percentiles(values, qs=(0, 25, 50, 75, 100)) -> str:
         return "n/a"
     arr = np.asarray(values, dtype=float)
     return ", ".join(f"p{q}={np.percentile(arr, q):.1f}" for q in qs)
+
+
+def _entropy(counts: np.ndarray) -> float:
+    """Shannon entropy (nats) of a non-negative count vector."""
+    total = float(counts.sum())
+    if total <= 0:
+        return 0.0
+    p = counts.astype(np.float64) / total
+    p = p[p > 0]
+    return float(-(p * np.log(p)).sum())
+
+
+def decision_quality_analysis(min_lifespan: int = 100) -> None:
+    """Report whether agents make *better decisions* late in life than early.
+
+    Two complementary signals, both restricted to agents that lived long
+    enough to plausibly learn (lifespan >= ``min_lifespan``):
+
+    1. **Residualised reward late vs early.**  For every (env_time, reward)
+       tuple stored across all agents we compute the cohort-mean reward at
+       that env time.  An agent's *residual* reward at time t is its own
+       reward minus that cohort mean, so anything common to all agents at
+       that moment (food scarcity, density, weather) cancels out.  We then
+       split each long-lived agent's residuals into the first 25% and last
+       25% of their experience and compare the means.
+
+    2. **Action-distribution shift.**  Compare the entropy of the action
+       histogram in the first vs the last quartile of each agent's stored
+       experience and the share of the most-used action.  A policy that is
+       actually learning to commit should show lower entropy / higher
+       top-action share in late life than in early life.
+    """
+    print("\n--- Decision quality: late life vs early life "
+          f"(long-lived agents, lifespan >= {min_lifespan}) ---")
+
+    # ``lifespan`` only gets populated from ``harvest_lifespans`` for agents
+    # still in env.agent_objects at end of run. Fall back to store_calls as
+    # the lifespan estimate (~one store per step the agent acted) so agents
+    # that lived long and then died are still included.
+    long_lived = [
+        s for s in _STATS.values()
+        if max(s.lifespan, len(s.rewards)) >= min_lifespan and len(s.rewards) >= 8
+    ]
+    if not long_lived:
+        print("  (no agents survived long enough to evaluate)")
+        return
+
+    # ---- Build env_time -> cohort mean reward baseline ----
+    all_pairs = []
+    for s in _STATS.values():
+        for t, r in zip(s.env_times, s.rewards):
+            if t >= 0:
+                all_pairs.append((int(t), float(r)))
+    if not all_pairs:
+        print("  (no (env_time, reward) data was captured)")
+        return
+
+    times = np.array([p[0] for p in all_pairs], dtype=np.int64)
+    rewards = np.array([p[1] for p in all_pairs], dtype=np.float64)
+    unique_t = np.unique(times)
+    # Cohort mean reward at each env step (use a dict for O(1) lookup).
+    baseline = {}
+    for t in unique_t:
+        mask = times == t
+        baseline[int(t)] = float(rewards[mask].mean()) if mask.any() else 0.0
+
+    # ---- Per-agent residualised early-vs-late reward ----
+    early_residuals = []
+    late_residuals = []
+    per_agent_deltas = []
+    improved = 0
+    for s in long_lived:
+        ts = np.asarray(s.env_times, dtype=np.int64)
+        rs = np.asarray(s.rewards, dtype=np.float64)
+        valid = ts >= 0
+        ts, rs = ts[valid], rs[valid]
+        if len(rs) < 8:
+            continue
+        residuals = np.array([rs[i] - baseline.get(int(ts[i]), 0.0) for i in range(len(rs))])
+        q = max(1, len(residuals) // 4)
+        early = float(residuals[:q].mean())
+        late = float(residuals[-q:].mean())
+        early_residuals.append(early)
+        late_residuals.append(late)
+        per_agent_deltas.append(late - early)
+        if late > early:
+            improved += 1
+
+    print(f"  long-lived agents evaluated:                {len(per_agent_deltas)}")
+    if per_agent_deltas:
+        deltas = np.asarray(per_agent_deltas)
+        print(f"  mean early-life residualised reward:        {np.mean(early_residuals):+.5f}")
+        print(f"  mean late-life residualised reward:         {np.mean(late_residuals):+.5f}")
+        print(f"  mean Δ (late - early) per agent:            {deltas.mean():+.5f}")
+        print(f"  agents with positive Δ (improved):          {improved}/{len(per_agent_deltas)}")
+        # Simple paired t-statistic-ish summary (no scipy dependency).
+        n = len(deltas)
+        sd = float(deltas.std(ddof=1)) if n > 1 else 0.0
+        sem = sd / np.sqrt(n) if n > 1 and sd > 0 else float("nan")
+        t = deltas.mean() / sem if sem and not np.isnan(sem) else float("nan")
+        print(f"  one-sample t-stat for Δ > 0:                t={t:+.2f}  (n={n}, sd={sd:.5f})")
+
+    # ---- Action-distribution shift ----
+    early_entropies = []
+    late_entropies = []
+    early_top_share = []
+    late_top_share = []
+    for s in long_lived:
+        acts = np.asarray(s.actions, dtype=np.int64)
+        acts = acts[acts >= 0]
+        if len(acts) < 8:
+            continue
+        q = max(1, len(acts) // 4)
+        first_q = acts[:q]
+        last_q = acts[-q:]
+        n_actions = int(max(first_q.max(initial=0), last_q.max(initial=0)) + 1)
+        first_counts = np.bincount(first_q, minlength=n_actions)
+        last_counts = np.bincount(last_q, minlength=n_actions)
+        early_entropies.append(_entropy(first_counts))
+        late_entropies.append(_entropy(last_counts))
+        early_top_share.append(float(first_counts.max()) / max(1, len(first_q)))
+        late_top_share.append(float(last_counts.max()) / max(1, len(last_q)))
+
+    if early_entropies:
+        print(f"\n  mean action entropy   early -> late:      "
+              f"{np.mean(early_entropies):.3f} -> {np.mean(late_entropies):.3f} nats")
+        print(f"  mean top-action share early -> late:      "
+              f"{np.mean(early_top_share):.3f} -> {np.mean(late_top_share):.3f}")
+        ent_delta = np.mean(late_entropies) - np.mean(early_entropies)
+        share_delta = np.mean(late_top_share) - np.mean(early_top_share)
+        print(f"  Δ entropy: {ent_delta:+.3f} nats   "
+              f"Δ top-share: {share_delta:+.3f}   "
+              f"(negative entropy / positive top-share => policy committing)")
 
 
 def report(num_steps: int, lifespans: Dict[str, int]) -> None:
@@ -379,6 +541,13 @@ def report(num_steps: int, lifespans: Dict[str, int]) -> None:
                   f"{q_means[2]:+.4f}, {q_means[3]:+.4f}")
     else:
         print("  (insufficient reward data per agent)")
+
+    # Make sure ``lifespan`` is set on every stats record before the
+    # quality analysis filters by it; harvest_lifespans only updates entries
+    # for agents still present in env.agent_objects.
+    for agent_id, life in lifespans.items():
+        _stats_for(agent_id).lifespan = max(_stats_for(agent_id).lifespan, life)
+    decision_quality_analysis(min_lifespan=100)
     print("=" * 78)
 
 
@@ -402,6 +571,12 @@ def main() -> int:
         help="Override max_learning_updates_per_step",
     )
     parser.add_argument("--output", default="simulations/diagnostic", help="Output directory")
+    parser.add_argument(
+        "--train-freq",
+        type=int,
+        default=None,
+        help="Override DecisionConfig.rl_train_freq (lower = more gradient steps)",
+    )
     parser.add_argument(
         "--legacy",
         action="store_true",
@@ -431,6 +606,8 @@ def main() -> int:
             perf.defer_learning_training = False
         if args.max_updates is not None:
             perf.max_learning_updates_per_step = int(args.max_updates)
+    if args.train_freq is not None:
+        config.learning.training_frequency = int(args.train_freq)
 
     print(
         f"[diag] mode={'LEGACY (pre-fix)' if args.legacy else 'CURRENT (post-fix defaults)'} "
