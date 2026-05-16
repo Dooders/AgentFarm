@@ -196,6 +196,13 @@ def collect_final_state(env) -> None:
             stats.epsilon_at_end = float(getattr(policy, "eps", float("nan")))
         except Exception:
             stats.epsilon_at_end = None
+        # Wrapper-tracked schedule (preferred when present)
+        wrapper_eps = getattr(algorithm, "_eps_current", None)
+        if wrapper_eps is not None:
+            try:
+                stats.epsilon_at_end = float(wrapper_eps)
+            except Exception:
+                pass
         # Parameter snapshot for L2 movement
         sample = _sample_policy_params(getattr(algorithm, "policy", None))
         if sample is not None:
