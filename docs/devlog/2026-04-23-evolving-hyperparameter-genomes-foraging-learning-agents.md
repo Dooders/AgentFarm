@@ -144,13 +144,46 @@ Open questions and next targets:
 
 - [Run broader multi-seed cohorts per profile and treat trends as distributions,
   not single trajectories.](https://github.com/Dooders/AgentFarm/issues/847)
-- [Push farther on inherited payload design (policy priors/module state) to test
-  when richer inheritance helps versus overfits to local ecology.](https://github.com/Dooders/AgentFarm/issues/848)
 - [Add explicit Baldwinian-vs-Lamarckian A/B runs under matched settings to
   quantify when warm-starting offspring is worth the stability trade-off.](https://github.com/Dooders/AgentFarm/issues/849)
 
 The practical focus is no longer whether the mechanism exists, but which
 inheritance/ecology combinations produce robust gains across runs.
+
+### Issue #848 follow-up: richer inherited payload designs
+
+[Issue #848](https://github.com/Dooders/AgentFarm/issues/848) asks where to go
+past pure hyperparameter inheritance. The working plan is to evaluate richer
+payloads as controlled variants against today's baseline:
+
+| Variant | Inherited payload | Hypothesis |
+| --- | --- | --- |
+| **Baseline (current)** | Chromosome only (learning + action priors), fresh decision module | Most robust cross-ecology generalization, but slower cold-start adaptation |
+| **V1: prior-biased warm start** | Chromosome + lightweight policy prior summary (for example action preference logits, no replay/Q-table) | Faster early-life adaptation in same ecology, modest overfit risk |
+| **V2: module-state micro-transfer** | Chromosome + bounded module state slice (for example small distilled value head / compressed policy state) | Highest immediate adaptation speed, but higher instability and local-ecology lock-in |
+| **V3: gated transfer** | V1/V2 payloads, but only inherited under parent confidence/fitness gates and clipped magnitude | Better speed/stability trade-off than unconditional transfer |
+
+Comparative experiment design (all variants vs baseline):
+
+1. **Matched training ecologies:** same seed cohorts, initial-conditions
+   profiles, and policy knobs across variants.
+2. **Cross-ecology transfer test:** evaluate descendants in shifted ecologies
+   (resource density, regeneration regime, crowding) to separate adaptation from
+   local overfitting.
+3. **Replication:** treat each condition as a multi-seed distribution, not a
+   single run.
+
+Primary trade-off metrics:
+
+- **Adaptation speed:** steps-to-threshold for reproduction rate / resource
+  stability after spawn or ecology shift.
+- **Stability:** variance and crash/oscillation frequency in population and
+  resource trajectories.
+- **Generalization:** performance retention when moved from source ecology to
+  held-out ecology.
+
+Decision rule: keep richer inheritance only where speed gains persist without
+materially degrading stability or cross-ecology generalization.
 
 ## Related docs
 
