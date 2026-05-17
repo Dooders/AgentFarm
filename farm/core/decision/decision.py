@@ -681,6 +681,19 @@ class DecisionModule:
             # Create action mask for curriculum restrictions
             action_mask = self._create_action_mask(enabled_actions)
 
+            # Weighted decision paths can bypass ``select_action_with_mask`` and
+            # therefore bypass wrapper-managed epsilon updates. Advance epsilon
+            # once per real decision so exploration annealing remains active
+            # regardless of whether we ultimately sample from probabilities or
+            # fall back to weighted random.
+            if action_weights is not None and self.algorithm is not None:
+                advance_eps = getattr(self.algorithm, "advance_epsilon", None)
+                if callable(advance_eps):
+                    try:
+                        advance_eps()
+                    except Exception as e:
+                        logger.debug(f"Failed to advance epsilon schedule: {e}")
+
             # Try to get probabilities from algorithm if available (for exploitation)
             probabilities = None
             if self.algorithm is not None and hasattr(self.algorithm, "predict_proba"):

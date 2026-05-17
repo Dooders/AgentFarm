@@ -172,6 +172,15 @@ class TianshouWrapper(RLAlgorithm):
         )
         self._apply_eps_to_policy()
 
+    def advance_epsilon(self) -> None:
+        """Advance epsilon by one decision tick on demand.
+
+        Exposed as a small public hook so callers that route action selection
+        through ``predict_proba`` + weighted sampling can still advance the
+        exploration schedule exactly once per real decision.
+        """
+        self._decay_eps()
+
     def set_train_mode(self, training: bool) -> None:
         """Toggle between training and evaluation epsilon."""
         self._train_mode = bool(training)

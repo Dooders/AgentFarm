@@ -8,6 +8,7 @@ gene actually controls a runtime artifact rather than just being declared on
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 import gymnasium
 
@@ -163,6 +164,28 @@ class TestEpsilonGreedyWiring(unittest.TestCase):
         module = _make_module(cfg)
         module.algorithm.set_train_mode(False)
         self.assertAlmostEqual(float(module.algorithm.policy.eps), 0.02, places=5)
+
+    def test_eps_decays_on_weighted_decision_fallback_path(self):
+        cfg = DecisionConfig(
+            algorithm_type="dqn",
+            epsilon_start=1.0,
+            epsilon_min=0.1,
+            epsilon_decay=0.5,
+        )
+        module = _make_module(cfg)
+
+        import numpy as np
+
+        state = np.zeros(8, dtype=np.float32)
+        action_weights = np.ones(4, dtype=np.float64) / 4.0
+
+        # Simulate a probability-prediction failure so DecisionModule falls
+        # back to weighted random action selection. Epsilon should still decay
+        # once for this real decision.
+        with patch.object(module.algorithm, "predict_proba", side_effect=RuntimeError("boom")):
+            module.decide_action(state, action_weights=action_weights)
+
+        self.assertAlmostEqual(float(module.algorithm.policy.eps), 0.5, places=5)
 
 
 @unittest.skipUnless(TIANSHOU_AVAILABLE, "Tianshou required for DQN hidden-size wiring tests")
