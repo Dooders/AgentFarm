@@ -916,12 +916,21 @@ class TianshouWrapper(RLAlgorithm):
         """
         return self.select_action_with_mask(state, action_mask=None)
 
-    def select_action_with_mask(self, state: np.ndarray, action_mask: Optional[np.ndarray] = None) -> int:
+    def select_action_with_mask(
+        self,
+        state: np.ndarray,
+        action_mask: Optional[np.ndarray] = None,
+        *,
+        apply_epsilon_decay: bool = True,
+    ) -> int:
         """Select an action using the Tianshou policy with action masking support.
 
         Args:
             state: Current state observation
             action_mask: Boolean mask where True indicates valid actions. If None, all actions are valid.
+            apply_epsilon_decay: If True (default), advance the epsilon schedule once for this call.
+                Set False for internal reads (e.g. :meth:`predict_proba`) so callers that also
+                invoke this method to commit an action do not double-decay in one decision.
 
         Returns:
             Selected action index
@@ -933,7 +942,8 @@ class TianshouWrapper(RLAlgorithm):
         # action. Without this, ``policy.eps`` would remain at its
         # ``DQNPolicy.__init__`` default of 0.0 and the policy would always be
         # purely greedy with respect to a near-random Q-network.
-        self._decay_eps()
+        if apply_epsilon_decay:
+            self._decay_eps()
 
         # Convert state to the expected format
         if isinstance(state, np.ndarray):
@@ -1077,7 +1087,7 @@ class TianshouWrapper(RLAlgorithm):
             return np.full(self.num_actions, 1.0 / self.num_actions, dtype=float)
 
         # For Tianshou, we can get action probabilities from the policy
-        action = self.select_action(state)
+        action = self.select_action_with_mask(state, action_mask=None, apply_epsilon_decay=False)
 
         # Create a probability distribution concentrated on the selected action
         probs = np.zeros(self.num_actions)
