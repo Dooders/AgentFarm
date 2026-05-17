@@ -366,6 +366,8 @@ class DecisionModule:
                 "eps_test": self.config.epsilon_min,
                 "eps_train": self.config.epsilon_start,
                 "eps_train_final": self.config.epsilon_min,
+                "eps_decay": self.config.epsilon_decay,
+                "dqn_hidden_size": int(self.config.dqn_hidden_size),
             }
 
             # Add any additional parameters from config

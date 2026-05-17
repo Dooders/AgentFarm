@@ -313,6 +313,13 @@ class AgentComponentConfig:
         
         decision_kwargs = {}
         if learning:
+            # Each YAML ``learning.*`` knob can flow into one or more
+            # ``DecisionConfig`` fields. Memory/batch size are duplicated so
+            # both the legacy ``BaseDQNModule`` (``memory_size``/``batch_size``)
+            # and the active Tianshou DQN wrapper
+            # (``rl_buffer_size``/``rl_batch_size``) honor the same YAML value.
+            # Without this, knobs like ``learning.memory_size`` were silently
+            # ignored on the Tianshou code path.
             learning_to_decision_fields = (
                 ("learning_rate", "learning_rate"),
                 ("gamma", "gamma"),
@@ -320,7 +327,9 @@ class AgentComponentConfig:
                 ("epsilon_min", "epsilon_min"),
                 ("epsilon_decay", "epsilon_decay"),
                 ("memory_size", "memory_size"),
+                ("memory_size", "rl_buffer_size"),
                 ("batch_size", "batch_size"),
+                ("batch_size", "rl_batch_size"),
                 ("training_frequency", "rl_train_freq"),
                 ("dqn_hidden_size", "dqn_hidden_size"),
                 ("tau", "tau"),
