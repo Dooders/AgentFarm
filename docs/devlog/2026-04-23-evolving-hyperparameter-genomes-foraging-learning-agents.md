@@ -159,8 +159,8 @@ payloads as controlled variants against today's baseline:
 | Variant | Inherited payload | Hypothesis |
 | --- | --- | --- |
 | **Baseline (current)** | Chromosome only (learning + action priors), fresh decision module | Most robust cross-ecology generalization, but slower cold-start adaptation |
-| **V1: prior-biased warm start** | Chromosome + lightweight policy prior summary (for example action preference logits, no replay/Q-table) | Faster early-life adaptation in same ecology, modest overfit risk |
-| **V2: module-state micro-transfer** | Chromosome + bounded module state slice (for example small distilled value head / compressed policy state) | Highest immediate adaptation speed, but higher instability and local-ecology lock-in |
+| **V1: prior-biased warm start** | Chromosome + lightweight policy prior summary (e.g., action preference logits, no replay/Q-table) | Faster early-life adaptation in same ecology, modest overfit risk |
+| **V2: module-state micro-transfer** | Chromosome + bounded module state slice (e.g., small distilled value head / compressed policy state) | Highest immediate adaptation speed, but higher instability and local-ecology lock-in |
 | **V3: gated transfer** | V1/V2 payloads, but only inherited under parent confidence/fitness gates and clipped magnitude | Better speed/stability trade-off than unconditional transfer |
 
 Comparative experiment design (all variants vs baseline):
