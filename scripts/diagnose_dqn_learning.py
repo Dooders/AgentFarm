@@ -635,8 +635,8 @@ def main() -> int:
 
     try:
         env.cleanup()
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[diag] Warning: env.cleanup() failed: {exc}", file=sys.stderr)
 
     return 0
 
