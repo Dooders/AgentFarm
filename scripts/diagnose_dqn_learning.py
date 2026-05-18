@@ -130,7 +130,7 @@ def install_instrumentation() -> None:
         try:
             stats.rewards.append(float(reward))
         except (TypeError, ValueError):
-            pass
+            stats.rewards.append(0.0)
         try:
             stats.actions.append(int(action))
         except (TypeError, ValueError):
