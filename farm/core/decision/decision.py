@@ -366,6 +366,8 @@ class DecisionModule:
                 "eps_test": self.config.epsilon_min,
                 "eps_train": self.config.epsilon_start,
                 "eps_train_final": self.config.epsilon_min,
+                "eps_decay": self.config.epsilon_decay,
+                "dqn_hidden_size": int(self.config.dqn_hidden_size),
             }
 
             # Add any additional parameters from config
@@ -679,6 +681,20 @@ class DecisionModule:
             # Create action mask for curriculum restrictions
             action_mask = self._create_action_mask(enabled_actions)
 
+            weighted_advance_epsilon = None
+            if action_weights is not None and self.algorithm is not None:
+                advance_eps = getattr(self.algorithm, "advance_epsilon", None)
+                if callable(advance_eps):
+                    weighted_advance_epsilon = advance_eps
+
+            def _advance_weighted_epsilon_once() -> None:
+                if weighted_advance_epsilon is None:
+                    return
+                try:
+                    weighted_advance_epsilon()
+                except Exception as e:
+                    logger.debug(f"Failed to advance epsilon schedule: {e}")
+
             # Try to get probabilities from algorithm if available (for exploitation)
             probabilities = None
             if self.algorithm is not None and hasattr(self.algorithm, "predict_proba"):
@@ -711,14 +727,17 @@ class DecisionModule:
                             if total > 0:
                                 enabled_probs = enabled_probs / total
                                 selected_relative_idx = int(np.random.choice(len(enabled_probs), p=enabled_probs))
+                                _advance_weighted_epsilon_once()
                                 return selected_relative_idx
                     else:
                         # Sample from full probability distribution
                         selected_idx = int(np.random.choice(len(probabilities), p=probabilities))
+                        _advance_weighted_epsilon_once()
                         return selected_idx
                 
                 # If action_weights provided but no probabilities, use weighted random
                 if action_weights is not None:
+                    _advance_weighted_epsilon_once()
                     return self._weighted_random_action(action_weights, enabled_actions)
                 
                 # Otherwise use algorithm's selection (may include epsilon-greedy exploration)
@@ -751,12 +770,15 @@ class DecisionModule:
                             total = np.sum(enabled_probs)
                             if total > 0:
                                 enabled_probs = enabled_probs / total
+                                _advance_weighted_epsilon_once()
                                 return int(np.random.choice(len(enabled_probs), p=enabled_probs))
                     else:
+                        _advance_weighted_epsilon_once()
                         return int(np.random.choice(len(probabilities), p=probabilities))
                 
                 # If action_weights provided but no probabilities, use weighted random
                 if action_weights is not None:
+                    _advance_weighted_epsilon_once()
                     return self._weighted_random_action(action_weights, enabled_actions)
                 
                 action = self.algorithm.select_action(state_np)
@@ -787,6 +809,13 @@ class DecisionModule:
         except Exception as e:
             logger.error(f"Error in decide_action for agent {self.agent_id}: {e}")
             # Fallback to weighted random action (respect enabled_actions if provided)
+            if action_weights is not None:
+                advance_eps = getattr(self.algorithm, "advance_epsilon", None) if self.algorithm is not None else None
+                if callable(advance_eps):
+                    try:
+                        advance_eps()
+                    except Exception as advance_error:
+                        logger.debug(f"Failed to advance epsilon schedule: {advance_error}")
             return self._weighted_random_action(action_weights, enabled_actions)
 
     def _create_action_mask(self, enabled_actions: Optional[List[int]] = None) -> np.ndarray:

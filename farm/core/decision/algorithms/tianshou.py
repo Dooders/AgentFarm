@@ -36,7 +36,8 @@ class TianshouWrapper(RLAlgorithm):
     _EXCLUDED_PARAMS = frozenset([
         "lr", "device", "gamma", "tau", "alpha", "auto_alpha", "target_entropy",
         "n_step", "estimation_step", "target_update_freq", "eps_test", "eps_train", "eps_train_final",
-        "repeat_per_collect", "max_batchsize"
+        "eps_decay", "dqn_hidden_size",
+        "repeat_per_collect", "max_batchsize",
     ])
 
     def __init__(
@@ -108,6 +109,18 @@ class TianshouWrapper(RLAlgorithm):
                 )
                 self.algorithm_config["n_step"] = 1
 
+        # Snapshot the epsilon-greedy schedule so :meth:`select_action_with_mask`
+        # can drive ``policy.eps`` directly. Tianshou's ``DQNPolicy.__init__``
+        # initialises ``policy.eps = 0.0`` and there is no built-in schedule on
+        # the custom-replay code path; we therefore apply the configured
+        # multiplicative decay each time we ask the policy for an action.
+        self._eps_train = float(self.algorithm_config.get("eps_train", 1.0))
+        self._eps_train_final = float(self.algorithm_config.get("eps_train_final", 0.05))
+        self._eps_test = float(self.algorithm_config.get("eps_test", 0.05))
+        self._eps_decay = float(self.algorithm_config.get("eps_decay", 0.995))
+        self._eps_current = self._eps_train
+        self._train_mode = True
+
         # Initialize replay buffer (PER implementation supports uniform fallback).
         self.replay_buffer = PrioritizedReplayBuffer(
             max_size=buffer_size,
@@ -122,6 +135,61 @@ class TianshouWrapper(RLAlgorithm):
         # Initialize algorithm
         self.policy = None
         self._initialize_policy()
+        self._apply_eps_to_policy(initial=True)
+
+    def _apply_eps_to_policy(self, initial: bool = False) -> None:
+        """Push the wrapper-tracked epsilon onto the underlying Tianshou policy.
+
+        Tianshou's ``DQNPolicy`` exposes a ``set_eps()`` method but does not
+        otherwise drive an exploration schedule on this wrapper's custom replay
+        path. We mirror :attr:`_eps_current` (or :attr:`_eps_test` when not in
+        training mode) onto ``policy.eps`` so epsilon-greedy actually happens.
+        """
+        if self.policy is None:
+            return
+        if self._train_mode:
+            target = self._eps_current
+        else:
+            target = self._eps_test
+        setter = getattr(self.policy, "set_eps", None)
+        try:
+            if callable(setter):
+                setter(float(target))
+            else:
+                self.policy.eps = float(target)
+        except Exception as exc:
+            if initial:
+                logger.debug("could_not_set_initial_eps", error=str(exc))
+
+    def _decay_eps(self) -> None:
+        """Apply one tick of multiplicative epsilon decay (training mode only)."""
+        if not self._train_mode:
+            return
+        if self._eps_decay >= 1.0:
+            return
+        self._eps_current = max(
+            self._eps_train_final, self._eps_current * self._eps_decay
+        )
+        self._apply_eps_to_policy()
+
+    def advance_epsilon(self) -> None:
+        """Advance epsilon by one decision tick on demand.
+
+        Exposed as a small public hook so callers that route action selection
+        through ``predict_proba`` + weighted sampling can still advance the
+        exploration schedule exactly once per real decision.
+        """
+        self._decay_eps()
+
+    def set_train_mode(self, training: bool) -> None:
+        """Toggle between training and evaluation epsilon."""
+        self._train_mode = bool(training)
+        self._apply_eps_to_policy()
+
+    @property
+    def epsilon(self) -> float:
+        """Current epsilon-greedy exploration rate (mirrors ``policy.eps``)."""
+        return self._eps_current if self._train_mode else self._eps_test
 
     def _get_default_config(self, user_config: Dict[str, Any]) -> Dict[str, Any]:
         """Get default configuration for the algorithm."""
@@ -165,9 +233,12 @@ class TianshouWrapper(RLAlgorithm):
                 # The custom replay integration in this wrapper trains on one-step transitions.
                 "n_step": 1,
                 "target_update_freq": 500,
+                # Default exploration schedule: anneal multiplicatively from
+                # eps_train -> eps_train_final each select_action_with_mask call.
                 "eps_test": 0.05,
-                "eps_train": 0.1,
+                "eps_train": 1.0,
                 "eps_train_final": 0.05,
+                "eps_decay": 0.995,
             }
             base_config.update(dqn_defaults)
         elif self.algorithm_name == "A2C":
@@ -469,14 +540,22 @@ class TianshouWrapper(RLAlgorithm):
                 from tianshou.policy import DQNPolicy
                 import torch.nn as nn
 
+                # Pull the configured hidden width (the legacy hard-coded
+                # 512/256/128 stack is now derived from this base width so the
+                # ``dqn_hidden_size`` knob is honored end-to-end).
+                base_hidden = max(8, int(self.algorithm_config.get("dqn_hidden_size", 64)))
+
                 # Create Q-network that handles 1D, 2D, and 3D observations
                 class AdaptiveQNet(nn.Module):
-                    def __init__(self, observation_shape, num_actions, device):
+                    def __init__(self, observation_shape, num_actions, device, hidden_size: int):
                         super().__init__()
                         self.observation_shape = observation_shape
                         # Only treat as spatial if we have 3D observations (C, H, W)
                         # 2D observations are flattened feature vectors, not spatial
                         self.is_spatial = len(observation_shape) == 3
+                        h1 = max(8, hidden_size * 4)
+                        h2 = max(8, hidden_size * 2)
+                        h3 = max(8, hidden_size)
 
                         if self.is_spatial:
                             # CNN layers for spatial processing (3D observations: C, H, W)
@@ -498,24 +577,24 @@ class TianshouWrapper(RLAlgorithm):
                             # Q-value output layers for spatial observations
                             self.q_layers = nn.Sequential(
                                 nn.Flatten(),
-                                nn.Linear(self.flattened_size, 512),
+                                nn.Linear(self.flattened_size, h1),
                                 nn.ReLU(),
-                                nn.Linear(512, 256),
+                                nn.Linear(h1, h2),
                                 nn.ReLU(),
-                                nn.Linear(256, num_actions),  # Q-values for each action
+                                nn.Linear(h2, num_actions),
                             )
                         else:
                             # Fully connected layers for 1D and 2D observations
                             # 2D observations are flattened feature vectors
                             input_size = observation_shape[0]
                             self.q_layers = nn.Sequential(
-                                nn.Linear(input_size, 512),
+                                nn.Linear(input_size, h1),
                                 nn.ReLU(),
-                                nn.Linear(512, 256),
+                                nn.Linear(h1, h2),
                                 nn.ReLU(),
-                                nn.Linear(256, 128),
+                                nn.Linear(h2, h3),
                                 nn.ReLU(),
-                                nn.Linear(128, num_actions),  # Q-values for each action
+                                nn.Linear(h3, num_actions),
                             )
 
                     def forward(self, obs, state=None, info=None):
@@ -540,7 +619,12 @@ class TianshouWrapper(RLAlgorithm):
                         return q_values, state
 
                 # Create adaptive Q-network
-                q_net = AdaptiveQNet(self.observation_shape, self.num_actions, self.algorithm_config["device"])
+                q_net = AdaptiveQNet(
+                    self.observation_shape,
+                    self.num_actions,
+                    self.algorithm_config["device"],
+                    hidden_size=base_hidden,
+                )
 
                 # Move to device
                 q_net.to(self.algorithm_config["device"])
@@ -841,18 +925,34 @@ class TianshouWrapper(RLAlgorithm):
         """
         return self.select_action_with_mask(state, action_mask=None)
 
-    def select_action_with_mask(self, state: np.ndarray, action_mask: Optional[np.ndarray] = None) -> int:
+    def select_action_with_mask(
+        self,
+        state: np.ndarray,
+        action_mask: Optional[np.ndarray] = None,
+        *,
+        apply_epsilon_decay: bool = True,
+    ) -> int:
         """Select an action using the Tianshou policy with action masking support.
 
         Args:
             state: Current state observation
             action_mask: Boolean mask where True indicates valid actions. If None, all actions are valid.
+            apply_epsilon_decay: If True (default), advance the epsilon schedule once for this call.
+                Set False for internal reads (e.g. :meth:`predict_proba`) so callers that also
+                invoke this method to commit an action do not double-decay in one decision.
 
         Returns:
             Selected action index
         """
         if self.policy is None:
             raise RuntimeError("Policy not initialized")
+
+        def _finalize_action(action_value: int) -> int:
+            # Apply decay *after* the current action is selected so the first
+            # decision uses ``epsilon_start`` as configured.
+            if apply_epsilon_decay:
+                self._decay_eps()
+            return int(action_value)
 
         # Convert state to the expected format
         if isinstance(state, np.ndarray):
@@ -914,7 +1014,7 @@ class TianshouWrapper(RLAlgorithm):
 
                             # Check if action is valid according to mask
                             if int(action) < len(action_mask) and action_mask[int(action)]:
-                                return int(action)
+                                return _finalize_action(int(action))
                         except Exception as e:
                             logger.debug(f"PPO masking attempt failed: {e}")
                             continue
@@ -922,8 +1022,8 @@ class TianshouWrapper(RLAlgorithm):
                 # Fallback: pick first valid action
                 valid_actions = np.where(action_mask)[0]
                 if len(valid_actions) > 0:
-                    return int(valid_actions[0])
-                return 0
+                    return _finalize_action(int(valid_actions[0]))
+                return _finalize_action(0)
 
             # For other algorithms or fallback
             else:
@@ -953,15 +1053,15 @@ class TianshouWrapper(RLAlgorithm):
 
                     # Check if action is valid according to mask
                     if action_mask is None or (int(action) < len(action_mask) and action_mask[int(action)]):
-                        return int(action)
+                        return _finalize_action(int(action))
 
                 # If we couldn't get a valid action after max attempts, pick first valid action
                 if action_mask is not None:
                     valid_actions = np.where(action_mask)[0]
                     if len(valid_actions) > 0:
-                        return int(valid_actions[0])
+                        return _finalize_action(int(valid_actions[0]))
 
-                return int(action)
+                return _finalize_action(int(action))
         else:
             # No masking - use standard action selection
             with torch.no_grad():
@@ -981,7 +1081,7 @@ class TianshouWrapper(RLAlgorithm):
                     )
                 )
 
-            return int(action)
+            return _finalize_action(int(action))
 
     def predict_proba(self, state: np.ndarray) -> np.ndarray:
         """Predict action probabilities for exploration.
@@ -996,7 +1096,7 @@ class TianshouWrapper(RLAlgorithm):
             return np.full(self.num_actions, 1.0 / self.num_actions, dtype=float)
 
         # For Tianshou, we can get action probabilities from the policy
-        action = self.select_action(state)
+        action = self.select_action_with_mask(state, action_mask=None, apply_epsilon_decay=False)
 
         # Create a probability distribution concentrated on the selected action
         probs = np.zeros(self.num_actions)

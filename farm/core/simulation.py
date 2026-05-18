@@ -68,12 +68,15 @@ def _run_deferred_learning_updates(environment: Environment, max_updates: int, r
     Args:
         environment: Active simulation environment.
         max_updates: Maximum number of training calls to execute this step.
+            ``0`` is the auto-scale sentinel — interpreted as
+            ``len(alive_agents)`` so every ready agent gets one gradient step
+            per env step.
         rr_cursor: Round-robin start index into alive agents.
 
     Returns:
         int: Number of training updates executed.
     """
-    if max_updates <= 0:
+    if max_updates < 0:
         return 0
 
     alive_agents = environment.alive_agent_objects
@@ -81,6 +84,8 @@ def _run_deferred_learning_updates(environment: Environment, max_updates: int, r
         return 0
 
     n_agents = len(alive_agents)
+    if max_updates == 0:
+        max_updates = n_agents
     start = rr_cursor % n_agents
     agent_queue = deque(alive_agents[start:] + alive_agents[:start])
     updates_run = 0
@@ -559,23 +564,25 @@ def run_simulation(
 
         perf_cfg = getattr(config, "performance", None)
         defer_learning_training = bool(getattr(perf_cfg, "defer_learning_training", True))
-        raw_max_learning_updates = getattr(perf_cfg, "max_learning_updates_per_step", 4)
+        raw_max_learning_updates = getattr(perf_cfg, "max_learning_updates_per_step", 0)
         try:
             parsed_max_learning_updates = int(raw_max_learning_updates)
         except (TypeError, ValueError):
             logger.warning(
                 "invalid_max_learning_updates_per_step_defaulted",
                 configured_value=raw_max_learning_updates,
-                default_value=4,
+                default_value=0,
             )
-            parsed_max_learning_updates = 4
+            parsed_max_learning_updates = 0
 
-        max_learning_updates_per_step = max(0, parsed_max_learning_updates)
-        if max_learning_updates_per_step != parsed_max_learning_updates:
+        # 0 is the auto-scale sentinel (one update per ready agent each env
+        # step). Negative values disable deferred training for that step.
+        max_learning_updates_per_step = parsed_max_learning_updates
+        if max_learning_updates_per_step < 0:
             logger.warning(
-                "invalid_max_learning_updates_per_step_clamped",
+                "negative_max_learning_updates_per_step_disables_training",
                 configured_value=raw_max_learning_updates,
-                clamped_value=max_learning_updates_per_step,
+                effective_value=max_learning_updates_per_step,
             )
         environment.defer_learning_training = defer_learning_training
         round_robin_cursor = 0
