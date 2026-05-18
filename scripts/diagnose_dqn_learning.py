@@ -238,7 +238,8 @@ def collect_final_state(env) -> None:
             try:
                 stats.epsilon_at_end = float(wrapper_eps)
             except Exception:
-                pass
+                # Best-effort diagnostic snapshot: keep running even if wrapper epsilon is malformed.
+                stats.epsilon_at_end = None
         # Parameter snapshot for L2 movement
         sample = _sample_policy_params(getattr(algorithm, "policy", None))
         if sample is not None:
