@@ -149,7 +149,7 @@ class TestEpsilonGreedyWiring(unittest.TestCase):
         import numpy as np
         import torch
 
-        class _SpyPolicy:
+        class _EpsilonSpyPolicy:
             def __init__(self):
                 self.eps = 0.0
                 self.eps_seen: list[float] = []
@@ -161,7 +161,7 @@ class TestEpsilonGreedyWiring(unittest.TestCase):
                 self.eps_seen.append(float(self.eps))
                 return torch.tensor([0]), None
 
-        spy = _SpyPolicy()
+        spy = _EpsilonSpyPolicy()
         algo.policy = spy
         algo._apply_eps_to_policy(initial=True)
 
