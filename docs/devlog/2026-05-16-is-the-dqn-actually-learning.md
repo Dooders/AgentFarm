@@ -1,7 +1,7 @@
 ---
-
-## layout: page
+layout: page
 title: "Is the DQN actually learning? A diagnostic, four bugs, and a sobering answer"
+---
 
 I had a suspicion that the DQN decision module wasn't actually  
 learning — agents weren't getting better at making decisions, and I  
@@ -264,10 +264,9 @@ What I *can* claim:
 
 - **The action distribution starts to commit when training is
 aggressive enough.** At `rl_train_freq=1`, late-life action entropy
-drops by `−0.024` nats (1.659 → 1.635). With only 5 actions the
-entropy ceiling is `log(5) = 1.609`, so the policy is moving
-meaningfully toward a non-uniform distribution. Under the default
-`rl_train_freq=4`, entropy barely changes (`+0.002`). More gradient
+drops by `−0.024` nats (1.659 → 1.635), indicating a modest move toward
+a less uniform policy. Under the default `rl_train_freq=4`, entropy
+barely changes (`+0.002`). More gradient
 steps → policy actually committing. That is exactly the
 qualitative signature of learning, just at small amplitude.
 - **Lifespan keeps improving with training budget**: 306 → 355 → 391
@@ -360,4 +359,3 @@ simulation where the policy has enough room to matter.
 - [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md)
 - [PR #878](https://github.com/Dooders/AgentFarm/pull/878)
 - Diagnostic script: `scripts/diagnose_dqn_learning.py`
-

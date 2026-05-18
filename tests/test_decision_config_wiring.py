@@ -136,6 +136,44 @@ class TestEpsilonGreedyWiring(unittest.TestCase):
         self.assertAlmostEqual(first, 0.7 * 0.5, places=5)
         self.assertAlmostEqual(second, 0.7 * 0.5 * 0.5, places=5)
 
+    def test_first_action_uses_epsilon_start_before_decay(self):
+        cfg = DecisionConfig(
+            algorithm_type="dqn",
+            epsilon_start=0.7,
+            epsilon_min=0.05,
+            epsilon_decay=0.5,
+        )
+        module = _make_module(cfg)
+        algo = module.algorithm
+
+        import numpy as np
+        import torch
+
+        class _SpyPolicy:
+            def __init__(self):
+                self.eps = 0.0
+                self.eps_seen: list[float] = []
+
+            def set_eps(self, value: float) -> None:
+                self.eps = float(value)
+
+            def __call__(self, *_args, **_kwargs):
+                self.eps_seen.append(float(self.eps))
+                return torch.tensor([0]), None
+
+        spy = _SpyPolicy()
+        algo.policy = spy
+        algo._apply_eps_to_policy(initial=True)
+
+        state = np.zeros((1, 8), dtype=np.float32)
+        mask = np.ones(4, dtype=bool)
+
+        algo.select_action_with_mask(state, mask)
+
+        self.assertEqual(len(spy.eps_seen), 1)
+        self.assertAlmostEqual(spy.eps_seen[0], 0.7, places=5)
+        self.assertAlmostEqual(float(spy.eps), 0.35, places=5)
+
     def test_eps_floor_at_epsilon_min(self):
         cfg = DecisionConfig(
             algorithm_type="dqn",
@@ -187,6 +225,32 @@ class TestEpsilonGreedyWiring(unittest.TestCase):
 
         self.assertAlmostEqual(float(module.algorithm.policy.eps), 0.5, places=5)
 
+    def test_weighted_decision_predict_proba_sees_initial_eps(self):
+        cfg = DecisionConfig(
+            algorithm_type="dqn",
+            epsilon_start=0.8,
+            epsilon_min=0.1,
+            epsilon_decay=0.5,
+        )
+        module = _make_module(cfg)
+
+        import numpy as np
+
+        observed_eps: list[float] = []
+
+        def _predict_proba(_state):
+            observed_eps.append(float(module.algorithm.policy.eps))
+            return np.ones(4, dtype=np.float64) / 4.0
+
+        state = np.zeros(8, dtype=np.float32)
+        action_weights = np.ones(4, dtype=np.float64) / 4.0
+        with patch.object(module.algorithm, "predict_proba", side_effect=_predict_proba):
+            module.decide_action(state, action_weights=action_weights)
+
+        self.assertEqual(len(observed_eps), 1)
+        self.assertAlmostEqual(observed_eps[0], 0.8, places=5)
+        self.assertAlmostEqual(float(module.algorithm.policy.eps), 0.4, places=5)
+
 
 @unittest.skipUnless(TIANSHOU_AVAILABLE, "Tianshou required for DQN hidden-size wiring tests")
 class TestDqnHiddenSizeWiring(unittest.TestCase):
@@ -216,7 +280,6 @@ class TestDqnHiddenSizeWiring(unittest.TestCase):
         self.assertEqual(last_in_large, 64)
 
 
-@unittest.skipUnless(TIANSHOU_AVAILABLE, "Tianshou required for replay-buffer wiring tests")
 class TestReplayBufferWiring(unittest.TestCase):
     """YAML ``learning.memory_size`` / ``batch_size`` must reach the Tianshou
     DQN replay buffer (previously they were silently dropped)."""

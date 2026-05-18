@@ -947,12 +947,12 @@ class TianshouWrapper(RLAlgorithm):
         if self.policy is None:
             raise RuntimeError("Policy not initialized")
 
-        # Drive the epsilon-greedy schedule each time we ask the policy for an
-        # action. Without this, ``policy.eps`` would remain at its
-        # ``DQNPolicy.__init__`` default of 0.0 and the policy would always be
-        # purely greedy with respect to a near-random Q-network.
-        if apply_epsilon_decay:
-            self._decay_eps()
+        def _finalize_action(action_value: int) -> int:
+            # Apply decay *after* the current action is selected so the first
+            # decision uses ``epsilon_start`` as configured.
+            if apply_epsilon_decay:
+                self._decay_eps()
+            return int(action_value)
 
         # Convert state to the expected format
         if isinstance(state, np.ndarray):
@@ -1014,7 +1014,7 @@ class TianshouWrapper(RLAlgorithm):
 
                             # Check if action is valid according to mask
                             if int(action) < len(action_mask) and action_mask[int(action)]:
-                                return int(action)
+                                return _finalize_action(int(action))
                         except Exception as e:
                             logger.debug(f"PPO masking attempt failed: {e}")
                             continue
@@ -1022,8 +1022,8 @@ class TianshouWrapper(RLAlgorithm):
                 # Fallback: pick first valid action
                 valid_actions = np.where(action_mask)[0]
                 if len(valid_actions) > 0:
-                    return int(valid_actions[0])
-                return 0
+                    return _finalize_action(int(valid_actions[0]))
+                return _finalize_action(0)
 
             # For other algorithms or fallback
             else:
@@ -1053,15 +1053,15 @@ class TianshouWrapper(RLAlgorithm):
 
                     # Check if action is valid according to mask
                     if action_mask is None or (int(action) < len(action_mask) and action_mask[int(action)]):
-                        return int(action)
+                        return _finalize_action(int(action))
 
                 # If we couldn't get a valid action after max attempts, pick first valid action
                 if action_mask is not None:
                     valid_actions = np.where(action_mask)[0]
                     if len(valid_actions) > 0:
-                        return int(valid_actions[0])
+                        return _finalize_action(int(valid_actions[0]))
 
-                return int(action)
+                return _finalize_action(int(action))
         else:
             # No masking - use standard action selection
             with torch.no_grad():
@@ -1081,7 +1081,7 @@ class TianshouWrapper(RLAlgorithm):
                     )
                 )
 
-            return int(action)
+            return _finalize_action(int(action))
 
     def predict_proba(self, state: np.ndarray) -> np.ndarray:
         """Predict action probabilities for exploration.

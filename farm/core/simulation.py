@@ -576,13 +576,13 @@ def run_simulation(
             parsed_max_learning_updates = 0
 
         # 0 is the auto-scale sentinel (one update per ready agent each env
-        # step). Negative values are coerced to 0 with a warning.
-        max_learning_updates_per_step = max(0, parsed_max_learning_updates)
-        if max_learning_updates_per_step != parsed_max_learning_updates:
+        # step). Negative values disable deferred training for that step.
+        max_learning_updates_per_step = parsed_max_learning_updates
+        if max_learning_updates_per_step < 0:
             logger.warning(
-                "invalid_max_learning_updates_per_step_clamped",
+                "negative_max_learning_updates_per_step_disables_training",
                 configured_value=raw_max_learning_updates,
-                clamped_value=max_learning_updates_per_step,
+                effective_value=max_learning_updates_per_step,
             )
         environment.defer_learning_training = defer_learning_training
         round_robin_cursor = 0

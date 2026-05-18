@@ -84,11 +84,13 @@ class AgentStats:
 
 
 _STATS: Dict[str, AgentStats] = defaultdict(lambda: AgentStats("?"))
+_ALGORITHMS: Dict[str, Any] = {}
 
 
 def reset_stats() -> None:
     """Clear the per-process stats container (useful for repeated runs)."""
     _STATS.clear()
+    _ALGORITHMS.clear()
 
 
 def _stats_for(agent_id: str) -> AgentStats:
@@ -195,6 +197,7 @@ def install_instrumentation() -> None:
         orig_dm_init(self, agent, action_space, observation_space, *args, **kwargs)
         if self.algorithm is not None:
             self.algorithm._diag_agent_id = self.agent_id  # type: ignore[attr-defined]
+            _ALGORITHMS[str(self.agent_id)] = self.algorithm
         # Track the agent so we can sample parameters at the end too.
         _stats_for(self.agent_id).first_seen_step = 0
 
@@ -208,20 +211,21 @@ def install_instrumentation() -> None:
 
 def collect_final_state(env) -> None:
     """Sample final parameters/buffer size/epsilon for every learning agent."""
-    agent_objs = list(getattr(env, "agent_objects", []) or [])
-    # Some agents may already be dead; pull from the agent registry too if present
-    for agent in agent_objs:
-        agent_id = getattr(agent, "agent_id", None)
+    agent_algorithms: Dict[str, Any] = dict(_ALGORITHMS)
+    for agent in list(getattr(env, "agent_objects", []) or []):
+        agent_id = str(getattr(agent, "agent_id", "") or "")
         if not agent_id:
             continue
         behavior = getattr(agent, "behavior", None)
         decision_module = getattr(behavior, "decision_module", None)
-        if decision_module is None:
-            continue
-        algorithm = getattr(decision_module, "algorithm", None)
+        algorithm = getattr(decision_module, "algorithm", None) if decision_module is not None else None
+        if algorithm is not None:
+            agent_algorithms[agent_id] = algorithm
+
+    for agent_id, algorithm in agent_algorithms.items():
         if algorithm is None:
             continue
-        stats = _stats_for(agent_id)
+        stats = _stats_for(str(agent_id))
         # Buffer size / epsilon snapshot
         try:
             stats.buffer_size_at_end = len(algorithm.replay_buffer)
@@ -274,6 +278,34 @@ def harvest_lifespans(env) -> Dict[str, int]:
         # Mirror onto the stats object so downstream analyses can filter
         # (e.g., only consider agents that lived long enough to learn).
         _stats_for(str(agent_id)).lifespan = lifespan
+
+    # Include agents that already died and were removed from env.agent_objects.
+    db = getattr(env, "db", None)
+    simulation_id = getattr(env, "simulation_id", None)
+    if db is not None and simulation_id is not None:
+        try:
+            from farm.database.models import AgentModel
+
+            rows = db._execute_in_transaction(
+                lambda session: session.query(
+                    AgentModel.agent_id, AgentModel.birth_time, AgentModel.death_time
+                )
+                .filter(AgentModel.simulation_id == simulation_id)
+                .all()
+            )
+            for row in rows:
+                agent_id = str(getattr(row, "agent_id", "") or "")
+                if not agent_id:
+                    continue
+                birth = int(getattr(row, "birth_time", 0) or 0)
+                death = getattr(row, "death_time", None)
+                if death is None:
+                    death = final_time
+                lifespan = max(0, int(death) - birth)
+                out[agent_id] = max(out.get(agent_id, 0), lifespan)
+                _stats_for(agent_id).lifespan = max(_stats_for(agent_id).lifespan, lifespan)
+        except Exception:
+            pass
     return out
 
 
@@ -322,10 +354,9 @@ def decision_quality_analysis(min_lifespan: int = 100) -> None:
     print("\n--- Decision quality: late life vs early life "
           f"(long-lived agents, lifespan >= {min_lifespan}) ---")
 
-    # ``lifespan`` only gets populated from ``harvest_lifespans`` for agents
-    # still in env.agent_objects at end of run. Fall back to store_calls as
-    # the lifespan estimate (~one store per step the agent acted) so agents
-    # that lived long and then died are still included.
+    # ``harvest_lifespans`` backfills lifespan from both the in-memory
+    # environment and persisted DB agent rows. Fall back to store_calls as an
+    # additional proxy (~one store per step the agent acted).
     long_lived = [
         s for s in _STATS.values()
         if max(s.lifespan, len(s.rewards)) >= min_lifespan and len(s.rewards) >= 8
@@ -543,9 +574,8 @@ def report(num_steps: int, lifespans: Dict[str, int]) -> None:
     else:
         print("  (insufficient reward data per agent)")
 
-    # Make sure ``lifespan`` is set on every stats record before the
-    # quality analysis filters by it; harvest_lifespans only updates entries
-    # for agents still present in env.agent_objects.
+    # Make sure ``lifespan`` is set on every stats record before the quality
+    # analysis filters by it.
     for agent_id, life in lifespans.items():
         _stats_for(agent_id).lifespan = max(_stats_for(agent_id).lifespan, life)
     decision_quality_analysis(min_lifespan=100)
