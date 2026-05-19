@@ -208,7 +208,11 @@ plots:
   `scripts/analyze_stable_profile_seed_sweep.py` for aggregation.
 - Extend conservative to ~5000 steps to see whether the cluster-merging
   trend completes (single dominant cluster) or stabilises around k=2.
-- Re-run the buffered profile with crossover enabled to test whether the
-  rising speciation signal survives gene-flow.
+- ~~Re-run the buffered profile with crossover enabled~~ — done (2026-05-18);
+  see [crossover_rerun.md](crossover_rerun.md) (Issue
+  [#845](https://github.com/Dooders/AgentFarm/issues/845)). Rising
+  speciation trajectories survive both crossover arms (6/6 seeds diverging;
+  no robust collapse of final index or slope). Note: **conservative** profiles
+  *do* show robust speciation collapse under crossover in the same sweep.
 - Add a `stress` and `legacy` profile to the comparison for a wider
   spread on the carrying-capacity axis.

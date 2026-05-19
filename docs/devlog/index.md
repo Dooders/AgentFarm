@@ -6,6 +6,24 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/devlog/2026-05-18-gene-flow-and-the-buffer/' | relative_url }}">
+      <span class="post-card__date">2026-05-18</span>
+      <h3 class="post-card__title">Gene flow and the buffer</h3>
+      <p class="post-card__excerpt">
+        A crossover-enabled rerun closes the buffer arc with a
+        profile-dependent result: conservative speciation compresses
+        under gene flow, buffered trajectories still diverge, and
+        balanced stays noisy.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/devlog/2026-05-12-seed-sweep-reality-check/' | relative_url }}">Replication baseline</a>,
+      <a href="{{ '/experiments/intrinsic_evolution/crossover_rerun/' | relative_url }}">Crossover rerun experiment doc</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/devlog/2026-05-16-is-the-dqn-actually-learning/' | relative_url }}">
       <span class="post-card__date">2026-05-16</span>
       <h3 class="post-card__title">Is the DQN actually learning?</h3>
