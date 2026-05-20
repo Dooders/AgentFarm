@@ -8,6 +8,11 @@ title: "Does the Resource Buffer Pick the Genes? Three Stable Profiles Compared"
 > profiles; the single-seed `learning_rate`/`ensemble_size` direction-flip
 > findings were not robust under replication. See
 > [When one seed disagrees with six](2026-05-12-seed-sweep-reality-check.md).
+>
+> **Update (2026-05-18):** Crossover follow-up is complete. Conservative
+> profiles show robust speciation compression under gene flow, while buffered
+> profiles keep diverging trajectories. See
+> [Gene flow and the buffer](2026-05-18-gene-flow-and-the-buffer.md).
 
 A natural follow-up to the [hyperparameter genome experiments](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.md)
 is whether the *amount* of food in the world changes *what* gets selected,
@@ -180,8 +185,9 @@ A few obvious follow-ups:
   speciation-trajectory direction and the `learning_rate` shift.](https://github.com/Dooders/AgentFarm/issues/843)
 - [Longer conservative runs to see if the falling speciation index
   resolves into a single dominant cluster or stabilises around k=2.](https://github.com/Dooders/AgentFarm/issues/844)
-- [Re-run buffered with crossover enabled, to test whether gene flow
-  collapses the rising speciation pattern or leaves it intact.](https://github.com/Dooders/AgentFarm/issues/845)
+- ~~[Re-run buffered with crossover enabled](https://github.com/Dooders/AgentFarm/issues/845)~~
+  — done (2026-05-18): rising speciation trajectories survive crossover;
+  see [crossover rerun](../experiments/intrinsic_evolution/crossover_rerun.md).
 - [Add `stress` and `legacy` profiles to widen the buffer axis.](https://github.com/Dooders/AgentFarm/issues/846)
 
 For the full numerical results, side-by-side tables, and per-variant

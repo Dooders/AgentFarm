@@ -221,10 +221,14 @@ the sweep:
   the rising speciation index in conservative continues to climb, or
   plateaus near the current 0.75.
   ([Issue #867](https://github.com/Dooders/AgentFarm/issues/867).)
-- Crossover-on rerun of buffered remains open and now extra
-  interesting: if speciation diverges *without* gene flow, does
-  gene flow knock it back down?
-  ([Issue #845](https://github.com/Dooders/AgentFarm/issues/845).)
+- ~~Crossover-on rerun~~ — completed 2026-05-18 (updated crossover code,
+  disk DB). **Buffered:** gene flow does not knock down the diverging
+  trajectory (6/6 seeds still diverging; no robust final/slope collapse).
+  **Conservative:** crossover *does* robustly lower speciation index vs.
+  baseline (both `uniform` and `blend` arms). See
+  [Gene flow and the buffer](2026-05-18-gene-flow-and-the-buffer.md) and
+  [crossover rerun docs](../experiments/intrinsic_evolution/crossover_rerun.md)
+  ([Issue #845](https://github.com/Dooders/AgentFarm/issues/845)).
 - Widening the buffer axis to include `stress` and `legacy` profiles
   is still on the list, but should be multi-seed from the start.
   ([Issue #846](https://github.com/Dooders/AgentFarm/issues/846).)
