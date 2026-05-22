@@ -50,8 +50,8 @@ class TestCiExcludesZero(unittest.TestCase):
 
 
 class TestVerdictClassification(unittest.TestCase):
-    def _summary(self, mean, ci, sign=1.0):
-        return {"mean_delta": mean, "ci95": ci, "sign_agreement": sign}
+    def _summary(self, mean, ci, sign=1.0, n=10):
+        return {"mean_delta": mean, "ci95": ci, "sign_agreement": sign, "n": n}
 
     def _empty(self):
         return self._summary(0.0, [-1.0, 1.0], sign=0.5)

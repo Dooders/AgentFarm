@@ -252,6 +252,8 @@ def _paired_metric_deltas(
 
 
 def _is_robust(summary: Dict[str, Any]) -> bool:
+    if summary.get("n", 0) < 2:
+        return False
     return (
         summary.get("sign_agreement", 0.0) >= SIGN_AGREEMENT_THRESHOLD
         and _ci_excludes_zero(summary.get("ci95", []))
