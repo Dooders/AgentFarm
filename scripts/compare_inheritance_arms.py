@@ -423,8 +423,8 @@ def _plot_paired_delta_heatmap(
             row = []
             arm_d = deltas.get(profile, {}).get(arm, {})
             for col in columns:
-                value = arm_d.get(col, {}).get("mean_delta", float("nan"))
-                row.append(float(value))
+                raw = arm_d.get(col, {}).get("mean_delta", float("nan"))
+                row.append(float("nan") if raw is None else float(raw))
             matrix.append(row)
     if not matrix:
         return
