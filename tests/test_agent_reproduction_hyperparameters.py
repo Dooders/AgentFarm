@@ -27,6 +27,8 @@ def _build_parent_agent_for_reproduction() -> AgentCore:
     agent.environment.get_next_agent_id.return_value = "child_1"
     agent.environment.intrinsic_evolution_policy = None
     agent.environment.intrinsic_evolution_rng = None
+    agent.environment.lamarckian_warmstart_applied = 0
+    agent.environment.lamarckian_warmstart_skipped = 0
     agent.state = Mock()
     agent.state.position = (2.0, 3.0)
     agent.state._state = Mock()
@@ -115,6 +117,82 @@ def test_reproduce_with_policy_mutates_learning_rate_and_passes_child_config():
     assert child_config.decision.gamma == pytest.approx(0.992, abs=1e-9)
     assert child_config.decision.memory_size == 2000
     assert offspring.hyperparameter_chromosome.get_value("learning_rate") == pytest.approx(0.012, abs=1e-9)
+
+
+def test_reproduce_lamarckian_policy_applies_warmstart_and_tracks_counter():
+    """Lamarckian mode should invoke warm-start and increment applied counter."""
+    parent = _build_parent_agent_for_reproduction()
+    parent.environment.intrinsic_evolution_policy = IntrinsicEvolutionPolicy(
+        mutation_rate=0.0,
+        mutation_scale=0.0,
+        inheritance_mode="lamarckian",
+    )
+    parent.behavior = Mock()
+    parent.behavior.decision_module = Mock()
+    parent.behavior.decision_module.algorithm = Mock()
+    parent.behavior.decision_module.algorithm.get_model_state.return_value = {
+        "policy_state_dict": {"w": Mock(shape=(2, 2))}
+    }
+
+    offspring = Mock()
+    offspring.state = Mock()
+    offspring.state._state = Mock()
+    offspring.state._state.model_copy.return_value = Mock()
+    offspring.behavior = Mock()
+    offspring.behavior.decision_module = Mock()
+    offspring.behavior.decision_module.algorithm = Mock()
+    offspring.behavior.decision_module.algorithm.policy = Mock()
+    offspring.behavior.decision_module.algorithm.policy.state_dict.return_value = {
+        "w": Mock(shape=(2, 2))
+    }
+
+    with patch("farm.core.agent.factory.AgentFactory") as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    assert parent.environment.lamarckian_warmstart_applied == 1
+    assert getattr(parent.environment, "lamarckian_warmstart_skipped", 0) == 0
+    offspring.behavior.decision_module.algorithm.load_model_state.assert_called_once()
+
+
+def test_reproduce_lamarckian_incompatible_policy_counts_as_skipped():
+    """Shape/key mismatch should skip warm-start without failing reproduction."""
+    parent = _build_parent_agent_for_reproduction()
+    parent.environment.intrinsic_evolution_policy = IntrinsicEvolutionPolicy(
+        mutation_rate=0.0,
+        mutation_scale=0.0,
+        inheritance_mode="lamarckian",
+    )
+    parent.behavior = Mock()
+    parent.behavior.decision_module = Mock()
+    parent.behavior.decision_module.algorithm = Mock()
+    parent.behavior.decision_module.algorithm.get_model_state.return_value = {
+        "policy_state_dict": {"w_parent": Mock(shape=(4, 4))}
+    }
+
+    offspring = Mock()
+    offspring.state = Mock()
+    offspring.state._state = Mock()
+    offspring.state._state.model_copy.return_value = Mock()
+    offspring.behavior = Mock()
+    offspring.behavior.decision_module = Mock()
+    offspring.behavior.decision_module.algorithm = Mock()
+    offspring.behavior.decision_module.algorithm.policy = Mock()
+    offspring.behavior.decision_module.algorithm.policy.state_dict.return_value = {
+        "w_child": Mock(shape=(2, 2))
+    }
+
+    with patch("farm.core.agent.factory.AgentFactory") as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    assert parent.environment.lamarckian_warmstart_skipped == 1
+    assert getattr(parent.environment, "lamarckian_warmstart_applied", 0) == 0
+    offspring.behavior.decision_module.algorithm.load_model_state.assert_not_called()
 
 
 def test_reproduce_logs_exception_and_returns_false():

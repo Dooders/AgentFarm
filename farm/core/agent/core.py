@@ -28,6 +28,7 @@ from farm.core.hyperparameter_chromosome import (
     mutate_chromosome,
 )
 from farm.core.environment import _AgentList
+from farm.core.policy_inheritance import apply_lamarckian_policy_warmstart
 from farm.core.state import AgentState, AgentStateManager
 from farm.utils.logging import get_logger
 
@@ -1055,6 +1056,8 @@ class AgentCore:
             # Set offspring parent IDs (genome_id will be generated in add_agent() using parent info)
             offspring.state._state = offspring.state._state.model_copy(update={"parent_ids": [self.agent_id]})
 
+            self._apply_lamarckian_inheritance_if_enabled(offspring)
+
             # Add offspring to environment with immediate flush to ensure it's in database
             # Genome ID will be generated in add_agent() using parent info
             self.environment.add_agent(offspring, flush_immediately=True)
@@ -1119,6 +1122,34 @@ class AgentCore:
                 offspring_id=offspring_id,
             )
         return True
+
+    def _apply_lamarckian_inheritance_if_enabled(self, offspring: "AgentCore") -> None:
+        """Apply optional Lamarckian policy warm-start from parent to child."""
+        def _counter_value(name: str) -> int:
+            value = getattr(self.environment, name, 0)
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return 0
+
+        if not self.environment:
+            return
+        policy = getattr(self.environment, "intrinsic_evolution_policy", None)
+        if policy is None or not getattr(policy, "enabled", False):
+            return
+        if getattr(policy, "inheritance_mode", "baldwinian") != "lamarckian":
+            return
+
+        applied = apply_lamarckian_policy_warmstart(self, offspring)
+        if applied:
+            self.environment.lamarckian_warmstart_applied = _counter_value(
+                "lamarckian_warmstart_applied"
+            ) + 1
+            return
+
+        self.environment.lamarckian_warmstart_skipped = _counter_value(
+            "lamarckian_warmstart_skipped"
+        ) + 1
 
     def _is_agent_present_in_environment(self, agent_id: str) -> bool:
         """Return whether an agent ID appears in environment tracking structures."""

@@ -83,6 +83,7 @@ class TestIntrinsicEvolutionPolicy(unittest.TestCase):
         self.assertEqual(policy.boundary_mode, BoundaryMode.CLAMP)
         self.assertEqual(policy.crossover_mode, CrossoverMode.UNIFORM)
         self.assertFalse(policy.crossover_enabled)
+        self.assertEqual(policy.inheritance_mode, "baldwinian")
 
     def test_rejects_invalid_mutation_rate(self):
         with self.assertRaises(ValueError):
@@ -280,6 +281,7 @@ class TestRunnerOrchestration(unittest.TestCase):
             self.assertEqual(metadata["num_steps_configured"], 5)
             self.assertEqual(metadata["snapshot_interval"], 2)
             self.assertIn("policy", metadata)
+            self.assertIn("policy_inheritance_metrics", metadata)
             self.assertIn("speciation", metadata)
             self.assertEqual(metadata["speciation"]["enabled"], False)
             self.assertEqual(metadata["speciation"]["algorithm"], "gmm")
@@ -288,6 +290,13 @@ class TestRunnerOrchestration(unittest.TestCase):
             self.assertEqual(metadata["speciation"]["scaler"], "none")
             # Enums in the policy must serialize to plain string values.
             self.assertEqual(metadata["policy"]["mutation_mode"], "gaussian")
+            self.assertEqual(metadata["policy"]["inheritance_mode"], "baldwinian")
+            self.assertEqual(
+                metadata["policy_inheritance_metrics"]["lamarckian_warmstart_applied"], 0
+            )
+            self.assertEqual(
+                metadata["policy_inheritance_metrics"]["lamarckian_warmstart_skipped"], 0
+            )
             # Initial-diversity defaults installed by the runner are
             # surfaced in the metadata for reproducibility.
             self.assertIn("initial_diversity", metadata)

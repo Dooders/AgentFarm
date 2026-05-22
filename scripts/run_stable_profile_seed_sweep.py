@@ -80,6 +80,7 @@ COPARENT_STRATEGIES: List[str] = [
     "nearest_alive_same_type",
     "random_alive_same_type",
 ]
+INHERITANCE_MODES: List[str] = ["baldwinian", "lamarckian"]
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -120,6 +121,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mutation-rate", type=float, default=0.15)
     parser.add_argument("--mutation-scale", type=float, default=0.10)
     parser.add_argument("--selection-pressure", type=str, default="low")
+    parser.add_argument(
+        "--inheritance-mode",
+        type=str,
+        default="baldwinian",
+        choices=INHERITANCE_MODES,
+        help="Policy inheritance mode for offspring (Baldwinian or Lamarckian warm-start).",
+    )
     parser.add_argument("--initial-diversity-mutation-rate", type=float, default=1.0)
     parser.add_argument("--initial-diversity-mutation-scale", type=float, default=0.25)
     parser.add_argument(
@@ -244,6 +252,7 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
             getattr(args, "allow_cross_type_pollination", False)
         ),
         selection_pressure=args.selection_pressure,
+        inheritance_mode=str(getattr(args, "inheritance_mode", "baldwinian")),
         seed=seed,
     )
 
@@ -388,6 +397,13 @@ def _crossover_settings_dict(args: argparse.Namespace) -> Dict[str, Any]:
     }
 
 
+def _inheritance_settings_dict(args: argparse.Namespace) -> Dict[str, Any]:
+    """Snapshot of inheritance mode related args for the manifest."""
+    return {
+        "inheritance_mode": str(getattr(args, "inheritance_mode", "baldwinian")),
+    }
+
+
 def _print_dry_run_plan(args: argparse.Namespace, output_dir: Path) -> None:
     print("Stable-profile seed sweep — DRY RUN")
     print(f"  output_dir : {output_dir}")
@@ -396,6 +412,7 @@ def _print_dry_run_plan(args: argparse.Namespace, output_dir: Path) -> None:
     print(f"  num_steps  : {args.num_steps} (warmup {args.warmup_steps}, "
           f"snapshot/{args.snapshot_interval})")
     print(f"  disk_db    : {getattr(args, 'disk_database', False)}")
+    print(f"  inheritance: {_inheritance_settings_dict(args)}")
     print(f"  crossover  : {_crossover_settings_dict(args)}")
     print(f"  total runs : {len(args.profiles) * len(args.seeds)}")
     print()
@@ -469,6 +486,7 @@ def main() -> int:
         "mutation_rate": args.mutation_rate,
         "mutation_scale": args.mutation_scale,
         "selection_pressure": args.selection_pressure,
+        "inheritance": _inheritance_settings_dict(args),
         "crossover": _crossover_settings_dict(args),
         "sub_profile_overrides": {p: STABLE_SUB_PROFILES[p] for p in args.profiles},
         "runs": sweep_records,

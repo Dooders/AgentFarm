@@ -43,6 +43,7 @@ logger = get_logger(__name__)
 CoparentStrategy = Literal["nearest_alive_same_type", "random_alive_same_type"]
 SelectionPressurePreset = Literal["none", "low", "medium", "high"]
 InitialConditionsProfileName = Literal["stable", "stress", "exploratory", "legacy"]
+InheritanceMode = Literal["baldwinian", "lamarckian"]
 
 # ── Selection-pressure preset definitions ─────────────────────────────────────
 # Each preset maps to a ReproductionPressureConfig with sensible defaults that
@@ -469,6 +470,9 @@ class IntrinsicEvolutionPolicy:
             ``None`` (default), ``reproduction_pressure`` is used as-is.
         reproduction_pressure: Fine-grained density-dependent cost config.
             Ignored when ``selection_pressure`` is not ``None``.
+        inheritance_mode: Offspring policy-state inheritance mode.
+            ``"baldwinian"`` keeps cold-start offspring policies.
+            ``"lamarckian"`` attempts compatible policy warm-starts.
     """
 
     enabled: bool = True
@@ -486,6 +490,7 @@ class IntrinsicEvolutionPolicy:
     allow_cross_type_pollination: bool = False
     seed: Optional[int] = None
     selection_pressure: Union[SelectionPressurePreset, float, None] = None
+    inheritance_mode: InheritanceMode = "baldwinian"
     reproduction_pressure: ReproductionPressureConfig = field(
         default_factory=ReproductionPressureConfig
     )
@@ -511,6 +516,8 @@ class IntrinsicEvolutionPolicy:
             raise ValueError(
                 "coparent_strategy must be 'nearest_alive_same_type' or 'random_alive_same_type'."
             )
+        if self.inheritance_mode not in ("baldwinian", "lamarckian"):
+            raise ValueError("inheritance_mode must be 'baldwinian' or 'lamarckian'.")
         # Derive reproduction_pressure from the selection_pressure preset/scale when set.
         if self.selection_pressure is not None:
             derived = _preset_or_scale_to_pressure_config(self.selection_pressure)
@@ -714,6 +721,10 @@ class IntrinsicEvolutionExperiment:
         latest_population = 0
         latest_gene_statistics: Dict[str, Dict[str, float]] = {}
         latest_diversity_metrics: Optional[Any] = None
+        latest_inheritance_metrics: Dict[str, int] = {
+            "lamarckian_warmstart_applied": 0,
+            "lamarckian_warmstart_skipped": 0,
+        }
 
         # Startup-transient metric accumulators (filled for the first
         # transient_window post-environment-ready steps).
@@ -735,7 +746,7 @@ class IntrinsicEvolutionExperiment:
             To keep metadata/result summaries aligned with persisted telemetry,
             derive final result fields from the last callback-observed state.
             """
-            nonlocal latest_step, latest_population, latest_gene_statistics
+            nonlocal latest_step, latest_population, latest_gene_statistics, latest_inheritance_metrics
             alive_agents = list(environment.alive_agent_objects)
             chromosomes: List[HyperparameterChromosome] = [
                 agent.hyperparameter_chromosome
@@ -748,6 +759,14 @@ class IntrinsicEvolutionExperiment:
                 chromosomes,
                 evolvable_only=True,
             )
+            latest_inheritance_metrics = {
+                "lamarckian_warmstart_applied": int(
+                    getattr(environment, "lamarckian_warmstart_applied", 0)
+                ),
+                "lamarckian_warmstart_skipped": int(
+                    getattr(environment, "lamarckian_warmstart_skipped", 0)
+                ),
+            }
 
         def _compute_step_telemetry(
             environment: Any, prev_ids: set
@@ -821,6 +840,8 @@ class IntrinsicEvolutionExperiment:
             nonlocal prev_agent_ids, latest_diversity_metrics
             environment.intrinsic_evolution_policy = policy
             environment.intrinsic_evolution_rng = rng
+            environment.lamarckian_warmstart_applied = 0
+            environment.lamarckian_warmstart_skipped = 0
             # Initial diversity seeding now happens inside run_simulation
             # before this hook fires; capture the metrics so they can be
             # included in the persisted experiment metadata.
@@ -892,6 +913,7 @@ class IntrinsicEvolutionExperiment:
             initial_diversity_config=run_config.initial_diversity,
             initial_diversity_metrics=latest_diversity_metrics,
             resolved_initial_conditions=resolved_ic,
+            inheritance_metrics=latest_inheritance_metrics,
         )
         logger.info(
             "intrinsic_evolution_completed",
@@ -908,6 +930,7 @@ class IntrinsicEvolutionExperiment:
         initial_diversity_config: InitialDiversityConfig,
         initial_diversity_metrics: Optional[Any] = None,
         resolved_initial_conditions: Optional[Dict[str, Any]] = None,
+        inheritance_metrics: Optional[Dict[str, int]] = None,
     ) -> None:
         if not self.config.output_dir:
             return
@@ -929,6 +952,14 @@ class IntrinsicEvolutionExperiment:
                 initial_diversity_metrics.to_dict()
                 if initial_diversity_metrics is not None
                 else None
+            ),
+            "policy_inheritance_metrics": (
+                inheritance_metrics
+                if inheritance_metrics is not None
+                else {
+                    "lamarckian_warmstart_applied": 0,
+                    "lamarckian_warmstart_skipped": 0,
+                }
             ),
             "speciation": self.config.speciation.to_dict(),
             "seed": self.config.seed,
