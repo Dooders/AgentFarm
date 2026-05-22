@@ -29,7 +29,19 @@ class TestPairedDeltaSummary(unittest.TestCase):
     def test_empty(self):
         out = _paired_delta_summary([])
         self.assertEqual(out["n"], 0)
-        self.assertTrue(math.isnan(out["mean_delta"]))
+        # Empty summaries must use ``None`` (valid JSON ``null``), not NaN
+        # (which json.dump emits as the non-standard ``NaN`` token).
+        self.assertIsNone(out["mean_delta"])
+        self.assertEqual(out["ci95"], [None, None])
+
+    def test_empty_summary_is_json_serializable(self):
+        out = _paired_delta_summary([])
+        # Strict mode rejects NaN/Infinity tokens, so this exercises the
+        # contract that empty summaries round-trip through valid JSON.
+        encoded = json.dumps(out, allow_nan=False)
+        decoded = json.loads(encoded)
+        self.assertEqual(decoded["n"], 0)
+        self.assertIsNone(decoded["mean_delta"])
 
     def test_non_empty(self):
         out = _paired_delta_summary([1.0, 2.0, 3.0])
@@ -247,6 +259,11 @@ class TestExtractMetadataMetrics(unittest.TestCase):
                             "lamarckian_warmstart_skipped_reasons": {
                                 "incompatible_state": 2,
                             },
+                            "decide_action_failures": 4,
+                            "decide_action_failure_reasons": {
+                                "RuntimeError": 3,
+                                "ValueError": 1,
+                            },
                         },
                     }
                 ),
@@ -256,6 +273,11 @@ class TestExtractMetadataMetrics(unittest.TestCase):
         self.assertAlmostEqual(metrics["lamarckian_warmstart_rate"], 0.8)
         self.assertEqual(
             metrics["lamarckian_warmstart_skipped_reasons"], {"incompatible_state": 2}
+        )
+        self.assertEqual(metrics["decide_action_failures"], 4.0)
+        self.assertEqual(
+            metrics["decide_action_failure_reasons"],
+            {"RuntimeError": 3, "ValueError": 1},
         )
 
     def test_missing_metadata_returns_empty(self):

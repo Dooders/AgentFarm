@@ -9,11 +9,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, Literal, Optional, Tuple, Union
 
-import numpy as np
 import gymnasium
+import numpy as np
+import torch
 
 from .rl_base import PrioritizedReplayBuffer, RLAlgorithm
 
+from farm.core.decision.shape_utils import batch_observation
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -914,49 +916,15 @@ class TianshouWrapper(RLAlgorithm):
             logger.error(f"Failed to initialize {self.algorithm_name} policy: {e}")
             raise
 
-    def _state_to_numpy(self, state: Union[np.ndarray, Any]) -> np.ndarray:
-        """Normalize an observation to a float32 numpy array."""
-        if isinstance(state, np.ndarray):
-            return state.astype(np.float32)
-        try:
-            import torch
-
-            if isinstance(state, torch.Tensor):
-                return state.detach().cpu().numpy().astype(np.float32)
-        except ImportError:
-            pass
-        return np.asarray(state, dtype=np.float32)
-
     def _state_to_batched_tensor(self, state: Union[np.ndarray, Any]):
         """Convert an observation to a batched float tensor on the policy device."""
-        import torch
-
-        state_np = self._state_to_numpy(state)
-        target_size = int(np.prod(self.observation_shape))
-
-        if state_np.ndim == 1:
-            if state_np.size == target_size and len(self.observation_shape) > 1:
-                state_np = state_np.reshape(1, *self.observation_shape)
-            else:
-                state_np = np.expand_dims(state_np, axis=0)
-        elif state_np.ndim == 2:
-            if state_np.shape == self.observation_shape:
-                state_np = np.expand_dims(state_np, axis=0)
-            elif state_np.size == target_size:
-                state_np = state_np.reshape(1, *self.observation_shape)
-            elif state_np.shape[0] != 1:
-                state_np = np.expand_dims(state_np, axis=0)
-        elif state_np.ndim == len(self.observation_shape):
-            state_np = np.expand_dims(state_np, axis=0)
-
+        state_np = batch_observation(state, self.observation_shape)
         device = self.algorithm_config.get("device", "cpu")
         return torch.from_numpy(state_np).float().to(device)
 
     @staticmethod
     def _tensor_to_1d_numpy(value: Any) -> np.ndarray:
         """Extract a 1D numpy vector from a model output tensor."""
-        import torch
-
         if isinstance(value, tuple):
             value = value[0]
         if isinstance(value, torch.Tensor):
@@ -965,28 +933,57 @@ class TianshouWrapper(RLAlgorithm):
             return value.detach().cpu().numpy().reshape(-1)
         return np.asarray(value, dtype=np.float64).reshape(-1)
 
-    def _continuous_actor_to_logits(self, action_out: Any) -> np.ndarray:
-        """Map a continuous actor output to discrete action logits."""
-        import torch
+    # Sharpness of the soft logits produced from a SAC/DDPG continuous actor
+    # output. Smaller values keep the implied distribution closer to uniform
+    # so the chromosome ``action_weights`` multiplier can still meaningfully
+    # shift sampling. ``CONTINUOUS_ACTOR_LOGIT_SCALE = 2.0`` corresponds to
+    # roughly an exp(2) ≈ 7.4× preference for the actor's chosen bin over a
+    # bin one unit away, which keeps the discrete approximation expressive
+    # without collapsing to a one-hot.
+    CONTINUOUS_ACTOR_LOGIT_SCALE = 2.0
 
+    def _continuous_actor_to_logits(self, action_out: Any) -> np.ndarray:
+        """Map a continuous actor output to discrete action logits.
+
+        SAC actors in Tianshou return ``(mean, log_std)``; DDPG actors return
+        a deterministic action mean. We treat the first scalar of either form
+        as the actor's preferred continuous action in ``[-1, 1]`` (post-tanh)
+        and project it onto the discrete action space with a soft, distance-
+        based logit profile. This is an approximation — see
+        ``docs/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness.md`` for
+        the rationale and known limitations: continuous-actor algorithms
+        cannot natively express a full categorical distribution, so the
+        ``policy_probs × action_weights × mask`` composition in
+        :meth:`DecisionModule.decide_action` is necessarily less expressive
+        for SAC/DDPG than for DQN/PPO/A2C.
+        """
+        if isinstance(action_out, tuple):
+            # SAC: (mean, log_std) — use the deterministic mean for the
+            # discretization target. The log_std is intentionally discarded
+            # because the discrete softmax already supplies sampling noise.
+            action_out = action_out[0]
         if isinstance(action_out, torch.Tensor):
             raw = action_out.detach().cpu().numpy().reshape(-1)
         else:
             raw = np.asarray(action_out, dtype=np.float64).reshape(-1)
-        scalar = float(raw[0]) if raw.size > 0 else 0.0
-        discrete = int(
-            np.clip(np.round(scalar * (self.num_actions - 1)), 0, self.num_actions - 1)
-        )
-        logits = np.full(self.num_actions, -10.0, dtype=np.float64)
-        logits[discrete] = 10.0
-        return logits
+        if raw.size == 0:
+            return np.zeros(self.num_actions, dtype=np.float64)
+
+        # Map a scalar in [-1, 1] (post-tanh continuous action) to an index
+        # in [0, num_actions - 1] as a float so we can compute a distance
+        # profile rather than a one-hot.
+        scalar = float(np.clip(raw[0], -1.0, 1.0))
+        center = (scalar + 1.0) * 0.5 * (self.num_actions - 1)
+        bins = np.arange(self.num_actions, dtype=np.float64)
+        # Negative-squared-distance gives a smooth Gaussian-shaped preference
+        # around ``center``; scale controls how peaked the resulting softmax
+        # is. See ``CONTINUOUS_ACTOR_LOGIT_SCALE`` docstring for the choice.
+        return -self.CONTINUOUS_ACTOR_LOGIT_SCALE * (bins - center) ** 2
 
     def _policy_q_values(self, state: Union[np.ndarray, Any]) -> np.ndarray:
         """Return per-action logits or Q-values with shape ``(num_actions,)``."""
         if self.policy is None:
             return np.ones(self.num_actions, dtype=np.float64)
-
-        import torch
 
         state_tensor = self._state_to_batched_tensor(state)
         with torch.no_grad():
@@ -1098,15 +1095,20 @@ class TianshouWrapper(RLAlgorithm):
         return int(action)
 
     def predict_proba(self, state: np.ndarray) -> np.ndarray:
-        """Predict action probabilities from policy logits/Q-values."""
+        """Predict action probabilities from policy logits/Q-values.
+
+        Returns a length-``num_actions`` softmax over the policy's per-action
+        scores. No temperature scaling is applied — the raw logits/Q-values
+        are passed straight to ``_masked_softmax``. If a future caller needs
+        a hotter or colder distribution, route that through
+        :class:`DecisionConfig` so the knob is explicit and persisted in
+        experiment metadata.
+        """
         if self.policy is None:
             return np.full(self.num_actions, 1.0 / self.num_actions, dtype=float)
 
         logits = self._policy_q_values(state)
-        temperature = float(self.algorithm_config.get("policy_temperature", 1.0))
-        temperature = max(temperature, 1e-8)
-        scaled = logits / temperature
-        return self._masked_softmax(scaled, action_mask=None)
+        return self._masked_softmax(logits, action_mask=None)
 
     def store_experience(
         self,

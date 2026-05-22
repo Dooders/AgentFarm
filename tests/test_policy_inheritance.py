@@ -226,3 +226,45 @@ def test_inheritance_telemetry_records_applied_and_skipped():
         WARMSTART_REASON_INCOMPATIBLE_STATE: 2,
         WARMSTART_REASON_NO_POLICY_STATE: 1,
     }
+
+
+def test_inheritance_telemetry_records_decide_action_failures():
+    telemetry = InheritanceTelemetry()
+    telemetry.record_decide_action_failure("ValueError")
+    telemetry.record_decide_action_failure("ValueError")
+    telemetry.record_decide_action_failure("RuntimeError")
+
+    payload = telemetry.to_dict()
+    assert payload["decide_action_failures"] == 3
+    assert payload["decide_action_failure_reasons"] == {
+        "ValueError": 2,
+        "RuntimeError": 1,
+    }
+
+
+def test_apply_skips_when_parent_behavior_is_none():
+    """Missing ``parent.behavior`` must surface as NO_DECISION_MODULE, not raise."""
+    parent = SimpleNamespace(behavior=None)
+    offspring = SimpleNamespace(
+        behavior=SimpleNamespace(
+            decision_module=SimpleNamespace(algorithm=SimpleNamespace())
+        )
+    )
+    assert (
+        apply_lamarckian_policy_warmstart(parent, offspring)
+        == WARMSTART_REASON_NO_DECISION_MODULE
+    )
+
+
+def test_apply_skips_when_offspring_behavior_is_none():
+    """Symmetric guard: missing ``offspring.behavior`` is also NO_DECISION_MODULE."""
+    parent = SimpleNamespace(
+        behavior=SimpleNamespace(
+            decision_module=SimpleNamespace(algorithm=SimpleNamespace())
+        )
+    )
+    offspring = SimpleNamespace(behavior=None)
+    assert (
+        apply_lamarckian_policy_warmstart(parent, offspring)
+        == WARMSTART_REASON_NO_DECISION_MODULE
+    )

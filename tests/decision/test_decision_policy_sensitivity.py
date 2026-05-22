@@ -56,7 +56,8 @@ class TestDecisionPolicySensitivity(unittest.TestCase):
 
     def test_decide_action_responds_to_policy_weights(self):
         state = torch.randn(8)
-        uniform_weights = np.ones(get_action_count(), dtype=np.float64) / get_action_count()
+        num_actions = get_action_count()
+        uniform_weights = np.ones(num_actions, dtype=np.float64) / num_actions
 
         module_a = _make_decision_module(seed=11)
         module_b = _make_decision_module(seed=22)
@@ -69,14 +70,33 @@ class TestDecisionPolicySensitivity(unittest.TestCase):
         self.assertFalse(np.array_equal(hist_a, hist_b))
 
         np.random.seed(456)
-        weighted_a = np.zeros(get_action_count(), dtype=np.int64)
+        weighted_a = np.zeros(num_actions, dtype=np.int64)
         for _ in range(2000):
             weighted_a[module_a.decide_action(state, action_weights=uniform_weights)] += 1
         np.random.seed(456)
-        weighted_b = np.zeros(get_action_count(), dtype=np.int64)
+        weighted_b = np.zeros(num_actions, dtype=np.int64)
         for _ in range(2000):
             weighted_b[module_b.decide_action(state, action_weights=uniform_weights)] += 1
         self.assertFalse(np.array_equal(weighted_a, weighted_b))
+
+        # Holding the module fixed, switching from uniform weights to a
+        # heavily-skewed weight vector must actually shift the sampling
+        # distribution; otherwise the multiplicative composition in
+        # decide_action is silently dropping action_weights.
+        skewed_weights = np.full(num_actions, 0.01, dtype=np.float64)
+        skewed_weights[0] = 1.0
+        skewed_weights /= skewed_weights.sum()
+        np.random.seed(789)
+        skewed_hist = np.zeros(num_actions, dtype=np.int64)
+        for _ in range(2000):
+            skewed_hist[
+                module_a.decide_action(state, action_weights=skewed_weights)
+            ] += 1
+        self.assertFalse(np.array_equal(weighted_a, skewed_hist))
+        # Action 0 should dominate under the skewed weights (the policy
+        # could still pull it away from a strict argmax, so we only require
+        # that action 0 is the most-sampled action by a comfortable margin).
+        self.assertEqual(int(np.argmax(skewed_hist)), 0)
 
     def test_lamarckian_warmstart_matches_parent_distribution(self):
         parent_module = _make_decision_module(seed=101)
@@ -192,3 +212,42 @@ class TestTianshouPredictProbaShapes(unittest.TestCase):
         for _ in range(50):
             action = wrapper.select_action_with_mask(state, mask)
             self.assertIn(action, [0, 1])
+
+    def test_continuous_actor_to_logits_handles_tuple(self):
+        """SAC actors return ``(mean, log_std)``; the helper must unpack the mean."""
+        from farm.core.decision.algorithms.tianshou import SACWrapper
+
+        # SAC's actor in this codebase is CNN-based, so the wrapper requires
+        # a spatial observation shape at construction time. The helper under
+        # test only depends on ``num_actions``, so we just need a wrapper
+        # that initialises successfully.
+        spatial_shape = (13, 13, 13)
+        wrapper = SACWrapper(
+            num_actions=4,
+            state_dim=int(np.prod(spatial_shape)),
+            observation_shape=spatial_shape,
+        )
+        # Build a fake "SAC actor output" as a (mean, log_std) tuple of
+        # tensors with mean = +1.0 (post-tanh top of the action range).
+        mean = torch.tensor([1.0])
+        log_std = torch.tensor([0.0])
+        logits = wrapper._continuous_actor_to_logits((mean, log_std))
+        self.assertEqual(logits.shape, (wrapper.num_actions,))
+        # The center of the distance profile sits at num_actions - 1, so
+        # the last bin must carry the highest logit (smallest squared
+        # distance).
+        self.assertEqual(int(np.argmax(logits)), wrapper.num_actions - 1)
+
+        # Bare-tensor inputs (DDPG-style deterministic mean) must still work.
+        deterministic = torch.tensor([-1.0])
+        ddpg_logits = wrapper._continuous_actor_to_logits(deterministic)
+        self.assertEqual(int(np.argmax(ddpg_logits)), 0)
+
+        # The resulting softmax must be soft enough that chromosome weights
+        # can still shift the distribution — i.e. not a degenerate one-hot.
+        # We expect the top-bin probability to be well below 1.0 so that
+        # multiplying by per-action weights can meaningfully reweight other
+        # bins.
+        probs = wrapper._masked_softmax(logits, action_mask=None)
+        self.assertLess(float(np.max(probs)), 0.95)
+        self.assertGreater(float(np.min(probs)), 0.0)

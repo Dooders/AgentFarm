@@ -468,7 +468,9 @@ class AgentCore:
         # Failures here used to be silently swallowed, which masked real
         # decision/execution bugs as "the agent simply isn't learning". Log
         # them at warning level (with the agent id and exception type) so they
-        # are visible without crashing the whole simulation.
+        # are visible without crashing the whole simulation, and also bump
+        # the per-run telemetry counter when one is attached so paired A/B
+        # comparisons can flag arms with elevated failure rates.
         try:
             action = self.behavior.decide_action(self, state_tensor, enabled_actions)
             self._execute_action(action, state_tensor)
@@ -480,6 +482,9 @@ class AgentCore:
                 error_message=str(exc),
                 exc_info=True,
             )
+            telemetry = getattr(self.environment, "inheritance_telemetry", None)
+            if isinstance(telemetry, InheritanceTelemetry):
+                telemetry.record_decide_action_failure(type(exc).__name__)
 
         # Call on_step_end on all components
         for component in self._components.values():

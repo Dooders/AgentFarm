@@ -149,19 +149,36 @@ class TestEpsilonGreedyWiring(unittest.TestCase):
         import numpy as np
         import torch
 
+        # After the 2026-05-22 decision-path fix, ``select_action_with_mask``
+        # reads Q-values through ``policy.model(state_tensor)`` for DQN
+        # rather than calling the policy directly. The spy therefore exposes
+        # a callable ``model`` that returns a length-``num_actions`` tensor
+        # and records the epsilon value it observed at call time.
         class _EpsilonSpyPolicy:
-            def __init__(self):
+            def __init__(self, num_actions: int):
                 self.eps = 0.0
                 self.eps_seen: list[float] = []
+                self._num_actions = num_actions
 
             def set_eps(self, value: float) -> None:
                 self.eps = float(value)
 
-            def __call__(self, *_args, **_kwargs):
+            def _record(self) -> None:
                 self.eps_seen.append(float(self.eps))
-                return torch.tensor([0]), None
 
-        spy = _EpsilonSpyPolicy()
+            class _Model:
+                def __init__(self, outer):
+                    self._outer = outer
+
+                def __call__(self, state_tensor):
+                    self._outer._record()
+                    return torch.zeros((1, self._outer._num_actions))
+
+            @property
+            def model(self):
+                return self._Model(self)
+
+        spy = _EpsilonSpyPolicy(algo.num_actions)
         algo.policy = spy
         algo._apply_eps_to_policy(initial=True)
 
@@ -203,7 +220,15 @@ class TestEpsilonGreedyWiring(unittest.TestCase):
         module.algorithm.set_train_mode(False)
         self.assertAlmostEqual(float(module.algorithm.policy.eps), 0.02, places=5)
 
-    def test_eps_decays_on_weighted_decision_fallback_path(self):
+    def test_predict_proba_failure_propagates_without_decaying_eps(self):
+        """``predict_proba`` failures now surface as exceptions (no silent fallback).
+
+        After the 2026-05-22 decision-path fix, :meth:`DecisionModule.decide_action`
+        no longer catches algorithm errors and falls through to a weighted
+        random sampler. Errors propagate so they can be counted in
+        ``InheritanceTelemetry.decide_action_failures`` and triaged; epsilon
+        must not advance because no real decision was committed.
+        """
         cfg = DecisionConfig(
             algorithm_type="dqn",
             epsilon_start=1.0,
@@ -217,13 +242,12 @@ class TestEpsilonGreedyWiring(unittest.TestCase):
         state = np.zeros(8, dtype=np.float32)
         action_weights = np.ones(4, dtype=np.float64) / 4.0
 
-        # Simulate a probability-prediction failure so DecisionModule falls
-        # back to weighted random action selection. Epsilon should still decay
-        # once for this real decision.
+        eps_before = float(module.algorithm.policy.eps)
         with patch.object(module.algorithm, "predict_proba", side_effect=RuntimeError("boom")):
-            module.decide_action(state, action_weights=action_weights)
+            with self.assertRaises(RuntimeError):
+                module.decide_action(state, action_weights=action_weights)
 
-        self.assertAlmostEqual(float(module.algorithm.policy.eps), 0.5, places=5)
+        self.assertAlmostEqual(float(module.algorithm.policy.eps), eps_before, places=5)
 
     def test_weighted_decision_predict_proba_sees_initial_eps(self):
         cfg = DecisionConfig(
