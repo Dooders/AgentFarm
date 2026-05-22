@@ -31,6 +31,11 @@ Issue: [#849](https://github.com/Dooders/AgentFarm/issues/849)
 
 ## Run commands
 
+**Note:** Results under `experiments/inheritance_ab_pre_fix/` were collected
+before a decision-path fix (2026-05-22) that prevented policy weights from
+influencing actions. That aggregate is invalid; use a fresh output directory
+after the fix lands.
+
 ### 1) Run both arms
 
 ```bash

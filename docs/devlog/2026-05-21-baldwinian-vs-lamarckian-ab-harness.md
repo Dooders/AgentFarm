@@ -100,3 +100,27 @@ Run the full matched matrix described in the experiment doc:
 
 That full run is where we decide whether warm-starting offspring is worth the
 stability trade-off by regime.
+
+## Followup: decision-path defect found and fixed (2026-05-22)
+
+The first full 36-run matrix (`experiments/inheritance_ab_pre_fix/`) completed
+cleanly but produced **byte-identical** Baldwinian and Lamarckian outcomes:
+same metadata, gene trajectories, lineage logs, and all 236k `agent_actions`
+rows per paired seed.
+
+Root cause: `DecisionModule.decide_action` silently swallowed Tianshou
+`predict_proba` failures and fell back to chromosome-only
+`_weighted_random_action`, so copied policy weights never influenced actions.
+
+Fix (this change):
+
+- [`farm/core/decision/algorithms/tianshou.py`](../../farm/core/decision/algorithms/tianshou.py):
+  query `policy.model` / `policy.actor` directly; real softmax `predict_proba`.
+- [`farm/core/decision/decision.py`](../../farm/core/decision/decision.py):
+  always compose `policy_probs × action_weights × enabled_mask`; propagate
+  algorithm errors instead of silent fallback.
+- Regression tests in
+  [`tests/decision/test_decision_policy_sensitivity.py`](../../tests/decision/test_decision_policy_sensitivity.py).
+
+**The pre-fix aggregate verdict (`no robust effect` across all profiles) is
+invalid.** Re-run the matrix into `experiments/inheritance_ab/` after this fix.

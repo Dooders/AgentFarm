@@ -552,88 +552,97 @@ class DecisionModule:
 
         self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
 
-    def _apply_action_weights_to_probs(
-        self,
-        probabilities: np.ndarray,
-        action_weights: Optional[np.ndarray],
-        enabled_actions: Optional[List[int]] = None,
+    def _normalize_state_for_algorithm(
+        self, state: Union[torch.Tensor, np.ndarray]
     ) -> np.ndarray:
-        """Apply action weights to probability distribution.
-        
-        Args:
-            probabilities: Current action probabilities (num_actions,)
-            action_weights: Optional normalized action weights (num_actions,)
-            enabled_actions: Optional list of enabled action indices
-        
-        Returns:
-            Modified probabilities scaled by weights and normalized
-        """
-        if action_weights is None or len(action_weights) != len(probabilities):
-            return probabilities
-        
-        # Apply weights (element-wise multiplication)
-        weighted_probs = probabilities * action_weights
-        
-        # If enabled_actions specified, zero out disabled actions
-        if enabled_actions is not None and len(enabled_actions) > 0:
-            mask = np.zeros(len(weighted_probs), dtype=bool)
-            for idx in enabled_actions:
-                if 0 <= idx < len(mask):
-                    mask[idx] = True
-            weighted_probs = weighted_probs * mask
-        
-        # Normalize to ensure valid probability distribution
-        total = np.sum(weighted_probs)
-        if total > 0:
-            weighted_probs = weighted_probs / total
+        """Convert and batch an observation for algorithm ``predict_proba`` calls."""
+        if isinstance(state, torch.Tensor):
+            state_np = state.detach().cpu().numpy()
         else:
-            # Fallback to uniform over valid actions
-            if enabled_actions is not None and len(enabled_actions) > 0:
-                weighted_probs = np.zeros(len(weighted_probs))
-                for idx in enabled_actions:
-                    if 0 <= idx < len(weighted_probs):
-                        weighted_probs[idx] = 1.0 / len(enabled_actions)
-            else:
-                weighted_probs = np.ones(len(weighted_probs)) / len(weighted_probs)
-        
-        return weighted_probs
+            state_np = np.array(state, dtype=np.float32)
 
-    def _weighted_random_action(
-        self,
-        action_weights: Optional[np.ndarray],
-        enabled_actions: Optional[List[int]] = None,
-    ) -> int:
-        """Select action using weighted random selection.
-        
-        Args:
-            action_weights: Optional normalized action weights (num_actions,)
-            enabled_actions: Optional list of enabled action indices
-        
-        Returns:
-            Selected action index (relative to enabled_actions if provided, else full space)
-        """
-        if enabled_actions is not None and len(enabled_actions) > 0:
-            # Select from enabled actions only
-            if action_weights is not None:
-                # Get weights for enabled actions
-                enabled_weights = np.array([action_weights[i] for i in enabled_actions if 0 <= i < len(action_weights)], dtype=np.float64)
-                if len(enabled_weights) > 0:
-                    total = np.sum(enabled_weights)
-                    if total > 0:
-                        enabled_probs = enabled_weights / total
-                    else:
-                        enabled_probs = np.ones(len(enabled_weights)) / len(enabled_weights)
-                    selected_relative_idx = int(np.random.choice(len(enabled_weights), p=enabled_probs))
-                    return selected_relative_idx
-            # Fallback: uniform over enabled actions
-            return int(np.random.randint(len(enabled_actions)))
+        target_size = int(np.prod(self.observation_shape))
+
+        if state_np.ndim == 1:
+            if state_np.size == target_size and len(self.observation_shape) > 1:
+                state_np = state_np.reshape(1, *self.observation_shape)
+            else:
+                state_np = state_np.reshape(1, -1)
+        elif state_np.ndim == 2:
+            if state_np.shape == self.observation_shape:
+                state_np = state_np[np.newaxis, ...]
+            elif state_np.size == target_size:
+                state_np = state_np.reshape(1, *self.observation_shape)
+            elif state_np.shape[0] == 1:
+                pass
+            else:
+                state_np = state_np.reshape(1, -1)
+        elif state_np.ndim == len(self.observation_shape):
+            state_np = state_np[np.newaxis, ...]
+        elif state_np.ndim == len(self.observation_shape) + 1:
+            pass
         else:
-            # Full action space
-            if action_weights is not None and len(action_weights) == self.num_actions:
-                selected_idx = int(np.random.choice(self.num_actions, p=action_weights))
-                return selected_idx
-            # Fallback: uniform over all actions
-            return int(np.random.randint(self.num_actions))
+            state_np = state_np.reshape(1, -1)
+        return state_np
+
+    def _policy_probs(self, state_np: np.ndarray) -> np.ndarray:
+        """Return a normalized policy probability vector over the action space."""
+        if self.algorithm is None or not hasattr(self.algorithm, "predict_proba"):
+            return np.ones(self.num_actions, dtype=np.float64) / self.num_actions
+
+        proba_output = self.algorithm.predict_proba(state_np)
+        if proba_output.ndim == 2:
+            probs = np.asarray(proba_output[0], dtype=np.float64)
+        else:
+            probs = np.asarray(proba_output, dtype=np.float64)
+
+        if probs.shape[0] != self.num_actions:
+            raise ValueError(
+                f"Algorithm predict_proba returned {probs.shape[0]} actions; "
+                f"expected {self.num_actions}"
+            )
+
+        total = float(np.sum(probs))
+        if total <= 0.0 or not np.isfinite(total):
+            return np.ones(self.num_actions, dtype=np.float64) / self.num_actions
+        return probs / total
+
+    def _normalize_distribution(
+        self,
+        distribution: np.ndarray,
+        fallback_mask: np.ndarray,
+    ) -> np.ndarray:
+        """Normalize a masked distribution, falling back to uniform over valid actions."""
+        masked = distribution * fallback_mask.astype(np.float64)
+        total = float(np.sum(masked))
+        if total > 0.0 and np.isfinite(total):
+            return masked / total
+
+        valid_count = int(fallback_mask.sum())
+        uniform = np.zeros(self.num_actions, dtype=np.float64)
+        if valid_count > 0:
+            uniform[fallback_mask] = 1.0 / valid_count
+        else:
+            uniform[:] = 1.0 / self.num_actions
+        return uniform
+
+    def _advance_epsilon_if_available(self) -> None:
+        if self.algorithm is None:
+            return
+        advance_eps = getattr(self.algorithm, "advance_epsilon", None)
+        if callable(advance_eps):
+            advance_eps()
+
+    def _map_to_enabled_index(
+        self,
+        full_action: int,
+        enabled_actions: Optional[List[int]],
+    ) -> int:
+        if enabled_actions is None or len(enabled_actions) == 0:
+            return int(full_action)
+        if full_action in enabled_actions:
+            return enabled_actions.index(full_action)
+        return 0
 
     def decide_action(
         self,
@@ -643,180 +652,23 @@ class DecisionModule:
     ) -> int:
         """Decide which action to take given the current state.
 
-        Args:
-            state: Current state observation as tensor or numpy array
-            enabled_actions: Optional list of enabled action indices. If provided,
-                           only these actions will be considered valid. If None,
-                           all actions in the full action space are considered valid.
-            action_weights: Optional normalized action weights array (num_actions,).
-                          Used for weighted random during exploration and to scale
-                          Q-values/probabilities during exploitation.
-
-        Returns:
-            int: Index of the selected action within the `enabled_actions` list if provided (i.e., 0 to len(enabled_actions)-1), otherwise index within the full action space (0 to num_actions-1)
+        Combines policy probabilities with optional chromosome action weights
+        and curriculum restrictions multiplicatively, then samples once.
         """
-        try:
-            # Convert state to numpy for algorithm compatibility
-            if isinstance(state, torch.Tensor):
-                state_np = state.detach().cpu().numpy()
-            else:
-                state_np = np.array(state, dtype=np.float32)
+        state_np = self._normalize_state_for_algorithm(state)
+        policy_probs = self._policy_probs(state_np)
+        mask = self._create_action_mask(enabled_actions)
 
-            # Ensure correct shape for algorithm input
-            # Handle multi-dimensional observations
-            if state_np.ndim == 1:
-                # 1D observation - add batch dimension for fully-connected networks
-                state_np = state_np.reshape(1, -1)
-            elif state_np.ndim == 3:
-                # 3D observation (channels, height, width) - add batch dimension only
-                # Don't reshape, keep the spatial structure for CNNs
-                state_np = state_np[np.newaxis, ...]  # Add batch dimension
-            elif state_np.ndim == 2:
-                # 2D observation - add batch dimension
-                state_np = state_np[np.newaxis, ...]  # Add batch dimension
-            else:
-                # For any other dimensionality, add batch dimension
-                state_np = state_np[np.newaxis, ...]  # Add batch dimension
+        if action_weights is not None and len(action_weights) == self.num_actions:
+            weights = np.asarray(action_weights, dtype=np.float64)
+        else:
+            weights = np.ones(self.num_actions, dtype=np.float64)
 
-            # Create action mask for curriculum restrictions
-            action_mask = self._create_action_mask(enabled_actions)
-
-            weighted_advance_epsilon = None
-            if action_weights is not None and self.algorithm is not None:
-                advance_eps = getattr(self.algorithm, "advance_epsilon", None)
-                if callable(advance_eps):
-                    weighted_advance_epsilon = advance_eps
-
-            def _advance_weighted_epsilon_once() -> None:
-                if weighted_advance_epsilon is None:
-                    return
-                try:
-                    weighted_advance_epsilon()
-                except Exception as e:
-                    logger.debug(f"Failed to advance epsilon schedule: {e}")
-
-            # Try to get probabilities from algorithm if available (for exploitation)
-            probabilities = None
-            if self.algorithm is not None and hasattr(self.algorithm, "predict_proba"):
-                try:
-                    proba_output = self.algorithm.predict_proba(state_np)
-                    # Handle different output shapes: (1, num_actions) or (num_actions,)
-                    if proba_output.ndim == 2:
-                        probabilities = proba_output[0]
-                    else:
-                        probabilities = proba_output
-                    # Apply weights to probabilities for exploitation
-                    if action_weights is not None and probabilities is not None:
-                        probabilities = self._apply_action_weights_to_probs(
-                            probabilities, action_weights, enabled_actions
-                        )
-                except Exception as e:
-                    logger.debug(f"Failed to get probabilities from algorithm: {e}")
-
-            # Get action from algorithm with masking support
-            if self.algorithm is not None and hasattr(self.algorithm, "select_action_with_mask"):
-                # Use action masking support if available
-                # For exploitation with probabilities, sample from weighted probabilities
-                if probabilities is not None and action_weights is not None:
-                    # Sample from weighted probabilities
-                    if enabled_actions is not None and len(enabled_actions) > 0:
-                        # Get probabilities for enabled actions only
-                        enabled_probs = np.array([probabilities[i] for i in enabled_actions if 0 <= i < len(probabilities)])
-                        if len(enabled_probs) > 0:
-                            total = np.sum(enabled_probs)
-                            if total > 0:
-                                enabled_probs = enabled_probs / total
-                                selected_relative_idx = int(np.random.choice(len(enabled_probs), p=enabled_probs))
-                                _advance_weighted_epsilon_once()
-                                return selected_relative_idx
-                    else:
-                        # Sample from full probability distribution
-                        selected_idx = int(np.random.choice(len(probabilities), p=probabilities))
-                        _advance_weighted_epsilon_once()
-                        return selected_idx
-                
-                # If action_weights provided but no probabilities, use weighted random
-                if action_weights is not None:
-                    _advance_weighted_epsilon_once()
-                    return self._weighted_random_action(action_weights, enabled_actions)
-                
-                # Otherwise use algorithm's selection (may include epsilon-greedy exploration)
-                # Note: action_weights handling already done above, so this path is only for no weights
-                action_full = self.algorithm.select_action_with_mask(state_np, action_mask)
-                
-                # Handle enabled_actions restrictions
-                if enabled_actions is not None and len(enabled_actions) > 0:
-                    if action_full in enabled_actions:
-                        return enabled_actions.index(action_full)
-                    else:
-                        # Fallback to random enabled action (action_weights already handled above)
-                        logger.debug(
-                            f"Algorithm returned action {action_full} not in enabled_actions, selecting random enabled action"
-                        )
-                        return int(np.random.randint(len(enabled_actions)))
-                # No enabled_actions restriction: return full-space index
-                action = action_full
-            elif self.algorithm is not None and hasattr(self.algorithm, "select_action"):
-                # Fallback: get action and filter manually
-                logger.debug(
-                    f"Algorithm {type(self.algorithm).__name__} does not implement select_action_with_mask; using manual action filtering."
-                )
-                
-                # Try probabilities first if available
-                if probabilities is not None and action_weights is not None:
-                    if enabled_actions is not None and len(enabled_actions) > 0:
-                        enabled_probs = np.array([probabilities[i] for i in enabled_actions if 0 <= i < len(probabilities)])
-                        if len(enabled_probs) > 0:
-                            total = np.sum(enabled_probs)
-                            if total > 0:
-                                enabled_probs = enabled_probs / total
-                                _advance_weighted_epsilon_once()
-                                return int(np.random.choice(len(enabled_probs), p=enabled_probs))
-                    else:
-                        _advance_weighted_epsilon_once()
-                        return int(np.random.choice(len(probabilities), p=probabilities))
-                
-                # If action_weights provided but no probabilities, use weighted random
-                if action_weights is not None:
-                    _advance_weighted_epsilon_once()
-                    return self._weighted_random_action(action_weights, enabled_actions)
-                
-                action = self.algorithm.select_action(state_np)
-                action = self._filter_action_with_mask(action, enabled_actions)
-            else:
-                # Fallback algorithm - use weighted random if weights provided
-                if action_weights is not None:
-                    action = self._weighted_random_action(action_weights, enabled_actions)
-                else:
-                    action = self._filter_action_with_mask(np.random.randint(self.num_actions), enabled_actions)
-
-            # Ensure action is within valid range after masking
-            action = int(action)
-            if enabled_actions is not None and len(enabled_actions) > 0:
-                # Return index within enabled_actions list
-                if action < len(enabled_actions):
-                    return action
-                else:
-                    # Fallback to random valid action
-                    return np.random.randint(len(enabled_actions))
-            else:
-                # Full action space - ensure valid range
-                if action < 0 or action >= self.num_actions:
-                    logger.warning(f"Invalid action {action} for agent {self.agent_id}, using random")
-                    return np.random.randint(self.num_actions)
-                return action
-
-        except Exception as e:
-            logger.error(f"Error in decide_action for agent {self.agent_id}: {e}")
-            # Fallback to weighted random action (respect enabled_actions if provided)
-            if action_weights is not None:
-                advance_eps = getattr(self.algorithm, "advance_epsilon", None) if self.algorithm is not None else None
-                if callable(advance_eps):
-                    try:
-                        advance_eps()
-                    except Exception as advance_error:
-                        logger.debug(f"Failed to advance epsilon schedule: {advance_error}")
-            return self._weighted_random_action(action_weights, enabled_actions)
+        composite = policy_probs * weights * mask.astype(np.float64)
+        composite = self._normalize_distribution(composite, mask)
+        self._advance_epsilon_if_available()
+        chosen = int(np.random.choice(self.num_actions, p=composite))
+        return self._map_to_enabled_index(chosen, enabled_actions)
 
     def _create_action_mask(self, enabled_actions: Optional[List[int]] = None) -> np.ndarray:
         """Create a boolean mask for valid actions based on curriculum restrictions.
@@ -835,33 +687,6 @@ class DecisionModule:
         mask = np.zeros(self.num_actions, dtype=bool)
         mask[enabled_actions] = True
         return mask
-
-    def _filter_action_with_mask(self, action: int, enabled_actions: Optional[List[int]] = None) -> int:
-        """Filter an action through curriculum restrictions.
-
-        Args:
-            action: Original action index from algorithm
-            enabled_actions: Optional list of enabled action indices
-
-        Returns:
-            int: Valid action index, either original or remapped to enabled set
-        """
-        if enabled_actions is None or len(enabled_actions) == 0:
-            # No restrictions, return original action
-            return action
-
-        # Check if the selected action is enabled
-        if action in enabled_actions:
-            # Action is valid, return its index within the enabled_actions list
-            return enabled_actions.index(action)
-        else:
-            # Action not enabled, select random enabled action
-            logger.debug(
-                f"Action {action} not in enabled actions {enabled_actions} for agent {self.agent_id}, "
-                "selecting random enabled action"
-            )
-            selected_action = np.random.choice(enabled_actions)
-            return enabled_actions.index(selected_action)
 
     def _convert_to_full_action_space(self, action_index, enabled_actions: Optional[List[int]] = None) -> int:
         """Convert an action index from enabled_actions space back to full action space.
