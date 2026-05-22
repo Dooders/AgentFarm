@@ -71,6 +71,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Sweep dir used as baseline (typically the baldwinian arm).",
     )
     parser.add_argument(
+        "--baseline-label",
+        type=str,
+        default="baldwinian",
+        help="Label for the baseline arm (used in verdicts and plots).",
+    )
+    parser.add_argument(
         "--treatment-dir",
         action="append",
         required=True,
@@ -146,6 +152,9 @@ def _extract_metadata_metrics(run_dir: Path) -> Dict[str, Any]:
     inheritance = meta.get("policy_inheritance_metrics", {})
     applied = int(inheritance.get("lamarckian_warmstart_applied", 0))
     skipped = int(inheritance.get("lamarckian_warmstart_skipped", 0))
+    skipped_reasons = dict(
+        inheritance.get("lamarckian_warmstart_skipped_reasons", {}) or {}
+    )
     denom = applied + skipped
     warmstart_rate = float(applied / denom) if denom > 0 else float("nan")
     return {
@@ -155,6 +164,7 @@ def _extract_metadata_metrics(run_dir: Path) -> Dict[str, Any]:
             "oscillation_amplitude": float(startup.get("oscillation_amplitude", float("nan"))),
         },
         "lamarckian_warmstart_rate": warmstart_rate,
+        "lamarckian_warmstart_skipped_reasons": skipped_reasons,
     }
 
 
@@ -182,64 +192,63 @@ def _load_arm(
     return out
 
 
+def _resolve_metric_value(run: Dict[str, Any], key: str) -> Optional[float]:
+    """Resolve a possibly-nested metric reference such as ``"lineage.churn_rate"``.
+
+    Returns ``None`` when any segment is missing or the leaf value is not
+    numeric, so callers can uniformly skip seeds with incomplete data.
+    """
+    parts = key.split(".")
+    value: Any = run
+    for part in parts:
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+        if value is None:
+            return None
+    if not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+# Flat list of metric keys (dotted for nested lookups). Centralised so the
+# delta computation, verdict logic, and markdown table all operate on the
+# same canonical set.
+ALL_METRIC_KEYS: List[str] = (
+    METRIC_KEYS
+    + [f"lineage.{k}" for k in LINEAGE_KEYS]
+    + STABILITY_KEYS
+    + INFO_KEYS
+)
+
+
 def _paired_metric_deltas(
     baseline_runs: Dict[int, Dict[str, Any]],
     treatment_runs: Dict[int, Dict[str, Any]],
-) -> Dict[str, Dict[str, Any]]:
+) -> Tuple[Dict[str, Dict[str, Any]], List[int]]:
+    """Compute per-metric paired-by-seed deltas.
+
+    Returns a ``(deltas_by_key, paired_seeds)`` tuple. The deltas dict maps
+    each metric key in :data:`ALL_METRIC_KEYS` to its summary stats. Seeds
+    where either side is missing or NaN for a given metric are dropped from
+    that metric's pool but still contribute to other metrics.
+    """
     paired_seeds = sorted(set(baseline_runs.keys()) & set(treatment_runs.keys()))
-    out: Dict[str, Dict[str, Any]] = {}
+    deltas: Dict[str, Dict[str, Any]] = {}
 
-    for key in METRIC_KEYS:
-        deltas = []
+    for key in ALL_METRIC_KEYS:
+        values: List[float] = []
         for seed in paired_seeds:
-            b = baseline_runs[seed].get(key)
-            t = treatment_runs[seed].get(key)
-            if b is None or t is None:
+            base = _resolve_metric_value(baseline_runs[seed], key)
+            treat = _resolve_metric_value(treatment_runs[seed], key)
+            if base is None or treat is None:
                 continue
-            if math.isnan(b) or math.isnan(t):
+            if math.isnan(base) or math.isnan(treat):
                 continue
-            deltas.append(t - b)
-        out[key] = _paired_delta_summary(deltas)
+            values.append(treat - base)
+        deltas[key] = _paired_delta_summary(values)
 
-    for lk in LINEAGE_KEYS:
-        deltas = []
-        for seed in paired_seeds:
-            b = baseline_runs[seed].get("lineage", {}).get(lk)
-            t = treatment_runs[seed].get("lineage", {}).get(lk)
-            if b is None or t is None:
-                continue
-            if math.isnan(b) or math.isnan(t):
-                continue
-            deltas.append(t - b)
-        out[f"lineage.{lk}"] = _paired_delta_summary(deltas)
-
-    for sk in STABILITY_KEYS:
-        metric_key = sk.split(".", 1)[1]
-        deltas = []
-        for seed in paired_seeds:
-            b = baseline_runs[seed].get("startup_transient", {}).get(metric_key)
-            t = treatment_runs[seed].get("startup_transient", {}).get(metric_key)
-            if b is None or t is None:
-                continue
-            if math.isnan(b) or math.isnan(t):
-                continue
-            deltas.append(t - b)
-        out[sk] = _paired_delta_summary(deltas)
-
-    for ik in INFO_KEYS:
-        deltas = []
-        for seed in paired_seeds:
-            b = baseline_runs[seed].get(ik)
-            t = treatment_runs[seed].get(ik)
-            if b is None or t is None:
-                continue
-            if math.isnan(b) or math.isnan(t):
-                continue
-            deltas.append(t - b)
-        out[ik] = _paired_delta_summary(deltas)
-
-    out["_paired_seeds"] = paired_seeds  # type: ignore[assignment]
-    return out
+    return deltas, paired_seeds
 
 
 def _is_robust(summary: Dict[str, Any]) -> bool:
@@ -249,19 +258,64 @@ def _is_robust(summary: Dict[str, Any]) -> bool:
     )
 
 
-def _classify_regime_verdict(profile_deltas: Dict[str, Dict[str, Any]]) -> str:
-    performance = profile_deltas.get("population_mean", {})
-    stability = profile_deltas.get("startup_transient.oscillation_amplitude", {})
-    speciation = profile_deltas.get("speciation_slope", {})
+# Metric groups consulted by the verdict classifier. Ordered for stable
+# tie-breaking and aligned with the protocol in
+# ``docs/experiments/intrinsic_evolution/inheritance_mode_ab.md``.
+PERFORMANCE_METRICS: List[str] = ["population_mean", "population_final"]
+STABILITY_METRICS: List[str] = [
+    "startup_transient.peak_death_rate",
+    "startup_transient.oscillation_amplitude",
+    "lineage.churn_rate",
+]
+COLLAPSE_METRIC: str = "speciation_slope"
 
-    has_perf_win = _is_robust(performance) and performance.get("mean_delta", 0.0) > 0.0
-    has_stability_loss = _is_robust(stability) and stability.get("mean_delta", 0.0) > 0.0
-    has_collapse = _is_robust(speciation) and speciation.get("mean_delta", 0.0) < 0.0
 
-    if has_perf_win and not has_stability_loss:
-        return "net recommend lamarckian"
+def _robust_signed_delta(summary: Dict[str, Any], expected_sign: int) -> bool:
+    """``True`` when the summary is robust and the mean delta has ``expected_sign``.
+
+    ``expected_sign`` is ``+1`` for "treatment > baseline" and ``-1`` for
+    "treatment < baseline". Robustness gates: 95% CI excludes zero AND
+    sign-agreement >= :data:`SIGN_AGREEMENT_THRESHOLD`.
+    """
+    if not _is_robust(summary):
+        return False
+    mean = summary.get("mean_delta", 0.0)
+    if expected_sign > 0:
+        return mean > 0.0
+    return mean < 0.0
+
+
+def _classify_regime_verdict(
+    profile_deltas: Dict[str, Dict[str, Any]],
+    treatment_label: str,
+    baseline_label: str,
+) -> str:
+    """Classify the regime for one (profile, arm) pair.
+
+    Performance: any metric in :data:`PERFORMANCE_METRICS` shows a robust
+    positive delta (treatment > baseline).
+    Stability loss: any metric in :data:`STABILITY_METRICS` shows a robust
+    positive delta (treatment makes startup more violent / lineages churn
+    faster than baseline).
+    Speciation collapse: ``speciation_slope`` shows a robust negative delta
+    (treatment compresses speciation faster than baseline).
+    """
+    has_perf_win = any(
+        _robust_signed_delta(profile_deltas.get(m, {}), expected_sign=+1)
+        for m in PERFORMANCE_METRICS
+    )
+    has_stability_loss = any(
+        _robust_signed_delta(profile_deltas.get(m, {}), expected_sign=+1)
+        for m in STABILITY_METRICS
+    )
+    has_collapse = _robust_signed_delta(
+        profile_deltas.get(COLLAPSE_METRIC, {}), expected_sign=-1
+    )
+
+    if has_perf_win and not has_stability_loss and not has_collapse:
+        return f"net recommend {treatment_label}"
     if has_stability_loss and not has_perf_win:
-        return "net recommend baldwinian"
+        return f"net recommend {baseline_label}"
     if has_perf_win and has_stability_loss:
         return "performance win + stability loss"
     if has_collapse:
@@ -291,13 +345,14 @@ def _plot_speciation_trajectories(
     treatments: Dict[str, Dict[str, Dict[int, Dict[str, Any]]]],
     profiles: Sequence[str],
     output_path: Path,
+    baseline_label: str = "baldwinian",
 ) -> None:
     fig, axes = plt.subplots(len(profiles), 1, figsize=(11, 3.6 * len(profiles)), sharex=False)
     if len(profiles) == 1:
         axes = [axes]
 
     for ax, profile in zip(axes, profiles):
-        arms = [("baldwinian", baseline.get(profile, {}))]
+        arms = [(baseline_label, baseline.get(profile, {}))]
         arms.extend((label, runs.get(profile, {})) for label, runs in treatments.items())
         for label, runs in arms:
             all_steps = sorted(
@@ -430,13 +485,14 @@ def _build_markdown(
     deltas: Dict[str, Dict[str, Dict[str, Any]]],
     verdicts: Dict[str, Dict[str, str]],
     arm_labels: Sequence[str],
+    baseline_label: str,
 ) -> str:
     lines: List[str] = [
         "# Inheritance-mode A/B comparison",
         "",
         (
-            "Compares inheritance-mode treatment arms against a Baldwinian baseline "
-            "using paired-by-seed deltas per profile."
+            f"Compares inheritance-mode treatment arms against the `{baseline_label}` "
+            "baseline using paired-by-seed deltas per profile."
         ),
         "",
         "## Regime verdicts",
@@ -494,6 +550,7 @@ def _build_markdown(
 def main() -> int:
     args = _build_parser().parse_args()
     baseline_dir = Path(args.baseline_dir)
+    baseline_label = str(args.baseline_label)
     treatment_dirs = [Path(p) for p in args.treatment_dir]
     if args.arm_labels is None:
         arm_labels = [p.name for p in treatment_dirs]
@@ -511,23 +568,34 @@ def main() -> int:
 
     deltas: Dict[str, Dict[str, Dict[str, Any]]] = {}
     verdicts: Dict[str, Dict[str, str]] = {}
+    paired_seeds: Dict[str, Dict[str, List[int]]] = {}
     for profile in profiles:
         deltas[profile] = {}
         verdicts[profile] = {}
+        paired_seeds[profile] = {}
         baseline_runs = baseline.get(profile, {})
         for label in arm_labels:
             treatment_runs = treatments[label].get(profile, {})
-            profile_deltas = _paired_metric_deltas(baseline_runs, treatment_runs)
+            profile_deltas, profile_paired_seeds = _paired_metric_deltas(
+                baseline_runs, treatment_runs
+            )
             deltas[profile][label] = profile_deltas
-            verdicts[profile][label] = _classify_regime_verdict(profile_deltas)
+            paired_seeds[profile][label] = profile_paired_seeds
+            verdicts[profile][label] = _classify_regime_verdict(
+                profile_deltas,
+                treatment_label=label,
+                baseline_label=baseline_label,
+            )
 
     summary = {
         "comparison_type": "inheritance_mode_ab",
         "baseline_dir": str(baseline_dir),
+        "baseline_label": baseline_label,
         "treatments": {label: str(path) for label, path in zip(arm_labels, treatment_dirs)},
         "profiles": profiles,
         "deltas": deltas,
         "verdicts": verdicts,
+        "paired_seeds": paired_seeds,
     }
 
     json_path = output_dir / "inheritance_ab_summary.json"
@@ -535,13 +603,17 @@ def main() -> int:
         json.dump(summary, fh, indent=2)
 
     md_path = output_dir / "inheritance_ab_summary.md"
-    md_path.write_text(_build_markdown(deltas, verdicts, arm_labels), encoding="utf-8")
+    md_path.write_text(
+        _build_markdown(deltas, verdicts, arm_labels, baseline_label),
+        encoding="utf-8",
+    )
 
     _plot_speciation_trajectories(
         baseline=baseline,
         treatments=treatments,
         profiles=profiles,
         output_path=output_dir / "speciation_trajectories_with_arms.png",
+        baseline_label=baseline_label,
     )
     _plot_paired_delta_heatmap(
         deltas=deltas,

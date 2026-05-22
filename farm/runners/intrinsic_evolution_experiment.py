@@ -29,6 +29,7 @@ from farm.core.hyperparameter_chromosome import (
     MutationMode,
     compute_gene_statistics,
 )
+from farm.core.inheritance_telemetry import InheritanceTelemetry
 from farm.core.initial_diversity import (
     InitialDiversityConfig,
     SeedingMode,
@@ -721,10 +722,7 @@ class IntrinsicEvolutionExperiment:
         latest_population = 0
         latest_gene_statistics: Dict[str, Dict[str, float]] = {}
         latest_diversity_metrics: Optional[Any] = None
-        latest_inheritance_metrics: Dict[str, int] = {
-            "lamarckian_warmstart_applied": 0,
-            "lamarckian_warmstart_skipped": 0,
-        }
+        latest_inheritance_metrics: Dict[str, Any] = InheritanceTelemetry().to_dict()
 
         # Startup-transient metric accumulators (filled for the first
         # transient_window post-environment-ready steps).
@@ -746,7 +744,8 @@ class IntrinsicEvolutionExperiment:
             To keep metadata/result summaries aligned with persisted telemetry,
             derive final result fields from the last callback-observed state.
             """
-            nonlocal latest_step, latest_population, latest_gene_statistics, latest_inheritance_metrics
+            nonlocal latest_step, latest_population, latest_gene_statistics
+            nonlocal latest_inheritance_metrics
             alive_agents = list(environment.alive_agent_objects)
             chromosomes: List[HyperparameterChromosome] = [
                 agent.hyperparameter_chromosome
@@ -759,14 +758,9 @@ class IntrinsicEvolutionExperiment:
                 chromosomes,
                 evolvable_only=True,
             )
-            latest_inheritance_metrics = {
-                "lamarckian_warmstart_applied": int(
-                    getattr(environment, "lamarckian_warmstart_applied", 0)
-                ),
-                "lamarckian_warmstart_skipped": int(
-                    getattr(environment, "lamarckian_warmstart_skipped", 0)
-                ),
-            }
+            telemetry = getattr(environment, "inheritance_telemetry", None)
+            if isinstance(telemetry, InheritanceTelemetry):
+                latest_inheritance_metrics = telemetry.to_dict()
 
         def _compute_step_telemetry(
             environment: Any, prev_ids: set
@@ -840,8 +834,7 @@ class IntrinsicEvolutionExperiment:
             nonlocal prev_agent_ids, latest_diversity_metrics
             environment.intrinsic_evolution_policy = policy
             environment.intrinsic_evolution_rng = rng
-            environment.lamarckian_warmstart_applied = 0
-            environment.lamarckian_warmstart_skipped = 0
+            environment.inheritance_telemetry = InheritanceTelemetry()
             # Initial diversity seeding now happens inside run_simulation
             # before this hook fires; capture the metrics so they can be
             # included in the persisted experiment metadata.
@@ -930,7 +923,7 @@ class IntrinsicEvolutionExperiment:
         initial_diversity_config: InitialDiversityConfig,
         initial_diversity_metrics: Optional[Any] = None,
         resolved_initial_conditions: Optional[Dict[str, Any]] = None,
-        inheritance_metrics: Optional[Dict[str, int]] = None,
+        inheritance_metrics: Optional[Dict[str, Any]] = None,
     ) -> None:
         if not self.config.output_dir:
             return
@@ -956,10 +949,7 @@ class IntrinsicEvolutionExperiment:
             "policy_inheritance_metrics": (
                 inheritance_metrics
                 if inheritance_metrics is not None
-                else {
-                    "lamarckian_warmstart_applied": 0,
-                    "lamarckian_warmstart_skipped": 0,
-                }
+                else InheritanceTelemetry().to_dict()
             ),
             "speciation": self.config.speciation.to_dict(),
             "seed": self.config.seed,

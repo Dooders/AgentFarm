@@ -279,14 +279,22 @@ def main() -> int:
                 if not ok:
                     print(f"Per-arm aggregation failed for {arm_dir}", file=sys.stderr)
 
-    print(
-        "\nNext step: python scripts/compare_inheritance_arms.py \\\n"
-        + " \\\n".join(
-            f"    --sweep-dir {output_dir / arm} --arm-label {arm}"
-            for arm in args.arms
+    baseline_arm = args.arms[0]
+    treatment_arms = args.arms[1:]
+    if treatment_arms:
+        compare_lines = [
+            "\nNext step: python scripts/compare_inheritance_arms.py \\",
+            f"    --baseline-dir {output_dir / baseline_arm} \\",
+            f"    --baseline-label {baseline_arm} \\",
+        ]
+        compare_lines.extend(
+            f"    --treatment-dir {output_dir / arm} \\" for arm in treatment_arms
         )
-        + f" \\\n    --output-dir {output_dir / 'aggregate'}"
-    )
+        compare_lines.append(
+            "    --arm-labels " + " ".join(treatment_arms) + " \\"
+        )
+        compare_lines.append(f"    --output-dir {output_dir / 'aggregate'}")
+        print("\n".join(compare_lines))
 
     return 0 if total_fail == 0 else 1
 

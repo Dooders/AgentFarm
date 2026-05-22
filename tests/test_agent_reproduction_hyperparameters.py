@@ -8,6 +8,10 @@ from farm.core.agent.config.component_configs import AgentComponentConfig
 from farm.core.agent.core import AgentCore
 from farm.core.decision.config import DecisionConfig
 from farm.core.hyperparameter_chromosome import chromosome_from_learning_config
+from farm.core.inheritance_telemetry import InheritanceTelemetry
+from farm.core.policy_inheritance import (
+    WARMSTART_REASON_INCOMPATIBLE_STATE,
+)
 from farm.runners.intrinsic_evolution_experiment import IntrinsicEvolutionPolicy
 
 
@@ -27,8 +31,7 @@ def _build_parent_agent_for_reproduction() -> AgentCore:
     agent.environment.get_next_agent_id.return_value = "child_1"
     agent.environment.intrinsic_evolution_policy = None
     agent.environment.intrinsic_evolution_rng = None
-    agent.environment.lamarckian_warmstart_applied = 0
-    agent.environment.lamarckian_warmstart_skipped = 0
+    agent.environment.inheritance_telemetry = InheritanceTelemetry()
     agent.state = Mock()
     agent.state.position = (2.0, 3.0)
     agent.state._state = Mock()
@@ -152,8 +155,10 @@ def test_reproduce_lamarckian_policy_applies_warmstart_and_tracks_counter():
         success = AgentCore.reproduce(parent)
 
     assert success is True
-    assert parent.environment.lamarckian_warmstart_applied == 1
-    assert getattr(parent.environment, "lamarckian_warmstart_skipped", 0) == 0
+    telemetry = parent.environment.inheritance_telemetry
+    assert telemetry.lamarckian_warmstart_applied == 1
+    assert telemetry.lamarckian_warmstart_skipped == 0
+    assert dict(telemetry.lamarckian_warmstart_skipped_reasons) == {}
     offspring.behavior.decision_module.algorithm.load_model_state.assert_called_once()
 
 
@@ -190,8 +195,12 @@ def test_reproduce_lamarckian_incompatible_policy_counts_as_skipped():
         success = AgentCore.reproduce(parent)
 
     assert success is True
-    assert parent.environment.lamarckian_warmstart_skipped == 1
-    assert getattr(parent.environment, "lamarckian_warmstart_applied", 0) == 0
+    telemetry = parent.environment.inheritance_telemetry
+    assert telemetry.lamarckian_warmstart_applied == 0
+    assert telemetry.lamarckian_warmstart_skipped == 1
+    assert telemetry.lamarckian_warmstart_skipped_reasons[
+        WARMSTART_REASON_INCOMPATIBLE_STATE
+    ] == 1
     offspring.behavior.decision_module.algorithm.load_model_state.assert_not_called()
 
 

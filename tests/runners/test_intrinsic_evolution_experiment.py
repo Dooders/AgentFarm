@@ -291,11 +291,11 @@ class TestRunnerOrchestration(unittest.TestCase):
             # Enums in the policy must serialize to plain string values.
             self.assertEqual(metadata["policy"]["mutation_mode"], "gaussian")
             self.assertEqual(metadata["policy"]["inheritance_mode"], "baldwinian")
+            inheritance_metrics = metadata["policy_inheritance_metrics"]
+            self.assertEqual(inheritance_metrics["lamarckian_warmstart_applied"], 0)
+            self.assertEqual(inheritance_metrics["lamarckian_warmstart_skipped"], 0)
             self.assertEqual(
-                metadata["policy_inheritance_metrics"]["lamarckian_warmstart_applied"], 0
-            )
-            self.assertEqual(
-                metadata["policy_inheritance_metrics"]["lamarckian_warmstart_skipped"], 0
+                inheritance_metrics["lamarckian_warmstart_skipped_reasons"], {}
             )
             # Initial-diversity defaults installed by the runner are
             # surfaced in the metadata for reproducibility.

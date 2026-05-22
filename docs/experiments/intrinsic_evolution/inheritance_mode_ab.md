@@ -45,6 +45,7 @@ PYTHONHASHSEED=0 python scripts/run_inheritance_mode_ab.py \
 ```bash
 python scripts/compare_inheritance_arms.py \
   --baseline-dir experiments/inheritance_ab/baldwinian \
+  --baseline-label baldwinian \
   --treatment-dir experiments/inheritance_ab/lamarckian \
   --arm-labels lamarckian \
   --output-dir experiments/inheritance_ab/aggregate
@@ -75,10 +76,17 @@ Primary readouts:
 - Diversity impact: `speciation_final`, `speciation_slope`
 - Mechanism coverage: `lamarckian_warmstart_rate`
 
-Per-profile recommendation categories:
+Per-profile recommendation categories (label-aware):
 
-- `net recommend lamarckian`
-- `net recommend baldwinian`
+- `net recommend <treatment-label>` (e.g. `net recommend lamarckian`)
+- `net recommend <baseline-label>` (e.g. `net recommend baldwinian`)
 - `performance win + stability loss`
 - `speciation collapse risk`
 - `no robust effect`
+
+The classifier consults the metric groups documented above:
+
+- Performance: `population_mean`, `population_final`
+- Stability loss: `startup_transient.peak_death_rate`,
+  `startup_transient.oscillation_amplitude`, `lineage.churn_rate`
+- Speciation collapse: robust negative delta on `speciation_slope`
