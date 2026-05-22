@@ -219,23 +219,24 @@ class TestTianshouWrapperActionSelection(unittest.TestCase):
             observation_shape=self.observation_shape,
         )
 
-    @unittest.skip("Policy expects Batch object, not tensor - code needs fix")
     def test_select_action_1d_state(self):
-        """Test action selection with 1D state."""
-        # Note: The code passes a tensor directly to policy, but Tianshou expects a Batch
-        # This is a bug in the code that needs to be fixed
+        """Test action selection with 1D state on a flat DQN policy."""
+        from farm.core.decision.algorithms.tianshou import DQNWrapper
+
+        wrapper = DQNWrapper(
+            num_actions=self.num_actions,
+            state_dim=self.state_dim,
+            observation_shape=(self.state_dim,),
+        )
         state = np.random.randn(self.state_dim).astype(np.float32)
-        action = self.wrapper.select_action(state)
+        action = wrapper.select_action(state)
 
         self.assertIsInstance(action, int)
         self.assertGreaterEqual(action, 0)
         self.assertLess(action, self.num_actions)
 
-    @unittest.skip("Policy expects Batch object, not tensor - code needs fix")
     def test_select_action_3d_state(self):
         """Test action selection with 3D state (spatial observation)."""
-        # Note: The code passes a tensor directly to policy, but Tianshou expects a Batch
-        # This is a bug in the code that needs to be fixed
         state = np.random.randn(*self.observation_shape).astype(np.float32)
         action = self.wrapper.select_action(state)
 
@@ -271,11 +272,8 @@ class TestTianshouWrapperActionSelection(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.wrapper.select_action(state)
 
-    @unittest.skip("Policy expects Batch object, not tensor - code needs fix")
     def test_predict_proba(self):
         """Test action probability prediction."""
-        # Note: The code passes a tensor directly to policy, but Tianshou expects a Batch
-        # This is a bug in the code that needs to be fixed
         state = np.random.randn(*self.observation_shape).astype(np.float32)
         probs = self.wrapper.predict_proba(state)
 

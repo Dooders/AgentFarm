@@ -22,6 +22,153 @@ Suggested grouping:
 
 ## Entries
 
+### 2026-05-20
+
+#### Docs
+
+- **Gene flow vs resource buffer devlog** — published `2026-05-18-gene-flow-and-the-buffer.md` reporting the crossover-enabled rerun, showing that gene flow robustly compresses speciation in conservative profiles, does not robustly collapse buffered trajectories, and leaves balanced profiles noisy; added the new speciation-trajectory figure and refreshed cross-links from prior devlogs, `crossover_rerun.md`, and `docs/devlog/index.md`. ([#882](https://github.com/Dooders/AgentFarm/pull/882))
+
+---
+
+### 2026-05-19
+
+#### Docs
+
+- Refreshed `AGENTS.md`: removed duplicate rows from the *Services overview* table and the duplicate Node-version gotcha, dropped a stale claim about pre-existing `tests/analysis/test_dominance.py` failures, updated the Ruff pre-existing warning count from ~136 to ~163, and noted that the pre-provisioned Cursor Cloud `venv/` uses Python 3.12. ([#883](https://github.com/Dooders/AgentFarm/pull/883))
+
+---
+
+### 2026-05-17
+
+#### Fixed
+
+- **DQN learning stack overhaul** — wired the epsilon-greedy schedule through the Tianshou DQN wrapper so exploration actually decays per action, plumbed `dqn_hidden_size` into the Q-network, corrected the YAML→`DecisionConfig` mapping so `learning.memory_size` / `batch_size` reach both legacy and current RL modules, and auto-scaled the deferred RL training throttle so each alive agent gets one gradient step per environment step by default (median `policy.learn()` calls jumped from 2 to 18 over a 100-step run, with measurable lifespan and weight-change gains). ([#878](https://github.com/Dooders/AgentFarm/pull/878), [#881](https://github.com/Dooders/AgentFarm/pull/881))
+- `AgentCore.step` now logs decide/execute failures with context instead of silently swallowing them, making future RL regressions easier to diagnose. ([#881](https://github.com/Dooders/AgentFarm/pull/881))
+
+#### Changed
+
+- Default `max_learning_updates_per_step` is now `0`, which auto-scales the per-step training budget to the alive-agent count; the prior hard cap of 4 is no longer the default. ([#878](https://github.com/Dooders/AgentFarm/pull/878))
+
+#### Added
+
+- New `scripts/diagnose_dqn_learning.py` instruments the DQN learning loop (per-agent `policy.learn()` counts, `|Δw|₂`, live epsilon) plus reward-trend, late-vs-early decision-quality, and `--legacy` A/B baseline diagnostics. ([#878](https://github.com/Dooders/AgentFarm/pull/878), [#881](https://github.com/Dooders/AgentFarm/pull/881))
+- Tests covering epsilon wiring, hidden-size plumbing, replay knob mapping, and the auto-scaled deferred training throttle. ([#878](https://github.com/Dooders/AgentFarm/pull/878))
+
+#### Docs
+
+- Devlog `2026-05-16-is-the-dqn-actually-learning.md` and refreshed deep-Q-learning / training-flow notes walk through the investigation, the five fixes, and the resulting decision-quality numbers. ([#878](https://github.com/Dooders/AgentFarm/pull/878), [#881](https://github.com/Dooders/AgentFarm/pull/881))
+
+---
+
+### 2026-05-14
+
+#### Added
+
+- **Crossover rerun experiment** — new `run_crossover_rerun.py` orchestrator re-runs the stable-profile seed sweep across multiple crossover arms, `compare_crossover_arms.py` performs paired-by-seed baseline-vs-treatment comparisons (including lineage cluster-count/churn extraction from `cluster_lineage.jsonl`) with robustness-style verdicting and plots, and `run_stable_profile_seed_sweep.py` gained crossover / co-parent CLI flags plus manifest/dry-run reporting. Documented in `docs/experiments/crossover_rerun.md`. ([#870](https://github.com/Dooders/AgentFarm/pull/870))
+- **Long-horizon balanced-profile experiment** — `scripts/run_balanced_long_horizon_experiment.py` runs long-horizon intrinsic-evolution sweeps on the balanced profile with disk-backed databases, resume, and dry-run modes; mirrors the stable-profile sweep interface for consistent analysis. ([#869](https://github.com/Dooders/AgentFarm/pull/869))
+
+#### Changed
+
+- `scripts/run_stable_profile_seed_sweep.py` gained a `--disk-database` option (recommended for long-horizon runs) and a `_maybe_resume_skip` helper that skips already-completed runs when `--resume` is set. ([#869](https://github.com/Dooders/AgentFarm/pull/869))
+
+#### Fixed
+
+- `compare_crossover_arms` now bases its collapse verdict only on robust metrics, removing spurious flips from noisy seed-level signals. ([#870](https://github.com/Dooders/AgentFarm/pull/870))
+
+---
+
+### 2026-05-13
+
+#### Docs
+
+- Devlog `2026-05-12-seed-sweep-reality-check.md` presents the 6-seed-per-profile replication of the resource-buffer comparison, showing that previously reported `learning_rate` and `ensemble_size` direction-flips were single-seed artifacts while speciation divergence remains robust; updated the earlier `2026-05-04` post to link to the replication and clarify which claims did not survive multi-seed testing, added a "dynamic tipping region" glossary entry, and refreshed the devlog index. ([#868](https://github.com/Dooders/AgentFarm/pull/868))
+
+#### Changed
+
+- Bumped several `farm/editor` Babel dependencies (`@babel/code-frame`, `generator`, `helper-module-imports/transforms`, `helper-plugin-utils`, `helper-validator-identifier`, `parser`, `plugin-transform-modules-systemjs`) for compatibility and security. ([#868](https://github.com/Dooders/AgentFarm/pull/868))
+
+---
+
+### 2026-05-12
+
+#### Added
+
+- **Stable-profile seed-sweep infrastructure** — `scripts/run_stable_profile_seed_sweep.py` runs `IntrinsicEvolutionExperiment` for every `(profile, seed)` pair with the fixed comparison settings and writes a `sweep_manifest.json`; `scripts/analyze_stable_profile_seed_sweep.py` aggregates the JSONL artifacts into per-profile mean/variance/95% t-CI summaries for speciation index, trajectory slope, and gene shifts, classifies each as robustly convergent, robustly direction-flipping, or seed-sensitive, and emits Markdown + plots. Backed by 44 unit/integration tests. ([#863](https://github.com/Dooders/AgentFarm/pull/863))
+
+#### Docs
+
+- Docs site gained a responsive "On this page" TOC sidebar (auto-generated heading anchors, active-section highlighting, smooth scroll) plus a full-screen Mermaid diagram viewer with `svg-pan-zoom` (zoom/pan/reset, keyboard + backdrop close) and refreshed layout CSS. ([#866](https://github.com/Dooders/AgentFarm/pull/866))
+
+---
+
+### 2026-05-11
+
+#### Added
+
+- **Ecology visualization script** for intrinsic evolution analysis, plus a foraging-grid animated GIF (`foraging-grid.gif`) and the standalone `scripts/make_foraging_gif.py` renderer (loads per-step agent/resource state from the simulation SQLite DB, overlays birth/death markers, optional sparkline timeline) embedded in the foraging devlog. ([#862](https://github.com/Dooders/AgentFarm/pull/862), [#865](https://github.com/Dooders/AgentFarm/pull/865))
+
+#### Docs
+
+- **Experiments catalog** — rewrote `docs/experiments.md` as a curated catalog of currently defined experiments (Intrinsic Evolution, Hyperparameter Evolution Convergence, Multi-Seed Cohort, Memory Agent, One of a Kind, Rabbit's Foot) with status, runner/CLI references, and links to detailed docs, and split the generic `ExperimentRunner` how-to into a new `docs/experiment_runner.md`. Renamed `Design & Considerations.md` → `DesignConsiderations.md` so catalog links resolve cleanly. ([#864](https://github.com/Dooders/AgentFarm/pull/864), [#865](https://github.com/Dooders/AgentFarm/pull/865))
+
+---
+
+### 2026-05-10
+
+#### Changed
+
+- Bumped `@babel/plugin-transform-modules-systemjs` from 7.27.1 to 7.29.4 in `farm/editor`. ([#861](https://github.com/Dooders/AgentFarm/pull/861))
+
+---
+
+### 2026-05-09
+
+#### Added
+
+- **Verified spatial benchmark artifacts** — added `--verified` mode to `comprehensive_spatial_benchmark.py` (deterministic RNG, optional `PYTHONHASHSEED=0`) that writes committed `benchmarks/results/spatial_benchmark_verified.json` and `SPATIAL_BENCHMARK_VERIFIED.md` with host metadata, batch-vs-immediate microbenchmarks, and a new simulation-style interleaved `step_workload_benchmark`. Backed by a unit test asserting artifact existence and schema; `.gitignore` keeps other benchmark outputs local. ([#858](https://github.com/Dooders/AgentFarm/pull/858), [#860](https://github.com/Dooders/AgentFarm/pull/860))
+
+#### Docs
+
+- `spatial_indexing_performance.md` and `FEATURES.md` now align with the real APIs (`SpatialIndexConfig`, current `get_nearby` / `get_nearest` shapes, named-index querying, SciPy KD-tree note), and `AGENTS.md` documents the verified-artifact regeneration command. ([#858](https://github.com/Dooders/AgentFarm/pull/858))
+
+---
+
+### 2026-05-08
+
+#### Docs
+
+- Added a README pointer near the active-development note directing readers who want a mature, widely adopted ABM or RL stack toward Mesa and the common RL ecosystems instead of expecting AgentFarm to fill that niche. ([#856](https://github.com/Dooders/AgentFarm/pull/856), [#857](https://github.com/Dooders/AgentFarm/pull/857))
+- Intrinsic-evolution devlog gained speciation-index and gene-trajectory figures, the phylogenetic/intrinsic lineage plotting moved to a tidy hierarchical layout (leaf-centered x positions, larger qualitative palette, elbow edges, optional lineage bands), and docs table styling was upgraded for readability. ([#859](https://github.com/Dooders/AgentFarm/pull/859))
+
+#### Changed
+
+- Tightened Mermaid initialization from `securityLevel: "loose"` to `"strict"` on the docs site. ([#857](https://github.com/Dooders/AgentFarm/pull/857))
+
+---
+
+### 2026-05-07
+
+#### Docs
+
+- Added Mermaid.js v10 (CDN-loaded) plus `mermaid-init.js` to the docs site so fenced `language-mermaid` blocks render as responsive, horizontally scrollable diagrams. ([#855](https://github.com/Dooders/AgentFarm/pull/855))
+- Refreshed the docs visual system: swapped the site logo to `logo.png`, refined section/feature/quickstart/post card styling, and added detailed Rouge syntax-highlighting rules plus new CSS variables for code tokens (keywords, strings, numbers, functions, operators, comments). ([#852](https://github.com/Dooders/AgentFarm/pull/852))
+- Added a global project-status notice banner under the docs site header, with new `.site-notice` styling in `agentfarm.css`. ([#854](https://github.com/Dooders/AgentFarm/pull/854))
+- Rewrote `docs/deep_q_learning.md` and related AI/ML pages to separate the active DQN path (`DecisionModule` + `DQNWrapper`) from the legacy `BaseDQNModule`, with concrete `DecisionConfig` examples (replay/PER, training flow, target sync, action masking, replay diagnostics); swapped TD3 references to DDPG, and updated spatial-indexing docs to use `SpatialIndexConfig` with current `get_nearby` / `get_nearest` patterns. ([#853](https://github.com/Dooders/AgentFarm/pull/853))
+
+---
+
+### 2026-05-06
+
+#### Changed
+
+- **Deterministic simulation CI workflow** now triggers on both `main` and `dev` (plus manual `workflow_dispatch`), pins `actions/setup-python@v5` with pip caching keyed off dependency files, sets `PYTHONHASHSEED` / `PYTHONUNBUFFERED`, splits checks into targeted component / regression / CLI-smoke / extended-CLI pytest steps with per-step timeouts, and uploads `simulations/` artifacts on failure. ([#842](https://github.com/Dooders/AgentFarm/pull/842))
+
+#### Docs
+
+- Backfilled CHANGELOG entries for 2026-04-25 through 2026-05-05 and polished the 2026-05-04 resource-buffer devlog (YAML front matter fix, table formatting, GitHub-issue links for follow-ups, number/spacing cleanups); replaced the gene list in the hyperparameter-genome devlog with a chromosome anatomy figure and reframed several open-questions/next-steps as linked issues. ([#851](https://github.com/Dooders/AgentFarm/pull/851))
+
+---
+
 ### 2026-05-05
 
 #### Added

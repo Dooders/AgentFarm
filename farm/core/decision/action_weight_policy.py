@@ -1,8 +1,8 @@
 """State-aware action re-weighter consuming Chromosome B multiplier/threshold genes.
 
-The decision module already knows how to bias action probabilities by an
-optional ``action_weights`` vector (see
-:meth:`farm.core.decision.decision.DecisionModule._apply_action_weights_to_probs`).
+The decision module combines policy probabilities with optional per-action
+weights via multiplicative composition in
+:meth:`farm.core.decision.decision.DecisionModule.decide_action`.
 Until now, the only signal it received was the static
 ``core.actions[i].weight`` — meaning the multiplier and threshold genes that
 live on :class:`farm.core.decision.config.DecisionConfig` had no consumer.

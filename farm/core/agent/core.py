@@ -28,6 +28,8 @@ from farm.core.hyperparameter_chromosome import (
     mutate_chromosome,
 )
 from farm.core.environment import _AgentList
+from farm.core.inheritance_telemetry import InheritanceTelemetry
+from farm.core.policy_inheritance import apply_lamarckian_policy_warmstart
 from farm.core.state import AgentState, AgentStateManager
 from farm.utils.logging import get_logger
 
@@ -1055,6 +1057,11 @@ class AgentCore:
             # Set offspring parent IDs (genome_id will be generated in add_agent() using parent info)
             offspring.state._state = offspring.state._state.model_copy(update={"parent_ids": [self.agent_id]})
 
+            # Optional Lamarckian step: copy parent policy weights into the
+            # already-constructed offspring before the env sees the child, so
+            # the first decide() call uses warm-started weights.
+            self._apply_lamarckian_inheritance_if_enabled(offspring)
+
             # Add offspring to environment with immediate flush to ensure it's in database
             # Genome ID will be generated in add_agent() using parent info
             self.environment.add_agent(offspring, flush_immediately=True)
@@ -1119,6 +1126,32 @@ class AgentCore:
                 offspring_id=offspring_id,
             )
         return True
+
+    def _apply_lamarckian_inheritance_if_enabled(self, offspring: "AgentCore") -> None:
+        """Apply optional Lamarckian policy warm-start from parent to child.
+
+        When the runner has attached an :class:`InheritanceTelemetry` to the
+        environment, outcome counters are updated through it (one applied or
+        one skipped, with the skip-reason recorded). Environments without a
+        telemetry container silently no-op the bookkeeping so unit tests and
+        non-intrinsic-evolution runs are unaffected.
+        """
+        if not self.environment:
+            return
+        policy = getattr(self.environment, "intrinsic_evolution_policy", None)
+        if policy is None or not getattr(policy, "enabled", False):
+            return
+        if getattr(policy, "inheritance_mode", "baldwinian") != "lamarckian":
+            return
+
+        skip_reason = apply_lamarckian_policy_warmstart(self, offspring)
+        telemetry = getattr(self.environment, "inheritance_telemetry", None)
+        if not isinstance(telemetry, InheritanceTelemetry):
+            return
+        if skip_reason is None:
+            telemetry.record_applied()
+        else:
+            telemetry.record_skipped(skip_reason)
 
     def _is_agent_present_in_environment(self, agent_id: str) -> bool:
         """Return whether an agent ID appears in environment tracking structures."""

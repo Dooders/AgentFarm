@@ -6,6 +6,23 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness/' | relative_url }}">
+      <span class="post-card__date">2026-05-21</span>
+      <h3 class="post-card__title">Baldwinian vs Lamarckian A/B harness landed</h3>
+      <p class="post-card__excerpt">
+        Added explicit inheritance mode control to intrinsic evolution, plus
+        new A/B runner and comparator scripts. First smoke run confirms
+        Lamarckian warm-start events are recorded end-to-end.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/experiments/intrinsic_evolution/inheritance_mode_ab/' | relative_url }}">Inheritance A/B experiment doc</a>,
+      <a href="{{ '/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">Original Baldwinian context</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/devlog/2026-05-18-gene-flow-and-the-buffer/' | relative_url }}">
       <span class="post-card__date">2026-05-18</span>
       <h3 class="post-card__title">Gene flow and the buffer</h3>

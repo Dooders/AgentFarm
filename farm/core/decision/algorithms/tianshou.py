@@ -914,6 +914,146 @@ class TianshouWrapper(RLAlgorithm):
             logger.error(f"Failed to initialize {self.algorithm_name} policy: {e}")
             raise
 
+    def _state_to_numpy(self, state: Union[np.ndarray, Any]) -> np.ndarray:
+        """Normalize an observation to a float32 numpy array."""
+        if isinstance(state, np.ndarray):
+            return state.astype(np.float32)
+        try:
+            import torch
+
+            if isinstance(state, torch.Tensor):
+                return state.detach().cpu().numpy().astype(np.float32)
+        except ImportError:
+            pass
+        return np.asarray(state, dtype=np.float32)
+
+    def _state_to_batched_tensor(self, state: Union[np.ndarray, Any]):
+        """Convert an observation to a batched float tensor on the policy device."""
+        import torch
+
+        state_np = self._state_to_numpy(state)
+        target_size = int(np.prod(self.observation_shape))
+
+        if state_np.ndim == 1:
+            if state_np.size == target_size and len(self.observation_shape) > 1:
+                state_np = state_np.reshape(1, *self.observation_shape)
+            else:
+                state_np = np.expand_dims(state_np, axis=0)
+        elif state_np.ndim == 2:
+            if state_np.shape == self.observation_shape:
+                state_np = np.expand_dims(state_np, axis=0)
+            elif state_np.size == target_size:
+                state_np = state_np.reshape(1, *self.observation_shape)
+            elif state_np.shape[0] != 1:
+                state_np = np.expand_dims(state_np, axis=0)
+        elif state_np.ndim == len(self.observation_shape):
+            state_np = np.expand_dims(state_np, axis=0)
+
+        device = self.algorithm_config.get("device", "cpu")
+        return torch.from_numpy(state_np).float().to(device)
+
+    @staticmethod
+    def _tensor_to_1d_numpy(value: Any) -> np.ndarray:
+        """Extract a 1D numpy vector from a model output tensor."""
+        import torch
+
+        if isinstance(value, tuple):
+            value = value[0]
+        if isinstance(value, torch.Tensor):
+            if value.ndim == 2:
+                value = value[0]
+            return value.detach().cpu().numpy().reshape(-1)
+        return np.asarray(value, dtype=np.float64).reshape(-1)
+
+    def _continuous_actor_to_logits(self, action_out: Any) -> np.ndarray:
+        """Map a continuous actor output to discrete action logits."""
+        import torch
+
+        if isinstance(action_out, torch.Tensor):
+            raw = action_out.detach().cpu().numpy().reshape(-1)
+        else:
+            raw = np.asarray(action_out, dtype=np.float64).reshape(-1)
+        scalar = float(raw[0]) if raw.size > 0 else 0.0
+        discrete = int(
+            np.clip(np.round(scalar * (self.num_actions - 1)), 0, self.num_actions - 1)
+        )
+        logits = np.full(self.num_actions, -10.0, dtype=np.float64)
+        logits[discrete] = 10.0
+        return logits
+
+    def _policy_q_values(self, state: Union[np.ndarray, Any]) -> np.ndarray:
+        """Return per-action logits or Q-values with shape ``(num_actions,)``."""
+        if self.policy is None:
+            return np.ones(self.num_actions, dtype=np.float64)
+
+        import torch
+
+        state_tensor = self._state_to_batched_tensor(state)
+        with torch.no_grad():
+            if self.algorithm_name in ("PPO", "A2C") and hasattr(self.policy, "actor"):
+                logits = self._tensor_to_1d_numpy(self.policy.actor(state_tensor))
+            elif self.algorithm_name in ("SAC", "DDPG") and hasattr(self.policy, "actor"):
+                logits = self._continuous_actor_to_logits(self.policy.actor(state_tensor))
+            elif hasattr(self.policy, "model"):
+                logits = self._tensor_to_1d_numpy(self.policy.model(state_tensor))
+            else:
+                raise RuntimeError(
+                    f"No supported policy forward path for algorithm {self.algorithm_name!r}"
+                )
+
+        logits = np.asarray(logits, dtype=np.float64).reshape(-1)
+        if logits.shape[0] != self.num_actions:
+            raise ValueError(
+                f"Expected {self.num_actions} action scores, got {logits.shape[0]}"
+            )
+        return logits
+
+    @staticmethod
+    def _masked_softmax(logits: np.ndarray, action_mask: Optional[np.ndarray]) -> np.ndarray:
+        """Softmax logits with optional invalid-action masking."""
+        masked = logits.astype(np.float64, copy=True)
+        if action_mask is not None:
+            if len(action_mask) != len(masked):
+                raise ValueError("action_mask length must match num_actions")
+            masked[~action_mask] = -np.inf
+        finite = np.isfinite(masked)
+        if not finite.any():
+            uniform = np.zeros_like(masked, dtype=np.float64)
+            if action_mask is not None and action_mask.any():
+                uniform[action_mask] = 1.0 / action_mask.sum()
+            else:
+                uniform[:] = 1.0 / len(uniform)
+            return uniform
+        shifted = masked - np.max(masked[finite])
+        exp_logits = np.zeros_like(shifted, dtype=np.float64)
+        exp_logits[finite] = np.exp(shifted[finite])
+        total = exp_logits.sum()
+        if total <= 0:
+            return np.ones(len(masked), dtype=np.float64) / len(masked)
+        return exp_logits / total
+
+    def _select_greedy_action(self, logits: np.ndarray, action_mask: Optional[np.ndarray]) -> int:
+        """Return the masked argmax action index."""
+        masked = logits.astype(np.float64, copy=True)
+        if action_mask is not None:
+            masked[~action_mask] = -np.inf
+        if not np.isfinite(masked).any():
+            if action_mask is not None:
+                valid = np.where(action_mask)[0]
+                if len(valid) > 0:
+                    return int(valid[0])
+            return 0
+        return int(np.argmax(masked))
+
+    def _sample_from_logits(
+        self,
+        logits: np.ndarray,
+        action_mask: Optional[np.ndarray],
+    ) -> int:
+        """Sample an action from masked logits (used by on-policy algorithms)."""
+        probs = self._masked_softmax(logits, action_mask)
+        return int(np.random.choice(self.num_actions, p=probs))
+
     def select_action(self, state: np.ndarray) -> int:
         """Select an action using the Tianshou policy.
 
@@ -932,182 +1072,41 @@ class TianshouWrapper(RLAlgorithm):
         *,
         apply_epsilon_decay: bool = True,
     ) -> int:
-        """Select an action using the Tianshou policy with action masking support.
-
-        Args:
-            state: Current state observation
-            action_mask: Boolean mask where True indicates valid actions. If None, all actions are valid.
-            apply_epsilon_decay: If True (default), advance the epsilon schedule once for this call.
-                Set False for internal reads (e.g. :meth:`predict_proba`) so callers that also
-                invoke this method to commit an action do not double-decay in one decision.
-
-        Returns:
-            Selected action index
-        """
+        """Select an action using the Tianshou policy with action masking support."""
         if self.policy is None:
             raise RuntimeError("Policy not initialized")
 
-        def _finalize_action(action_value: int) -> int:
-            # Apply decay *after* the current action is selected so the first
-            # decision uses ``epsilon_start`` as configured.
-            if apply_epsilon_decay:
-                self._decay_eps()
-            return int(action_value)
-
-        # Convert state to the expected format
-        if isinstance(state, np.ndarray):
-            state = state.astype(np.float32)
-        elif hasattr(state, "cpu") and hasattr(state, "numpy"):  # Handle torch tensors
-            try:
-                import torch
-
-                if isinstance(state, torch.Tensor):
-                    state = state.cpu().numpy().astype(np.float32)
-            except ImportError:
-                pass
-
-        # Add batch dimension if needed (DecisionModule may have already added it)
-        if state.ndim == 1:
-            state = np.expand_dims(state, axis=0)
-        elif state.ndim == 3 and state.shape[0] != 1:
-            # 3D observation without batch dimension - add it
-            state = np.expand_dims(state, axis=0)
-
-        # Convert to torch tensor
-        try:
-            import torch
-
-            state_tensor = torch.from_numpy(state).float()
-        except ImportError as exc:
-            raise ImportError("PyTorch is required for Tianshou") from exc
-
-        # Handle action masking for curriculum learning
-        if action_mask is not None:
-            # For PPO specifically, use a simpler approach
-            if self.algorithm_name == "PPO" and hasattr(self.policy, 'actor'):
-                # Use PPO's built-in action sampling with manual masking
-                max_attempts = 10
-                for _ in range(max_attempts):
-                    with torch.no_grad():
-                        # Get action logits from PPO actor
-                        try:
-                            # PPO structure: policy.actor -> forward method
-                            logits = self.policy.actor(state_tensor)
-                            # Apply softmax to get probabilities
-                            probs = torch.softmax(logits, dim=-1)
-                            # Apply mask by zeroing out invalid actions
-                            action_mask_tensor = torch.from_numpy(action_mask.astype(np.float32)).to(state_tensor.device)
-                            if action_mask_tensor.ndim == 1:
-                                action_mask_tensor = action_mask_tensor.unsqueeze(0)
-                            masked_probs = probs * action_mask_tensor
-                            # Renormalize
-                            masked_probs = masked_probs / (masked_probs.sum(dim=-1, keepdim=True) + 1e-8)
-
-                            # Sample from masked distribution
-                            dist = torch.distributions.Categorical(probs=masked_probs)
-                            action = dist.sample()
-
-                            if isinstance(action, torch.Tensor):
-                                if action.ndim == 1:
-                                    action = action[0]
-                                action = action.item()
-
-                            # Check if action is valid according to mask
-                            if int(action) < len(action_mask) and action_mask[int(action)]:
-                                return _finalize_action(int(action))
-                        except Exception as e:
-                            logger.debug(f"PPO masking attempt failed: {e}")
-                            continue
-
-                # Fallback: pick first valid action
-                valid_actions = np.where(action_mask)[0]
-                if len(valid_actions) > 0:
-                    return _finalize_action(int(valid_actions[0]))
-                return _finalize_action(0)
-
-            # For other algorithms or fallback
-            else:
-                # Try multiple times to get a valid action
-                max_attempts = 10
-                for _ in range(max_attempts):
-                    with torch.no_grad():
-                        try:
-                            action = self.policy(state_tensor, state=None)[0]
-                        except Exception:
-                            # Fallback to random action
-                            action = np.random.randint(self.num_actions)
-
-                    # Handle different action types
-                    if isinstance(action, torch.Tensor):
-                        if action.ndim == 1:
-                            action = action[0]
-                        action = action.item()
-
-                    # For continuous actions, discretize
-                    if isinstance(action, float):
-                        action = int(
-                            np.clip(
-                                np.round(action * (self.num_actions - 1)), 0, self.num_actions - 1
-                            )
-                        )
-
-                    # Check if action is valid according to mask
-                    if action_mask is None or (int(action) < len(action_mask) and action_mask[int(action)]):
-                        return _finalize_action(int(action))
-
-                # If we couldn't get a valid action after max attempts, pick first valid action
-                if action_mask is not None:
-                    valid_actions = np.where(action_mask)[0]
-                    if len(valid_actions) > 0:
-                        return _finalize_action(int(valid_actions[0]))
-
-                return _finalize_action(int(action))
+        logits = self._policy_q_values(state)
+        if action_mask is None:
+            valid_mask = np.ones(self.num_actions, dtype=bool)
         else:
-            # No masking - use standard action selection
-            with torch.no_grad():
-                action = self.policy(state_tensor, state=None)[0]
+            valid_mask = np.asarray(action_mask, dtype=bool)
 
-            # Handle different action types
-            if isinstance(action, torch.Tensor):
-                if action.ndim == 1:
-                    action = action[0]
-                action = action.item()
+        if self.algorithm_name == "DQN" and self._train_mode:
+            valid_actions = np.where(valid_mask)[0]
+            if valid_actions.size == 0:
+                action = 0
+            elif np.random.random() < self._eps_current:
+                action = int(np.random.choice(valid_actions))
+            else:
+                action = self._select_greedy_action(logits, valid_mask)
+        else:
+            action = self._sample_from_logits(logits, valid_mask)
 
-            # For continuous actions, discretize
-            if isinstance(action, float):
-                action = int(
-                    np.clip(
-                        np.round(action * (self.num_actions - 1)), 0, self.num_actions - 1
-                    )
-                )
-
-            return _finalize_action(int(action))
+        if apply_epsilon_decay:
+            self._decay_eps()
+        return int(action)
 
     def predict_proba(self, state: np.ndarray) -> np.ndarray:
-        """Predict action probabilities for exploration.
-
-        Args:
-            state: Current state observation
-
-        Returns:
-            Action probability distribution
-        """
+        """Predict action probabilities from policy logits/Q-values."""
         if self.policy is None:
             return np.full(self.num_actions, 1.0 / self.num_actions, dtype=float)
 
-        # For Tianshou, we can get action probabilities from the policy
-        action = self.select_action_with_mask(state, action_mask=None, apply_epsilon_decay=False)
-
-        # Create a probability distribution concentrated on the selected action
-        probs = np.zeros(self.num_actions)
-        probs[action] = 0.8  # 80% probability on selected action
-
-        # Distribute remaining probability uniformly
-        remaining_prob = 0.2
-        uniform_prob = remaining_prob / (self.num_actions - 1)
-        probs[probs == 0] = uniform_prob
-
-        return probs
+        logits = self._policy_q_values(state)
+        temperature = float(self.algorithm_config.get("policy_temperature", 1.0))
+        temperature = max(temperature, 1e-8)
+        scaled = logits / temperature
+        return self._masked_softmax(scaled, action_mask=None)
 
     def store_experience(
         self,

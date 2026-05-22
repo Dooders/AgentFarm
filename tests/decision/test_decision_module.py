@@ -318,7 +318,7 @@ class TestDecisionModule(unittest.TestCase):
 
     @patch("farm.core.decision.decision.logger")
     def test_decide_action_exception_handling(self, mock_logger):
-        """Test decide_action exception handling."""
+        """Test decide_action propagates algorithm failures."""
         module = DecisionModule(
             self.mock_agent,
             self.mock_env.action_space,
@@ -326,17 +326,13 @@ class TestDecisionModule(unittest.TestCase):
             self.config,
         )
 
-        # Mock algorithm to raise exception - patch select_action_with_mask since it's called first
         with patch.object(
-            module.algorithm, "select_action_with_mask", side_effect=Exception("Test error")
+            module.algorithm, "predict_proba", side_effect=Exception("Test error")
         ):
             state = torch.randn(8)
-            action = module.decide_action(state)
-
-            # Should log error and return random action
-            mock_logger.error.assert_called_once()
-            self.assertIsInstance(action, int)
-            self.assertTrue(0 <= action < module.num_actions)
+            with self.assertRaises(Exception):
+                module.decide_action(state)
+            mock_logger.error.assert_not_called()
 
     def test_update_with_algorithm(self):
         """Test update method with algorithm."""
@@ -1159,9 +1155,9 @@ class TestDecisionModuleIntegration(unittest.TestCase):
                 mock_algorithm.select_action.return_value = 2
                 mock_algorithm.select_action_with_mask.return_value = 2
                 n = get_action_count()
-                mock_algorithm.predict_proba.return_value = np.full(
-                    (1, n), 1.0 / n, dtype=np.float32
-                )
+                concentrated = np.zeros(n, dtype=np.float32)
+                concentrated[2] = 1.0
+                mock_algorithm.predict_proba.return_value = concentrated
                 mock_algorithm.update = Mock()
                 mock_algorithm.learn = Mock()
                 mock_algorithm.store_experience = Mock()
