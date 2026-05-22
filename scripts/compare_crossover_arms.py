@@ -36,7 +36,6 @@ import argparse
 import json
 import math
 import sys
-from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -50,6 +49,9 @@ _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
+from farm.analysis.lineage_metrics import (  # noqa: E402
+    lineage_metrics as _lineage_metrics,
+)
 from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
     CONVERGENT_GENES,
     PROFILE_COLORS,
@@ -63,78 +65,6 @@ from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
     _t_ci,
     _variance,
 )
-
-# ── Lineage-file parsing ──────────────────────────────────────────────────────
-
-CLUSTER_LINEAGE_FILENAME = "cluster_lineage.jsonl"
-
-
-def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
-    if not path.is_file():
-        return rows
-    with path.open(encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                try:
-                    rows.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-    return rows
-
-
-def _lineage_metrics(run_dir: Path) -> Dict[str, Any]:
-    """Per-run lineage summary from ``cluster_lineage.jsonl``.
-
-    Returns
-    -------
-    dict with keys:
-      - ``cluster_count_trace``: list of (step, k) tuples (k = #clusters at step)
-      - ``mean_k``: mean cluster count across clustering steps (NaN if absent)
-      - ``churn_rate``: mean per-step fraction of cluster IDs at step t that
-        do NOT survive to step t+1.  In [0, 1].  NaN if fewer than two
-        clustering steps were recorded.
-    """
-    rows = _read_jsonl(run_dir / CLUSTER_LINEAGE_FILENAME)
-    if not rows:
-        return {
-            "cluster_count_trace": [],
-            "mean_k": float("nan"),
-            "churn_rate": float("nan"),
-        }
-
-    steps_to_ids: Dict[int, set] = defaultdict(set)
-    for r in rows:
-        try:
-            step = int(r["step"])
-            cid = r["cluster_id"]
-        except (KeyError, TypeError, ValueError):
-            continue
-        steps_to_ids[step].add(cid)
-
-    sorted_steps = sorted(steps_to_ids.keys())
-    trace = [(s, len(steps_to_ids[s])) for s in sorted_steps]
-    mean_k = _mean([k for _, k in trace]) if trace else float("nan")
-
-    if len(sorted_steps) < 2:
-        churn = float("nan")
-    else:
-        churns: List[float] = []
-        for s_prev, s_next in zip(sorted_steps, sorted_steps[1:]):
-            prev = steps_to_ids[s_prev]
-            nxt = steps_to_ids[s_next]
-            if not prev:
-                continue
-            died = prev - nxt
-            churns.append(len(died) / len(prev))
-        churn = _mean(churns) if churns else float("nan")
-
-    return {
-        "cluster_count_trace": trace,
-        "mean_k": mean_k,
-        "churn_rate": churn,
-    }
 
 
 # ── Paired-delta stats ────────────────────────────────────────────────────────

@@ -162,6 +162,33 @@ def test_reproduce_lamarckian_policy_applies_warmstart_and_tracks_counter():
     offspring.behavior.decision_module.algorithm.load_model_state.assert_called_once()
 
 
+def test_step_records_decide_action_failure_in_telemetry():
+    """A ``decide_action`` exception during ``step`` must bump the failure counter."""
+    parent = _build_parent_agent_for_reproduction()
+    parent.alive = True
+    parent._invalidate_obs_cache = Mock()
+    parent.behavior = Mock()
+    parent.behavior.decide_action.side_effect = RuntimeError("predict_proba boom")
+    parent._create_observation = Mock(return_value=Mock())
+    parent._get_enabled_actions = Mock(return_value=None)
+    parent._execute_action = Mock()
+    # Resource component on the parent has a starvation counter below the
+    # threshold so the early-return path isn't triggered.
+    resource_comp = parent._components["resource"]
+    resource_comp.starvation_counter = 0
+    resource_comp.config = SimpleNamespace(starvation_threshold=100)
+
+    telemetry = parent.environment.inheritance_telemetry
+
+    with patch("farm.core.agent.core.logger.warning") as warn:
+        AgentCore.step(parent)
+
+    warn.assert_called_once()
+    assert telemetry.decide_action_failures == 1
+    assert telemetry.decide_action_failure_reasons["RuntimeError"] == 1
+    parent._execute_action.assert_not_called()
+
+
 def test_reproduce_lamarckian_incompatible_policy_counts_as_skipped():
     """Shape/key mismatch should skip warm-start without failing reproduction."""
     parent = _build_parent_agent_for_reproduction()

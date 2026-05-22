@@ -29,6 +29,9 @@ _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
+from farm.analysis.lineage_metrics import (  # noqa: E402
+    lineage_metrics as _lineage_metrics,
+)
 from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
     PROFILE_ORDER,
     SIGN_AGREEMENT_THRESHOLD,
@@ -38,7 +41,6 @@ from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
     _t_ci,
     _variance,
 )
-from scripts.compare_crossover_arms import _lineage_metrics  # noqa: E402
 
 METRIC_KEYS: List[str] = [
     "speciation_final",
@@ -53,7 +55,7 @@ STABILITY_KEYS: List[str] = [
     "startup_transient.peak_death_rate",
     "startup_transient.oscillation_amplitude",
 ]
-INFO_KEYS: List[str] = ["lamarckian_warmstart_rate"]
+INFO_KEYS: List[str] = ["lamarckian_warmstart_rate", "decide_action_failures"]
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -108,11 +110,15 @@ def _build_parser() -> argparse.ArgumentParser:
 def _paired_delta_summary(values: Sequence[float]) -> Dict[str, Any]:
     clean = [float(v) for v in values if not math.isnan(v)]
     if not clean:
+        # Empty summaries use ``None`` rather than ``float("nan")`` so that
+        # ``json.dump`` emits valid JSON (``"null"``) instead of the
+        # JavaScript-only ``NaN`` token; downstream tools that consume the
+        # summary file should treat ``None`` as "no data".
         return {
-            "mean_delta": float("nan"),
-            "variance": float("nan"),
-            "ci95": [float("nan"), float("nan")],
-            "sign_agreement": float("nan"),
+            "mean_delta": None,
+            "variance": None,
+            "ci95": [None, None],
+            "sign_agreement": None,
             "n": 0,
         }
 
@@ -157,6 +163,13 @@ def _extract_metadata_metrics(run_dir: Path) -> Dict[str, Any]:
     )
     denom = applied + skipped
     warmstart_rate = float(applied / denom) if denom > 0 else float("nan")
+    # ``decide_action_failures`` was added so paired A/B comparisons can flag
+    # arms where the new fail-loud decision path is degrading silently
+    # (see ``InheritanceTelemetry`` and the 2026-05-22 dev-log entry).
+    decide_failures = float(inheritance.get("decide_action_failures", 0))
+    decide_failure_reasons = dict(
+        inheritance.get("decide_action_failure_reasons", {}) or {}
+    )
     return {
         "startup_transient": {
             "peak_birth_rate": float(startup.get("peak_birth_rate", float("nan"))),
@@ -165,6 +178,8 @@ def _extract_metadata_metrics(run_dir: Path) -> Dict[str, Any]:
         },
         "lamarckian_warmstart_rate": warmstart_rate,
         "lamarckian_warmstart_skipped_reasons": skipped_reasons,
+        "decide_action_failures": decide_failures,
+        "decide_action_failure_reasons": decide_failure_reasons,
     }
 
 
@@ -408,8 +423,8 @@ def _plot_paired_delta_heatmap(
             row = []
             arm_d = deltas.get(profile, {}).get(arm, {})
             for col in columns:
-                value = arm_d.get(col, {}).get("mean_delta", float("nan"))
-                row.append(float(value))
+                raw = arm_d.get(col, {}).get("mean_delta", float("nan"))
+                row.append(float("nan") if raw is None else float(raw))
             matrix.append(row)
     if not matrix:
         return
@@ -474,9 +489,11 @@ def _plot_startup_transient(
 
 
 def _fmt(value: Any, places: int = 3) -> str:
+    if value is None:
+        return "n/a"
     if isinstance(value, (int, float)):
         if isinstance(value, float) and math.isnan(value):
-            return "nan"
+            return "n/a"
         return f"{value:.{places}f}"
     if isinstance(value, list) and len(value) == 2:
         return f"[{_fmt(value[0], places)}, {_fmt(value[1], places)}]"
@@ -524,6 +541,7 @@ def _build_markdown(
         ("startup_transient.peak_death_rate", "startup peak death rate"),
         ("startup_transient.oscillation_amplitude", "startup oscillation amplitude"),
         ("lamarckian_warmstart_rate", "warmstart rate delta"),
+        ("decide_action_failures", "decide_action failures delta"),
     ]
     lines += ["## Paired deltas (treatment - baseline)", ""]
     for profile in PROFILE_ORDER:

@@ -14,12 +14,14 @@ Key Features:
 """
 
 import os
+import pickle
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 
 from farm.core.decision.config import DecisionConfig
+from farm.core.decision.shape_utils import batch_observation
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -556,34 +558,7 @@ class DecisionModule:
         self, state: Union[torch.Tensor, np.ndarray]
     ) -> np.ndarray:
         """Convert and batch an observation for algorithm ``predict_proba`` calls."""
-        if isinstance(state, torch.Tensor):
-            state_np = state.detach().cpu().numpy()
-        else:
-            state_np = np.array(state, dtype=np.float32)
-
-        target_size = int(np.prod(self.observation_shape))
-
-        if state_np.ndim == 1:
-            if state_np.size == target_size and len(self.observation_shape) > 1:
-                state_np = state_np.reshape(1, *self.observation_shape)
-            else:
-                state_np = state_np.reshape(1, -1)
-        elif state_np.ndim == 2:
-            if state_np.shape == self.observation_shape:
-                state_np = state_np[np.newaxis, ...]
-            elif state_np.size == target_size:
-                state_np = state_np.reshape(1, *self.observation_shape)
-            elif state_np.shape[0] == 1:
-                pass
-            else:
-                state_np = state_np.reshape(1, -1)
-        elif state_np.ndim == len(self.observation_shape):
-            state_np = state_np[np.newaxis, ...]
-        elif state_np.ndim == len(self.observation_shape) + 1:
-            pass
-        else:
-            state_np = state_np.reshape(1, -1)
-        return state_np
+        return batch_observation(state, self.observation_shape)
 
     def _policy_probs(self, state_np: np.ndarray) -> np.ndarray:
         """Return a normalized policy probability vector over the action space."""
@@ -642,7 +617,15 @@ class DecisionModule:
             return int(full_action)
         if full_action in enabled_actions:
             return enabled_actions.index(full_action)
-        return 0
+        # ``decide_action`` masks the sampling distribution to ``enabled_actions``
+        # before drawing, so a sampled index outside the enabled set indicates
+        # the upstream mask/distribution invariant has been violated. Surface
+        # it loudly rather than silently snapping to the first enabled slot,
+        # which previously hid logic regressions.
+        raise AssertionError(
+            f"Sampled action {full_action!r} is not in enabled_actions={enabled_actions!r} "
+            f"for agent {self.agent_id!r}; action_mask sampling invariant violated."
+        )
 
     def decide_action(
         self,
@@ -968,8 +951,6 @@ class DecisionModule:
             ):
                 # For Tianshou algorithms, get model state and save
                 model_state = self.algorithm.get_model_state()
-                import pickle
-
                 with open(f"{path}.pkl", "wb") as f:
                     pickle.dump(
                         {
@@ -990,8 +971,6 @@ class DecisionModule:
                 self.algorithm.save(path)
             else:
                 # For fallback algorithm, save basic info
-                import pickle
-
                 with open(f"{path}.pkl", "wb") as f:
                     pickle.dump(
                         {
@@ -1015,8 +994,6 @@ class DecisionModule:
         """
         try:
             # Try to load pickle file first (for Tianshou models)
-            import pickle
-
             pickle_path = f"{path}.pkl"
 
             if os.path.exists(pickle_path):

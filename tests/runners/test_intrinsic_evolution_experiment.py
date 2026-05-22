@@ -297,6 +297,10 @@ class TestRunnerOrchestration(unittest.TestCase):
             self.assertEqual(
                 inheritance_metrics["lamarckian_warmstart_skipped_reasons"], {}
             )
+            self.assertEqual(inheritance_metrics["decide_action_failures"], 0)
+            self.assertEqual(
+                inheritance_metrics["decide_action_failure_reasons"], {}
+            )
             # Initial-diversity defaults installed by the runner are
             # surfaced in the metadata for reproducibility.
             self.assertIn("initial_diversity", metadata)

@@ -616,6 +616,10 @@ def configure_logging(
     if enable_metrics:
         _metrics_manager.set_processor(MetricsProcessor())
 
+    # ``dict_tracebacks`` emits structured exception data (a list) that
+    # ``ConsoleRenderer`` cannot render; reserve it for JSON output only.
+    use_json_renderer = not disable_console and (environment == "production" or json_logs)
+
     # Build optimized processor chain
     processors: list[Processor] = [
         # PHASE 1: Context merging (cheap)
@@ -634,7 +638,7 @@ def configure_logging(
         structlog.processors.TimeStamper(fmt="iso", utc=True, key="timestamp"),
         # PHASE 7: Stack and exception info
         structlog.processors.StackInfoRenderer(),
-        structlog.processors.dict_tracebacks,
+        *([structlog.processors.dict_tracebacks] if use_json_renderer else []),
         # PHASE 8: Security
         censor_sensitive_data,
         # PHASE 9: Custom processors
