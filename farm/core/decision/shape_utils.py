@@ -30,6 +30,7 @@ def _to_float32_numpy(state: Any) -> np.ndarray:
         if isinstance(state, torch.Tensor):
             return state.detach().cpu().numpy().astype(np.float32, copy=False)
     except ImportError:
+        # Torch is optional; if unavailable, fall back to generic numpy coercion.
         pass
     return np.asarray(state, dtype=np.float32)
 
