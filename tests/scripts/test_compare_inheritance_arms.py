@@ -9,6 +9,7 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Optional
 
 _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _repo_root not in sys.path:
@@ -16,12 +17,16 @@ if _repo_root not in sys.path:
 
 from scripts.compare_inheritance_arms import (  # noqa: E402
     ALL_METRIC_KEYS,
+    _build_markdown,
     _ci_excludes_zero,
     _classify_regime_verdict,
+    _compute_mechanism_coverage,
     _extract_metadata_metrics,
     _paired_delta_summary,
     _paired_metric_deltas,
     _resolve_metric_value,
+    _summarize_warmstart_coverage,
+    _warmstart_rate_from_run,
 )
 
 
@@ -271,6 +276,8 @@ class TestExtractMetadataMetrics(unittest.TestCase):
             )
             metrics = _extract_metadata_metrics(run_dir)
         self.assertAlmostEqual(metrics["lamarckian_warmstart_rate"], 0.8)
+        self.assertEqual(metrics["lamarckian_warmstart_applied"], 8)
+        self.assertEqual(metrics["lamarckian_warmstart_skipped"], 2)
         self.assertEqual(
             metrics["lamarckian_warmstart_skipped_reasons"], {"incompatible_state": 2}
         )
@@ -283,6 +290,66 @@ class TestExtractMetadataMetrics(unittest.TestCase):
     def test_missing_metadata_returns_empty(self):
         with TemporaryDirectory() as tmp:
             self.assertEqual(_extract_metadata_metrics(Path(tmp)), {})
+
+
+class TestWarmstartCoverage(unittest.TestCase):
+    def _run(self, applied: int, skipped: int, reasons: Optional[dict] = None):
+        return {
+            "lamarckian_warmstart_applied": applied,
+            "lamarckian_warmstart_skipped": skipped,
+            "lamarckian_warmstart_skipped_reasons": reasons or {},
+        }
+
+    def test_rate_from_run(self):
+        self.assertAlmostEqual(_warmstart_rate_from_run(self._run(8, 2)), 0.8)
+        self.assertIsNone(_warmstart_rate_from_run(self._run(0, 0)))
+
+    def test_summarize_warmstart_coverage(self):
+        runs = {
+            42: self._run(8, 2, {"incompatible_state": 2}),
+            7: self._run(9, 1, {"incompatible_state": 1}),
+        }
+        summary = _summarize_warmstart_coverage(runs)
+        self.assertEqual(summary["n"], 2)
+        self.assertAlmostEqual(summary["mean_rate"], 0.85)
+        self.assertEqual(summary["total_applied"], 17)
+        self.assertEqual(summary["total_skipped"], 3)
+        self.assertEqual(summary["skip_reasons"], {"incompatible_state": 3})
+        self.assertEqual(summary["per_seed"]["42"]["applied"], 8)
+
+    def test_compute_mechanism_coverage(self):
+        treatments = {
+            "lamarckian": {
+                "conservative": {
+                    42: self._run(8, 2, {"incompatible_state": 2}),
+                }
+            }
+        }
+        coverage = _compute_mechanism_coverage(treatments, ["conservative"], ["lamarckian"])
+        warmstart = coverage["conservative"]["lamarckian"]["lamarckian_warmstart"]
+        self.assertAlmostEqual(warmstart["mean_rate"], 0.8)
+        self.assertEqual(warmstart["total_applied"], 8)
+
+    def test_markdown_includes_mechanism_coverage(self):
+        coverage = {
+            "conservative": {
+                "lamarckian": {
+                    "lamarckian_warmstart": {
+                        "n": 1,
+                        "mean_rate": 0.8,
+                        "rate_ci95": [0.8, 0.8],
+                        "total_applied": 8,
+                        "total_skipped": 2,
+                        "skip_reasons": {"incompatible_state": 2},
+                        "per_seed": {},
+                    }
+                }
+            }
+        }
+        md = _build_markdown({}, {}, ["lamarckian"], "baldwinian", mechanism_coverage=coverage)
+        self.assertIn("## Mechanism coverage (treatment only)", md)
+        self.assertIn("Lamarckian warm-start rate is an absolute treatment-arm statistic", md)
+        self.assertNotIn("| lamarckian | warmstart rate delta |", md)
 
 
 if __name__ == "__main__":
