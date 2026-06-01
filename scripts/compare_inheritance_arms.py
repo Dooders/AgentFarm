@@ -16,6 +16,7 @@ import argparse
 import json
 import math
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -176,6 +177,8 @@ def _extract_metadata_metrics(run_dir: Path) -> Dict[str, Any]:
             "peak_death_rate": float(startup.get("peak_death_rate", float("nan"))),
             "oscillation_amplitude": float(startup.get("oscillation_amplitude", float("nan"))),
         },
+        "lamarckian_warmstart_applied": applied,
+        "lamarckian_warmstart_skipped": skipped,
         "lamarckian_warmstart_rate": warmstart_rate,
         "lamarckian_warmstart_skipped_reasons": skipped_reasons,
         "decide_action_failures": decide_failures,
@@ -488,6 +491,78 @@ def _plot_startup_transient(
     plt.close(fig)
 
 
+def _warmstart_rate_from_run(run: Dict[str, Any]) -> Optional[float]:
+    applied = int(run.get("lamarckian_warmstart_applied", 0))
+    skipped = int(run.get("lamarckian_warmstart_skipped", 0))
+    denom = applied + skipped
+    if denom <= 0:
+        return None
+    return float(applied / denom)
+
+
+def _summarize_warmstart_coverage(
+    treatment_runs: Dict[int, Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Aggregate Lamarckian warm-start coverage for one (profile, arm) pair."""
+    per_seed: Dict[str, Dict[str, Any]] = {}
+    rates: List[float] = []
+    total_applied = 0
+    total_skipped = 0
+    skip_reasons: Counter = Counter()
+
+    for seed in sorted(treatment_runs):
+        run = treatment_runs[seed]
+        applied = int(run.get("lamarckian_warmstart_applied", 0))
+        skipped = int(run.get("lamarckian_warmstart_skipped", 0))
+        rate = _warmstart_rate_from_run(run)
+        per_seed[str(seed)] = {
+            "applied": applied,
+            "skipped": skipped,
+            "rate": rate,
+            "skip_reasons": dict(run.get("lamarckian_warmstart_skipped_reasons", {}) or {}),
+        }
+        total_applied += applied
+        total_skipped += skipped
+        for reason, count in (run.get("lamarckian_warmstart_skipped_reasons", {}) or {}).items():
+            skip_reasons[str(reason)] += int(count)
+        if rate is not None:
+            rates.append(rate)
+
+    lo, hi = _t_ci(rates) if rates else (None, None)
+    return {
+        "n": len(rates),
+        "mean_rate": _mean(rates) if rates else None,
+        "rate_ci95": [lo, hi],
+        "total_applied": total_applied,
+        "total_skipped": total_skipped,
+        "skip_reasons": dict(skip_reasons),
+        "per_seed": per_seed,
+    }
+
+
+def _compute_mechanism_coverage(
+    treatments: Dict[str, Dict[str, Dict[int, Dict[str, Any]]]],
+    profiles: Sequence[str],
+    arm_labels: Sequence[str],
+) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """Treatment-only mechanism stats (not paired against baseline)."""
+    out: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for profile in profiles:
+        out[profile] = {}
+        for arm in arm_labels:
+            treatment_runs = treatments.get(arm, {}).get(profile, {})
+            out[profile][arm] = {
+                "lamarckian_warmstart": _summarize_warmstart_coverage(treatment_runs),
+            }
+    return out
+
+
+def _fmt_skip_reasons(reasons: Dict[str, int]) -> str:
+    if not reasons:
+        return "none"
+    return ", ".join(f"{reason}={count}" for reason, count in sorted(reasons.items()))
+
+
 def _fmt(value: Any, places: int = 3) -> str:
     if value is None:
         return "n/a"
@@ -505,6 +580,7 @@ def _build_markdown(
     verdicts: Dict[str, Dict[str, str]],
     arm_labels: Sequence[str],
     baseline_label: str,
+    mechanism_coverage: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
 ) -> str:
     lines: List[str] = [
         "# Inheritance-mode A/B comparison",
@@ -534,13 +610,44 @@ def _build_markdown(
         "",
     ]
 
+    if mechanism_coverage:
+        lines += [
+            "## Mechanism coverage (treatment only)",
+            "",
+            (
+                "Lamarckian warm-start rate is an absolute treatment-arm statistic. "
+                f"The `{baseline_label}` baseline performs no warm-start attempts, "
+                "so paired deltas are undefined."
+            ),
+            "",
+            "| Profile | Arm | Mean rate | 95% CI | Applied | Skipped | Skip reasons | n |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for profile in PROFILE_ORDER:
+            if profile not in mechanism_coverage:
+                continue
+            for arm in arm_labels:
+                warmstart = mechanism_coverage.get(profile, {}).get(arm, {}).get(
+                    "lamarckian_warmstart", {}
+                )
+                if not warmstart:
+                    continue
+                lines.append(
+                    f"| {profile} | {arm} | {_fmt(warmstart.get('mean_rate'))} "
+                    f"| {_fmt(warmstart.get('rate_ci95'))} "
+                    f"| {warmstart.get('total_applied', 0)} "
+                    f"| {warmstart.get('total_skipped', 0)} "
+                    f"| {_fmt_skip_reasons(warmstart.get('skip_reasons', {}))} "
+                    f"| {warmstart.get('n', 0)} |"
+                )
+        lines.append("")
+
     headline_keys = [
         ("population_mean", "population mean"),
         ("population_final", "population final"),
         ("speciation_slope", "speciation slope/100"),
         ("startup_transient.peak_death_rate", "startup peak death rate"),
         ("startup_transient.oscillation_amplitude", "startup oscillation amplitude"),
-        ("lamarckian_warmstart_rate", "warmstart rate delta"),
         ("decide_action_failures", "decide_action failures delta"),
     ]
     lines += ["## Paired deltas (treatment - baseline)", ""]
@@ -607,6 +714,8 @@ def main() -> int:
                 baseline_label=baseline_label,
             )
 
+    mechanism_coverage = _compute_mechanism_coverage(treatments, profiles, arm_labels)
+
     summary = {
         "comparison_type": "inheritance_mode_ab",
         "baseline_dir": str(baseline_dir),
@@ -616,6 +725,7 @@ def main() -> int:
         "deltas": deltas,
         "verdicts": verdicts,
         "paired_seeds": paired_seeds,
+        "mechanism_coverage": mechanism_coverage,
     }
 
     json_path = output_dir / "inheritance_ab_summary.json"
@@ -624,7 +734,13 @@ def main() -> int:
 
     md_path = output_dir / "inheritance_ab_summary.md"
     md_path.write_text(
-        _build_markdown(deltas, verdicts, arm_labels, baseline_label),
+        _build_markdown(
+            deltas,
+            verdicts,
+            arm_labels,
+            baseline_label,
+            mechanism_coverage=mechanism_coverage,
+        ),
         encoding="utf-8",
     )
 
