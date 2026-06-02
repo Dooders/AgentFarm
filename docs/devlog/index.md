@@ -8,11 +8,11 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
   <li>
     <a class="post-card" href="{{ '/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness/' | relative_url }}">
       <span class="post-card__date">2026-05-21</span>
-      <h3 class="post-card__title">Baldwinian vs Lamarckian A/B harness landed</h3>
+      <h3 class="post-card__title">Baldwinian vs Lamarckian: policy warm-start across three resource regimes</h3>
       <p class="post-card__excerpt">
-        Added explicit inheritance mode control to intrinsic evolution, plus
-        new A/B runner and comparator scripts. First smoke run confirms
-        Lamarckian warm-start events are recorded end-to-end.
+        Full 36-run matched matrix (2 arms × 3 profiles × 6 seeds). Lamarckian
+        warm-start applied ~85% of the time and paired runs diverged, but no
+        profile cleared the robustness gate — keep Baldwinian as default for now.
       </p>
       <span class="post-card__more">Read the post</span>
     </a>
