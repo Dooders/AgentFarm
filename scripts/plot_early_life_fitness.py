@@ -38,6 +38,11 @@ def _profiles(summary: Dict[str, Any]) -> List[str]:
     return [p for p in PROFILE_ORDER if p in summary.get("paired", {})]
 
 
+def _f(x: Any) -> float:
+    """Coerce a JSON scalar (possibly ``null``) to float, mapping None -> NaN."""
+    return float("nan") if x is None else float(x)
+
+
 def _curve_mean(curves: Dict[str, Dict[str, float]]) -> Tuple[np.ndarray, np.ndarray]:
     """Average per-seed {age: value} curves onto a shared integer age grid."""
     per_age: Dict[int, List[float]] = {}
@@ -65,10 +70,11 @@ def plot_reward_delta(summary: Dict[str, Any], out: Path) -> Path:
             means, los, his = [], [], []
             for profile in profiles:
                 v = summary["paired"][profile]["ages"][str(age)]["verdicts"][metric]
-                means.append(v["mean_delta"])
-                ci = v["ci95"]
-                los.append(v["mean_delta"] - ci[0])
-                his.append(ci[1] - v["mean_delta"])
+                mean_delta = _f(v["mean_delta"])
+                ci_lo, ci_hi = _f(v["ci95"][0]), _f(v["ci95"][1])
+                means.append(mean_delta)
+                los.append(mean_delta - ci_lo)
+                his.append(ci_hi - mean_delta)
             offset = (j - (len(ages) - 1) / 2) * width
             ax.bar(
                 x + offset, means, width * 0.92,

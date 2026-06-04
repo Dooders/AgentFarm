@@ -138,6 +138,14 @@ Practical takeaway, unchanged: **keep Baldwinian as the default.**
   ~60-70% of (uncensored) offspring. Survival deltas are small and non-robust,
   so the two arms condition on similarly sized subpopulations, but these are
   survivor estimates, not whole-cohort ones.
+- **The two headline metrics are measured on different cohorts.** Net RL reward
+  is survivor-conditioned (above), but positive-action fraction spans every
+  offspring that took an action in its first N steps — including those that died
+  before N. The runner records both cohort sizes (`n_reached` vs `n_acted`) for
+  transparency. Because survival barely moves before the age-~42 cliff the two
+  cohorts are close in size, but the "reward down, positive-actions up" framing
+  is two readouts on overlapping-but-not-identical populations, not one
+  population measured two ways.
 - **Coarse action signal.** Because ~89% of action rewards are the same value,
   "positive-action fraction" is a blunt instrument; treat the +1.5pp as a
   directional behavioral nudge, not a precise effect size.

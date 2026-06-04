@@ -35,6 +35,16 @@ This script touches two unrelated reward columns; do not conflate them.
   (the fraction of early actions that returned a positive value), which is a
   coarse "how often did an action avoid a negative outcome" readout.
 
+Cohort caveat
+-------------
+The RL-reward readouts (``rl_reward_at_age``, ``resource_at_age``,
+``parent_reward_gap``) are necessarily conditioned on offspring that *survived*
+to age N. ``decision_success_rate`` instead spans every offspring that took an
+action in the first N steps, including those that died before N. These cohorts
+differ (sizes are reported as ``n_reached`` and ``n_acted``), so the reward and
+action-fraction deltas should not be read as two measurements of the same
+population.
+
 Lineage
 -------
 ``agents.genome_id`` is formatted ``"<parent_agent_id>:<counter>"`` (founders are
@@ -96,7 +106,16 @@ def _find_db(run_dir: Path) -> Optional[Path]:
     candidates = sorted(run_dir.glob("simulation_sim_*.db"))
     if not candidates:
         candidates = sorted(run_dir.glob("*.db"))
+    if len(candidates) > 1:
+        print(
+            f"  WARNING: {run_dir} has {len(candidates)} candidate DBs; "
+            f"using {candidates[0].name}",
+            file=sys.stderr,
+        )
     return candidates[0] if candidates else None
+
+
+DEFAULT_WARMUP = 200
 
 
 def _read_warmup(run_dir: Path) -> int:
@@ -110,7 +129,12 @@ def _read_warmup(run_dir: Path) -> int:
             block = meta.get(key)
             if isinstance(block, dict) and block.get("warmup_steps") is not None:
                 return int(block["warmup_steps"])
-    return 200
+    print(
+        f"  WARNING: {run_dir} missing warmup_steps metadata; "
+        f"falling back to {DEFAULT_WARMUP}",
+        file=sys.stderr,
+    )
+    return DEFAULT_WARMUP
 
 
 def _read_warmstart_rate(run_dir: Path) -> Optional[float]:
@@ -133,7 +157,12 @@ def _read_warmstart_rate(run_dir: Path) -> Optional[float]:
 
 
 def _parent_of(genome_id: Optional[str]) -> Optional[str]:
-    """Parse the parent agent id from a ``"<parent>:<counter>"`` genome id."""
+    """Parse the parent agent id from a ``"<parent>:<counter>"`` genome id.
+
+    Relies on the invariant that agent ids never contain ``":"`` (they are
+    UUID-style strings), so the parent id is exactly the substring before the
+    first colon. Founders are ``"::n"`` and resolve to ``None``.
+    """
     if not genome_id:
         return None
     prefix = genome_id.split(":", 1)[0]
@@ -169,18 +198,16 @@ def _extract_run_early_life(
         if not offspring:
             return None
 
-        # Per-agent state by absolute step: needed for age-N snapshots (offspring)
-        # and parent-window reward lookups.
-        states: Dict[str, Dict[int, Tuple[float, float, float, int]]] = defaultdict(dict)
-        for agent_id, step, total_reward, resource_level, health, age in cur.execute(
-            "SELECT agent_id, step_number, total_reward, resource_level, "
-            "current_health, age FROM agent_states"
+        # Per-agent (cumulative RL reward, resource level) by absolute step:
+        # needed for age-N snapshots (offspring) and parent-window reward lookups.
+        states: Dict[str, Dict[int, Tuple[float, float]]] = defaultdict(dict)
+        for agent_id, step, total_reward, resource_level in cur.execute(
+            "SELECT agent_id, step_number, total_reward, resource_level "
+            "FROM agent_states"
         ):
             states[agent_id][int(step)] = (
                 float(total_reward),
                 float(resource_level),
-                float(health),
-                int(age),
             )
 
         # Per-agent actions (step, reward) for decision-success over first N.
@@ -237,6 +264,13 @@ def _extract_run_early_life(
         per_age[age] = {
             "n_uncensored": float(len(survived)),
             "n_reached": float(len(reward_vals)),
+            # Cohort note: rl_reward_at_age / resource_at_age / parent_reward_gap
+            # are conditioned on *surviving* to age N (n_reached), whereas
+            # decision_success_rate is over every offspring that took an action
+            # in the first N steps (n_acted), which includes early deaths. The
+            # two cohorts differ, so don't read the reward and action-fraction
+            # deltas as if measured on the same population.
+            "n_acted": float(len(success_vals)),
             "survival_rate": _mean(survived),
             "rl_reward_at_age": _mean(reward_vals),
             "resource_at_age": _mean(resource_vals),
@@ -470,6 +504,22 @@ def _build_markdown(
 
 # ── Driver ─────────────────────────────────────────────────────────────────────
 
+def _json_safe(obj: Any) -> Any:
+    """Recursively replace non-finite floats with ``None`` for portable JSON.
+
+    ``json.dumps`` emits bare ``NaN``/``Infinity`` tokens by default, which are
+    invalid in strict JSON (and break JS / non-Python consumers). Mapping them
+    to ``null`` keeps the file parseable everywhere.
+    """
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Measure early-life offspring fitness across A/B inheritance arms.",
@@ -572,7 +622,10 @@ def main() -> int:
         },
     }
     summary_path = output_dir / "early_life_summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(_json_safe(summary), indent=2, allow_nan=False, default=str),
+        encoding="utf-8",
+    )
 
     md = _build_markdown(paired, warmstart_rates, ages, args.baseline_arm,
                          args.treatment_arm)
