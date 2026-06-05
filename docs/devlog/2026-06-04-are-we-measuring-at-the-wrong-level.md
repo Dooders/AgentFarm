@@ -23,9 +23,9 @@ does not rescue Lamarckian.
 This sim logs two unrelated reward signals, and keeping them separate is the
 whole point of this post:
 
-- **RL reward** (`agent_states.total_reward`): the per-step signal the decision
-  module trains on, `resource_delta + 0.5*health_delta + survival_bonus` (see
-  [reward.py](../../farm/core/agent/components/reward.py)). This is the
+- **RL reward** (`agent_states.total_reward`): the cumulative reward at that
+  step (sum of per-step `resource_delta + 0.5*health_delta + survival_bonus`;
+  see [reward.py](../../farm/core/agent/components/reward.py)). This is the
   fitness-relevant "did the agent get richer/healthier/stay alive" channel.
 - **Per-action module reward** (`agent_actions.reward`): a separate per-action
   value that is nearly constant (~0.135 for ~89% of actions), with a minority
@@ -58,9 +58,10 @@ recoverable from the stored artifacts — only aggregate warm-start counts are
 logged — so this is an arm-level comparison.
 
 The parent-anchored readout is enabled by a small data-spelunking win:
-`agents.genome_id` is formatted `"<parent_agent_id>:<counter>"`, so every
-offspring links back to its parent (100% linkage in every run) without a
-dedicated parent column.
+`agents.genome_id` supports 0–2 parents plus a counter (`::n`,
+`parent:n`, `parent1:parent2:n`). For this metric, we only use offspring with
+exactly one encoded parent, which still yields 100% linkage in these runs
+without a dedicated parent column.
 
 Paired deltas (`lamarckian − baldwinian`) are computed per (profile, seed) and
 gated with the same rule used elsewhere in this project: **95% CI excludes

@@ -26,9 +26,9 @@ Reward signals (two distinct channels)
 --------------------------------------
 This script touches two unrelated reward columns; do not conflate them.
 
-- ``agent_states.total_reward`` is the per-step **RL reward** the decision
-  module trains on: ``resource_delta + 0.5*health_delta + survival_bonus``
-  (see ``farm/core/agent/components/reward.py``). It is reported here as
+- ``agent_states.total_reward`` is the **cumulative RL reward at that step**
+  (sum of per-step ``resource_delta + 0.5*health_delta + survival_bonus``;
+  see ``farm/core/agent/components/reward.py``). It is reported here as
   ``rl_reward_at_age`` and as the reward-vs-age curve.
 - ``agent_actions.reward`` is a separate **per-action module reward** (nearly
   constant at ~0.135 for most actions). It only feeds ``decision_success_rate``
@@ -47,10 +47,10 @@ population.
 
 Lineage
 -------
-``agents.genome_id`` is formatted ``"<parent_agent_id>:<counter>"`` (founders are
-``"::n"``), so parent->child edges are recoverable by parsing the prefix. This
-enables a parent-anchored readout: how closely does an offspring's early RL
-reward track the RL reward its parent earns over the same wall-clock window?
+``agents.genome_id`` encodes 0, 1, or 2 parents plus an optional counter
+(``"::n"``, ``"<parent>:n"``, or ``"<parent1>:<parent2>:n"``). This script uses
+parent-anchored reward gaps only when exactly one parent is encoded; founder and
+two-parent offspring are excluded from that metric.
 
 Usage
 -----
@@ -85,6 +85,7 @@ from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
     _t_ci,
     _variance,
 )
+from farm.database.data_types import GenomeId  # noqa: E402
 
 # Ages (in steps lived) at which offspring are scored.
 DEFAULT_AGES: Tuple[int, ...] = (10, 25, 50)
@@ -157,16 +158,21 @@ def _read_warmstart_rate(run_dir: Path) -> Optional[float]:
 
 
 def _parent_of(genome_id: Optional[str]) -> Optional[str]:
-    """Parse the parent agent id from a ``"<parent>:<counter>"`` genome id.
+    """Return parent id only for single-parent genome IDs.
 
-    Relies on the invariant that agent ids never contain ``":"`` (they are
-    UUID-style strings), so the parent id is exactly the substring before the
-    first colon. Founders are ``"::n"`` and resolve to ``None``.
+    Genome IDs can encode zero, one, or two parents. Parent-anchored reward
+    gap is only well-defined for single-parent lineage, so founders and
+    two-parent offspring resolve to ``None``.
     """
     if not genome_id:
         return None
-    prefix = genome_id.split(":", 1)[0]
-    return prefix or None
+    try:
+        parsed = GenomeId.from_string(genome_id)
+    except Exception:
+        return None
+    if len(parsed.parent_ids) != 1:
+        return None
+    return parsed.parent_ids[0]
 
 
 def _extract_run_early_life(

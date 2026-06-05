@@ -42,6 +42,9 @@ class TestParentOf(unittest.TestCase):
         self.assertIsNone(_parent_of(None))
         self.assertIsNone(_parent_of(""))
 
+    def test_two_parent_genome_returns_none(self):
+        self.assertIsNone(_parent_of("P1:P2:7"))
+
 
 class TestVerdict(unittest.TestCase):
     def test_too_few_samples(self):
