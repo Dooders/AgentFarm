@@ -1,0 +1,509 @@
+"""Intrinsic-goals experiment runner.
+
+This runner explores a specific question *inside* the intrinsic-evolution
+framework:
+
+    **What happens to a simulation when every agent has a different
+    reinforcement-learning goal (loss/reward function)?**
+
+Each agent's per-step RL reward is parameterized by the *Chromosome C* genes
+(``reward_*``) defined in :mod:`farm.core.hyperparameter_chromosome` and consumed
+by :meth:`farm.core.agent.core.AgentCore._calculate_reward`.  Those genes are
+heritable and mutate on reproduction just like every other gene, so a diverse
+set of goals seeded at *t=0* co-evolves with survival.
+
+The experiment runs two arms with *identical* seeds and configuration so the
+only difference is the agents' objectives:
+
+- ``uniform``  — every agent shares the default reward function (the historical
+  AgentFarm reward).  This is the control.
+- ``unique``   — every initial agent is given an independently sampled reward
+  function, so each one optimizes for a genuinely different goal.  Offspring
+  inherit and mutate their parent's goal.
+
+For each arm the runner records per-step population, action-mix, and goal-gene
+trajectories, then writes a JSON summary and (when matplotlib is available) a
+comparison figure so the behavioural divergence is easy to see.
+
+Compare with :mod:`farm.runners.intrinsic_evolution_experiment`, which evolves
+*all* genes (learning hyperparameters + action priors + goals) at once; this
+runner isolates the goal genes to make their effect legible.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import random
+import statistics
+from collections import Counter
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+from farm.config import SimulationConfig
+from farm.core.hyperparameter_chromosome import (
+    INTRINSIC_REWARD_GENE_NAMES,
+    BoundaryMode,
+    HyperparameterChromosome,
+    MutationMode,
+    reward_weights_from_chromosome,
+)
+from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode
+from farm.core.simulation import run_simulation
+from farm.runners.intrinsic_evolution_experiment import IntrinsicEvolutionPolicy
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+# Action names tracked for the behavioural action-mix telemetry.  Any other
+# action observed at runtime is still counted under its own name; this ordered
+# list just guarantees a stable set of columns in the summary output.
+TRACKED_ACTIONS: Tuple[str, ...] = (
+    "move",
+    "gather",
+    "share",
+    "attack",
+    "reproduce",
+    "defend",
+    "pass",
+)
+
+
+def sample_goal_chromosome(
+    base_chromosome: HyperparameterChromosome,
+    rng: random.Random,
+    gene_names: Sequence[str] = INTRINSIC_REWARD_GENE_NAMES,
+) -> HyperparameterChromosome:
+    """Return a copy of *base_chromosome* with randomized intrinsic-goal genes.
+
+    Each named gene is drawn independently and uniformly from its own
+    ``[min_value, max_value]`` bounds, yielding a unique reward function while
+    leaving every non-goal gene (learning hyperparameters, action priors)
+    untouched.
+    """
+    overrides: Dict[str, float] = {}
+    for name in gene_names:
+        gene = base_chromosome.get_gene(name)
+        if gene is None:
+            continue
+        overrides[name] = rng.uniform(gene.min_value, gene.max_value)
+    if not overrides:
+        return base_chromosome
+    return base_chromosome.with_overrides(overrides)
+
+
+def assign_unique_goals(
+    environment: Any,
+    rng: random.Random,
+    gene_names: Sequence[str] = INTRINSIC_REWARD_GENE_NAMES,
+) -> int:
+    """Give every alive agent in *environment* an independently sampled goal.
+
+    Returns the number of agents whose goal was reassigned.  The reward genes
+    are read straight off the chromosome by ``AgentCore._calculate_reward`` and
+    are not projected into ``DecisionConfig``, so simply replacing
+    ``agent.hyperparameter_chromosome`` is sufficient for the new goal to take
+    effect on the next step.
+    """
+    count = 0
+    for agent in list(environment.alive_agent_objects):
+        chromosome = getattr(agent, "hyperparameter_chromosome", None)
+        if chromosome is None:
+            continue
+        agent.hyperparameter_chromosome = sample_goal_chromosome(
+            chromosome, rng, gene_names
+        )
+        count += 1
+    return count
+
+
+@dataclass(frozen=True)
+class IntrinsicGoalsExperimentConfig:
+    """Configuration for :class:`IntrinsicGoalsExperiment`."""
+
+    num_steps: int = 600
+    seed: int = 42
+    output_dir: str = "experiments/intrinsic_goals"
+    record_interval: int = 1
+
+    # Genes that define an agent's goal and are diversified in the ``unique`` arm.
+    goal_genes: Tuple[str, ...] = INTRINSIC_REWARD_GENE_NAMES
+
+    # Per-reproduction mutation applied to ALL genes (so goals keep drifting and
+    # selection can act on them).  Reflect boundary keeps mutated goals off the
+    # absorbing edges of their range.
+    mutation_rate: float = 0.1
+    mutation_scale: float = 0.1
+    mutation_mode: MutationMode = MutationMode.GAUSSIAN
+    boundary_mode: BoundaryMode = BoundaryMode.REFLECT
+
+    # Density-dependent reproduction cost preset ("none"/"low"/"medium"/"high"
+    # or a float in [0, 1]).  A little pressure makes selection on goals matter.
+    selection_pressure: Any = "low"
+
+    # Startup conditions tuned for a population that survives long enough to
+    # observe goal-driven divergence (the default dev config is boom/bust).
+    initial_agent_resource_level: Optional[float] = 12.0
+    initial_resource_count: Optional[int] = 60
+
+    def __post_init__(self) -> None:
+        if self.num_steps <= 0:
+            raise ValueError("num_steps must be positive.")
+        if self.record_interval <= 0:
+            raise ValueError("record_interval must be positive.")
+        object.__setattr__(self, "mutation_mode", MutationMode(self.mutation_mode))
+        object.__setattr__(self, "boundary_mode", BoundaryMode(self.boundary_mode))
+
+
+@dataclass
+class ArmResult:
+    """Per-arm telemetry collected while running one simulation."""
+
+    arm: str
+    steps: List[int] = field(default_factory=list)
+    population: List[int] = field(default_factory=list)
+    births: List[int] = field(default_factory=list)
+    deaths: List[int] = field(default_factory=list)
+    # action_mix[action] -> list of per-step fractions of alive agents whose
+    # most recent action was `action`.
+    action_mix: Dict[str, List[float]] = field(default_factory=dict)
+    # gene_means[gene] -> list of per-step population mean of that goal gene.
+    gene_means: Dict[str, List[float]] = field(default_factory=dict)
+    final_population: int = 0
+    goal_diversity_start: Dict[str, float] = field(default_factory=dict)
+    goal_diversity_end: Dict[str, float] = field(default_factory=dict)
+
+    def summary(self) -> Dict[str, Any]:
+        """Return a JSON-serializable summary of this arm."""
+        mean_pop = statistics.mean(self.population) if self.population else 0.0
+        peak_pop = max(self.population) if self.population else 0
+        action_share = {
+            action: (statistics.mean(values) if values else 0.0)
+            for action, values in self.action_mix.items()
+        }
+        return {
+            "arm": self.arm,
+            "final_population": self.final_population,
+            "mean_population": mean_pop,
+            "peak_population": peak_pop,
+            "total_births": sum(self.births),
+            "total_deaths": sum(self.deaths),
+            "mean_action_share": action_share,
+            "goal_gene_mean_start": {
+                gene: (values[0] if values else 0.0)
+                for gene, values in self.gene_means.items()
+            },
+            "goal_gene_mean_end": {
+                gene: (values[-1] if values else 0.0)
+                for gene, values in self.gene_means.items()
+            },
+            "goal_diversity_start": self.goal_diversity_start,
+            "goal_diversity_end": self.goal_diversity_end,
+        }
+
+
+@dataclass
+class IntrinsicGoalsResult:
+    """Combined result of both experiment arms."""
+
+    uniform: ArmResult
+    unique: ArmResult
+    comparison: Dict[str, Any]
+    summary_path: Optional[str] = None
+    figure_path: Optional[str] = None
+
+
+class IntrinsicGoalsExperiment:
+    """Run the uniform-vs-unique-goals comparison and persist artifacts."""
+
+    def __init__(
+        self,
+        base_config: SimulationConfig,
+        config: Optional[IntrinsicGoalsExperimentConfig] = None,
+    ) -> None:
+        self.base_config = base_config
+        self.config = config or IntrinsicGoalsExperimentConfig()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def run(self) -> IntrinsicGoalsResult:
+        """Run both arms and write the summary + comparison figure."""
+        os.makedirs(self.config.output_dir, exist_ok=True)
+
+        uniform = self._run_arm("uniform", diversify_goals=False)
+        unique = self._run_arm("unique", diversify_goals=True)
+
+        comparison = self._build_comparison(uniform, unique)
+
+        result = IntrinsicGoalsResult(
+            uniform=uniform, unique=unique, comparison=comparison
+        )
+
+        summary_payload = {
+            "config": {
+                "num_steps": self.config.num_steps,
+                "seed": self.config.seed,
+                "goal_genes": list(self.config.goal_genes),
+                "mutation_rate": self.config.mutation_rate,
+                "mutation_scale": self.config.mutation_scale,
+                "selection_pressure": self.config.selection_pressure,
+            },
+            "uniform": uniform.summary(),
+            "unique": unique.summary(),
+            "comparison": comparison,
+        }
+        result.summary_path = os.path.join(
+            self.config.output_dir, "intrinsic_goals_summary.json"
+        )
+        with open(result.summary_path, "w", encoding="utf-8") as handle:
+            json.dump(summary_payload, handle, indent=2, default=str)
+
+        result.figure_path = self._maybe_plot(uniform, unique)
+
+        logger.info(
+            "intrinsic_goals_experiment_complete",
+            summary_path=result.summary_path,
+            figure_path=result.figure_path,
+            uniform_final_pop=uniform.final_population,
+            unique_final_pop=unique.final_population,
+        )
+        return result
+
+    # ------------------------------------------------------------------
+    # Internals
+    # ------------------------------------------------------------------
+
+    def _build_run_config(self) -> SimulationConfig:
+        run_config = self.base_config.copy()
+        # Isolate the manipulated variable: do NOT diversify any genes at
+        # startup.  In the ``unique`` arm we diversify *only* the goal genes
+        # ourselves in the environment-ready hook.
+        run_config.initial_diversity = InitialDiversityConfig(mode=SeedingMode.NONE)
+
+        if self.config.initial_agent_resource_level is not None:
+            run_config.agent_behavior.initial_resource_level = float(
+                self.config.initial_agent_resource_level
+            )
+        if self.config.initial_resource_count is not None:
+            run_config.resources.initial_resources = int(
+                self.config.initial_resource_count
+            )
+        return run_config
+
+    def _make_policy(self) -> IntrinsicEvolutionPolicy:
+        return IntrinsicEvolutionPolicy(
+            enabled=True,
+            mutation_rate=self.config.mutation_rate,
+            mutation_scale=self.config.mutation_scale,
+            mutation_mode=self.config.mutation_mode,
+            boundary_mode=self.config.boundary_mode,
+            selection_pressure=self.config.selection_pressure,
+            seed=self.config.seed,
+        )
+
+    def _run_arm(self, arm_name: str, diversify_goals: bool) -> ArmResult:
+        logger.info("intrinsic_goals_arm_start", arm=arm_name, diversify=diversify_goals)
+        run_config = self._build_run_config()
+        policy = self._make_policy()
+        # A dedicated RNG for goal sampling keeps the two arms aligned on the
+        # shared simulation seed while still giving reproducible goals.
+        goal_rng = random.Random(self.config.seed + 1)
+
+        arm = ArmResult(arm=arm_name)
+        for action in TRACKED_ACTIONS:
+            arm.action_mix[action] = []
+        for gene in self.config.goal_genes:
+            arm.gene_means[gene] = []
+
+        prev_ids: set = set()
+
+        def _on_environment_ready(environment: Any) -> None:
+            nonlocal prev_ids
+            environment.intrinsic_evolution_policy = policy
+            environment.intrinsic_evolution_rng = random.Random(self.config.seed)
+            if diversify_goals:
+                n = assign_unique_goals(environment, goal_rng, self.config.goal_genes)
+                logger.info("intrinsic_goals_assigned", arm=arm_name, agents=n)
+            prev_ids = {a.agent_id for a in environment.alive_agent_objects}
+            arm.goal_diversity_start = self._goal_diversity(environment)
+
+        def _on_step_end(environment: Any, step: int) -> None:
+            nonlocal prev_ids
+            if step % self.config.record_interval != 0:
+                return
+            alive = list(environment.alive_agent_objects)
+            current_ids = {a.agent_id for a in alive}
+            births = len(current_ids - prev_ids)
+            deaths = len(prev_ids - current_ids)
+            prev_ids = current_ids
+
+            arm.steps.append(step)
+            arm.population.append(len(alive))
+            arm.births.append(births)
+            arm.deaths.append(deaths)
+
+            self._record_action_mix(arm, alive)
+            self._record_gene_means(arm, alive)
+
+        path = os.path.join(self.config.output_dir, arm_name)
+        os.makedirs(path, exist_ok=True)
+        environment = run_simulation(
+            num_steps=self.config.num_steps,
+            config=run_config,
+            path=path,
+            save_config=True,
+            seed=self.config.seed,
+            disable_console_logging=True,
+            on_environment_ready=_on_environment_ready,
+            on_step_end=_on_step_end,
+        )
+
+        arm.final_population = len(list(environment.alive_agent_objects))
+        arm.goal_diversity_end = self._goal_diversity(environment)
+        return arm
+
+    @staticmethod
+    def _record_action_mix(arm: ArmResult, alive: Sequence[Any]) -> None:
+        counts: Counter = Counter()
+        n_with_action = 0
+        for agent in alive:
+            name = getattr(agent, "last_action_name", None)
+            if name is None:
+                continue
+            counts[name] += 1
+            n_with_action += 1
+        denom = float(n_with_action) if n_with_action > 0 else 1.0
+        for action in arm.action_mix:
+            arm.action_mix[action].append(counts.get(action, 0) / denom)
+
+    def _record_gene_means(self, arm: ArmResult, alive: Sequence[Any]) -> None:
+        per_gene: Dict[str, List[float]] = {gene: [] for gene in self.config.goal_genes}
+        for agent in alive:
+            chromosome = getattr(agent, "hyperparameter_chromosome", None)
+            if chromosome is None:
+                continue
+            weights = reward_weights_from_chromosome(chromosome)
+            for gene in self.config.goal_genes:
+                if gene in weights:
+                    per_gene[gene].append(weights[gene])
+        for gene in self.config.goal_genes:
+            values = per_gene[gene]
+            arm.gene_means[gene].append(statistics.mean(values) if values else 0.0)
+
+    def _goal_diversity(self, environment: Any) -> Dict[str, float]:
+        """Population standard deviation of each goal gene (a diversity proxy)."""
+        per_gene: Dict[str, List[float]] = {gene: [] for gene in self.config.goal_genes}
+        for agent in list(environment.alive_agent_objects):
+            chromosome = getattr(agent, "hyperparameter_chromosome", None)
+            if chromosome is None:
+                continue
+            weights = reward_weights_from_chromosome(chromosome)
+            for gene in self.config.goal_genes:
+                if gene in weights:
+                    per_gene[gene].append(weights[gene])
+        return {
+            gene: (statistics.pstdev(values) if len(values) > 1 else 0.0)
+            for gene, values in per_gene.items()
+        }
+
+    def _build_comparison(self, uniform: ArmResult, unique: ArmResult) -> Dict[str, Any]:
+        u_sum = uniform.summary()
+        q_sum = unique.summary()
+        action_share_delta = {
+            action: q_sum["mean_action_share"].get(action, 0.0)
+            - u_sum["mean_action_share"].get(action, 0.0)
+            for action in uniform.action_mix
+        }
+        return {
+            "final_population_delta": q_sum["final_population"]
+            - u_sum["final_population"],
+            "mean_population_delta": q_sum["mean_population"] - u_sum["mean_population"],
+            "total_births_delta": q_sum["total_births"] - u_sum["total_births"],
+            "total_deaths_delta": q_sum["total_deaths"] - u_sum["total_deaths"],
+            "action_share_delta_unique_minus_uniform": action_share_delta,
+            "start_goal_diversity": {
+                "uniform": u_sum["goal_diversity_start"],
+                "unique": q_sum["goal_diversity_start"],
+            },
+            "end_goal_diversity": {
+                "uniform": u_sum["goal_diversity_end"],
+                "unique": q_sum["goal_diversity_end"],
+            },
+        }
+
+    def _maybe_plot(self, uniform: ArmResult, unique: ArmResult) -> Optional[str]:
+        try:
+            import matplotlib
+
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+        except Exception as exc:  # pragma: no cover - plotting is optional
+            logger.warning("intrinsic_goals_plot_skipped", reason=str(exc))
+            return None
+
+        fig, axes = plt.subplots(2, 2, figsize=(13, 9))
+
+        ax = axes[0][0]
+        ax.plot(uniform.steps, uniform.population, label="uniform goals", color="#1f77b4")
+        ax.plot(unique.steps, unique.population, label="unique goals", color="#d62728")
+        ax.set_title("Population over time")
+        ax.set_xlabel("step")
+        ax.set_ylabel("alive agents")
+        ax.legend()
+
+        # Mean action share per arm (bar comparison).
+        ax = axes[0][1]
+        actions = list(TRACKED_ACTIONS)
+        u_share = [
+            statistics.mean(uniform.action_mix[a]) if uniform.action_mix[a] else 0.0
+            for a in actions
+        ]
+        q_share = [
+            statistics.mean(unique.action_mix[a]) if unique.action_mix[a] else 0.0
+            for a in actions
+        ]
+        x = range(len(actions))
+        ax.bar([i - 0.2 for i in x], u_share, width=0.4, label="uniform", color="#1f77b4")
+        ax.bar([i + 0.2 for i in x], q_share, width=0.4, label="unique", color="#d62728")
+        ax.set_xticks(list(x))
+        ax.set_xticklabels(actions, rotation=45, ha="right")
+        ax.set_title("Mean action mix")
+        ax.set_ylabel("fraction of agents")
+        ax.legend()
+
+        # Goal-gene drift (unique arm): how the population mean of each goal
+        # gene moves under selection.
+        ax = axes[1][0]
+        for gene in self.config.goal_genes:
+            series = unique.gene_means.get(gene, [])
+            if series:
+                ax.plot(unique.steps, series, label=gene.replace("reward_", ""))
+        ax.set_title("Goal-gene population mean (unique arm)")
+        ax.set_xlabel("step")
+        ax.set_ylabel("mean weight")
+        ax.legend(fontsize=7, ncol=2)
+
+        # Goal diversity start vs end (unique arm): std-dev per gene.
+        ax = axes[1][1]
+        genes = list(self.config.goal_genes)
+        start = [unique.goal_diversity_start.get(g, 0.0) for g in genes]
+        end = [unique.goal_diversity_end.get(g, 0.0) for g in genes]
+        y = range(len(genes))
+        ax.barh([i + 0.2 for i in y], start, height=0.4, label="start", color="#2ca02c")
+        ax.barh([i - 0.2 for i in y], end, height=0.4, label="end", color="#9467bd")
+        ax.set_yticks(list(y))
+        ax.set_yticklabels([g.replace("reward_", "") for g in genes], fontsize=7)
+        ax.set_title("Goal diversity (std) start vs end (unique arm)")
+        ax.set_xlabel("population std of gene")
+        ax.legend()
+
+        fig.suptitle("Intrinsic goals: uniform vs unique reward functions", fontsize=14)
+        fig.tight_layout(rect=(0, 0, 1, 0.97))
+        figure_path = os.path.join(
+            self.config.output_dir, "intrinsic_goals_comparison.png"
+        )
+        fig.savefig(figure_path, dpi=120)
+        plt.close(fig)
+        return figure_path
