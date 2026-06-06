@@ -6,6 +6,25 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/devlog/2026-06-04-are-we-measuring-at-the-wrong-level/' | relative_url }}">
+      <span class="post-card__date">2026-06-04</span>
+      <h3 class="post-card__title">Are we measuring at the wrong level?</h3>
+      <p class="post-card__excerpt">
+        Re-scoring the 36-run inheritance A/B at the newborn level. Warm-start
+        produces two small, robust behavioral shifts — slightly fewer negative
+        actions, but slightly lower net RL reward — and neither is a fitness
+        gain; survival and resources don't move. The population-level null
+        wasn't a measurement artifact.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness/' | relative_url }}">The inheritance A/B this follows up</a>,
+      <a href="{{ '/experiments/intrinsic_evolution/inheritance_mode_ab/' | relative_url }}">Inheritance A/B experiment doc</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness/' | relative_url }}">
       <span class="post-card__date">2026-05-21</span>
       <h3 class="post-card__title">Baldwinian vs Lamarckian: policy warm-start across three resource regimes</h3>
