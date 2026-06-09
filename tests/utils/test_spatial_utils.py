@@ -8,7 +8,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-torch = pytest.importorskip("torch")
+import torch
 
 from farm.utils.spatial import bilinear_distribute_value  # noqa: E402
 

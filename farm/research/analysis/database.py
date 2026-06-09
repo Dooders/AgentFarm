@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 
 
 def open_analysis_session(db_path: str) -> Tuple[Engine, Session]:
-    """Open a lightweight read-only SQLAlchemy session for analysis queries.
+    """Open a lightweight SQLAlchemy session for analysis queries.
 
     Analysis only reads existing simulation databases, so it does not need the
     full ``SimulationDatabase`` stack (data logger, buffers, pragmas).
