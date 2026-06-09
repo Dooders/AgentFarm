@@ -195,7 +195,7 @@ class TestSeedModule(unittest.TestCase):
 
 _alphabets = st.sets(
     st.characters(min_codepoint=33, max_codepoint=126), min_size=2, max_size=64
-).map(lambda chars: sorted(chars))
+).map(sorted)
 
 
 class TestEncodingProperties:
