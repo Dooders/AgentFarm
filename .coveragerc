@@ -97,10 +97,14 @@ omit =
     # farm/runners/experiment_runner.py      (tests/runners/test_experiment_runner.py)
     # farm/runners/parallel_experiment_runner.py (tests/runners/test_parallel_experiment_runner.py)
     farm/database/data_retrieval.py
-    farm/database/models.py
     farm/database/simulation.py
-    farm/database/utilities.py
     farm/database/validation.py
+    # Research analysis plotting/orchestration: matplotlib chart pipelines and
+    # the CLI-style entry point, omitted from the gate like other plot modules.
+    # Data-processing modules (analysis.py, database.py, util.py, dataframes.py)
+    # are covered by tests/research/analysis/ and counted in the gate.
+    farm/research/analysis/plotting.py
+    farm/research/analysis/main.py
     farm/utils/chart_analyzer_validator.py
     farm/utils/logging/test_helpers.py
 

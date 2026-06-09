@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from farm.database.database import SimulationDatabase
 from farm.database.models import AgentModel
 from farm.research.analysis.database import (
     find_simulation_databases,
@@ -12,6 +11,7 @@ from farm.research.analysis.database import (
     get_resource_consumption_data,
     get_resource_level_data,
     get_rewards_by_generation,
+    open_analysis_session,
 )
 from farm.research.analysis.plotting import plot_population_trends_across_simulations
 from farm.research.analysis.util import (
@@ -23,6 +23,16 @@ from farm.utils.logging import get_logger
 # EXPERIMENT_DATA_PATH = "results/one_of_a_kind_v1/experiments/data"
 
 logger = get_logger(__name__)
+
+
+def _last_value(series) -> float:
+    """Return the final element of a sequence/array, or 0 when empty or missing.
+
+    Avoids ambiguous truthiness checks on numpy arrays.
+    """
+    if series is None or len(series) == 0:
+        return 0
+    return series[-1]
 
 
 def detect_early_terminations(
@@ -107,27 +117,15 @@ def detect_early_terminations(
                         steps_completed / expected_steps * 100, 1
                     ),
                     "final_populations": {
-                        agent_type: (
-                            populations.get(f"{agent_type}_agents", [])[-1]
-                            if populations.get(f"{agent_type}_agents")
-                            else 0
-                        )
+                        agent_type: _last_value(populations.get(f"{agent_type}_agents"))
                         for agent_type in ["system", "control", "independent"]
                     },
                     "total_final_population": sum(
-                        (
-                            populations.get(f"{agent_type}_agents", [])[-1]
-                            if populations.get(f"{agent_type}_agents")
-                            else 0
-                        )
+                        _last_value(populations.get(f"{agent_type}_agents"))
                         for agent_type in ["system", "control", "independent"]
                     ),
                     "resource_consumption": {
-                        agent_type: (
-                            consumption.get(agent_type, [])[-1]
-                            if agent_type in consumption and consumption[agent_type]
-                            else 0
-                        )
+                        agent_type: _last_value(consumption.get(agent_type))
                         for agent_type in ["system", "control", "independent"]
                     },
                 }
@@ -315,18 +313,16 @@ def process_experiment_rewards_by_generation(
                     continue
 
                 # Get agent types for each generation
-                db = SimulationDatabase(db_path)
-                session = db.Session()
-
-                # Query to get generations and their agent types
-                gen_types = (
-                    session.query(AgentModel.generation, AgentModel.agent_type)
-                    .distinct()
-                    .all()
-                )
-
-                session.close()
-                db.close()
+                engine, session = open_analysis_session(db_path)
+                try:
+                    gen_types = (
+                        session.query(AgentModel.generation, AgentModel.agent_type)
+                        .distinct()
+                        .all()
+                    )
+                finally:
+                    session.close()
+                    engine.dispose()
 
                 # Map generations to agent types
                 gen_to_type = {}

@@ -3,9 +3,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from sqlalchemy import func
+from sqlalchemy import create_engine, func
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session, sessionmaker
 
-from farm.database.database import SimulationDatabase
 from farm.database.utils import extract_agent_counts_from_json
 from farm.database.models import (
     ActionModel,
@@ -19,6 +20,22 @@ from farm.research.analysis.util import (
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def open_analysis_session(db_path: str) -> Tuple[Engine, Session]:
+    """Open a lightweight read-only SQLAlchemy session for analysis queries.
+
+    Analysis only reads existing simulation databases, so it does not need the
+    full ``SimulationDatabase`` stack (data logger, buffers, pragmas).
+
+    Returns
+    -------
+    Tuple[Engine, Session]
+        The engine (dispose after use) and an open session (close after use).
+    """
+    engine = create_engine(f"sqlite:///{db_path}")
+    session = sessionmaker(bind=engine)()
+    return engine, session
 
 
 def find_simulation_databases(base_path: str) -> List[str]:
@@ -64,11 +81,10 @@ def get_columns_data(
         logger.error(f"Database file not found: {experiment_db_path}")
         return None
 
-    db = None
+    engine = None
     session = None
     try:
-        db = SimulationDatabase(experiment_db_path)
-        session = db.Session()
+        engine, session = open_analysis_session(experiment_db_path)
 
         # Validate requested columns exist
         for col in columns:
@@ -133,8 +149,8 @@ def get_columns_data(
     finally:
         if session:
             session.close()
-        if db:
-            db.close()
+        if engine:
+            engine.dispose()
 
 
 def get_data(experiment_db_path: str) -> Optional[Tuple[np.ndarray, np.ndarray, int]]:
@@ -160,11 +176,10 @@ def get_columns_data_by_agent_type(
         logger.error(f"Database file not found: {experiment_db_path}")
         return None
 
-    db = None
+    engine = None
     session = None
     try:
-        db = SimulationDatabase(experiment_db_path)
-        session = db.Session()
+        engine, session = open_analysis_session(experiment_db_path)
 
         # Query steps with agent_type_counts
         query = (
@@ -213,8 +228,8 @@ def get_columns_data_by_agent_type(
     finally:
         if session:
             session.close()
-        if db:
-            db.close()
+        if engine:
+            engine.dispose()
 
 
 def get_resource_consumption_data(
@@ -236,11 +251,10 @@ def get_resource_consumption_data(
         logger.error(f"Database file not found: {experiment_db_path}")
         return None
 
-    db = None
+    engine = None
     session = None
     try:
-        db = SimulationDatabase(experiment_db_path)
-        session = db.Session()
+        engine, session = open_analysis_session(experiment_db_path)
 
         # Query steps with agent_type_counts and resources_consumed
         query = (
@@ -292,8 +306,8 @@ def get_resource_consumption_data(
     finally:
         if session:
             session.close()
-        if db:
-            db.close()
+        if engine:
+            engine.dispose()
 
 
 def get_action_distribution_data(experiment_db_path: str) -> Dict[str, Dict[str, int]]:
@@ -310,11 +324,10 @@ def get_action_distribution_data(experiment_db_path: str) -> Dict[str, Dict[str,
         logger.error(f"Database file not found: {experiment_db_path}")
         return {}
 
-    db = None
+    engine = None
     session = None
     try:
-        db = SimulationDatabase(experiment_db_path)
-        session = db.Session()
+        engine, session = open_analysis_session(experiment_db_path)
 
         # Query to get agent types
         agent_types = session.query(AgentModel.agent_type).distinct().all()
@@ -349,8 +362,8 @@ def get_action_distribution_data(experiment_db_path: str) -> Dict[str, Dict[str,
     finally:
         if session:
             session.close()
-        if db:
-            db.close()
+        if engine:
+            engine.dispose()
 
 
 def get_resource_level_data(
@@ -393,11 +406,10 @@ def get_rewards_by_generation(experiment_db_path: str) -> Dict[int, float]:
         logger.error(f"Database file not found: {experiment_db_path}")
         return {}
 
-    db = None
+    engine = None
     session = None
     try:
-        db = SimulationDatabase(experiment_db_path)
-        session = db.Session()
+        engine, session = open_analysis_session(experiment_db_path)
 
         # Query to get average reward by generation
         # Join agents with their actions that have learning module metadata
@@ -439,5 +451,5 @@ def get_rewards_by_generation(experiment_db_path: str) -> Dict[int, float]:
     finally:
         if session:
             session.close()
-        if db:
-            db.close()
+        if engine:
+            engine.dispose()
