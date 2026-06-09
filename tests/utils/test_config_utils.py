@@ -9,6 +9,20 @@ from farm.utils.config_utils import (
 )
 
 
+class _ExplodingAttr:
+    """Config whose attribute access raises a non-AttributeError exception."""
+
+    def __init__(self, exc_type):
+        self._exc_type = exc_type
+
+    @property
+    def perception_radius(self):
+        raise self._exc_type("boom")
+
+    agent_behavior = perception_radius
+    environment = perception_radius
+
+
 class TestGetConfigValue:
     def test_returns_value_when_present_and_typed(self):
         config = SimpleNamespace(perception_radius=5)
@@ -31,6 +45,12 @@ class TestGetConfigValue:
     def test_float_value_accepted_by_default(self):
         config = SimpleNamespace(ratio=0.5)
         assert get_config_value(config, "ratio", 1.0) == 0.5
+
+    def test_attribute_access_error_returns_default(self):
+        # getattr only swallows AttributeError; a TypeError from a property
+        # must be caught by the helper itself.
+        config = _ExplodingAttr(TypeError)
+        assert get_config_value(config, "perception_radius", 2) == 2
 
 
 class TestGetNestedThenFlat:
@@ -104,6 +124,17 @@ class TestGetNestedThenFlat:
         )
         assert result is True
 
+    def test_unexpected_error_during_lookup_returns_default(self):
+        config = _ExplodingAttr(RuntimeError)
+        result = get_nested_then_flat(
+            config=config,
+            nested_parent_attr="agent_behavior",
+            nested_attr_name="perception_radius",
+            flat_attr_name="perception_radius",
+            default_value=1,
+        )
+        assert result == 1
+
     def test_skips_nested_lookup_when_parent_attr_none(self):
         config = SimpleNamespace(perception_radius=4)
         result = get_nested_then_flat(
@@ -131,3 +162,6 @@ class TestResolveSpatialIndexConfig:
     def test_missing_spatial_index_returns_none(self):
         config = SimpleNamespace(environment=SimpleNamespace())
         assert resolve_spatial_index_config(config) is None
+
+    def test_unexpected_error_returns_none(self):
+        assert resolve_spatial_index_config(_ExplodingAttr(RuntimeError)) is None
