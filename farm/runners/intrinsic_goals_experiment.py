@@ -454,14 +454,12 @@ class IntrinsicGoalsExperiment:
     @staticmethod
     def _record_action_mix(arm: ArmResult, alive: Sequence[Any]) -> None:
         counts: Counter = Counter()
-        n_with_action = 0
         for agent in alive:
             name = getattr(agent, "last_action_name", None)
             if name is None:
                 continue
             counts[name] += 1
-            n_with_action += 1
-        denom = float(n_with_action) if n_with_action > 0 else 1.0
+        denom = float(len(alive)) if alive else 1.0
         for action in arm.action_mix:
             arm.action_mix[action].append(counts.get(action, 0) / denom)
 
@@ -706,13 +704,24 @@ class IntrinsicGoalsExperiment:
 
         # 1) Population over time: mean +/- std band across replicates.
         ax = axes[0][0]
-        steps = replicates[0].uniform.steps
-        u_stack = np.array(
-            [r.uniform.population for r in replicates], dtype=float
+        max_len = max(
+            len(pop)
+            for r in replicates
+            for pop in (r.uniform.population, r.unique.population)
         )
-        q_stack = np.array(
-            [r.unique.population for r in replicates], dtype=float
-        )
+        steps = None
+        for r in replicates:
+            for arm in (r.uniform, r.unique):
+                if len(arm.population) == max_len:
+                    steps = arm.steps
+                    break
+            if steps is not None:
+                break
+        u_stack = np.zeros((len(replicates), max_len), dtype=float)
+        q_stack = np.zeros((len(replicates), max_len), dtype=float)
+        for i, r in enumerate(replicates):
+            u_stack[i, : len(r.uniform.population)] = r.uniform.population
+            q_stack[i, : len(r.unique.population)] = r.unique.population
         for stack, label, color in (
             (u_stack, "uniform", "#1f77b4"),
             (q_stack, "unique", "#d62728"),
