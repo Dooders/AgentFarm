@@ -2,6 +2,9 @@
 import uuid
 import unittest
 
+from hypothesis import given
+from hypothesis import strategies as st
+
 from farm.utils.short_id import (
     ShortUUID,
     int_to_string,
@@ -188,6 +191,38 @@ class TestShortUUID(unittest.TestCase):
 class TestSeedModule(unittest.TestCase):
     def test_seed_is_short_uuid(self):
         self.assertIsInstance(seed, ShortUUID)
+
+
+_alphabets = st.sets(
+    st.characters(min_codepoint=33, max_codepoint=126), min_size=2, max_size=64
+).map(lambda chars: sorted(chars))
+
+
+class TestEncodingProperties:
+    """Hypothesis round-trip invariants for the base-N codec."""
+
+    @given(number=st.integers(min_value=0, max_value=2**256), alphabet=_alphabets)
+    def test_int_round_trip(self, number, alphabet):
+        encoded = int_to_string(number, alphabet)
+        assert string_to_int(encoded, alphabet) == number
+
+    @given(number=st.integers(min_value=0, max_value=2**128), padding=st.integers(1, 64))
+    def test_padding_guarantees_minimum_length(self, number, padding):
+        alphabet = list("0123456789abcdef")
+        encoded = int_to_string(number, alphabet, padding=padding)
+        assert len(encoded) >= padding
+        assert string_to_int(encoded, alphabet) == number
+
+    @given(uuid_int=st.integers(min_value=0, max_value=2**128 - 1))
+    def test_uuid_encode_decode_round_trip(self, uuid_int):
+        su = ShortUUID()
+        original = uuid.UUID(int=uuid_int)
+        assert su.decode(su.encode(original)) == original
+
+    @given(uuid_int=st.integers(min_value=0, max_value=2**128 - 1))
+    def test_encoded_uuid_length_is_stable(self, uuid_int):
+        su = ShortUUID()
+        assert len(su.encode(uuid.UUID(int=uuid_int))) == su._length
 
 
 class TestGenerateSimulationId(unittest.TestCase):

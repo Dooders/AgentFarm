@@ -102,7 +102,6 @@ omit =
     farm/database/utilities.py
     farm/database/validation.py
     farm/utils/chart_analyzer_validator.py
-    farm/utils/config_utils.py
     farm/utils/logging/test_helpers.py
 
 exclude_lines =
