@@ -4,7 +4,6 @@ Combines example-based tests with Hypothesis property tests for the
 continuous-to-discrete position conversion used by the spatial grid.
 """
 
-import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
