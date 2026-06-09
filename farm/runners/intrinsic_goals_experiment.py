@@ -40,6 +40,9 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+import numpy as np
+from scipy import stats as scipy_stats
+
 from farm.config import SimulationConfig
 from farm.core.hyperparameter_chromosome import (
     INTRINSIC_REWARD_GENE_NAMES,
@@ -126,6 +129,13 @@ class IntrinsicGoalsExperimentConfig:
     output_dir: str = "experiments/intrinsic_goals"
     record_interval: int = 1
 
+    # Number of paired replicates.  Replicate ``r`` runs both arms with
+    # ``seed + r`` so the two arms stay matched while the ensemble samples
+    # run-to-run stochasticity.  ``num_replicates > 1`` unlocks the aggregate
+    # statistics (per-arm mean/std and paired t-tests on the unique-vs-uniform
+    # deltas) that are required to actually *assess* the effect.
+    num_replicates: int = 1
+
     # Genes that define an agent's goal and are diversified in the ``unique`` arm.
     goal_genes: Tuple[str, ...] = INTRINSIC_REWARD_GENE_NAMES
 
@@ -151,6 +161,8 @@ class IntrinsicGoalsExperimentConfig:
             raise ValueError("num_steps must be positive.")
         if self.record_interval <= 0:
             raise ValueError("record_interval must be positive.")
+        if self.num_replicates <= 0:
+            raise ValueError("num_replicates must be positive.")
         object.__setattr__(self, "mutation_mode", MutationMode(self.mutation_mode))
         object.__setattr__(self, "boundary_mode", BoundaryMode(self.boundary_mode))
 
@@ -203,12 +215,31 @@ class ArmResult:
 
 
 @dataclass
+class ReplicateResult:
+    """Both arms of a single paired replicate (one shared seed)."""
+
+    index: int
+    seed: int
+    uniform: ArmResult
+    unique: ArmResult
+    comparison: Dict[str, Any]
+
+
+@dataclass
 class IntrinsicGoalsResult:
-    """Combined result of both experiment arms."""
+    """Combined result of the experiment.
+
+    ``uniform``/``unique``/``comparison`` mirror the first replicate so a
+    single-replicate run behaves exactly as before.  ``replicates`` holds every
+    paired run and ``aggregate`` holds the cross-replicate statistics (present
+    only when ``num_replicates > 1``).
+    """
 
     uniform: ArmResult
     unique: ArmResult
     comparison: Dict[str, Any]
+    replicates: List[ReplicateResult] = field(default_factory=list)
+    aggregate: Optional[Dict[str, Any]] = None
     summary_path: Optional[str] = None
     figure_path: Optional[str] = None
 
@@ -229,30 +260,58 @@ class IntrinsicGoalsExperiment:
     # ------------------------------------------------------------------
 
     def run(self) -> IntrinsicGoalsResult:
-        """Run both arms and write the summary + comparison figure."""
+        """Run every paired replicate and write the summary + figure(s)."""
         os.makedirs(self.config.output_dir, exist_ok=True)
 
-        uniform = self._run_arm("uniform", diversify_goals=False)
-        unique = self._run_arm("unique", diversify_goals=True)
+        replicates: List[ReplicateResult] = []
+        for index in range(self.config.num_replicates):
+            seed = self.config.seed + index
+            logger.info(
+                "intrinsic_goals_replicate_start",
+                replicate=index,
+                seed=seed,
+                total=self.config.num_replicates,
+            )
+            replicates.append(self._run_replicate(index, seed))
 
-        comparison = self._build_comparison(uniform, unique)
+        first = replicates[0]
+        aggregate = (
+            self._aggregate(replicates) if self.config.num_replicates > 1 else None
+        )
 
         result = IntrinsicGoalsResult(
-            uniform=uniform, unique=unique, comparison=comparison
+            uniform=first.uniform,
+            unique=first.unique,
+            comparison=first.comparison,
+            replicates=replicates,
+            aggregate=aggregate,
         )
 
         summary_payload = {
             "config": {
                 "num_steps": self.config.num_steps,
                 "seed": self.config.seed,
+                "num_replicates": self.config.num_replicates,
                 "goal_genes": list(self.config.goal_genes),
                 "mutation_rate": self.config.mutation_rate,
                 "mutation_scale": self.config.mutation_scale,
                 "selection_pressure": self.config.selection_pressure,
             },
-            "uniform": uniform.summary(),
-            "unique": unique.summary(),
-            "comparison": comparison,
+            "replicates": [
+                {
+                    "index": rep.index,
+                    "seed": rep.seed,
+                    "uniform": rep.uniform.summary(),
+                    "unique": rep.unique.summary(),
+                    "comparison": rep.comparison,
+                }
+                for rep in replicates
+            ],
+            "aggregate": aggregate,
+            # Top-level convenience mirror of the first replicate.
+            "uniform": first.uniform.summary(),
+            "unique": first.unique.summary(),
+            "comparison": first.comparison,
         }
         result.summary_path = os.path.join(
             self.config.output_dir, "intrinsic_goals_summary.json"
@@ -260,16 +319,37 @@ class IntrinsicGoalsExperiment:
         with open(result.summary_path, "w", encoding="utf-8") as handle:
             json.dump(summary_payload, handle, indent=2, default=str)
 
-        result.figure_path = self._maybe_plot(uniform, unique)
+        if self.config.num_replicates > 1:
+            result.figure_path = self._maybe_plot_aggregate(replicates, aggregate)
+        else:
+            result.figure_path = self._maybe_plot(first.uniform, first.unique)
 
         logger.info(
             "intrinsic_goals_experiment_complete",
             summary_path=result.summary_path,
             figure_path=result.figure_path,
-            uniform_final_pop=uniform.final_population,
-            unique_final_pop=unique.final_population,
+            num_replicates=self.config.num_replicates,
         )
         return result
+
+    def _run_replicate(self, index: int, seed: int) -> ReplicateResult:
+        """Run both arms with a single shared seed and pair their results."""
+        if self.config.num_replicates > 1:
+            rep_dir = os.path.join(self.config.output_dir, f"rep_{index:02d}")
+        else:
+            rep_dir = self.config.output_dir
+        os.makedirs(rep_dir, exist_ok=True)
+
+        uniform = self._run_arm("uniform", False, seed, rep_dir)
+        unique = self._run_arm("unique", True, seed, rep_dir)
+        comparison = self._build_comparison(uniform, unique)
+        return ReplicateResult(
+            index=index,
+            seed=seed,
+            uniform=uniform,
+            unique=unique,
+            comparison=comparison,
+        )
 
     # ------------------------------------------------------------------
     # Internals
@@ -292,7 +372,7 @@ class IntrinsicGoalsExperiment:
             )
         return run_config
 
-    def _make_policy(self) -> IntrinsicEvolutionPolicy:
+    def _make_policy(self, seed: int) -> IntrinsicEvolutionPolicy:
         return IntrinsicEvolutionPolicy(
             enabled=True,
             mutation_rate=self.config.mutation_rate,
@@ -300,16 +380,23 @@ class IntrinsicGoalsExperiment:
             mutation_mode=self.config.mutation_mode,
             boundary_mode=self.config.boundary_mode,
             selection_pressure=self.config.selection_pressure,
-            seed=self.config.seed,
+            seed=seed,
         )
 
-    def _run_arm(self, arm_name: str, diversify_goals: bool) -> ArmResult:
-        logger.info("intrinsic_goals_arm_start", arm=arm_name, diversify=diversify_goals)
+    def _run_arm(
+        self, arm_name: str, diversify_goals: bool, seed: int, out_dir: str
+    ) -> ArmResult:
+        logger.info(
+            "intrinsic_goals_arm_start",
+            arm=arm_name,
+            diversify=diversify_goals,
+            seed=seed,
+        )
         run_config = self._build_run_config()
-        policy = self._make_policy()
+        policy = self._make_policy(seed)
         # A dedicated RNG for goal sampling keeps the two arms aligned on the
         # shared simulation seed while still giving reproducible goals.
-        goal_rng = random.Random(self.config.seed + 1)
+        goal_rng = random.Random(seed + 1)
 
         arm = ArmResult(arm=arm_name)
         for action in TRACKED_ACTIONS:
@@ -322,7 +409,7 @@ class IntrinsicGoalsExperiment:
         def _on_environment_ready(environment: Any) -> None:
             nonlocal prev_ids
             environment.intrinsic_evolution_policy = policy
-            environment.intrinsic_evolution_rng = random.Random(self.config.seed)
+            environment.intrinsic_evolution_rng = random.Random(seed)
             if diversify_goals:
                 n = assign_unique_goals(environment, goal_rng, self.config.goal_genes)
                 logger.info("intrinsic_goals_assigned", arm=arm_name, agents=n)
@@ -347,14 +434,14 @@ class IntrinsicGoalsExperiment:
             self._record_action_mix(arm, alive)
             self._record_gene_means(arm, alive)
 
-        path = os.path.join(self.config.output_dir, arm_name)
+        path = os.path.join(out_dir, arm_name)
         os.makedirs(path, exist_ok=True)
         environment = run_simulation(
             num_steps=self.config.num_steps,
             config=run_config,
             path=path,
             save_config=True,
-            seed=self.config.seed,
+            seed=seed,
             disable_console_logging=True,
             on_environment_ready=_on_environment_ready,
             on_step_end=_on_step_end,
@@ -433,6 +520,101 @@ class IntrinsicGoalsExperiment:
             },
         }
 
+    # ------------------------------------------------------------------
+    # Aggregation across replicates
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _scalar_metrics(summary: Dict[str, Any]) -> Dict[str, float]:
+        """Flatten one arm summary into the scalar metrics we aggregate."""
+        metrics: Dict[str, float] = {
+            "mean_population": float(summary["mean_population"]),
+            "final_population": float(summary["final_population"]),
+            "peak_population": float(summary["peak_population"]),
+            "total_births": float(summary["total_births"]),
+            "total_deaths": float(summary["total_deaths"]),
+        }
+        for action, share in summary["mean_action_share"].items():
+            metrics[f"action_share[{action}]"] = float(share)
+        metrics["goal_diversity_end_sum"] = float(
+            sum(summary["goal_diversity_end"].values())
+        )
+        return metrics
+
+    def _aggregate(self, replicates: Sequence[ReplicateResult]) -> Dict[str, Any]:
+        """Compute per-arm descriptive stats and paired unique-vs-uniform tests.
+
+        For every scalar metric we report each arm's mean/std/sem across
+        replicates, and a *paired* analysis of the per-seed delta
+        (unique - uniform): mean, std, sem, a 95% CI, and a two-sided paired
+        t-test (``scipy.stats.ttest_rel``).  Pairing removes shared
+        seed-level variance, which is the whole reason the two arms share a
+        seed.
+        """
+        uniform_metrics = [
+            self._scalar_metrics(rep.uniform.summary()) for rep in replicates
+        ]
+        unique_metrics = [
+            self._scalar_metrics(rep.unique.summary()) for rep in replicates
+        ]
+        metric_names = list(uniform_metrics[0].keys())
+        n = len(replicates)
+
+        def _describe(values: np.ndarray) -> Dict[str, float]:
+            std = float(np.std(values, ddof=1)) if values.size > 1 else 0.0
+            sem = std / np.sqrt(values.size) if values.size > 1 else 0.0
+            return {
+                "mean": float(np.mean(values)),
+                "std": std,
+                "sem": float(sem),
+                "min": float(np.min(values)),
+                "max": float(np.max(values)),
+            }
+
+        per_arm: Dict[str, Dict[str, Any]] = {"uniform": {}, "unique": {}}
+        paired: Dict[str, Any] = {}
+        for name in metric_names:
+            u_vals = np.array([m[name] for m in uniform_metrics], dtype=float)
+            q_vals = np.array([m[name] for m in unique_metrics], dtype=float)
+            per_arm["uniform"][name] = _describe(u_vals)
+            per_arm["unique"][name] = _describe(q_vals)
+
+            deltas = q_vals - u_vals
+            d_mean = float(np.mean(deltas))
+            d_std = float(np.std(deltas, ddof=1)) if n > 1 else 0.0
+            d_sem = d_std / np.sqrt(n) if n > 1 else 0.0
+            if n > 1 and d_sem > 0.0:
+                t_crit = float(scipy_stats.t.ppf(0.975, df=n - 1))
+                ci = [d_mean - t_crit * d_sem, d_mean + t_crit * d_sem]
+                t_res = scipy_stats.ttest_rel(q_vals, u_vals)
+                t_stat = float(t_res.statistic)
+                p_value = float(t_res.pvalue)
+                # Cohen's dz for paired samples.
+                cohen_dz = d_mean / d_std if d_std > 0 else 0.0
+            else:
+                ci = [d_mean, d_mean]
+                t_stat = float("nan")
+                p_value = float("nan")
+                cohen_dz = 0.0
+            paired[name] = {
+                "delta_mean": d_mean,
+                "delta_std": d_std,
+                "delta_sem": float(d_sem),
+                "ci95": ci,
+                "t_stat": t_stat,
+                "p_value": p_value,
+                "cohen_dz": cohen_dz,
+                "significant_p05": bool(p_value < 0.05) if p_value == p_value else False,
+                "n": n,
+            }
+
+        return {
+            "num_replicates": n,
+            "seeds": [rep.seed for rep in replicates],
+            "per_arm": per_arm,
+            "paired_deltas": paired,
+        }
+
     def _maybe_plot(self, uniform: ArmResult, unique: ArmResult) -> Optional[str]:
         try:
             import matplotlib
@@ -503,6 +685,122 @@ class IntrinsicGoalsExperiment:
         fig.tight_layout(rect=(0, 0, 1, 0.97))
         figure_path = os.path.join(
             self.config.output_dir, "intrinsic_goals_comparison.png"
+        )
+        fig.savefig(figure_path, dpi=120)
+        plt.close(fig)
+        return figure_path
+
+    def _maybe_plot_aggregate(
+        self, replicates: Sequence[ReplicateResult], aggregate: Dict[str, Any]
+    ) -> Optional[str]:
+        try:
+            import matplotlib
+
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+        except Exception as exc:  # pragma: no cover - plotting is optional
+            logger.warning("intrinsic_goals_plot_skipped", reason=str(exc))
+            return None
+
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+        # 1) Population over time: mean +/- std band across replicates.
+        ax = axes[0][0]
+        steps = replicates[0].uniform.steps
+        u_stack = np.array(
+            [r.uniform.population for r in replicates], dtype=float
+        )
+        q_stack = np.array(
+            [r.unique.population for r in replicates], dtype=float
+        )
+        for stack, label, color in (
+            (u_stack, "uniform", "#1f77b4"),
+            (q_stack, "unique", "#d62728"),
+        ):
+            mean = stack.mean(axis=0)
+            std = stack.std(axis=0, ddof=1) if stack.shape[0] > 1 else np.zeros_like(mean)
+            ax.plot(steps, mean, label=f"{label} (mean)", color=color)
+            ax.fill_between(steps, mean - std, mean + std, color=color, alpha=0.2)
+        ax.set_title(f"Population over time (n={len(replicates)} seeds, mean ± std)")
+        ax.set_xlabel("step")
+        ax.set_ylabel("alive agents")
+        ax.legend()
+
+        # 2) Mean action share per arm with std error bars across replicates.
+        ax = axes[0][1]
+        actions = list(TRACKED_ACTIONS)
+        per_arm = aggregate["per_arm"]
+        u_mean = [per_arm["uniform"][f"action_share[{a}]"]["mean"] for a in actions]
+        u_std = [per_arm["uniform"][f"action_share[{a}]"]["std"] for a in actions]
+        q_mean = [per_arm["unique"][f"action_share[{a}]"]["mean"] for a in actions]
+        q_std = [per_arm["unique"][f"action_share[{a}]"]["std"] for a in actions]
+        x = np.arange(len(actions))
+        ax.bar(x - 0.2, u_mean, yerr=u_std, width=0.4, label="uniform",
+               color="#1f77b4", capsize=3)
+        ax.bar(x + 0.2, q_mean, yerr=q_std, width=0.4, label="unique",
+               color="#d62728", capsize=3)
+        ax.set_xticks(list(x))
+        ax.set_xticklabels(actions, rotation=45, ha="right")
+        ax.set_title("Mean action mix (± std across seeds)")
+        ax.set_ylabel("fraction of agents")
+        ax.legend()
+
+        # 3) Paired deltas (unique - uniform) with 95% CI for key metrics.
+        ax = axes[1][0]
+        key_metrics = [
+            "mean_population",
+            "final_population",
+            "peak_population",
+            "total_births",
+            "total_deaths",
+        ]
+        paired = aggregate["paired_deltas"]
+        means = [paired[m]["delta_mean"] for m in key_metrics]
+        errs = [
+            (paired[m]["ci95"][1] - paired[m]["ci95"][0]) / 2.0 for m in key_metrics
+        ]
+        y = np.arange(len(key_metrics))
+        colors = [
+            "#2ca02c" if paired[m]["significant_p05"] else "#7f7f7f"
+            for m in key_metrics
+        ]
+        ax.barh(y, means, xerr=errs, color=colors, capsize=4)
+        ax.axvline(0.0, color="black", linewidth=0.8)
+        ax.set_yticks(list(y))
+        ax.set_yticklabels(key_metrics)
+        ax.set_title("Paired delta (unique − uniform), 95% CI\ngreen = p<0.05")
+        ax.set_xlabel("Δ (unique − uniform)")
+
+        # 4) Per-action-share paired deltas with 95% CI.
+        ax = axes[1][1]
+        means = [paired[f"action_share[{a}]"]["delta_mean"] for a in actions]
+        errs = [
+            (
+                paired[f"action_share[{a}]"]["ci95"][1]
+                - paired[f"action_share[{a}]"]["ci95"][0]
+            )
+            / 2.0
+            for a in actions
+        ]
+        colors = [
+            "#2ca02c" if paired[f"action_share[{a}]"]["significant_p05"] else "#7f7f7f"
+            for a in actions
+        ]
+        y = np.arange(len(actions))
+        ax.barh(y, means, xerr=errs, color=colors, capsize=4)
+        ax.axvline(0.0, color="black", linewidth=0.8)
+        ax.set_yticks(list(y))
+        ax.set_yticklabels(actions)
+        ax.set_title("Action-share Δ (unique − uniform), 95% CI\ngreen = p<0.05")
+        ax.set_xlabel("Δ fraction of agents")
+
+        fig.suptitle(
+            f"Intrinsic goals: uniform vs unique ({len(replicates)} paired seeds)",
+            fontsize=14,
+        )
+        fig.tight_layout(rect=(0, 0, 1, 0.96))
+        figure_path = os.path.join(
+            self.config.output_dir, "intrinsic_goals_aggregate.png"
         )
         fig.savefig(figure_path, dpi=120)
         plt.close(fig)

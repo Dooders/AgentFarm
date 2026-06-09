@@ -6,6 +6,27 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/devlog/2026-06-09-every-agent-a-different-goal/' | relative_url }}">
+      <span class="post-card__date">2026-06-09</span>
+      <h3 class="post-card__title">When every agent has a different goal</h3>
+      <p class="post-card__excerpt">
+        Making the reward function itself a per-agent, heritable trait. Across
+        20 paired seeds, a population where each agent optimizes a different
+        randomly-drawn objective carries ~40% fewer agents than the matched
+        hand-tuned control and collapses its behavior toward gathering
+        (+16.9pp). The goal diversity persists for the whole run, and every
+        effect is huge and significant — un-curated objective diversity lowers
+        collective fitness.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/experiments/intrinsic_evolution/intrinsic_goals/' | relative_url }}">Intrinsic goals experiment doc</a>,
+      <a href="{{ '/design/hyperparameter_chromosome/' | relative_url }}">Hyperparameter chromosome design</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/devlog/2026-06-04-are-we-measuring-at-the-wrong-level/' | relative_url }}">
       <span class="post-card__date">2026-06-04</span>
       <h3 class="post-card__title">Are we measuring at the wrong level?</h3>

@@ -58,6 +58,16 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-steps", type=int, default=600)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
+        "--num-replicates",
+        type=int,
+        default=1,
+        help=(
+            "Number of paired replicates. Replicate r runs both arms with "
+            "seed+r. Use >1 to get per-arm mean/std and paired t-tests on the "
+            "unique-vs-uniform deltas (required to statistically assess the effect)."
+        ),
+    )
+    parser.add_argument(
         "--output-dir", type=str, default="experiments/intrinsic_goals"
     )
     parser.add_argument("--record-interval", type=int, default=1)
@@ -136,6 +146,7 @@ def main() -> int:
     config = IntrinsicGoalsExperimentConfig(
         num_steps=args.num_steps,
         seed=args.seed,
+        num_replicates=args.num_replicates,
         output_dir=args.output_dir,
         record_interval=args.record_interval,
         mutation_rate=args.mutation_rate,
@@ -161,6 +172,7 @@ def main() -> int:
         environment=args.environment,
         num_steps=args.num_steps,
         seed=args.seed,
+        num_replicates=args.num_replicates,
         output_dir=args.output_dir,
     )
 
@@ -172,9 +184,11 @@ def main() -> int:
         json.dumps(
             {
                 "elapsed_seconds": round(elapsed, 3),
+                "num_replicates": args.num_replicates,
                 "summary_path": result.summary_path,
                 "figure_path": result.figure_path,
                 "comparison": result.comparison,
+                "aggregate": result.aggregate,
             },
             indent=2,
             default=str,
