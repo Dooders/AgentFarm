@@ -50,6 +50,14 @@ jobs:
         run: |
           timeout 10m python -m pytest -vv -o addopts='' \
             tests/test_deterministic_pytest.py::test_determinism_regression_critical \
+            tests/test_deterministic_pytest.py::test_different_seeds_produce_different_results \
+            --tb=short \
+            --durations=10
+
+      - name: Run cross-process determinism tests
+        run: |
+          timeout 15m python -m pytest -vv -o addopts='' \
+            tests/test_cross_process_determinism.py \
             --tb=short \
             --durations=10
 
