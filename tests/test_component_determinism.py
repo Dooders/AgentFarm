@@ -31,6 +31,20 @@ from farm.config import SimulationConfig
 from tests.conftest import seed_all_rngs, capture_component_state
 
 
+def create_mock_db():
+    """
+    Create a mock simulation database whose genome-id lookups report "not found".
+
+    A bare ``Mock()`` returns truthy Mock objects from ``_execute_in_transaction``,
+    which sends ``Identity.genome_id``'s uniqueness loop into infinite counter
+    probing (and unbounded mock-call recording) once an agent successfully
+    reproduces.
+    """
+    mock_db = Mock()
+    mock_db._execute_in_transaction.return_value = False
+    return mock_db
+
+
 def run_seeded_trajectory(seed, create_agent, steps, record, prepare=None):
     """
     Seed all RNGs once, create an agent, and step it while recording observations.
@@ -148,7 +162,7 @@ class TestResourceComponentDeterminism:
             seed=seed
         )
         with patch("farm.database.utilities.setup_db") as mock_setup_db:
-            mock_setup_db.return_value = Mock()
+            mock_setup_db.return_value = create_mock_db()
             env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
             
             # Create services from environment
@@ -221,7 +235,7 @@ class TestReproductionComponentDeterminism:
             seed=seed
         )
         with patch("farm.database.utilities.setup_db") as mock_setup_db:
-            mock_setup_db.return_value = Mock()
+            mock_setup_db.return_value = create_mock_db()
             env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
             
             # Create services from environment
@@ -283,7 +297,7 @@ class TestMovementComponentDeterminism:
             seed=seed
         )
         with patch("farm.database.utilities.setup_db") as mock_setup_db:
-            mock_setup_db.return_value = Mock()
+            mock_setup_db.return_value = create_mock_db()
             env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
             
             # Create services from environment
@@ -342,7 +356,7 @@ class TestComponentIntegrationDeterminism:
             seed=seed
         )
         with patch("farm.database.utilities.setup_db") as mock_setup_db:
-            mock_setup_db.return_value = Mock()
+            mock_setup_db.return_value = create_mock_db()
             env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
             
             # Create services from environment
