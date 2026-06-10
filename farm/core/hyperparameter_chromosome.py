@@ -409,6 +409,16 @@ DEFAULT_GENE_ENCODINGS: Dict[str, GeneEncodingSpec] = {
     "attack_starvation_threshold": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
     "attack_defense_threshold": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
     "reproduce_resource_threshold": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    # ── Chromosome C: intrinsic reward / goal weights ─────────────────────────
+    "reward_resource_weight": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reward_health_weight": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reward_survival_weight": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reward_death_penalty": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reward_action_bonus": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reward_gather_bonus": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reward_share_bonus": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reward_attack_bonus": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "reward_reproduce_bonus": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
 }
 
 # Smallest positive IEEE-754 binary64; mirrors DecisionConfig allowing any (0, 1].
@@ -713,7 +723,160 @@ DEFAULT_HYPERPARAMETER_GENES: Tuple[HyperparameterGene, ...] = (
         default=0.7,
         evolvable=True,
     ),
+    # ── Chromosome C: intrinsic reward / goal weights ─────────────────────────
+    #
+    # These genes parameterize the per-step RL reward computed in
+    # :meth:`farm.core.agent.core.AgentCore._calculate_reward`.  They define the
+    # agent's *intrinsic goal*: what state changes and which actions it finds
+    # rewarding.  Unlike Chromosomes A and B, these gene names do **not** exist
+    # on :class:`~farm.core.decision.config.DecisionConfig`, so
+    # :func:`apply_chromosome_to_learning_config` leaves them untouched and the
+    # reward function reads them straight off the chromosome.
+    #
+    # Defaults are chosen so an agent carrying the default chromosome receives
+    # exactly the historical reward formula (resource_delta * 0.1 +
+    # health_delta * 0.5 + survival/death + 0.05 per non-pass action); the four
+    # per-action bonus genes default to 0.0 so they are inert until evolved.
+    HyperparameterGene(
+        name="reward_resource_weight",
+        value_type=GeneValueType.REAL,
+        value=0.1,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.1,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reward_health_weight",
+        value_type=GeneValueType.REAL,
+        value=0.5,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.5,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reward_survival_weight",
+        value_type=GeneValueType.REAL,
+        value=0.1,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.1,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reward_death_penalty",
+        value_type=GeneValueType.REAL,
+        value=10.0,
+        min_value=0.0,
+        max_value=50.0,
+        default=10.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reward_action_bonus",
+        value_type=GeneValueType.REAL,
+        value=0.05,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.05,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reward_gather_bonus",
+        value_type=GeneValueType.REAL,
+        value=0.0,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reward_share_bonus",
+        value_type=GeneValueType.REAL,
+        value=0.0,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reward_attack_bonus",
+        value_type=GeneValueType.REAL,
+        value=0.0,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="reward_reproduce_bonus",
+        value_type=GeneValueType.REAL,
+        value=0.0,
+        min_value=0.0,
+        max_value=2.0,
+        default=0.0,
+        evolvable=True,
+    ),
 )
+
+
+# Ordered names of the Chromosome C genes that parameterize the per-agent RL
+# reward / intrinsic goal.  Exposed as a module constant so the agent reward
+# code, the goal-diversity experiment, and telemetry all share one source of
+# truth for "which genes define an agent's goal".
+INTRINSIC_REWARD_GENE_NAMES: Tuple[str, ...] = (
+    "reward_resource_weight",
+    "reward_health_weight",
+    "reward_survival_weight",
+    "reward_death_penalty",
+    "reward_action_bonus",
+    "reward_gather_bonus",
+    "reward_share_bonus",
+    "reward_attack_bonus",
+    "reward_reproduce_bonus",
+)
+
+# Maps an executed action name to the per-action intrinsic-bonus gene awarded
+# when that action is taken.  Used by ``AgentCore._calculate_reward``.
+INTRINSIC_REWARD_ACTION_BONUS_GENES: Dict[str, str] = {
+    "gather": "reward_gather_bonus",
+    "share": "reward_share_bonus",
+    "attack": "reward_attack_bonus",
+    "reproduce": "reward_reproduce_bonus",
+}
+
+_DEFAULT_REWARD_WEIGHTS: Optional[Dict[str, float]] = None
+
+
+def default_reward_weights() -> Dict[str, float]:
+    """Return the default intrinsic-reward gene values keyed by gene name."""
+    global _DEFAULT_REWARD_WEIGHTS
+    if _DEFAULT_REWARD_WEIGHTS is None:
+        chromosome = default_hyperparameter_chromosome()
+        _DEFAULT_REWARD_WEIGHTS = {
+            name: chromosome.get_value(name) for name in INTRINSIC_REWARD_GENE_NAMES
+        }
+    return dict(_DEFAULT_REWARD_WEIGHTS)
+
+
+def reward_weights_from_chromosome(
+    chromosome: Optional[HyperparameterChromosome],
+) -> Dict[str, float]:
+    """Extract the intrinsic-reward weights from a chromosome.
+
+    Genes absent from the chromosome fall back to their default value, so
+    chromosomes built before Chromosome C existed remain usable and produce the
+    historical reward formula.
+    """
+    defaults = default_reward_weights()
+    if chromosome is None:
+        return defaults
+    weights: Dict[str, float] = {}
+    for name, default_value in defaults.items():
+        gene = chromosome.get_gene(name)
+        weights[name] = gene.value if gene is not None else default_value
+    return weights
 
 
 def default_hyperparameter_chromosome() -> HyperparameterChromosome:

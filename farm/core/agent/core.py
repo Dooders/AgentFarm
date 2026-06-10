@@ -21,11 +21,14 @@ from farm.core.agent.services import AgentServices
 from farm.core.decision.config import DecisionConfig
 from farm.core.device_utils import create_device_from_config
 from farm.core.hyperparameter_chromosome import (
+    INTRINSIC_REWARD_ACTION_BONUS_GENES,
     HyperparameterChromosome,
     apply_chromosome_to_learning_config,
     chromosome_from_learning_config,
     crossover_chromosomes,
+    default_reward_weights,
     mutate_chromosome,
+    reward_weights_from_chromosome,
 )
 from farm.core.environment import _AgentList
 from farm.core.inheritance_telemetry import InheritanceTelemetry
@@ -154,6 +157,18 @@ class AgentCore:
         self.alive = True
         self.total_reward = 0.0
         self.generation = generation
+
+        # Name of the most recently executed action this agent took.  Set in
+        # ``_execute_action`` and used for lightweight behavioural telemetry
+        # (e.g. per-step action-mix snapshots in goal-diversity experiments).
+        self.last_action_name: Optional[str] = None
+
+        # Cache of the intrinsic-reward (goal) weights derived from the agent's
+        # hyperparameter chromosome.  Rebuilt only when the chromosome object
+        # identity changes (the chromosome is immutable and replaced wholesale
+        # on mutation / seeding), keeping ``_calculate_reward`` O(1) per step.
+        self._reward_weight_cache: Optional[Dict[str, float]] = None
+        self._reward_weight_cache_key: Optional[int] = None
 
         # Device setup
         if device is not None:
@@ -440,6 +455,10 @@ class AgentCore:
         if not self.alive:
             return
 
+        # Clear prior-step action telemetry; only a successful _execute_action
+        # sets last_action_name for the current step.
+        self.last_action_name = None
+
         # Invalidate observation cache so the first _create_observation() call
         # this step always builds a fresh tensor from the current world state.
         self._invalidate_obs_cache()
@@ -580,6 +599,9 @@ class AgentCore:
             action: Action to execute
             state_tensor: State tensor before action
         """
+        # Record the action chosen this step for behavioural telemetry.
+        self.last_action_name = action.name
+
         # Store pre-action state
         pre_action_state = self.state.snapshot(self.services.get_current_time())
 
@@ -689,9 +711,40 @@ class AgentCore:
             # Log but don't crash on behavior update failure
             logger.warning(f"Failed to update behavior for agent {self.agent_id}: {e}", exc_info=True)
 
+    def _reward_weights(self) -> Dict[str, float]:
+        """Return this agent's intrinsic-reward (goal) weights.
+
+        Values are read from the agent's :class:`HyperparameterChromosome`
+        (Chromosome C) and cached until the chromosome object is replaced, so
+        each agent can carry a distinct, heritable reinforcement goal without
+        re-scanning the gene list on every step.
+        """
+        chromosome = getattr(self, "hyperparameter_chromosome", None)
+        if chromosome is None:
+            return default_reward_weights()
+        cache_key = id(chromosome)
+        cached = getattr(self, "_reward_weight_cache", None)
+        if getattr(self, "_reward_weight_cache_key", None) != cache_key or cached is None:
+            cached = reward_weights_from_chromosome(chromosome)
+            self._reward_weight_cache = cached
+            self._reward_weight_cache_key = cache_key
+        return cached
+
     def _calculate_reward(self, pre_state: AgentState, post_state: AgentState, action: Action) -> float:
         """
-        Calculate reward for state transition.
+        Calculate the per-step RL reward for a state transition.
+
+        The reward is shaped by the agent's *intrinsic goal* — the Chromosome C
+        weights returned by :meth:`_reward_weights`.  Because those weights are
+        inherited and mutated like any other gene, different agents (and
+        different lineages) can optimize for genuinely different objectives:
+        hoarding resources, preserving health, sheer survival, or specific
+        actions such as sharing (prosocial), attacking (aggressive), gathering,
+        or reproducing.
+
+        With the default chromosome this reduces exactly to the historical
+        formula ``resource_delta * 0.1 + health_delta * 0.5 + survival/death +
+        0.05 per non-pass action``.
 
         Args:
             pre_state: State before action
@@ -701,12 +754,25 @@ class AgentCore:
         Returns:
             Calculated reward
         """
-        resource_delta = (post_state.resource_level - pre_state.resource_level) * 0.1
-        health_delta = (post_state.current_health - pre_state.current_health) * 0.5
-        survival = 0.1 if self.alive else -10.0
-        action_bonus = 0.05 if action.name != "pass" else 0.0
+        weights = self._reward_weights()
 
-        return resource_delta + health_delta + survival + action_bonus
+        resource_delta = (post_state.resource_level - pre_state.resource_level) * weights[
+            "reward_resource_weight"
+        ]
+        health_delta = (post_state.current_health - pre_state.current_health) * weights[
+            "reward_health_weight"
+        ]
+        survival = weights["reward_survival_weight"] if self.alive else -weights["reward_death_penalty"]
+
+        reward = resource_delta + health_delta + survival
+        if action.name != "pass":
+            reward += weights["reward_action_bonus"]
+
+        action_bonus_gene = INTRINSIC_REWARD_ACTION_BONUS_GENES.get(action.name)
+        if action_bonus_gene is not None:
+            reward += weights[action_bonus_gene]
+
+        return reward
 
     def _update_state_snapshot(self) -> None:
         """Update state snapshot from components."""
