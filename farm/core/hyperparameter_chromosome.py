@@ -846,11 +846,18 @@ INTRINSIC_REWARD_ACTION_BONUS_GENES: Dict[str, str] = {
     "reproduce": "reward_reproduce_bonus",
 }
 
+_DEFAULT_REWARD_WEIGHTS: Optional[Dict[str, float]] = None
+
 
 def default_reward_weights() -> Dict[str, float]:
     """Return the default intrinsic-reward gene values keyed by gene name."""
-    chromosome = default_hyperparameter_chromosome()
-    return {name: chromosome.get_value(name) for name in INTRINSIC_REWARD_GENE_NAMES}
+    global _DEFAULT_REWARD_WEIGHTS
+    if _DEFAULT_REWARD_WEIGHTS is None:
+        chromosome = default_hyperparameter_chromosome()
+        _DEFAULT_REWARD_WEIGHTS = {
+            name: chromosome.get_value(name) for name in INTRINSIC_REWARD_GENE_NAMES
+        }
+    return dict(_DEFAULT_REWARD_WEIGHTS)
 
 
 def reward_weights_from_chromosome(
