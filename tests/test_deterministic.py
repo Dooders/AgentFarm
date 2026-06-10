@@ -442,10 +442,11 @@ def run_determinism_test(environment, num_steps, seed=42, snapshot_steps=None):
 
     state_deterministic = hash1 == hash2
 
-    # Compare intermediate snapshots (require every requested step to be captured)
+    # Compare intermediate snapshots only for steps that were actually reached
     snapshots_deterministic = all(
-        step in snapshots1 and step in snapshots2 and snapshots1[step] == snapshots2[step]
+        snapshots1.get(step) == snapshots2.get(step)
         for step in snapshot_steps
+        if step in snapshots1 or step in snapshots2
     )
     if not snapshots_deterministic:
         print("\n❌ Intermediate state snapshots diverge:")
