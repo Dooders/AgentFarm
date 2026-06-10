@@ -58,8 +58,9 @@ from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Action names tracked for the behavioural action-mix telemetry. This ordered
-# list guarantees a stable set of columns in the summary output.
+# Action names tracked for the behavioural action-mix telemetry. Only these
+# actions are emitted in the summary output; any other runtime action names are
+# ignored by the action-mix series.
 TRACKED_ACTIONS: Tuple[str, ...] = (
     "move",
     "gather",
