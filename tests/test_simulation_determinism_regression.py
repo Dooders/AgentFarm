@@ -12,7 +12,6 @@ from farm.config.config import (
     ResourceConfig,
 )
 from farm.core.simulation import run_simulation
-from tests.conftest import seed_all_rngs
 
 
 def _capture_final_state(environment) -> dict:
@@ -69,7 +68,7 @@ def _run_deterministic_trial(tmp_path, seed: int, trial_name: str) -> dict:
     output_dir = tmp_path / trial_name
     output_dir.mkdir()
 
-    seed_all_rngs(seed)
+    # No external RNG seeding here: reproducibility must come from run_simulation(seed=...).
     environment = run_simulation(
         num_steps=8,
         config=config,

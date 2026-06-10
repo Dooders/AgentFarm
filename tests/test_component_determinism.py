@@ -31,6 +31,57 @@ from farm.config import SimulationConfig
 from tests.conftest import seed_all_rngs, capture_component_state
 
 
+def create_mock_db():
+    """
+    Create a mock simulation database whose genome-id lookups report "not found".
+
+    A bare ``Mock()`` returns truthy Mock objects from ``_execute_in_transaction``,
+    which sends ``Identity.genome_id``'s uniqueness loop into infinite counter
+    probing (and unbounded mock-call recording) once an agent successfully
+    reproduces.
+    """
+    mock_db = Mock()
+    mock_db._execute_in_transaction.return_value = False
+    return mock_db
+
+
+def run_seeded_trajectory(seed, create_agent, steps, record, prepare=None):
+    """
+    Seed all RNGs once, create an agent, and step it while recording observations.
+
+    Seeding only once per trajectory (instead of before every step) ensures the
+    test exercises sequential RNG consumption - the way randomness is actually
+    used in a simulation run.
+
+    Parameters
+    ----------
+    seed : int
+        Seed applied once before agent creation
+    create_agent : callable
+        Factory receiving the seed and returning the agent under test
+    steps : int
+        Number of steps to execute
+    record : callable
+        Function mapping the agent to the per-step observation to record
+    prepare : callable, optional
+        Hook invoked with the agent after creation, before stepping
+
+    Returns
+    -------
+    list
+        Per-step observations
+    """
+    seed_all_rngs(seed)
+    agent = create_agent(seed)
+    if prepare is not None:
+        prepare(agent)
+    observations = []
+    for _ in range(steps):
+        agent.step()
+        observations.append(record(agent))
+    return observations
+
+
 @pytest.mark.determinism
 class TestDefaultAgentBehaviorDeterminism:
     """Test deterministic behavior of DefaultAgentBehavior."""
@@ -55,28 +106,21 @@ class TestDefaultAgentBehaviorDeterminism:
         mock_core = Mock()
         mock_core.actions = actions
         
-        # Test with same seed multiple times
+        # Seed once per run so sequential RNG consumption is actually exercised;
+        # re-seeding before every draw would just repeat the same draw 20 times.
         seed_all_rngs(deterministic_seed)
         behavior1 = DefaultAgentBehavior()
-        
+        actions1 = [behavior1.decide_action(mock_core, None, None).name for _ in range(20)]
+
         seed_all_rngs(deterministic_seed)
         behavior2 = DefaultAgentBehavior()
-        
-        # Generate action sequences
-        actions1 = []
-        actions2 = []
-        
-        for _ in range(20):
-            seed_all_rngs(deterministic_seed)
-            action1 = behavior1.decide_action(mock_core, None, None)
-            actions1.append(action1.name)
-            
-            seed_all_rngs(deterministic_seed)
-            action2 = behavior2.decide_action(mock_core, None, None)
-            actions2.append(action2.name)
-        
+        actions2 = [behavior2.decide_action(mock_core, None, None).name for _ in range(20)]
+
         # Action sequences should be identical (weighted selection is deterministic with same seed)
         assert actions1 == actions2, "DefaultAgentBehavior action selection is not deterministic"
+        # Sanity check: the sequence should contain multiple distinct actions, otherwise
+        # this test would pass trivially for a constant-action behavior.
+        assert len(set(actions1)) > 1, "Expected a varied action sequence from weighted selection"
     
     def test_action_history_consistency(self, deterministic_seed):
         """Test that action history is consistent across runs."""
@@ -90,23 +134,17 @@ class TestDefaultAgentBehaviorDeterminism:
             Action("attack", 0.3, Mock()),
         ]
         
-        # Create two behaviors with same seed
+        # Seed once per run so sequential RNG consumption is actually exercised.
         seed_all_rngs(deterministic_seed)
         behavior1 = DefaultAgentBehavior()
-        
+        for _ in range(10):
+            behavior1.decide_action(None, None, actions)
+
         seed_all_rngs(deterministic_seed)
         behavior2 = DefaultAgentBehavior()
-        
-        # Execute same sequence of actions
         for _ in range(10):
-            seed_all_rngs(deterministic_seed)
-            action1 = behavior1.decide_action(None, None, actions)
-            
-            seed_all_rngs(deterministic_seed)
-            action2 = behavior2.decide_action(None, None, actions)
-            
-            assert action1 == action2, "Actions should be identical with same seed"
-        
+            behavior2.decide_action(None, None, actions)
+
         # Action histories should be identical
         assert behavior1.action_history == behavior2.action_history, "Action histories should be identical"
 
@@ -124,7 +162,7 @@ class TestResourceComponentDeterminism:
             seed=seed
         )
         with patch("farm.database.utilities.setup_db") as mock_setup_db:
-            mock_setup_db.return_value = Mock()
+            mock_setup_db.return_value = create_mock_db()
             env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
             
             # Create services from environment
@@ -157,54 +195,31 @@ class TestResourceComponentDeterminism:
     
     def test_resource_consumption_determinism(self, deterministic_seed):
         """Test that resource consumption is deterministic."""
-        # Create two agents with same seed
-        seed_all_rngs(deterministic_seed)
-        agent1 = self.create_test_agent(deterministic_seed)
-        
-        seed_all_rngs(deterministic_seed)
-        agent2 = self.create_test_agent(deterministic_seed)
-        
-        # Execute same number of steps
-        for _ in range(10):
-            seed_all_rngs(deterministic_seed)
-            agent1.step()
-            
-            seed_all_rngs(deterministic_seed)
-            agent2.step()
-        
-        # Resource levels should be identical
-        resource_comp1 = agent1.get_component("resource")
-        resource_comp2 = agent2.get_component("resource")
-        
-        assert resource_comp1.level == resource_comp2.level, "Resource levels should be identical"
-        assert resource_comp1.starvation_counter == resource_comp2.starvation_counter, "Starvation counters should be identical"
-    
+        def record(agent):
+            resource = agent.get_component("resource")
+            return (resource.level, resource.starvation_counter)
+
+        series1 = run_seeded_trajectory(deterministic_seed, self.create_test_agent, 10, record)
+        series2 = run_seeded_trajectory(deterministic_seed, self.create_test_agent, 10, record)
+
+        assert series1 == series2, "Resource consumption should be deterministic"
+
     def test_starvation_counter_determinism(self, deterministic_seed):
         """Test that starvation counter updates are deterministic."""
-        # Create agents with low initial resources
-        seed_all_rngs(deterministic_seed)
-        agent1 = self.create_test_agent(deterministic_seed)
-        agent1.get_component("resource").level = 1.0  # Low resources
-        
-        seed_all_rngs(deterministic_seed)
-        agent2 = self.create_test_agent(deterministic_seed)
-        agent2.get_component("resource").level = 1.0  # Low resources
-        
-        # Execute steps and track starvation counter
-        starvation_counts1 = []
-        starvation_counts2 = []
-        
-        for _ in range(15):
-            seed_all_rngs(deterministic_seed)
-            agent1.step()
-            starvation_counts1.append(agent1.get_component("resource").starvation_counter)
-            
-            seed_all_rngs(deterministic_seed)
-            agent2.step()
-            starvation_counts2.append(agent2.get_component("resource").starvation_counter)
-        
-        # Starvation counters should be identical
-        assert starvation_counts1 == starvation_counts2, "Starvation counter updates should be deterministic"
+        def set_low_resources(agent):
+            agent.get_component("resource").level = 1.0
+
+        def record(agent):
+            return agent.get_component("resource").starvation_counter
+
+        series1 = run_seeded_trajectory(
+            deterministic_seed, self.create_test_agent, 15, record, prepare=set_low_resources
+        )
+        series2 = run_seeded_trajectory(
+            deterministic_seed, self.create_test_agent, 15, record, prepare=set_low_resources
+        )
+
+        assert series1 == series2, "Starvation counter updates should be deterministic"
 
 
 @pytest.mark.determinism
@@ -220,7 +235,7 @@ class TestReproductionComponentDeterminism:
             seed=seed
         )
         with patch("farm.database.utilities.setup_db") as mock_setup_db:
-            mock_setup_db.return_value = Mock()
+            mock_setup_db.return_value = create_mock_db()
             env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
             
             # Create services from environment
@@ -250,53 +265,23 @@ class TestReproductionComponentDeterminism:
     
     def test_offspring_creation_determinism(self, deterministic_seed):
         """Test that offspring creation is deterministic."""
-        # Create two agents with same seed
-        seed_all_rngs(deterministic_seed)
-        agent1 = self.create_test_agent(deterministic_seed)
-        
-        seed_all_rngs(deterministic_seed)
-        agent2 = self.create_test_agent(deterministic_seed)
-        
-        # Execute same number of steps
-        offspring_counts1 = []
-        offspring_counts2 = []
-        
-        for _ in range(20):
-            seed_all_rngs(deterministic_seed)
-            agent1.step()
-            offspring_counts1.append(agent1.get_component("reproduction").offspring_created)
-            
-            seed_all_rngs(deterministic_seed)
-            agent2.step()
-            offspring_counts2.append(agent2.get_component("reproduction").offspring_created)
-        
-        # Offspring counts should be identical
-        assert offspring_counts1 == offspring_counts2, "Offspring creation should be deterministic"
-    
+        def record(agent):
+            return agent.get_component("reproduction").offspring_created
+
+        series1 = run_seeded_trajectory(deterministic_seed, self.create_test_agent, 20, record)
+        series2 = run_seeded_trajectory(deterministic_seed, self.create_test_agent, 20, record)
+
+        assert series1 == series2, "Offspring creation should be deterministic"
+
     def test_reproduction_cooldown_determinism(self, deterministic_seed):
         """Test that reproduction cooldown is deterministic."""
-        # Create agents
-        seed_all_rngs(deterministic_seed)
-        agent1 = self.create_test_agent(deterministic_seed)
-        
-        seed_all_rngs(deterministic_seed)
-        agent2 = self.create_test_agent(deterministic_seed)
-        
-        # Track cooldown values
-        cooldowns1 = []
-        cooldowns2 = []
-        
-        for _ in range(15):
-            seed_all_rngs(deterministic_seed)
-            agent1.step()
-            cooldowns1.append(getattr(agent1.get_component("reproduction"), "reproduction_cooldown", 0))
-            
-            seed_all_rngs(deterministic_seed)
-            agent2.step()
-            cooldowns2.append(getattr(agent2.get_component("reproduction"), "reproduction_cooldown", 0))
-        
-        # Cooldown values should be identical
-        assert cooldowns1 == cooldowns2, "Reproduction cooldown should be deterministic"
+        def record(agent):
+            return getattr(agent.get_component("reproduction"), "reproduction_cooldown", 0)
+
+        series1 = run_seeded_trajectory(deterministic_seed, self.create_test_agent, 15, record)
+        series2 = run_seeded_trajectory(deterministic_seed, self.create_test_agent, 15, record)
+
+        assert series1 == series2, "Reproduction cooldown should be deterministic"
 
 
 @pytest.mark.determinism
@@ -312,7 +297,7 @@ class TestMovementComponentDeterminism:
             seed=seed
         )
         with patch("farm.database.utilities.setup_db") as mock_setup_db:
-            mock_setup_db.return_value = Mock()
+            mock_setup_db.return_value = create_mock_db()
             env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
             
             # Create services from environment
@@ -342,52 +327,19 @@ class TestMovementComponentDeterminism:
     
     def test_movement_target_selection_determinism(self, deterministic_seed):
         """Test that movement target selection is deterministic."""
-        # Create two agents with same seed
-        seed_all_rngs(deterministic_seed)
-        agent1 = self.create_test_agent(deterministic_seed)
-        
-        seed_all_rngs(deterministic_seed)
-        agent2 = self.create_test_agent(deterministic_seed)
-        
-        # Track positions over time
-        positions1 = []
-        positions2 = []
-        
-        for _ in range(15):
-            seed_all_rngs(deterministic_seed)
-            agent1.step()
-            positions1.append(agent1.position)
-            
-            seed_all_rngs(deterministic_seed)
-            agent2.step()
-            positions2.append(agent2.position)
-        
-        # Positions should be identical
+        positions1 = run_seeded_trajectory(deterministic_seed, self.create_test_agent, 15, lambda a: a.position)
+        positions2 = run_seeded_trajectory(deterministic_seed, self.create_test_agent, 15, lambda a: a.position)
+
         assert positions1 == positions2, "Movement should be deterministic"
-    
+
     def test_movement_component_state_determinism(self, deterministic_seed):
         """Test that movement component internal state is deterministic."""
-        # Create agents
-        seed_all_rngs(deterministic_seed)
-        agent1 = self.create_test_agent(deterministic_seed)
-        
-        seed_all_rngs(deterministic_seed)
-        agent2 = self.create_test_agent(deterministic_seed)
-        
-        # Execute steps and capture component states
-        states1 = []
-        states2 = []
-        
-        for _ in range(10):
-            seed_all_rngs(deterministic_seed)
-            agent1.step()
-            states1.append(capture_component_state(agent1.get_component("movement")))
-            
-            seed_all_rngs(deterministic_seed)
-            agent2.step()
-            states2.append(capture_component_state(agent2.get_component("movement")))
-        
-        # Component states should be identical
+        def record(agent):
+            return capture_component_state(agent.get_component("movement"))
+
+        states1 = run_seeded_trajectory(deterministic_seed, self.create_test_agent, 10, record)
+        states2 = run_seeded_trajectory(deterministic_seed, self.create_test_agent, 10, record)
+
         assert states1 == states2, "Movement component states should be deterministic"
 
 
@@ -404,7 +356,7 @@ class TestComponentIntegrationDeterminism:
             seed=seed
         )
         with patch("farm.database.utilities.setup_db") as mock_setup_db:
-            mock_setup_db.return_value = Mock()
+            mock_setup_db.return_value = create_mock_db()
             env = Environment(width=50, height=50, resource_distribution={"amount": 10}, config=config)
             
             # Create services from environment
@@ -440,51 +392,20 @@ class TestComponentIntegrationDeterminism:
     
     def test_multi_component_determinism(self, deterministic_seed):
         """Test that multiple components work deterministically together."""
-        # Create two agents with same seed
-        seed_all_rngs(deterministic_seed)
-        agent1 = self.create_full_agent(deterministic_seed)
-        
-        seed_all_rngs(deterministic_seed)
-        agent2 = self.create_full_agent(deterministic_seed)
-        
-        # Track comprehensive state over time
-        states1 = []
-        states2 = []
-        
-        for step in range(20):
-            seed_all_rngs(deterministic_seed)
-            agent1.step()
-            
-            # Capture comprehensive state
-            state1 = {
-                "position": agent1.position,
-                "resource_level": agent1.resource_level,
-                "alive": agent1.alive,
-                "components": {}
+        def record(agent):
+            return {
+                "position": agent.position,
+                "resource_level": agent.resource_level,
+                "alive": agent.alive,
+                "components": {
+                    name: capture_component_state(component)
+                    for name, component in agent._components.items()
+                },
             }
-            
-            for name, component in agent1._components.items():
-                state1["components"][name] = capture_component_state(component)
-            
-            states1.append(state1)
-            
-            seed_all_rngs(deterministic_seed)
-            agent2.step()
-            
-            # Capture comprehensive state
-            state2 = {
-                "position": agent2.position,
-                "resource_level": agent2.resource_level,
-                "alive": agent2.alive,
-                "components": {}
-            }
-            
-            for name, component in agent2._components.items():
-                state2["components"][name] = capture_component_state(component)
-            
-            states2.append(state2)
-        
-        # States should be identical
+
+        states1 = run_seeded_trajectory(deterministic_seed, self.create_full_agent, 20, record)
+        states2 = run_seeded_trajectory(deterministic_seed, self.create_full_agent, 20, record)
+
         assert states1 == states2, "Multi-component integration should be deterministic"
 
 
