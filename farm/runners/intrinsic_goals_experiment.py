@@ -602,7 +602,7 @@ class IntrinsicGoalsExperiment:
                 "t_stat": t_stat,
                 "p_value": p_value,
                 "cohen_dz": cohen_dz,
-                "significant_p05": bool(p_value < 0.05) if p_value == p_value else False,
+                "significant_p05": bool(p_value < 0.05) if not np.isnan(p_value) else False,
                 "n": n,
             }
 
