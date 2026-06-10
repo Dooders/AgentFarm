@@ -81,13 +81,19 @@ np.random.seed(42)
 
 ### Testing for Determinism
 
-Use the `deterministic_test.py` script to verify that your simulations are deterministic:
+Use the `tests/test_deterministic.py` script to verify that your simulations are deterministic:
 
 ```bash
-python deterministic_test.py --environment testing --steps 100 --seed 42
+python tests/test_deterministic.py --environment testing --steps 100 --seed 42
 ```
 
-This script runs two identical simulations with the same seed and compares their final states to verify determinism.
+This script runs two identical simulations with the same seed and compares their intermediate state snapshots, final states, and persisted database contents to verify determinism.
+
+For cross-process reproducibility (verifying that results do not depend on per-process state such as `PYTHONHASHSEED`), run:
+
+```bash
+pytest -o addopts='' tests/test_cross_process_determinism.py
+```
 
 ## Common Issues and Solutions
 
@@ -113,7 +119,7 @@ Sometimes enforcing determinism can reduce performance:
 
 1. **Version Your Seeds**: Keep track of which seed was used for which experiment
 2. **Document Dependencies**: Record all external dependencies that might affect determinism
-3. **Test Determinism Regularly**: Use the deterministic_test.py script to verify determinism
+3. **Test Determinism Regularly**: Use the `tests/test_deterministic.py` script to verify determinism
 4. **Save Initial Conditions**: Save the complete initial state to allow future reproduction
 
 ## Advanced Topics
@@ -164,9 +170,9 @@ We recently made several important improvements to ensure complete determinism i
 
 ### 5. Testing for Determinism
 
-We've added a new script `deterministic_test.py` that:
+We've added a script `tests/test_deterministic.py` that:
 - Runs two identical simulations with the same seed
-- Compares their final states to verify determinism
+- Compares intermediate state snapshots, final states, and database contents to verify determinism
 - Provides detailed comparison of any differences
 
 ## Implementation Details
@@ -226,12 +232,12 @@ def update(self):
 You can validate that your changes maintain determinism by running:
 
 ```bash
-python deterministic_test.py --steps 100 --seed 42
+python tests/test_deterministic.py --steps 100 --seed 42
 ```
 
 This script will:
 1. Run two identical simulations with the same seed
-2. Compare their final states
+2. Compare their intermediate snapshots, final states, and database contents
 3. Report whether they are identical
 
 ## Conclusion
