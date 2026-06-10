@@ -455,6 +455,10 @@ class AgentCore:
         if not self.alive:
             return
 
+        # Clear prior-step action telemetry; only a successful _execute_action
+        # sets last_action_name for the current step.
+        self.last_action_name = None
+
         # Invalidate observation cache so the first _create_observation() call
         # this step always builds a fresh tensor from the current world state.
         self._invalidate_obs_cache()

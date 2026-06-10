@@ -459,7 +459,7 @@ class IntrinsicGoalsExperiment:
             if name is None:
                 continue
             counts[name] += 1
-        denom = float(len(alive)) if alive else 1.0
+        denom = float(sum(counts.values())) if counts else 1.0
         for action in arm.action_mix:
             arm.action_mix[action].append(counts.get(action, 0) / denom)
 
