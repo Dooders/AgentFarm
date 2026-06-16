@@ -142,8 +142,14 @@ Current capabilities in this line of work:
 
 Open questions and next targets:
 
-- [Run broader multi-seed cohorts per profile and treat trends as distributions,
-  not single trajectories.](https://github.com/Dooders/AgentFarm/issues/847)
+- ~~[Run broader multi-seed cohorts per profile and treat trends as distributions,
+  not single trajectories.](https://github.com/Dooders/AgentFarm/issues/847)~~
+  **Done (2026-05-12):** a 6-seed × 3-profile sweep
+  (`scripts/run_stable_profile_seed_sweep.py` +
+  `scripts/analyze_stable_profile_seed_sweep.py`, PR #863) now aggregates
+  per-profile distributions with mean/variance/95% CI and a
+  robust-vs-seed-sensitive classification. See
+  [When one seed disagrees with six](2026-05-12-seed-sweep-reality-check.md).
 - [Push farther on inherited payload design (policy priors/module state) to test
   when richer inheritance helps versus overfits to local ecology.](https://github.com/Dooders/AgentFarm/issues/848)
 - [Add explicit Baldwinian-vs-Lamarckian A/B runs under matched settings to
