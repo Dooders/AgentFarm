@@ -128,7 +128,7 @@ learning is known to be ~null.
 
 Reuse the existing inheritance-A/B machinery
 (`scripts/run_inheritance_mode_ab.py`, `scripts/compare_inheritance_arms.py`,
-protocol in `[inheritance_mode_ab.md](../experiments/intrinsic_evolution/inheritance_mode_ab.md)`)
+protocol in [inheritance_mode_ab.md](../experiments/intrinsic_evolution/inheritance_mode_ab.md))
 and add the `inheritance_mode` literals for P2–P4.
 
 1. **Run only in a learning-positive regime** (long horizon, small population),
@@ -204,4 +204,3 @@ place.
 - [Devlog: Baldwinian vs Lamarckian A/B](../devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness.md)
 - [Devlog: Are we measuring at the wrong level?](../devlog/2026-06-04-are-we-measuring-at-the-wrong-level.md)
 - [Devlog: Is the DQN actually learning?](../devlog/2026-05-16-is-the-dqn-actually-learning.md)
-

@@ -122,8 +122,8 @@ reproduction costs.
 - Open-ended evolution in the ALife sense - runs are bounded simulations.
 - A genome that encodes full behavior or network architecture - only a  
 narrow set of hyperparameters evolve through this path.
-- Lamarckian inheritance by default - the baseline keeps cold-start offspring
-  policies. (An opt-in `lamarckian` mode that warm-starts offspring policy
+- Lamarckian inheritance as the baseline - offspring policies remain cold-start
+  by default. (An opt-in `lamarckian` mode that warm-starts offspring policy
   weights was since added under #849, but it is not the default and showed no
   robust fitness gain; see the
   [Baldwinian vs Lamarckian A/B](../experiments/intrinsic_evolution/inheritance_mode_ab.md).)
