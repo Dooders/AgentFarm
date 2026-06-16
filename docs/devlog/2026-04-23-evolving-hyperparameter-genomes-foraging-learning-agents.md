@@ -122,7 +122,11 @@ reproduction costs.
 - Open-ended evolution in the ALife sense - runs are bounded simulations.
 - A genome that encodes full behavior or network architecture - only a  
 narrow set of hyperparameters evolve through this path.
-- Lamarckian inheritance - learned policies are not transmitted to offspring.
+- Lamarckian inheritance by default - the baseline keeps cold-start offspring
+  policies. (An opt-in `lamarckian` mode that warm-starts offspring policy
+  weights was since added under #849, but it is not the default and showed no
+  robust fitness gain; see the
+  [Baldwinian vs Lamarckian A/B](../experiments/intrinsic_evolution/inheritance_mode_ab.md).)
 
 ## Current state and next questions
 
@@ -152,6 +156,13 @@ Open questions and next targets:
   [When one seed disagrees with six](2026-05-12-seed-sweep-reality-check.md).
 - [Push farther on inherited payload design (policy priors/module state) to test
   when richer inheritance helps versus overfits to local ecology.](https://github.com/Dooders/AgentFarm/issues/848)
+  **Re-derived from first principles (2026-06-15):** since the full-policy
+  warm-start (#849) turned out to be a fitness null and within-life learning
+  is near-null at the default horizon (#878), the payload plan is no longer
+  "copy more of the network." See
+  [Inherited payload design](../design/inherited_payload_design.md) for the
+  weights-plus-continuation-machinery variant ladder (P0–P4) and the
+  signal-budget precondition.
 - [Add explicit Baldwinian-vs-Lamarckian A/B runs under matched settings to
   quantify when warm-starting offspring is worth the stability trade-off.](https://github.com/Dooders/AgentFarm/issues/849)
 
