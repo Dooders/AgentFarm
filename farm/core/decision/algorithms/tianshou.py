@@ -277,8 +277,12 @@ class TianshouWrapper(RLAlgorithm):
 
         if limit is not None:
             limit = max(0, int(limit))
-            entries = entries[-limit:]
-            priorities = priorities[-limit:]
+            if limit == 0:
+                entries = []
+                priorities = priorities[:0]
+            else:
+                entries = entries[-limit:]
+                priorities = priorities[-limit:]
 
         return {
             "entries": [
@@ -346,6 +350,10 @@ class TianshouWrapper(RLAlgorithm):
         beta_step_count = replay_state.get("beta_step_count")
         if beta_step_count is not None:
             self.replay_buffer._beta_step_count = int(beta_step_count)
+
+        replay_strategy = replay_state.get("replay_strategy")
+        if replay_strategy in ("uniform", "prioritized"):
+            self.replay_buffer.replay_strategy = replay_strategy
 
     def _get_default_config(self, user_config: Dict[str, Any]) -> Dict[str, Any]:
         """Get default configuration for the algorithm."""
