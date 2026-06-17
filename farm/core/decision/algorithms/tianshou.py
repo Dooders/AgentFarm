@@ -328,6 +328,8 @@ class TianshouWrapper(RLAlgorithm):
                     "priorities": slice_data["priorities"].tolist(),
                     "beta": float(getattr(self.replay_buffer, "beta", 0.0)),
                     "beta_step_count": int(getattr(self.replay_buffer, "_beta_step_count", 0)),
+                    "alpha": slice_data["metadata"]["alpha"],
+                    "epsilon": slice_data["metadata"]["epsilon"],
                     "replay_strategy": slice_data["metadata"]["replay_strategy"],
                 }
             except Exception as e:
@@ -411,10 +413,10 @@ class TianshouWrapper(RLAlgorithm):
                 
                 priorities_array = np.array(priorities, dtype=np.float64)
                 
-                # Get metadata
+                # Get metadata from serialized state, falling back to child buffer settings
                 replay_strategy = replay_state.get("replay_strategy", "prioritized")
-                alpha = getattr(self.replay_buffer, "alpha", 0.6)
-                epsilon = getattr(self.replay_buffer, "epsilon", 1e-6)
+                alpha = replay_state.get("alpha", getattr(self.replay_buffer, "alpha", 0.6))
+                epsilon = replay_state.get("epsilon", getattr(self.replay_buffer, "epsilon", 1e-6))
                 
                 slice_data = {
                     "experiences": experiences,
@@ -425,6 +427,9 @@ class TianshouWrapper(RLAlgorithm):
                         "replay_strategy": replay_strategy,
                     },
                 }
+                
+                # Clear the buffer before loading (load_transfer_slice requires an empty buffer)
+                self.replay_buffer.clear()
                 
                 # Load using the transfer slice API
                 self.replay_buffer.load_transfer_slice(slice_data)

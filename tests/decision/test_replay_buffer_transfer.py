@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import pickle
 from typing import Any, Dict
 
 import numpy as np
@@ -284,8 +283,10 @@ class TestReplayBufferTransferBasics:
         assert child_buffer.priorities[5] == 5.5
         assert child_buffer.priorities[8] == 8.8
 
-    def test_load_transfer_slice_warns_on_metadata_mismatch(self, caplog, capsys):
+    def test_load_transfer_slice_warns_on_metadata_mismatch(self):
         """load_transfer_slice warns when metadata doesn't match child buffer settings."""
+        from farm.utils.logging.test_helpers import capture_logs
+
         parent_buffer = PrioritizedReplayBuffer(max_size=100, alpha=0.7, epsilon=1e-5)
         parent_buffer.append(
             state=np.array([1.0], dtype=np.float32),
@@ -301,17 +302,16 @@ class TestReplayBufferTransferBasics:
         child_buffer = PrioritizedReplayBuffer(max_size=100, alpha=0.6, epsilon=1e-6)
 
         # Load should complete despite mismatches (warnings are emitted but not blocking)
-        child_buffer.load_transfer_slice(slice_data)
+        with capture_logs() as logs:
+            child_buffer.load_transfer_slice(slice_data)
 
         # Verify the load succeeded
         assert len(child_buffer) == 1
-        
-        # Capture stdout/stderr to check for warning output (structlog writes to stdout)
-        captured = capsys.readouterr()
-        output = captured.out + captured.err
-        
-        # Warnings are emitted but don't block the operation
-        assert "alpha" in output.lower() or True  # Non-blocking check
+
+        # Assert warning events were emitted for alpha and epsilon mismatches
+        log_events = [entry["event"] for entry in logs.entries]
+        assert "replay_buffer_transfer_alpha_mismatch" in log_events
+        assert "replay_buffer_transfer_epsilon_mismatch" in log_events
         assert len(child_buffer.buffer) == 1  # Main assertion: load succeeded
 
 
