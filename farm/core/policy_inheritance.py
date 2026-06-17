@@ -168,7 +168,7 @@ def _get_parent_algorithm_state(
 ) -> tuple:
     """Extract the parent's algorithm objects and model state.
 
-    Returns a 4-tuple ``(parent_algorithm, child_algorithm, policy_state, skip_reason)``.
+    Returns a 4-tuple ``(parent_algorithm, child_algorithm, parent_state, skip_reason)``.
     If ``skip_reason`` is not ``None`` the caller should propagate it immediately;
     the other three elements will be ``None``.
     """
@@ -249,7 +249,7 @@ def apply_p2_policy_warmstart(
     Returns ``None`` on success; returns a ``WARMSTART_REASON_*`` string on
     any skip so callers can attribute the outcome through telemetry.
     """
-    parent_algorithm, child_algorithm, parent_state, skip_reason = (
+    _, child_algorithm, parent_state, skip_reason = (
         _get_parent_algorithm_state(parent, offspring, include_plasticity_state=True)
     )
     if skip_reason is not None:
@@ -318,7 +318,7 @@ def apply_p3_policy_warmstart(
     Returns ``None`` on success; returns a ``WARMSTART_REASON_*`` string on
     any skip.
     """
-    parent_algorithm, child_algorithm, parent_state, skip_reason = (
+    _, child_algorithm, parent_state, skip_reason = (
         _get_parent_algorithm_state(
             parent,
             offspring,
@@ -404,7 +404,7 @@ def apply_p4_policy_warmstart(
             )
             return WARMSTART_REASON_GATE_NOT_CLEARED
 
-    parent_algorithm, child_algorithm, parent_state, skip_reason = (
+    _, child_algorithm, parent_state, skip_reason = (
         _get_parent_algorithm_state(parent, offspring)
     )
     if skip_reason is not None:
@@ -420,22 +420,26 @@ def apply_p4_policy_warmstart(
         child_init_state = {}
 
     # Blend: θ_child = α*θ_parent + (1-α)*θ_init
+    try:
+        import torch  # noqa: PLC0415
+    except ImportError:
+        torch = None  # type: ignore[assignment]
+
     blended_state: Dict[str, Any] = {}
     for key, parent_value in parent_policy_state.items():
         child_value = child_init_state.get(key)
         if child_value is None:
             blended_state[key] = parent_value
             continue
-        try:
-            import torch  # noqa: PLC0415
-
-            if isinstance(parent_value, torch.Tensor) and isinstance(child_value, torch.Tensor):
-                blended_state[key] = (
-                    blend_alpha * parent_value + (1.0 - blend_alpha) * child_value
-                ).detach()
-            else:
-                blended_state[key] = parent_value
-        except Exception:
+        if (
+            torch is not None
+            and isinstance(parent_value, torch.Tensor)
+            and isinstance(child_value, torch.Tensor)
+        ):
+            blended_state[key] = (
+                blend_alpha * parent_value + (1.0 - blend_alpha) * child_value
+            ).detach()
+        else:
             blended_state[key] = parent_value
 
     step_count = parent_state.get("step_count")

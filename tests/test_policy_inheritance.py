@@ -520,7 +520,7 @@ def test_p4_gate_skipped_when_no_resource_level():
     load.assert_called_once()
 
 
-def test_p4_blends_tensor_weights(tmp_path):
+def test_p4_blends_tensor_weights():
     """P4 blending produces the expected linear combination when torch is available."""
     try:
         import torch  # noqa: PLC0415
