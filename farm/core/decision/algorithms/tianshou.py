@@ -276,13 +276,19 @@ class TianshouWrapper(RLAlgorithm):
             priorities = np.concatenate((priorities[start_index:], priorities[:start_index]))
 
         if limit is not None:
-            limit = max(0, int(limit))
-            if limit == 0:
-                entries = []
-                priorities = priorities[:0]
-            else:
-                entries = entries[-limit:]
-                priorities = priorities[-limit:]
+            try:
+                limit = max(0, int(limit))
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid replay_buffer_limit '{limit}': {e}. Ignoring limit.")
+                limit = None
+            
+            if limit is not None:
+                if limit == 0:
+                    entries = []
+                    priorities = priorities[:0]
+                else:
+                    entries = entries[-limit:]
+                    priorities = priorities[-limit:]
 
         return {
             "entries": [
@@ -1580,11 +1586,20 @@ class TianshouWrapper(RLAlgorithm):
             if "train_mode" in plasticity_state:
                 self._train_mode = bool(plasticity_state["train_mode"])
             if "eps_test" in plasticity_state:
-                self._eps_test = float(plasticity_state["eps_test"])
+                try:
+                    self._eps_test = float(plasticity_state["eps_test"])
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Invalid eps_test value: {e}. Skipping.")
             if "eps_current" in plasticity_state:
-                self._eps_current = float(plasticity_state["eps_current"])
+                try:
+                    self._eps_current = float(plasticity_state["eps_current"])
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Invalid eps_current value: {e}. Skipping.")
             elif "epsilon" in plasticity_state:
-                self._eps_current = float(plasticity_state["epsilon"])
+                try:
+                    self._eps_current = float(plasticity_state["epsilon"])
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Invalid epsilon value: {e}. Skipping.")
 
             learning_rates = plasticity_state.get("learning_rates")
             if isinstance(learning_rates, dict) and learning_rates:
