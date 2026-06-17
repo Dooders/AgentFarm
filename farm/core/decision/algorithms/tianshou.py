@@ -274,52 +274,62 @@ class TianshouWrapper(RLAlgorithm):
         if isinstance(value, np.generic):
             return value.item()
         return value
-
+    
     def _get_replay_buffer_state(self, limit: Optional[int] = None) -> Dict[str, Any]:
-        """Serialize a deterministic slice of the replay buffer."""
+        """Serialize a bounded, deterministic slice of the replay buffer.
+
+        Delegates to :meth:`PrioritizedReplayBuffer.get_transfer_slice`, which
+        returns the most-recent ``limit`` transitions (or the whole buffer when
+        ``limit`` is ``None``) in chronological insertion order. Any error
+        raised here is handled by ``get_model_state``, which drops the optional
+        payload while preserving the core policy weights.
+        """
         if self.replay_buffer is None:
             return {"entries": [], "priorities": []}
 
-        entries = list(self.replay_buffer.buffer)
-        # ``PrioritizedReplayBuffer.priorities`` is preallocated to ``max_size``,
-        # so slicing to ``len(entries)`` always stays within bounds.
-        priorities = np.array(self.replay_buffer.priorities[: len(entries)], copy=True)
+        beta = float(getattr(self.replay_buffer, "beta", 0.0))
+        beta_step_count = int(getattr(self.replay_buffer, "_beta_step_count", 0))
+        alpha = float(getattr(self.replay_buffer, "alpha", 0.6))
+        epsilon = float(getattr(self.replay_buffer, "epsilon", 1e-6))
+        replay_strategy = getattr(self.replay_buffer, "replay_strategy", None)
 
-        if len(entries) == self.replay_buffer.max_size:
-            start_index = int(self.replay_buffer.position)
-            entries = entries[start_index:] + entries[:start_index]
-            priorities = np.concatenate((priorities[start_index:], priorities[:start_index]))
+        max_size = limit if limit is not None else len(self.replay_buffer)
+        if max_size <= 0:
+            return {
+                "entries": [],
+                "priorities": [],
+                "beta": beta,
+                "beta_step_count": beta_step_count,
+                "alpha": alpha,
+                "epsilon": epsilon,
+                "replay_strategy": replay_strategy,
+            }
 
-        if limit is not None:
-            try:
-                limit = max(0, int(limit))
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Invalid replay_buffer_limit '{limit}': {e}. Ignoring limit.")
-            else:
-                # Only apply limit if conversion succeeded
-                if limit == 0:
-                    entries = []
-                    priorities = priorities[:0]
-                else:
-                    entries = entries[-limit:]
-                    priorities = priorities[-limit:]
-
+        slice_data = self.replay_buffer.get_transfer_slice(max_size=max_size)
         return {
             "entries": [
                 {
                     key: self._serialize_replay_value(value)
                     for key, value in experience.items()
                 }
-                for experience in entries
+                for experience in slice_data["experiences"]
             ],
-            "priorities": priorities.astype(np.float64).tolist(),
-            "beta": float(getattr(self.replay_buffer, "beta", 0.0)),
-            "beta_step_count": int(getattr(self.replay_buffer, "_beta_step_count", 0)),
-            "replay_strategy": getattr(self.replay_buffer, "replay_strategy", None),
+            "priorities": slice_data["priorities"].tolist(),
+            "beta": beta,
+            "beta_step_count": beta_step_count,
+            "alpha": slice_data["metadata"]["alpha"],
+            "epsilon": slice_data["metadata"]["epsilon"],
+            "replay_strategy": slice_data["metadata"]["replay_strategy"],
         }
 
     def _load_replay_buffer_state(self, replay_state: Dict[str, Any]) -> None:
-        """Restore a previously serialized replay-buffer slice when compatible."""
+        """Restore a serialized replay-buffer slice via the transfer-slice API.
+
+        Entries are validated and rebuilt before the buffer is mutated, so a
+        malformed payload raises without destroying existing buffer contents.
+        ``load_model_state`` catches any error here and drops the payload while
+        keeping the rest of the loaded state intact.
+        """
         if self.replay_buffer is None:
             return
 
@@ -327,41 +337,65 @@ class TianshouWrapper(RLAlgorithm):
         if not isinstance(entries, list):
             return
 
+        # Validate every entry up front (before clearing the buffer).
         required_keys = {"state", "action", "reward", "next_state", "done"}
-        max_size = int(getattr(self.replay_buffer, "max_size", len(entries)))
-        capped_entries = entries[-max_size:]
-
-        normalized_entries: List[Dict[str, Any]] = []
-        for index, experience in enumerate(capped_entries):
+        experiences: List[Dict[str, Any]] = []
+        for index, experience in enumerate(entries):
             if not isinstance(experience, dict) or not required_keys.issubset(experience):
-                missing_keys = sorted(required_keys.difference(experience) if isinstance(experience, dict) else required_keys)
+                missing_keys = sorted(
+                    required_keys.difference(experience)
+                    if isinstance(experience, dict)
+                    else required_keys
+                )
                 raise ValueError(
                     f"Replay entry at index {index} is missing required fields: {missing_keys}"
                 )
-            normalized_entries.append(dict(experience))
+            experiences.append(dict(experience))
 
-        self.replay_buffer.clear()
-        for experience in normalized_entries:
-            extra_fields = {
-                key: value
-                for key, value in experience.items()
-                if key not in required_keys
-            }
-            self.replay_buffer.append(
-                experience["state"],
-                int(experience["action"]),
-                float(experience["reward"]),
-                experience["next_state"],
-                bool(experience["done"]),
-                **extra_fields,
+        # Cap to the child buffer capacity, keeping the most-recent transitions.
+        max_size = int(getattr(self.replay_buffer, "max_size", len(experiences)))
+        if max_size > 0 and len(experiences) > max_size:
+            experiences = experiences[-max_size:]
+
+        raw_priorities = replay_state.get("priorities", [])
+        if not isinstance(raw_priorities, list):
+            raw_priorities = []
+        priorities_array = np.asarray(raw_priorities, dtype=np.float64)
+        if priorities_array.shape[0] != len(experiences):
+            # Missing or mismatched priorities: align by recency, defaulting any
+            # remainder to 1.0 so every transition is sampled at least once.
+            if priorities_array.shape[0] > len(experiences):
+                priorities_array = priorities_array[-len(experiences):]
+            else:
+                priorities_array = np.ones(len(experiences), dtype=np.float64)
+
+        replay_strategy = replay_state.get("replay_strategy", "prioritized")
+        if "alpha" not in replay_state:
+            logger.warning(
+                "replay_buffer_load_alpha_missing",
+                fallback_alpha=getattr(self.replay_buffer, "alpha", 0.6),
             )
+        alpha = replay_state.get("alpha", getattr(self.replay_buffer, "alpha", 0.6))
+        if "epsilon" not in replay_state:
+            logger.warning(
+                "replay_buffer_load_epsilon_missing",
+                fallback_epsilon=getattr(self.replay_buffer, "epsilon", 1e-6),
+            )
+        epsilon = replay_state.get("epsilon", getattr(self.replay_buffer, "epsilon", 1e-6))
 
-        raw_priorities = replay_state.get("priorities")
-        if isinstance(raw_priorities, list) and raw_priorities:
-            priorities = np.asarray(raw_priorities[-len(normalized_entries):], dtype=np.float64)
-            if priorities.shape[0] == len(normalized_entries):
-                self.replay_buffer.priorities[: len(normalized_entries)] = priorities
-                self.replay_buffer.priorities[len(normalized_entries):] = 0.0
+        slice_data = {
+            "experiences": experiences,
+            "priorities": priorities_array,
+            "metadata": {
+                "alpha": alpha,
+                "epsilon": epsilon,
+                "replay_strategy": replay_strategy,
+            },
+        }
+
+        # load_transfer_slice requires an empty buffer.
+        self.replay_buffer.clear()
+        self.replay_buffer.load_transfer_slice(slice_data)
 
         beta = replay_state.get("beta")
         if beta is not None:
@@ -371,7 +405,6 @@ class TianshouWrapper(RLAlgorithm):
         if beta_step_count is not None:
             self.replay_buffer._beta_step_count = int(beta_step_count)
 
-        replay_strategy = replay_state.get("replay_strategy")
         if replay_strategy in ("uniform", "prioritized"):
             self.replay_buffer.replay_strategy = replay_strategy
             # Keep the wrapper-level attribute in sync with the buffer so any
