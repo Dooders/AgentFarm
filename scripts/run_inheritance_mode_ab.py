@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Inheritance-mode A/B orchestrator for intrinsic evolution (Issue #849).
+"""Inheritance-mode A/B orchestrator for intrinsic evolution (Issue #849/#903).
 
-Runs matched seed sweeps for two arms:
+Runs matched seed sweeps across inheritance arms:
 
-- ``baldwinian``: offspring start with a fresh policy.
-- ``lamarckian``: offspring attempt policy warm-start from parent.
+- ``baldwinian``: offspring start with a fresh policy (default/baseline).
+- ``lamarckian``: offspring attempt policy warm-start from parent (P1).
+- ``p2``: weights inherited with plasticity damping (lower child LR/ε).
+- ``p3``: weights + optimizer state + bounded replay slice transferred.
+- ``p4``: gated/blended transfer (fitness gate + θ blend).
 """
 
 from __future__ import annotations
@@ -30,6 +33,9 @@ from scripts.run_stable_profile_seed_sweep import (  # noqa: E402
 ARM_PRESETS: Dict[str, Dict[str, Any]] = {
     "baldwinian": {"inheritance_mode": "baldwinian"},
     "lamarckian": {"inheritance_mode": "lamarckian"},
+    "p2": {"inheritance_mode": "p2"},
+    "p3": {"inheritance_mode": "p3"},
+    "p4": {"inheritance_mode": "p4"},
 }
 DEFAULT_ARMS: List[str] = ["baldwinian", "lamarckian"]
 
@@ -37,8 +43,9 @@ DEFAULT_ARMS: List[str] = ["baldwinian", "lamarckian"]
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Orchestrate Baldwinian vs Lamarckian matched A/B sweeps "
-            "using the stable-profile intrinsic evolution runner."
+            "Orchestrate inheritance-mode matched A/B sweeps "
+            "using the stable-profile intrinsic evolution runner. "
+            "Supports baldwinian (baseline), lamarckian (P1), p2, p3, and p4 arms."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -48,7 +55,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_ARMS,
         choices=list(ARM_PRESETS),
         metavar="ARM",
-        help="Inheritance arms to run.",
+        help=(
+            "Inheritance arms to run. "
+            "Choices: baldwinian (baseline), lamarckian (P1), p2, p3, p4. "
+            "Default: baldwinian lamarckian."
+        ),
     )
     parser.add_argument(
         "--output-dir",

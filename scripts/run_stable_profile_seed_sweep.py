@@ -80,7 +80,7 @@ COPARENT_STRATEGIES: List[str] = [
     "nearest_alive_same_type",
     "random_alive_same_type",
 ]
-INHERITANCE_MODES: List[str] = ["baldwinian", "lamarckian"]
+INHERITANCE_MODES: List[str] = ["baldwinian", "lamarckian", "p2", "p3", "p4"]
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -126,7 +126,14 @@ def _build_parser() -> argparse.ArgumentParser:
         type=str,
         default="baldwinian",
         choices=INHERITANCE_MODES,
-        help="Policy inheritance mode for offspring (Baldwinian or Lamarckian warm-start).",
+        help=(
+            "Policy inheritance mode for offspring. "
+            "'baldwinian' (default): cold-start. "
+            "'lamarckian' (P1): weights only. "
+            "'p2': weights + plasticity damping. "
+            "'p3': weights + optimizer state + replay slice. "
+            "'p4': gated/blended transfer."
+        ),
     )
     parser.add_argument("--initial-diversity-mutation-rate", type=float, default=1.0)
     parser.add_argument("--initial-diversity-mutation-scale", type=float, default=0.25)

@@ -45,7 +45,31 @@ class TestInheritanceModeFlag(unittest.TestCase):
             _build_parser().parse_args(["--inheritance-mode", "epigenetic"])
 
     def test_choices_match_module_constant(self):
-        self.assertEqual(set(INHERITANCE_MODES), {"baldwinian", "lamarckian"})
+        self.assertEqual(set(INHERITANCE_MODES), {"baldwinian", "lamarckian", "p2", "p3", "p4"})
+
+    def test_p2_accepted(self):
+        args = _build_parser().parse_args(["--inheritance-mode", "p2"])
+        self.assertEqual(args.inheritance_mode, "p2")
+        self.assertEqual(
+            _inheritance_settings_dict(args),
+            {"inheritance_mode": "p2"},
+        )
+
+    def test_p3_accepted(self):
+        args = _build_parser().parse_args(["--inheritance-mode", "p3"])
+        self.assertEqual(args.inheritance_mode, "p3")
+        self.assertEqual(
+            _inheritance_settings_dict(args),
+            {"inheritance_mode": "p3"},
+        )
+
+    def test_p4_accepted(self):
+        args = _build_parser().parse_args(["--inheritance-mode", "p4"])
+        self.assertEqual(args.inheritance_mode, "p4")
+        self.assertEqual(
+            _inheritance_settings_dict(args),
+            {"inheritance_mode": "p4"},
+        )
 
 
 if __name__ == "__main__":

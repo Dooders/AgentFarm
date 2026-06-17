@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 from farm.core.inheritance_telemetry import InheritanceTelemetry
 from farm.core.policy_inheritance import (
+    WARMSTART_REASON_GATE_NOT_CLEARED,
     WARMSTART_REASON_INCOMPATIBLE_STATE,
     WARMSTART_REASON_LOAD_FAILED,
     WARMSTART_REASON_NO_ALGORITHM,
@@ -16,6 +17,9 @@ from farm.core.policy_inheritance import (
     WARMSTART_REASON_PARENT_STATE_FAILED,
     _policy_state_is_compatible,
     apply_lamarckian_policy_warmstart,
+    apply_p2_policy_warmstart,
+    apply_p3_policy_warmstart,
+    apply_p4_policy_warmstart,
 )
 
 
@@ -268,3 +272,317 @@ def test_apply_skips_when_offspring_behavior_is_none():
         apply_lamarckian_policy_warmstart(parent, offspring)
         == WARMSTART_REASON_NO_DECISION_MODULE
     )
+
+
+# ---------------------------------------------------------------------------
+# Helpers for P2/P3/P4 tests
+# ---------------------------------------------------------------------------
+
+
+def _make_extended_pair(
+    parent_state,
+    child_state,
+    *,
+    child_load=None,
+    parent_resource_level=None,
+):
+    """Build parent/offspring objects whose ``get_model_state`` accepts kwargs.
+
+    Unlike :func:`_make_pair`, the ``get_model_state`` callable here accepts
+    ``include_optimizer_state``, ``include_replay_buffer``, etc., mirroring the
+    real :class:`TianshouWrapper` API used by P2/P3/P4.
+    """
+
+    def _get_model_state(
+        include_optimizer_state=False,
+        include_replay_buffer=False,
+        replay_buffer_limit=None,
+        include_plasticity_state=False,
+    ):
+        return parent_state
+
+    parent_kwargs = dict(
+        agent_id="parent",
+        behavior=SimpleNamespace(
+            decision_module=SimpleNamespace(
+                algorithm=SimpleNamespace(
+                    get_model_state=_get_model_state,
+                ),
+            ),
+        ),
+    )
+    if parent_resource_level is not None:
+        parent_kwargs["resource_level"] = parent_resource_level
+    parent = SimpleNamespace(**parent_kwargs)
+
+    child_policy = SimpleNamespace(
+        state_dict=lambda: child_state,
+    )
+    offspring = SimpleNamespace(
+        agent_id="child",
+        behavior=SimpleNamespace(
+            decision_module=SimpleNamespace(
+                algorithm=SimpleNamespace(
+                    policy=child_policy,
+                    load_model_state=child_load if child_load is not None else Mock(),
+                ),
+            ),
+        ),
+    )
+    return parent, offspring
+
+
+# ---------------------------------------------------------------------------
+# P2 tests
+# ---------------------------------------------------------------------------
+
+
+def test_p2_applies_weights_and_damped_plasticity():
+    """P2 must load policy weights with dampened LR and ε."""
+    parent_state = {
+        "policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))},
+        "step_count": 100,
+        "plasticity_state": {
+            "learning_rate": 0.01,
+            "epsilon": 0.4,
+            "train_mode": True,
+        },
+    }
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_extended_pair(parent_state, child_state, child_load=load)
+
+    reason = apply_p2_policy_warmstart(parent, offspring, plasticity_damping=0.5)
+
+    assert reason is None
+    load.assert_called_once()
+    payload = load.call_args.args[0]
+    assert payload["policy_state_dict"] is parent_state["policy_state_dict"]
+    assert payload["step_count"] == 100
+    assert "plasticity_state" in payload
+    damped = payload["plasticity_state"]
+    assert abs(damped["learning_rate"] - 0.005) < 1e-9
+    assert abs(damped["epsilon"] - 0.2) < 1e-9
+    assert damped["train_mode"] is True
+
+
+def test_p2_works_without_plasticity_state():
+    """P2 must succeed even when the parent has no plasticity_state key."""
+    parent_state = {
+        "policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))},
+    }
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_extended_pair(parent_state, child_state, child_load=load)
+
+    reason = apply_p2_policy_warmstart(parent, offspring)
+
+    assert reason is None
+    load.assert_called_once()
+    payload = load.call_args.args[0]
+    assert payload["policy_state_dict"] is parent_state["policy_state_dict"]
+    assert "plasticity_state" not in payload
+
+
+def test_p2_skips_on_incompatible_state():
+    """P2 must propagate INCOMPATIBLE_STATE when shapes mismatch."""
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(4, 4))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    parent, offspring = _make_extended_pair(parent_state, child_state)
+
+    assert apply_p2_policy_warmstart(parent, offspring) == WARMSTART_REASON_INCOMPATIBLE_STATE
+
+
+def test_p2_returns_load_failed_when_load_raises():
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+
+    def _load(_payload):
+        raise RuntimeError("load failed")
+
+    parent, offspring = _make_extended_pair(parent_state, child_state, child_load=_load)
+    assert apply_p2_policy_warmstart(parent, offspring) == WARMSTART_REASON_LOAD_FAILED
+
+
+# ---------------------------------------------------------------------------
+# P3 tests
+# ---------------------------------------------------------------------------
+
+
+def test_p3_applies_weights_optimizer_and_replay():
+    """P3 must pass all three continuation-machinery payloads to load_model_state."""
+    parent_state = {
+        "policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))},
+        "step_count": 50,
+        "optimizer_state": {"optim": {"state": {}, "param_groups": []}},
+        "replay_buffer_state": {"transitions": [], "size": 0},
+    }
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_extended_pair(parent_state, child_state, child_load=load)
+
+    reason = apply_p3_policy_warmstart(parent, offspring)
+
+    assert reason is None
+    load.assert_called_once()
+    payload = load.call_args.args[0]
+    assert payload["policy_state_dict"] is parent_state["policy_state_dict"]
+    assert payload["step_count"] == 50
+    assert payload["optimizer_state"] is parent_state["optimizer_state"]
+    assert payload["replay_buffer_state"] is parent_state["replay_buffer_state"]
+
+
+def test_p3_works_without_optional_payloads():
+    """P3 must succeed even when optimizer/replay state is absent."""
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_extended_pair(parent_state, child_state, child_load=load)
+
+    reason = apply_p3_policy_warmstart(parent, offspring)
+
+    assert reason is None
+    load.assert_called_once()
+    payload = load.call_args.args[0]
+    assert "optimizer_state" not in payload
+    assert "replay_buffer_state" not in payload
+
+
+def test_p3_skips_on_incompatible_state():
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(4, 4))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    parent, offspring = _make_extended_pair(parent_state, child_state)
+
+    assert apply_p3_policy_warmstart(parent, offspring) == WARMSTART_REASON_INCOMPATIBLE_STATE
+
+
+def test_p3_returns_load_failed_when_load_raises():
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+
+    def _load(_payload):
+        raise RuntimeError("load failed")
+
+    parent, offspring = _make_extended_pair(parent_state, child_state, child_load=_load)
+    assert apply_p3_policy_warmstart(parent, offspring) == WARMSTART_REASON_LOAD_FAILED
+
+
+# ---------------------------------------------------------------------------
+# P4 tests
+# ---------------------------------------------------------------------------
+
+
+def test_p4_gate_not_cleared_when_resources_too_low():
+    """P4 must skip when the parent's resource level is below the fitness gate."""
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_extended_pair(
+        parent_state, child_state, child_load=load, parent_resource_level=0.0
+    )
+
+    reason = apply_p4_policy_warmstart(
+        parent, offspring, fitness_gate_min_resources=1.0
+    )
+
+    assert reason == WARMSTART_REASON_GATE_NOT_CLEARED
+    load.assert_not_called()
+
+
+def test_p4_gate_cleared_when_resources_sufficient():
+    """P4 must proceed when the parent clears the fitness gate."""
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_extended_pair(
+        parent_state, child_state, child_load=load, parent_resource_level=5.0
+    )
+
+    reason = apply_p4_policy_warmstart(
+        parent, offspring, fitness_gate_min_resources=1.0
+    )
+
+    assert reason is None
+    load.assert_called_once()
+
+
+def test_p4_gate_skipped_when_no_resource_level():
+    """P4 must proceed (not gate-fail) when the parent has no resource_level attr."""
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_extended_pair(parent_state, child_state, child_load=load)
+    # parent has no resource_level attribute — gate check is skipped
+
+    reason = apply_p4_policy_warmstart(parent, offspring, fitness_gate_min_resources=1.0)
+
+    assert reason is None
+    load.assert_called_once()
+
+
+def test_p4_blends_tensor_weights(tmp_path):
+    """P4 blending produces the expected linear combination when torch is available."""
+    try:
+        import torch  # noqa: PLC0415
+    except ImportError:
+        return  # skip on environments without torch
+
+    parent_weights = torch.tensor([4.0, 4.0])
+    child_weights = torch.tensor([0.0, 0.0])
+
+    parent_state = {"policy_state_dict": {"w": parent_weights}}
+    child_state = {"w": child_weights}
+    load = Mock()
+    parent, offspring = _make_extended_pair(
+        parent_state, child_state, child_load=load, parent_resource_level=10.0
+    )
+
+    reason = apply_p4_policy_warmstart(
+        parent, offspring, blend_alpha=0.5, fitness_gate_min_resources=1.0
+    )
+
+    assert reason is None
+    load.assert_called_once()
+    payload = load.call_args.args[0]
+    blended = payload["policy_state_dict"]["w"]
+    expected = torch.tensor([2.0, 2.0])
+    assert torch.allclose(blended, expected), f"expected {expected}, got {blended}"
+
+
+def test_p4_falls_back_to_parent_weights_for_non_tensor():
+    """P4 must pass parent weights through unchanged for non-Tensor values."""
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_extended_pair(
+        parent_state, child_state, child_load=load, parent_resource_level=10.0
+    )
+
+    reason = apply_p4_policy_warmstart(parent, offspring)
+
+    assert reason is None
+    payload = load.call_args.args[0]
+    assert payload["policy_state_dict"]["w"] is parent_state["policy_state_dict"]["w"]
+
+
+def test_p4_skips_on_incompatible_state():
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(4, 4))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    parent, offspring = _make_extended_pair(
+        parent_state, child_state, parent_resource_level=10.0
+    )
+
+    assert apply_p4_policy_warmstart(parent, offspring) == WARMSTART_REASON_INCOMPATIBLE_STATE
+
+
+def test_p4_returns_load_failed_when_load_raises():
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+
+    def _load(_payload):
+        raise RuntimeError("load failed")
+
+    parent, offspring = _make_extended_pair(
+        parent_state, child_state, child_load=_load, parent_resource_level=10.0
+    )
+    assert apply_p4_policy_warmstart(parent, offspring) == WARMSTART_REASON_LOAD_FAILED
