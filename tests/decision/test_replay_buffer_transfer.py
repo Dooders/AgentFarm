@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from farm.core.decision.algorithms.rl_base import PrioritizedReplayBuffer
+from farm.utils.logging.test_helpers import capture_logs
 
 
 def _hash_slice_data(slice_data: Dict[str, Any]) -> str:
@@ -285,8 +286,6 @@ class TestReplayBufferTransferBasics:
 
     def test_load_transfer_slice_warns_on_metadata_mismatch(self):
         """load_transfer_slice warns when metadata doesn't match child buffer settings."""
-        from farm.utils.logging.test_helpers import capture_logs
-
         parent_buffer = PrioritizedReplayBuffer(max_size=100, alpha=0.7, epsilon=1e-5)
         parent_buffer.append(
             state=np.array([1.0], dtype=np.float32),

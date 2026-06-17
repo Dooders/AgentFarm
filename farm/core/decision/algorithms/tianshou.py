@@ -415,7 +415,17 @@ class TianshouWrapper(RLAlgorithm):
                 
                 # Get metadata from serialized state, falling back to child buffer settings
                 replay_strategy = replay_state.get("replay_strategy", "prioritized")
+                if "alpha" not in replay_state:
+                    logger.warning(
+                        "replay_buffer_load_alpha_missing",
+                        fallback_alpha=getattr(self.replay_buffer, "alpha", 0.6),
+                    )
                 alpha = replay_state.get("alpha", getattr(self.replay_buffer, "alpha", 0.6))
+                if "epsilon" not in replay_state:
+                    logger.warning(
+                        "replay_buffer_load_epsilon_missing",
+                        fallback_epsilon=getattr(self.replay_buffer, "epsilon", 1e-6),
+                    )
                 epsilon = replay_state.get("epsilon", getattr(self.replay_buffer, "epsilon", 1e-6))
                 
                 slice_data = {
