@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Literal, Optional, Union, cast
 import numpy as np
 import torch
 
+from farm.utils.logging import get_logger
+
 from .base import ActionAlgorithm
 
 
@@ -491,3 +493,194 @@ class PrioritizedReplayBuffer(ExperienceReplayBuffer):
             "beta": self.beta,
             "buffer_size": n,
         }
+
+    def get_transfer_slice(
+        self, max_size: int, seed: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Extract a bounded, deterministic slice of the replay buffer for transfer.
+
+        Returns a size-capped subset of experiences and their priorities that can
+        be loaded into a child's buffer. The selection is deterministic when a seed
+        is provided, ensuring reproducibility under ``PYTHONHASHSEED=0``.
+
+        The slice contains the most recent experiences (up to ``max_size``) from
+        the buffer, preserving chronological order. When the buffer contains fewer
+        than ``max_size`` experiences, the entire buffer is returned.
+
+        Args:
+            max_size: Maximum number of experiences to include in the slice.
+                Must be positive.
+            seed: Optional random seed for future deterministic sampling strategies.
+                Currently unused (most-recent selection is already deterministic),
+                but reserved for priority-based or stratified sampling variants.
+
+        Returns:
+            Dictionary with keys:
+                * ``"experiences"`` – List of experience dictionaries (each
+                  containing ``state``, ``action``, ``reward``, ``next_state``,
+                  ``done``, and any additional kwargs stored with the transition).
+                * ``"priorities"`` – 1-D float64 array of priorities corresponding
+                  to each experience.
+                * ``"metadata"`` – Dictionary with ``"alpha"``, ``"epsilon"``,
+                  ``"replay_strategy"`` to validate compatibility during load.
+
+        Raises:
+            ValueError: If ``max_size`` is not positive.
+
+        Example:
+            >>> buffer = PrioritizedReplayBuffer(max_size=1000)
+            >>> # ... add experiences ...
+            >>> slice_data = buffer.get_transfer_slice(max_size=100, seed=42)
+            >>> # Transfer to child buffer
+            >>> child_buffer = PrioritizedReplayBuffer(max_size=1000)
+            >>> child_buffer.load_transfer_slice(slice_data)
+        """
+        if max_size <= 0:
+            raise ValueError(f"max_size must be positive, got {max_size}")
+
+        n = len(self.buffer)
+        if n == 0:
+            return {
+                "experiences": [],
+                "priorities": np.array([], dtype=np.float64),
+                "metadata": {
+                    "alpha": self.alpha,
+                    "epsilon": self.epsilon,
+                    "replay_strategy": self.replay_strategy,
+                },
+            }
+
+        # Select most recent K experiences (deterministic, chronological order)
+        # When buffer is circular and has wrapped, most-recent means taking the
+        # last K in insertion order.
+        slice_size = min(n, max_size)
+
+        # Compute starting index for the slice
+        # If buffer has not wrapped (n < max_size), take the last slice_size items
+        # If buffer has wrapped, position points to the next insertion slot,
+        # so we take slice_size items ending just before position
+        if n < self.max_size:
+            # Buffer has not wrapped yet
+            start_idx = max(0, n - slice_size)
+            indices = list(range(start_idx, n))
+        else:
+            # Buffer has wrapped, position is the oldest item
+            # Most recent items are the slice_size items before position (wrapping around)
+            indices = [
+                (self.position - slice_size + i) % self.max_size
+                for i in range(slice_size)
+            ]
+
+        # Deep-copy experiences to avoid aliasing issues
+        # (states/next_states might be numpy arrays or tensors)
+        experiences = []
+        for idx in indices:
+            exp = self.buffer[idx]
+            exp_copy = {}
+            for key, value in exp.items():
+                if isinstance(value, (np.ndarray, torch.Tensor)):
+                    exp_copy[key] = value.copy() if isinstance(value, np.ndarray) else value.clone()
+                else:
+                    exp_copy[key] = value
+            experiences.append(exp_copy)
+
+        # Extract corresponding priorities
+        priorities = np.array([self.priorities[idx] for idx in indices], dtype=np.float64)
+
+        return {
+            "experiences": experiences,
+            "priorities": priorities,
+            "metadata": {
+                "alpha": self.alpha,
+                "epsilon": self.epsilon,
+                "replay_strategy": self.replay_strategy,
+            },
+        }
+
+    def load_transfer_slice(self, slice_data: Dict[str, Any]) -> None:
+        """Load a transfer slice into this buffer.
+
+        Accepts the output of :meth:`get_transfer_slice` and populates this buffer
+        with the transferred experiences and priorities. The buffer must be empty
+        before loading (enforced to prevent accidental data loss).
+
+        The slice metadata (``alpha``, ``epsilon``, ``replay_strategy``) is validated
+        for compatibility with this buffer's settings. Mismatches trigger a warning
+        but do not block the load, since downstream code may override these values.
+
+        Args:
+            slice_data: Dictionary returned by :meth:`get_transfer_slice`, with
+                keys ``"experiences"``, ``"priorities"``, and ``"metadata"``.
+
+        Raises:
+            ValueError: If the buffer is not empty, or if the slice data is
+                malformed (missing keys, mismatched lengths).
+
+        Example:
+            >>> parent_buffer = PrioritizedReplayBuffer(max_size=1000)
+            >>> # ... parent adds experiences ...
+            >>> slice_data = parent_buffer.get_transfer_slice(max_size=100, seed=42)
+            >>> child_buffer = PrioritizedReplayBuffer(max_size=1000)
+            >>> child_buffer.load_transfer_slice(slice_data)
+        """
+        if len(self.buffer) > 0:
+            raise ValueError(
+                "Buffer must be empty before loading a transfer slice. "
+                "Call clear() first if intentional."
+            )
+
+        # Validate slice_data structure
+        if not isinstance(slice_data, dict):
+            raise ValueError("slice_data must be a dictionary")
+        required_keys = {"experiences", "priorities", "metadata"}
+        if not required_keys.issubset(slice_data.keys()):
+            raise ValueError(
+                f"slice_data missing required keys. Expected {required_keys}, "
+                f"got {set(slice_data.keys())}"
+            )
+
+        experiences = slice_data["experiences"]
+        priorities = slice_data["priorities"]
+        metadata = slice_data["metadata"]
+
+        if not isinstance(experiences, list):
+            raise ValueError("experiences must be a list")
+        if not isinstance(priorities, np.ndarray):
+            raise ValueError("priorities must be a numpy array")
+        if len(experiences) != len(priorities):
+            raise ValueError(
+                f"experiences and priorities length mismatch: "
+                f"{len(experiences)} vs {len(priorities)}"
+            )
+
+        # Validate metadata compatibility (warn but don't block)
+        if metadata.get("alpha") != self.alpha:
+            logger = get_logger(__name__)
+            logger.warning(
+                "replay_buffer_transfer_alpha_mismatch",
+                parent_alpha=metadata.get("alpha"),
+                child_alpha=self.alpha,
+            )
+        if metadata.get("epsilon") != self.epsilon:
+            logger = get_logger(__name__)
+            logger.warning(
+                "replay_buffer_transfer_epsilon_mismatch",
+                parent_epsilon=metadata.get("epsilon"),
+                child_epsilon=self.epsilon,
+            )
+        if metadata.get("replay_strategy") != self.replay_strategy:
+            logger = get_logger(__name__)
+            logger.warning(
+                "replay_buffer_transfer_strategy_mismatch",
+                parent_strategy=metadata.get("replay_strategy"),
+                child_strategy=self.replay_strategy,
+            )
+
+        # Load experiences and priorities
+        for exp, priority in zip(experiences, priorities):
+            if len(self.buffer) < self.max_size:
+                self.buffer.append(exp)
+            else:
+                self.buffer[self.position] = exp
+            self.priorities[self.position] = float(priority)
+            self.position = (self.position + 1) % self.max_size
