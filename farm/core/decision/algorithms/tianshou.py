@@ -266,6 +266,8 @@ class TianshouWrapper(RLAlgorithm):
             return {"entries": [], "priorities": []}
 
         entries = list(self.replay_buffer.buffer)
+        # ``PrioritizedReplayBuffer.priorities`` is preallocated to ``max_size``,
+        # so slicing to ``len(entries)`` always stays within bounds.
         priorities = np.array(self.replay_buffer.priorities[: len(entries)], copy=True)
 
         if len(entries) == self.replay_buffer.max_size and len(entries) > 0:
@@ -303,9 +305,12 @@ class TianshouWrapper(RLAlgorithm):
         capped_entries = entries[-max_size:]
 
         normalized_entries: List[Dict[str, Any]] = []
-        for experience in capped_entries:
+        for index, experience in enumerate(capped_entries):
             if not isinstance(experience, dict) or not required_keys.issubset(experience):
-                raise ValueError("Replay entry is missing required transition fields")
+                missing_keys = sorted(required_keys.difference(experience) if isinstance(experience, dict) else required_keys)
+                raise ValueError(
+                    f"Replay entry at index {index} is missing required fields: {missing_keys}"
+                )
             normalized_entries.append(dict(experience))
 
         self.replay_buffer.clear()
@@ -1508,9 +1513,8 @@ class TianshouWrapper(RLAlgorithm):
                 )
             if include_plasticity_state:
                 learning_rates = self._get_learning_rates()
-                state["plasticity_state"] = {
-                    "epsilon": float(self.epsilon),
-                    "eps_current": float(self._eps_current),
+                plasticity_state = {
+                    "epsilon": float(self._eps_current),
                     "eps_test": float(self._eps_test),
                     "train_mode": bool(self._train_mode),
                     "learning_rate": (
@@ -1518,8 +1522,10 @@ class TianshouWrapper(RLAlgorithm):
                         if learning_rates
                         else float(self.algorithm_config.get("lr", 0.0))
                     ),
-                    "learning_rates": learning_rates,
                 }
+                if len(learning_rates) > 1:
+                    plasticity_state["learning_rates"] = learning_rates
+                state["plasticity_state"] = plasticity_state
             return state
         except Exception as e:
             logger.warning(f"Failed to get model state: {e}")

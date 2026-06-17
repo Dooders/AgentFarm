@@ -559,7 +559,7 @@ class TestTianshouWrapperModelPersistence(unittest.TestCase):
             [entry["reward"] for entry in state["replay_buffer_state"]["entries"]],
             [29.0, 30.0, 31.0],
         )
-        self.assertAlmostEqual(state["plasticity_state"]["eps_current"], 0.123)
+        self.assertAlmostEqual(state["plasticity_state"]["epsilon"], 0.123)
         self.assertAlmostEqual(state["plasticity_state"]["learning_rate"], 1e-3)
 
     def test_load_model_state_restores_optimizer_and_plasticity(self):
@@ -652,7 +652,11 @@ class TestTianshouWrapperModelPersistence(unittest.TestCase):
         """Test malformed optional payloads are ignored without breaking load."""
         state = {
             "step_count": 7,
-            "plasticity_state": {"learning_rate": "bad-value", "epsilon": 0.321},
+            "plasticity_state": {
+                "learning_rate": "bad-value",
+                "learning_rates": {"optim": "bad-value"},
+                "epsilon": 0.321,
+            },
             "replay_buffer_state": {
                 "entries": [{"reward": 1.0}],
                 "priorities": [1.0],
