@@ -274,12 +274,60 @@ class TianshouWrapper(RLAlgorithm):
         if isinstance(value, np.generic):
             return value.item()
         return value
+    
+    def _deserialize_replay_value(self, value: Any) -> Any:
+        """Convert a serialized replay value back to its runtime form.
+        
+        Since _serialize_replay_value converts everything to numpy arrays or
+        primitives, deserialization is mostly a no-op (values are already in
+        their final form).
+        """
+        return value
 
     def _get_replay_buffer_state(self, limit: Optional[int] = None) -> Dict[str, Any]:
-        """Serialize a deterministic slice of the replay buffer."""
+        """Serialize a deterministic slice of the replay buffer.
+        
+        Uses the PrioritizedReplayBuffer's built-in transfer slice API when
+        available, falling back to manual serialization for other buffer types.
+        """
         if self.replay_buffer is None:
             return {"entries": [], "priorities": []}
 
+        # Use the new transfer slice API if available (PrioritizedReplayBuffer)
+        if hasattr(self.replay_buffer, "get_transfer_slice"):
+            # Default to full buffer if no limit, otherwise use the limit
+            max_size = limit if limit is not None else len(self.replay_buffer)
+            if max_size <= 0:
+                return {"entries": [], "priorities": []}
+            
+            try:
+                # Use a deterministic seed based on agent_id or step_count for reproducibility
+                # This ensures identical runs produce identical transfers under PYTHONHASHSEED=0
+                seed = self.step_count % 2**31  # Use step_count as deterministic seed
+                slice_data = self.replay_buffer.get_transfer_slice(
+                    max_size=max_size, seed=seed
+                )
+                
+                # Convert to the format expected by _load_replay_buffer_state
+                # (for compatibility with existing serialization code)
+                return {
+                    "entries": [
+                        {
+                            key: self._serialize_replay_value(value)
+                            for key, value in experience.items()
+                        }
+                        for experience in slice_data["experiences"]
+                    ],
+                    "priorities": slice_data["priorities"].tolist(),
+                    "beta": float(getattr(self.replay_buffer, "beta", 0.0)),
+                    "beta_step_count": int(getattr(self.replay_buffer, "_beta_step_count", 0)),
+                    "replay_strategy": slice_data["metadata"]["replay_strategy"],
+                }
+            except Exception as e:
+                logger.warning(f"Failed to use transfer slice API, falling back to manual serialization: {e}")
+                # Fall through to manual serialization
+
+        # Manual serialization for buffers without get_transfer_slice
         entries = list(self.replay_buffer.buffer)
         # ``PrioritizedReplayBuffer.priorities`` is preallocated to ``max_size``,
         # so slicing to ``len(entries)`` always stays within bounds.
@@ -319,7 +367,11 @@ class TianshouWrapper(RLAlgorithm):
         }
 
     def _load_replay_buffer_state(self, replay_state: Dict[str, Any]) -> None:
-        """Restore a previously serialized replay-buffer slice when compatible."""
+        """Restore a previously serialized replay-buffer slice when compatible.
+        
+        Uses the PrioritizedReplayBuffer's built-in load_transfer_slice API when
+        available, falling back to manual deserialization for other buffer types.
+        """
         if self.replay_buffer is None:
             return
 
@@ -327,6 +379,70 @@ class TianshouWrapper(RLAlgorithm):
         if not isinstance(entries, list):
             return
 
+        # Use the new load_transfer_slice API if available (PrioritizedReplayBuffer)
+        if hasattr(self.replay_buffer, "load_transfer_slice"):
+            try:
+                # Validate and deserialize entries back to proper types
+                required_keys = {"state", "action", "reward", "next_state", "done"}
+                experiences = []
+                for index, experience in enumerate(entries):
+                    if not isinstance(experience, dict) or not required_keys.issubset(experience):
+                        # Malformed entry - fall back to manual deserialization which will raise
+                        # a proper error or skip the entry
+                        raise ValueError(
+                            f"Replay entry at index {index} is malformed or missing required fields"
+                        )
+                    exp_copy = {}
+                    for key, value in experience.items():
+                        exp_copy[key] = self._deserialize_replay_value(value)
+                    experiences.append(exp_copy)
+                
+                # Build slice_data in the format expected by load_transfer_slice
+                priorities = replay_state.get("priorities", [])
+                if not isinstance(priorities, list):
+                    priorities = []
+                
+                priorities_array = np.array(priorities, dtype=np.float64)
+                
+                # Get metadata
+                replay_strategy = replay_state.get("replay_strategy", "prioritized")
+                alpha = getattr(self.replay_buffer, "alpha", 0.6)
+                epsilon = getattr(self.replay_buffer, "epsilon", 1e-6)
+                
+                slice_data = {
+                    "experiences": experiences,
+                    "priorities": priorities_array,
+                    "metadata": {
+                        "alpha": alpha,
+                        "epsilon": epsilon,
+                        "replay_strategy": replay_strategy,
+                    },
+                }
+                
+                # Load using the transfer slice API
+                self.replay_buffer.load_transfer_slice(slice_data)
+                
+                # Restore additional PER state
+                beta = replay_state.get("beta")
+                if beta is not None:
+                    self.replay_buffer.beta = float(beta)
+                
+                beta_step_count = replay_state.get("beta_step_count")
+                if beta_step_count is not None:
+                    self.replay_buffer._beta_step_count = int(beta_step_count)
+                
+                # Update wrapper-level and buffer-level replay_strategy to match loaded state
+                if replay_strategy in ("uniform", "prioritized"):
+                    self.replay_buffer.replay_strategy = replay_strategy
+                    self.replay_strategy = replay_strategy
+                
+                return  # Successfully loaded via transfer slice API
+                
+            except Exception as e:
+                logger.warning(f"Failed to use load_transfer_slice API, falling back to manual deserialization: {e}")
+                # Fall through to manual deserialization
+
+        # Manual deserialization for buffers without load_transfer_slice
         required_keys = {"state", "action", "reward", "next_state", "done"}
         max_size = int(getattr(self.replay_buffer, "max_size", len(entries)))
         capped_entries = entries[-max_size:]
