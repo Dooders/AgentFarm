@@ -201,6 +201,21 @@ class TianshouWrapper(RLAlgorithm):
         """Current epsilon-greedy exploration rate (mirrors ``policy.eps``)."""
         return self._eps_current if self._train_mode else self._eps_test
 
+    @staticmethod
+    def _coerce_float(source: Dict[str, Any], key: str) -> Optional[float]:
+        """Return ``source[key]`` as a float, or ``None`` if absent/invalid.
+
+        Invalid values are logged and skipped so a malformed plasticity payload
+        leaves the existing attribute untouched rather than raising.
+        """
+        if key not in source:
+            return None
+        try:
+            return float(source[key])
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Invalid {key} value: {e}. Skipping.")
+            return None
+
     def _get_policy_optimizers(self) -> Dict[str, Any]:
         """Return the Tianshou policy optimizers exposed by the current wrapper."""
         if self.policy is None:
@@ -359,6 +374,9 @@ class TianshouWrapper(RLAlgorithm):
         replay_strategy = replay_state.get("replay_strategy")
         if replay_strategy in ("uniform", "prioritized"):
             self.replay_buffer.replay_strategy = replay_strategy
+            # Keep the wrapper-level attribute in sync with the buffer so any
+            # reader of ``wrapper.replay_strategy`` does not observe a stale value.
+            self.replay_strategy = replay_strategy
 
     def _get_default_config(self, user_config: Dict[str, Any]) -> Dict[str, Any]:
         """Get default configuration for the algorithm."""
@@ -1516,18 +1534,38 @@ class TianshouWrapper(RLAlgorithm):
                 "algorithm_name": self.algorithm_name,
                 "algorithm_config": self.algorithm_config,
             }
-            if include_optimizer_state:
+        except Exception as e:
+            logger.warning(f"Failed to get model state: {e}")
+            return {
+                "step_count": self.step_count,
+                "buffer_size": len(self.replay_buffer),
+                "algorithm_name": self.algorithm_name,
+            }
+
+        # Optional payloads are isolated so a failure serializing any of them
+        # degrades to "core weights only" instead of discarding the policy
+        # state that warmstart/inheritance depends on.
+        if include_optimizer_state:
+            try:
                 optimizer_state = {
                     attr_name: optimizer.state_dict()
                     for attr_name, optimizer in self._get_policy_optimizers().items()
                 }
                 if optimizer_state:
                     state["optimizer_state"] = optimizer_state
-            if include_replay_buffer:
+            except Exception as e:
+                logger.warning(f"Failed to serialize optimizer state: {e}")
+
+        if include_replay_buffer:
+            try:
                 state["replay_buffer_state"] = self._get_replay_buffer_state(
                     limit=replay_buffer_limit
                 )
-            if include_plasticity_state:
+            except Exception as e:
+                logger.warning(f"Failed to serialize replay buffer state: {e}")
+
+        if include_plasticity_state:
+            try:
                 learning_rates = self._get_learning_rates()
                 plasticity_state = {
                     "epsilon": float(self._eps_current),
@@ -1542,14 +1580,10 @@ class TianshouWrapper(RLAlgorithm):
                 if len(learning_rates) > 1:
                     plasticity_state["learning_rates"] = learning_rates
                 state["plasticity_state"] = plasticity_state
-            return state
-        except Exception as e:
-            logger.warning(f"Failed to get model state: {e}")
-            return {
-                "step_count": self.step_count,
-                "buffer_size": len(self.replay_buffer),
-                "algorithm_name": self.algorithm_name,
-            }
+            except Exception as e:
+                logger.warning(f"Failed to serialize plasticity state: {e}")
+
+        return state
 
     def load_model_state(self, state: Dict[str, Any]) -> None:
         """Load a saved model state."""
@@ -1584,22 +1618,21 @@ class TianshouWrapper(RLAlgorithm):
         if isinstance(plasticity_state, dict):
             if "train_mode" in plasticity_state:
                 self._train_mode = bool(plasticity_state["train_mode"])
-            if "eps_test" in plasticity_state:
-                try:
-                    self._eps_test = float(plasticity_state["eps_test"])
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Invalid eps_test value: {e}. Skipping.")
-            if "eps_current" in plasticity_state:
-                try:
-                    self._eps_current = float(plasticity_state["eps_current"])
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Invalid eps_current value: {e}. Skipping.")
-            elif "epsilon" in plasticity_state:
-                try:
-                    self._eps_current = float(plasticity_state["epsilon"])
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Invalid epsilon value: {e}. Skipping.")
 
+            eps_test = self._coerce_float(plasticity_state, "eps_test")
+            if eps_test is not None:
+                self._eps_test = eps_test
+            # ``eps_current`` is the canonical key; fall back to ``epsilon`` for
+            # payloads produced by ``get_model_state`` (which emits ``epsilon``).
+            eps_current = self._coerce_float(plasticity_state, "eps_current")
+            if eps_current is None:
+                eps_current = self._coerce_float(plasticity_state, "epsilon")
+            if eps_current is not None:
+                self._eps_current = eps_current
+
+            # Plasticity learning rate is the evolvable gene, so it is applied
+            # after any restored optimizer state and intentionally overrides the
+            # optimizer's restored param-group LR.
             learning_rates = plasticity_state.get("learning_rates")
             if isinstance(learning_rates, dict) and learning_rates:
                 self._set_learning_rates(learning_rates)

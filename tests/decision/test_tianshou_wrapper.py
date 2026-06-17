@@ -661,6 +661,91 @@ class TestTianshouWrapperModelPersistence(unittest.TestCase):
         self.assertAlmostEqual(self.dqn_wrapper._eps_current, 0.321)
         self.assertAlmostEqual(self.dqn_wrapper.policy.optim.param_groups[0]["lr"], 1e-3)
 
+    def test_get_model_state_preserves_weights_on_optional_failure(self):
+        """A failing optional payload must not discard the core policy weights."""
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("replay serialization failed")
+
+        self.dqn_wrapper._get_replay_buffer_state = _boom
+
+        state = self.dqn_wrapper.get_model_state(
+            include_replay_buffer=True,
+            include_plasticity_state=True,
+        )
+
+        self.assertIn("policy_state_dict", state)
+        self.assertTrue(state["policy_state_dict"])
+        self.assertNotIn("replay_buffer_state", state)
+        self.assertIn("plasticity_state", state)
+
+    def test_load_model_state_wrapped_replay_buffer_preserves_order(self):
+        """A full/wrapped buffer round-trips in logical (oldest-first) order."""
+        from farm.core.decision.algorithms.tianshou import DQNWrapper
+
+        wrapper = DQNWrapper(
+            num_actions=self.num_actions,
+            state_dim=self.state_dim,
+            observation_shape=self.observation_shape,
+            buffer_size=4,
+        )
+        for i in range(6):
+            state = self._make_state(i)
+            wrapper.store_experience(state, i % self.num_actions, float(i), state + 1, False)
+
+        self.assertEqual(len(wrapper.replay_buffer), 4)
+        self.assertGreater(wrapper.replay_buffer.position, 0)
+
+        saved_state = wrapper.get_model_state(include_replay_buffer=True)
+
+        new_wrapper = DQNWrapper(
+            num_actions=self.num_actions,
+            state_dim=self.state_dim,
+            observation_shape=self.observation_shape,
+            buffer_size=4,
+        )
+        new_wrapper.load_model_state(saved_state)
+
+        self.assertEqual(
+            [entry["reward"] for entry in new_wrapper.replay_buffer.buffer],
+            [2.0, 3.0, 4.0, 5.0],
+        )
+
+    def test_load_model_state_prioritized_replay_roundtrip(self):
+        """Prioritized replay state (priorities/beta/strategy) round-trips."""
+        from farm.core.decision.algorithms.tianshou import DQNWrapper
+
+        wrapper = DQNWrapper(
+            num_actions=self.num_actions,
+            state_dim=self.state_dim,
+            observation_shape=self.observation_shape,
+            replay_strategy="prioritized",
+        )
+        for i in range(5):
+            state = self._make_state(i)
+            wrapper.store_experience(state, i % self.num_actions, float(i), state + 1, False)
+        wrapper.replay_buffer.priorities[:5] = np.array([0.5, 1.5, 2.5, 3.5, 4.5])
+        wrapper.replay_buffer.beta = 0.77
+
+        saved_state = wrapper.get_model_state(include_replay_buffer=True)
+        self.assertEqual(saved_state["replay_buffer_state"]["replay_strategy"], "prioritized")
+
+        new_wrapper = DQNWrapper(
+            num_actions=self.num_actions,
+            state_dim=self.state_dim,
+            observation_shape=self.observation_shape,
+            replay_strategy="uniform",
+        )
+        new_wrapper.load_model_state(saved_state)
+
+        self.assertEqual(new_wrapper.replay_strategy, "prioritized")
+        self.assertEqual(new_wrapper.replay_buffer.replay_strategy, "prioritized")
+        self.assertAlmostEqual(new_wrapper.replay_buffer.beta, 0.77)
+        np.testing.assert_allclose(
+            new_wrapper.replay_buffer.priorities[:5],
+            np.array([0.5, 1.5, 2.5, 3.5, 4.5]),
+        )
+
     def test_save_load_roundtrip(self):
         """Test saving and loading model state in a roundtrip."""
         # Add some experiences
