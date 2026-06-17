@@ -303,7 +303,8 @@ class TianshouWrapper(RLAlgorithm):
             try:
                 # Use a deterministic seed based on agent_id or step_count for reproducibility
                 # This ensures identical runs produce identical transfers under PYTHONHASHSEED=0
-                seed = self.step_count % 2**31  # Use step_count as deterministic seed
+                # Modulo 2**31 bounds the value to a 32-bit signed int for hash stability, not cryptographic security
+                seed = self.step_count % 2**31
                 slice_data = self.replay_buffer.get_transfer_slice(
                     max_size=max_size, seed=seed
                 )
