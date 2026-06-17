@@ -1,4 +1,23 @@
-"""Helpers for policy-state inheritance across generations."""
+"""Helpers for policy-state inheritance across generations.
+
+This module provides infrastructure for transferring learned policy state from
+parent agents to their offspring. The primary entry point is
+:func:`apply_lamarckian_policy_warmstart`, which copies policy weights into a
+child agent.
+
+For richer inheritance payloads (P3 variant from docs/design/inherited_payload_design.md),
+the replay buffer transfer API is available in
+:class:`farm.core.decision.algorithms.rl_base.PrioritizedReplayBuffer`:
+
+* :meth:`get_transfer_slice(max_size, seed)` extracts a bounded, deterministic
+  slice of the parent's replay buffer.
+* :meth:`load_transfer_slice(slice_data)` loads the slice into the child's buffer.
+
+These methods are automatically used by
+:class:`farm.core.decision.algorithms.tianshou.TianshouWrapper` when
+``get_model_state(include_replay_buffer=True, replay_buffer_limit=N)`` is called,
+and are integrated with the existing ``load_model_state`` machinery.
+"""
 
 from __future__ import annotations
 
