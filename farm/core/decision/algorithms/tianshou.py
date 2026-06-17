@@ -270,7 +270,7 @@ class TianshouWrapper(RLAlgorithm):
         # so slicing to ``len(entries)`` always stays within bounds.
         priorities = np.array(self.replay_buffer.priorities[: len(entries)], copy=True)
 
-        if len(entries) == self.replay_buffer.max_size and len(entries) > 0:
+        if len(entries) == self.replay_buffer.max_size:
             start_index = int(self.replay_buffer.position)
             entries = entries[start_index:] + entries[:start_index]
             priorities = np.concatenate((priorities[start_index:], priorities[:start_index]))
@@ -296,6 +296,9 @@ class TianshouWrapper(RLAlgorithm):
 
     def _load_replay_buffer_state(self, replay_state: Dict[str, Any]) -> None:
         """Restore a previously serialized replay-buffer slice when compatible."""
+        if self.replay_buffer is None:
+            return
+
         entries = replay_state.get("entries")
         if not isinstance(entries, list):
             return

@@ -36,7 +36,7 @@ class TestTianshouWrapperInitialization(unittest.TestCase):
 
     def test_ppo_wrapper_initialization(self):
         """Test PPOWrapper initialization."""
-        from farm.core.decision.algorithms.tianshou import DQNWrapper, PPOWrapper
+        from farm.core.decision.algorithms.tianshou import PPOWrapper
 
         wrapper = PPOWrapper(
             num_actions=self.num_actions,
@@ -115,7 +115,7 @@ class TestTianshouWrapperInitialization(unittest.TestCase):
 
     def test_custom_algorithm_config(self):
         """Test initialization with custom algorithm configuration."""
-        from farm.core.decision.algorithms.tianshou import DQNWrapper, PPOWrapper
+        from farm.core.decision.algorithms.tianshou import PPOWrapper
 
         custom_config = {
             "lr": 1e-4,
@@ -207,7 +207,7 @@ class TestTianshouWrapperActionSelection(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        from farm.core.decision.algorithms.tianshou import DQNWrapper, PPOWrapper
+        from farm.core.decision.algorithms.tianshou import PPOWrapper
 
         self.num_actions = 4
         self.state_dim = 13
@@ -218,15 +218,6 @@ class TestTianshouWrapperActionSelection(unittest.TestCase):
             state_dim=self.state_dim,
             observation_shape=self.observation_shape,
         )
-        self.dqn_wrapper = DQNWrapper(
-            num_actions=self.num_actions,
-            state_dim=self.state_dim,
-            observation_shape=self.observation_shape,
-        )
-
-    def _make_state(self, value):
-        """Create a deterministic observation tensor for replay-buffer tests."""
-        return np.full(self.observation_shape, value, dtype=np.float32)
 
     def test_select_action_1d_state(self):
         """Test action selection with 1D state on a flat DQN policy."""
@@ -312,7 +303,7 @@ class TestTianshouWrapperExperienceReplay(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        from farm.core.decision.algorithms.tianshou import DQNWrapper, PPOWrapper
+        from farm.core.decision.algorithms.tianshou import PPOWrapper
 
         self.num_actions = 4
         self.state_dim = 13
