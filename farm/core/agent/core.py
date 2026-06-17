@@ -32,7 +32,12 @@ from farm.core.hyperparameter_chromosome import (
 )
 from farm.core.environment import _AgentList
 from farm.core.inheritance_telemetry import InheritanceTelemetry
-from farm.core.policy_inheritance import apply_lamarckian_policy_warmstart
+from farm.core.policy_inheritance import (
+    apply_lamarckian_policy_warmstart,
+    apply_p2_policy_warmstart,
+    apply_p3_policy_warmstart,
+    apply_p4_policy_warmstart,
+)
 from farm.core.state import AgentState, AgentStateManager
 from farm.utils.logging import get_logger
 
@@ -1199,7 +1204,15 @@ class AgentCore:
         return True
 
     def _apply_lamarckian_inheritance_if_enabled(self, offspring: "AgentCore") -> None:
-        """Apply optional Lamarckian policy warm-start from parent to child.
+        """Apply optional policy warm-start from parent to child.
+
+        Dispatches to the appropriate variant hook based on the runner's
+        configured ``inheritance_mode``:
+
+        - ``"lamarckian"`` (P1): copy policy weights.
+        - ``"p2"``: weights + plasticity damping (lower child LR/ε).
+        - ``"p3"``: weights + optimizer state + bounded replay slice.
+        - ``"p4"``: gated/blended transfer (fitness gate + weight blend).
 
         When the runner has attached an :class:`InheritanceTelemetry` to the
         environment, outcome counters are updated through it (one applied or
@@ -1212,10 +1225,22 @@ class AgentCore:
         policy = getattr(self.environment, "intrinsic_evolution_policy", None)
         if policy is None or not getattr(policy, "enabled", False):
             return
-        if getattr(policy, "inheritance_mode", "baldwinian") != "lamarckian":
+
+        inheritance_mode = getattr(policy, "inheritance_mode", "baldwinian")
+        if inheritance_mode == "baldwinian":
             return
 
-        skip_reason = apply_lamarckian_policy_warmstart(self, offspring)
+        if inheritance_mode == "lamarckian":
+            skip_reason = apply_lamarckian_policy_warmstart(self, offspring)
+        elif inheritance_mode == "p2":
+            skip_reason = apply_p2_policy_warmstart(self, offspring)
+        elif inheritance_mode == "p3":
+            skip_reason = apply_p3_policy_warmstart(self, offspring)
+        elif inheritance_mode == "p4":
+            skip_reason = apply_p4_policy_warmstart(self, offspring)
+        else:
+            return
+
         telemetry = getattr(self.environment, "inheritance_telemetry", None)
         if not isinstance(telemetry, InheritanceTelemetry):
             return

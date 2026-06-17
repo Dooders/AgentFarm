@@ -119,6 +119,27 @@ class TestIntrinsicEvolutionPolicy(unittest.TestCase):
         with self.assertRaises(ValueError):
             IntrinsicEvolutionPolicy(mutation_mode="not_a_mode")  # type: ignore[arg-type]
 
+    def test_p2_mode_accepted(self):
+        policy = IntrinsicEvolutionPolicy(inheritance_mode="p2")
+        self.assertEqual(policy.inheritance_mode, "p2")
+
+    def test_p3_mode_accepted(self):
+        policy = IntrinsicEvolutionPolicy(inheritance_mode="p3")
+        self.assertEqual(policy.inheritance_mode, "p3")
+
+    def test_p4_mode_accepted(self):
+        policy = IntrinsicEvolutionPolicy(inheritance_mode="p4")
+        self.assertEqual(policy.inheritance_mode, "p4")
+
+    def test_invalid_inheritance_mode_raises(self):
+        with self.assertRaises(ValueError):
+            IntrinsicEvolutionPolicy(inheritance_mode="epigenetic")  # type: ignore[arg-type]
+
+    def test_all_valid_inheritance_modes_accepted(self):
+        for mode in ("baldwinian", "lamarckian", "p2", "p3", "p4"):
+            policy = IntrinsicEvolutionPolicy(inheritance_mode=mode)
+            self.assertEqual(policy.inheritance_mode, mode)
+
 
 class TestIntrinsicEvolutionExperimentConfig(unittest.TestCase):
     def test_rejects_zero_steps(self):
