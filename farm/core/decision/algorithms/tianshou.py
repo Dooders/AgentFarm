@@ -7,7 +7,7 @@ Windows-compatible alternative to other RL libraries.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import gymnasium
 import numpy as np
@@ -41,6 +41,14 @@ class TianshouWrapper(RLAlgorithm):
         "eps_decay", "dqn_hidden_size",
         "repeat_per_collect", "max_batchsize",
     ])
+    _OPTIMIZER_ATTRS = (
+        "optim",
+        "actor_optim",
+        "critic_optim",
+        "critic1_optim",
+        "critic2_optim",
+        "alpha_optim",
+    )
 
     def __init__(
         self,
@@ -192,6 +200,152 @@ class TianshouWrapper(RLAlgorithm):
     def epsilon(self) -> float:
         """Current epsilon-greedy exploration rate (mirrors ``policy.eps``)."""
         return self._eps_current if self._train_mode else self._eps_test
+
+    def _get_policy_optimizers(self) -> Dict[str, Any]:
+        """Return the Tianshou policy optimizers exposed by the current wrapper."""
+        if self.policy is None:
+            return {}
+
+        optimizers: Dict[str, Any] = {}
+        for attr_name in self._OPTIMIZER_ATTRS:
+            optimizer = getattr(self.policy, attr_name, None)
+            if optimizer is None:
+                continue
+            if callable(getattr(optimizer, "state_dict", None)) and callable(
+                getattr(optimizer, "load_state_dict", None)
+            ):
+                optimizers[attr_name] = optimizer
+        return optimizers
+
+    def _get_learning_rates(self) -> Dict[str, float]:
+        """Snapshot the current learning rates for all exposed optimizers."""
+        learning_rates: Dict[str, float] = {}
+        for attr_name, optimizer in self._get_policy_optimizers().items():
+            param_groups = getattr(optimizer, "param_groups", None)
+            if not param_groups:
+                continue
+            lr = param_groups[0].get("lr")
+            if lr is None:
+                continue
+            learning_rates[attr_name] = float(lr)
+        return learning_rates
+
+    def _set_learning_rates(self, learning_rates: Dict[str, Any]) -> None:
+        """Apply learning rates to the matching optimizers when present."""
+        optimizers = self._get_policy_optimizers()
+        applied_rates: List[float] = []
+        for attr_name, raw_lr in learning_rates.items():
+            optimizer = optimizers.get(attr_name)
+            if optimizer is None:
+                continue
+            try:
+                lr = float(raw_lr)
+            except (TypeError, ValueError):
+                logger.warning("Skipping invalid learning rate for %s: %r", attr_name, raw_lr)
+                continue
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = lr
+            applied_rates.append(lr)
+
+        if applied_rates:
+            self.algorithm_config["lr"] = applied_rates[0]
+
+    def _serialize_replay_value(self, value: Any) -> Any:
+        """Return a detached/copy-safe representation for replay payloads."""
+        if isinstance(value, np.ndarray):
+            return np.array(value, copy=True)
+        if torch.is_tensor(value):
+            return value.detach().cpu().numpy().copy()
+        if isinstance(value, np.generic):
+            return value.item()
+        return value
+
+    def _get_replay_buffer_state(self, limit: Optional[int] = None) -> Dict[str, Any]:
+        """Serialize a deterministic slice of the replay buffer."""
+        if self.replay_buffer is None:
+            return {"entries": [], "priorities": []}
+
+        entries = list(self.replay_buffer.buffer)
+        # ``PrioritizedReplayBuffer.priorities`` is preallocated to ``max_size``,
+        # so slicing to ``len(entries)`` always stays within bounds.
+        priorities = np.array(self.replay_buffer.priorities[: len(entries)], copy=True)
+
+        if len(entries) == self.replay_buffer.max_size:
+            start_index = int(self.replay_buffer.position)
+            entries = entries[start_index:] + entries[:start_index]
+            priorities = np.concatenate((priorities[start_index:], priorities[:start_index]))
+
+        if limit is not None:
+            limit = max(0, int(limit))
+            entries = entries[-limit:]
+            priorities = priorities[-limit:]
+
+        return {
+            "entries": [
+                {
+                    key: self._serialize_replay_value(value)
+                    for key, value in experience.items()
+                }
+                for experience in entries
+            ],
+            "priorities": priorities.astype(np.float64).tolist(),
+            "beta": float(getattr(self.replay_buffer, "beta", 0.0)),
+            "beta_step_count": int(getattr(self.replay_buffer, "_beta_step_count", 0)),
+            "replay_strategy": getattr(self.replay_buffer, "replay_strategy", None),
+        }
+
+    def _load_replay_buffer_state(self, replay_state: Dict[str, Any]) -> None:
+        """Restore a previously serialized replay-buffer slice when compatible."""
+        if self.replay_buffer is None:
+            return
+
+        entries = replay_state.get("entries")
+        if not isinstance(entries, list):
+            return
+
+        required_keys = {"state", "action", "reward", "next_state", "done"}
+        max_size = int(getattr(self.replay_buffer, "max_size", len(entries)))
+        capped_entries = entries[-max_size:]
+
+        normalized_entries: List[Dict[str, Any]] = []
+        for index, experience in enumerate(capped_entries):
+            if not isinstance(experience, dict) or not required_keys.issubset(experience):
+                missing_keys = sorted(required_keys.difference(experience) if isinstance(experience, dict) else required_keys)
+                raise ValueError(
+                    f"Replay entry at index {index} is missing required fields: {missing_keys}"
+                )
+            normalized_entries.append(dict(experience))
+
+        self.replay_buffer.clear()
+        for experience in normalized_entries:
+            extra_fields = {
+                key: value
+                for key, value in experience.items()
+                if key not in required_keys
+            }
+            self.replay_buffer.append(
+                experience["state"],
+                int(experience["action"]),
+                float(experience["reward"]),
+                experience["next_state"],
+                bool(experience["done"]),
+                **extra_fields,
+            )
+
+        raw_priorities = replay_state.get("priorities")
+        if isinstance(raw_priorities, list) and raw_priorities:
+            priorities = np.asarray(raw_priorities[-len(normalized_entries):], dtype=np.float64)
+            if priorities.shape[0] == len(normalized_entries):
+                self.replay_buffer.priorities[: len(normalized_entries)] = priorities
+                self.replay_buffer.priorities[len(normalized_entries):] = 0.0
+
+        beta = replay_state.get("beta")
+        if beta is not None:
+            self.replay_buffer.beta = float(beta)
+
+        beta_step_count = replay_state.get("beta_step_count")
+        if beta_step_count is not None:
+            self.replay_buffer._beta_step_count = int(beta_step_count)
 
     def _get_default_config(self, user_config: Dict[str, Any]) -> Dict[str, Any]:
         """Get default configuration for the algorithm."""
@@ -1325,14 +1479,23 @@ class TianshouWrapper(RLAlgorithm):
             and self.step_count % self.train_freq == 0
         )
 
-    def get_model_state(self) -> Dict[str, Any]:
-        """Get the current model state for saving."""
+    def get_model_state(
+        self,
+        include_optimizer_state: bool = False,
+        include_replay_buffer: bool = False,
+        replay_buffer_limit: Optional[int] = None,
+        include_plasticity_state: bool = False,
+    ) -> Dict[str, Any]:
+        """Get the current model state for saving.
+
+        Optional payloads are excluded by default so the existing
+        weights-only/Baldwinian paths keep their current behavior unless an
+        inheritance mode explicitly opts into richer module state.
+        """
         if self.policy is None:
             return {}
 
         try:
-            import torch
-
             state = {
                 "policy_state_dict": self.policy.state_dict(),
                 "step_count": self.step_count,
@@ -1340,6 +1503,32 @@ class TianshouWrapper(RLAlgorithm):
                 "algorithm_name": self.algorithm_name,
                 "algorithm_config": self.algorithm_config,
             }
+            if include_optimizer_state:
+                optimizer_state = {
+                    attr_name: optimizer.state_dict()
+                    for attr_name, optimizer in self._get_policy_optimizers().items()
+                }
+                if optimizer_state:
+                    state["optimizer_state"] = optimizer_state
+            if include_replay_buffer:
+                state["replay_buffer_state"] = self._get_replay_buffer_state(
+                    limit=replay_buffer_limit
+                )
+            if include_plasticity_state:
+                learning_rates = self._get_learning_rates()
+                plasticity_state = {
+                    "epsilon": float(self._eps_current),
+                    "eps_test": float(self._eps_test),
+                    "train_mode": bool(self._train_mode),
+                    "learning_rate": (
+                        float(next(iter(learning_rates.values())))
+                        if learning_rates
+                        else float(self.algorithm_config.get("lr", 0.0))
+                    ),
+                }
+                if len(learning_rates) > 1:
+                    plasticity_state["learning_rates"] = learning_rates
+                state["plasticity_state"] = plasticity_state
             return state
         except Exception as e:
             logger.warning(f"Failed to get model state: {e}")
@@ -1359,6 +1548,47 @@ class TianshouWrapper(RLAlgorithm):
 
         if "step_count" in state:
             self._step_count = state["step_count"]
+
+        optimizer_state = state.get("optimizer_state")
+        if isinstance(optimizer_state, dict):
+            for attr_name, optimizer_snapshot in optimizer_state.items():
+                optimizer = self._get_policy_optimizers().get(attr_name)
+                if optimizer is None:
+                    continue
+                try:
+                    optimizer.load_state_dict(optimizer_snapshot)
+                except Exception as e:
+                    logger.warning(f"Failed to load optimizer state for {attr_name}: {e}")
+
+        replay_buffer_state = state.get("replay_buffer_state")
+        if isinstance(replay_buffer_state, dict):
+            try:
+                self._load_replay_buffer_state(replay_buffer_state)
+            except Exception as e:
+                logger.warning(f"Failed to load replay buffer state: {e}")
+
+        plasticity_state = state.get("plasticity_state")
+        if isinstance(plasticity_state, dict):
+            if "train_mode" in plasticity_state:
+                self._train_mode = bool(plasticity_state["train_mode"])
+            if "eps_test" in plasticity_state:
+                self._eps_test = float(plasticity_state["eps_test"])
+            if "eps_current" in plasticity_state:
+                self._eps_current = float(plasticity_state["eps_current"])
+            elif "epsilon" in plasticity_state:
+                self._eps_current = float(plasticity_state["epsilon"])
+
+            learning_rates = plasticity_state.get("learning_rates")
+            if isinstance(learning_rates, dict) and learning_rates:
+                self._set_learning_rates(learning_rates)
+            elif "learning_rate" in plasticity_state:
+                self._set_learning_rates(
+                    {
+                        attr_name: plasticity_state["learning_rate"]
+                        for attr_name in self._get_policy_optimizers()
+                    }
+                )
+            self._apply_eps_to_policy()
 
     def train(self, batch: Any, **kwargs: Any) -> None:
         """Train method required by ActionAlgorithm interface."""
