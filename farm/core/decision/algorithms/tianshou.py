@@ -298,7 +298,13 @@ class TianshouWrapper(RLAlgorithm):
             # Default to full buffer if no limit, otherwise use the limit
             max_size = limit if limit is not None else len(self.replay_buffer)
             if max_size <= 0:
-                return {"entries": [], "priorities": []}
+                return {
+                    "entries": [],
+                    "priorities": [],
+                    "beta": float(getattr(self.replay_buffer, "beta", 0.0)),
+                    "beta_step_count": int(getattr(self.replay_buffer, "_beta_step_count", 0)),
+                    "replay_strategy": getattr(self.replay_buffer, "replay_strategy", None),
+                }
             
             try:
                 # Use a deterministic seed based on agent_id or step_count for reproducibility
