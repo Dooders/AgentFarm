@@ -280,9 +280,8 @@ class TianshouWrapper(RLAlgorithm):
                 limit = max(0, int(limit))
             except (ValueError, TypeError) as e:
                 logger.warning(f"Invalid replay_buffer_limit '{limit}': {e}. Ignoring limit.")
-                limit = None
-            
-            if limit is not None:
+            else:
+                # Only apply limit if conversion succeeded
                 if limit == 0:
                     entries = []
                     priorities = priorities[:0]
