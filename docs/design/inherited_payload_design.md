@@ -176,10 +176,14 @@ These are gaps that must close before P2–P4 are runnable:
 currently round-trip only `policy_state_dict` and `step_count`. P2 needs
 learning rate / ε control on the child; P3 needs optimizer state and a
 bounded replay-buffer slice.
-- **Bounded, deterministic transfer**
-([#902](https://github.com/Dooders/AgentFarm/issues/902)). Any replay-buffer
-slice must be size-capped and seed-deterministic so runs stay reproducible
-(`PYTHONHASHSEED=0`).
+- **Bounded, deterministic transfer** ✅ **COMPLETE** 
+([#902](https://github.com/Dooders/AgentFarm/issues/902)). Replay-buffer
+slice transfer is now available via `PrioritizedReplayBuffer.get_transfer_slice()`
+and `load_transfer_slice()`. The transfer is size-capped (configurable via
+`max_size` parameter), seed-deterministic (reproducible under `PYTHONHASHSEED=0`),
+and integrated with `TianshouWrapper.get_model_state(include_replay_buffer=True,
+replay_buffer_limit=N)`. See `tests/decision/test_replay_buffer_transfer.py`
+for usage examples and determinism validation.
 - **New `inheritance_mode` values**
 ([#903](https://github.com/Dooders/AgentFarm/issues/903)). Extend the
 `InheritanceMode = Literal["baldwinian", "lamarckian"]` union in
