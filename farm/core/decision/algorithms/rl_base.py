@@ -7,7 +7,7 @@ reinforcement learning algorithms with the AgentFarm action system.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Literal, Optional, Union, cast
+from typing import Any, Dict, List, Literal, Union, cast
 
 import numpy as np
 import torch
@@ -15,6 +15,8 @@ import torch
 from farm.utils.logging import get_logger
 
 from .base import ActionAlgorithm
+
+logger = get_logger(__name__)
 
 
 class RLAlgorithm(ActionAlgorithm, ABC):
@@ -494,25 +496,20 @@ class PrioritizedReplayBuffer(ExperienceReplayBuffer):
             "buffer_size": n,
         }
 
-    def get_transfer_slice(
-        self, max_size: int, seed: Optional[int] = None
-    ) -> Dict[str, Any]:
+    def get_transfer_slice(self, max_size: int) -> Dict[str, Any]:
         """Extract a bounded, deterministic slice of the replay buffer for transfer.
 
         Returns a size-capped subset of experiences and their priorities that can
-        be loaded into a child's buffer. The selection is deterministic when a seed
-        is provided, ensuring reproducibility under ``PYTHONHASHSEED=0``.
+        be loaded into a child's buffer. Selection is the most-recent ``max_size``
+        transitions in chronological insertion order, which is inherently
+        deterministic and reproducible under ``PYTHONHASHSEED=0``.
 
-        The slice contains the most recent experiences (up to ``max_size``) from
-        the buffer, preserving chronological order. When the buffer contains fewer
-        than ``max_size`` experiences, the entire buffer is returned.
+        When the buffer contains fewer than ``max_size`` experiences, the entire
+        buffer is returned.
 
         Args:
             max_size: Maximum number of experiences to include in the slice.
                 Must be positive.
-            seed: Optional random seed for future deterministic sampling strategies.
-                Currently unused (most-recent selection is already deterministic),
-                but reserved for priority-based or stratified sampling variants.
 
         Returns:
             Dictionary with keys:
@@ -530,7 +527,7 @@ class PrioritizedReplayBuffer(ExperienceReplayBuffer):
         Example:
             >>> buffer = PrioritizedReplayBuffer(max_size=1000)
             >>> # ... add experiences ...
-            >>> slice_data = buffer.get_transfer_slice(max_size=100, seed=42)
+            >>> slice_data = buffer.get_transfer_slice(max_size=100)
             >>> # Transfer to child buffer
             >>> child_buffer = PrioritizedReplayBuffer(max_size=1000)
             >>> child_buffer.load_transfer_slice(slice_data)
@@ -619,7 +616,7 @@ class PrioritizedReplayBuffer(ExperienceReplayBuffer):
         Example:
             >>> parent_buffer = PrioritizedReplayBuffer(max_size=1000)
             >>> # ... parent adds experiences ...
-            >>> slice_data = parent_buffer.get_transfer_slice(max_size=100, seed=42)
+            >>> slice_data = parent_buffer.get_transfer_slice(max_size=100)
             >>> child_buffer = PrioritizedReplayBuffer(max_size=1000)
             >>> child_buffer.load_transfer_slice(slice_data)
         """
@@ -655,21 +652,18 @@ class PrioritizedReplayBuffer(ExperienceReplayBuffer):
 
         # Validate metadata compatibility (warn but don't block)
         if metadata.get("alpha") != self.alpha:
-            logger = get_logger(__name__)
             logger.warning(
                 "replay_buffer_transfer_alpha_mismatch",
                 parent_alpha=metadata.get("alpha"),
                 child_alpha=self.alpha,
             )
         if metadata.get("epsilon") != self.epsilon:
-            logger = get_logger(__name__)
             logger.warning(
                 "replay_buffer_transfer_epsilon_mismatch",
                 parent_epsilon=metadata.get("epsilon"),
                 child_epsilon=self.epsilon,
             )
         if metadata.get("replay_strategy") != self.replay_strategy:
-            logger = get_logger(__name__)
             logger.warning(
                 "replay_buffer_transfer_strategy_mismatch",
                 parent_strategy=metadata.get("replay_strategy"),

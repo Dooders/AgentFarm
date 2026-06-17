@@ -9,7 +9,7 @@ For richer inheritance payloads (P3 variant from docs/design/inherited_payload_d
 the replay buffer transfer API is available in
 :class:`farm.core.decision.algorithms.rl_base.PrioritizedReplayBuffer`:
 
-* :meth:`get_transfer_slice(max_size, seed)` extracts a bounded, deterministic
+* :meth:`get_transfer_slice(max_size)` extracts a bounded, deterministic
   slice of the parent's replay buffer.
 * :meth:`load_transfer_slice(slice_data)` loads the slice into the child's buffer.
 

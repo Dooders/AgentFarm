@@ -746,6 +746,73 @@ class TestTianshouWrapperModelPersistence(unittest.TestCase):
             np.array([0.5, 1.5, 2.5, 3.5, 4.5]),
         )
 
+    def test_load_model_state_wrapped_buffer_preserves_priorities(self):
+        """A wrapped (full) buffer round-trips priorities aligned to recency."""
+        from farm.core.decision.algorithms.tianshou import DQNWrapper
+
+        wrapper = DQNWrapper(
+            num_actions=self.num_actions,
+            state_dim=self.state_dim,
+            observation_shape=self.observation_shape,
+            buffer_size=4,
+        )
+        for i in range(6):
+            state = self._make_state(i)
+            wrapper.store_experience(state, i % self.num_actions, float(i), state + 1, False)
+
+        # Buffer holds the most-recent 4 transitions (rewards 2..5) after wrapping.
+        self.assertEqual(len(wrapper.replay_buffer), 4)
+        self.assertGreater(wrapper.replay_buffer.position, 0)
+
+        # Assign priorities in physical-slot order, then read them back in the
+        # logical (oldest-first) order the transfer slice produces.
+        wrapper.replay_buffer.priorities[:4] = np.array([10.0, 20.0, 30.0, 40.0])
+        start = wrapper.replay_buffer.position
+        expected_priorities = [
+            wrapper.replay_buffer.priorities[(start + i) % 4] for i in range(4)
+        ]
+
+        saved_state = wrapper.get_model_state(include_replay_buffer=True)
+
+        new_wrapper = DQNWrapper(
+            num_actions=self.num_actions,
+            state_dim=self.state_dim,
+            observation_shape=self.observation_shape,
+            buffer_size=4,
+        )
+        new_wrapper.load_model_state(saved_state)
+
+        self.assertEqual(
+            [entry["reward"] for entry in new_wrapper.replay_buffer.buffer],
+            [2.0, 3.0, 4.0, 5.0],
+        )
+        np.testing.assert_allclose(
+            new_wrapper.replay_buffer.priorities[:4],
+            np.array(expected_priorities),
+        )
+
+    def test_get_model_state_zero_limit_yields_empty_loadable_state(self):
+        """replay_buffer_limit=0 serializes an empty but loadable buffer state."""
+        from farm.core.decision.algorithms.tianshou import DQNWrapper
+
+        for i in range(5):
+            state = self._make_state(i)
+            self.dqn_wrapper.store_experience(state, i % self.num_actions, float(i), state + 1, False)
+
+        saved_state = self.dqn_wrapper.get_model_state(
+            include_replay_buffer=True,
+            replay_buffer_limit=0,
+        )
+        self.assertEqual(saved_state["replay_buffer_state"]["entries"], [])
+
+        new_wrapper = DQNWrapper(
+            num_actions=self.num_actions,
+            state_dim=self.state_dim,
+            observation_shape=self.observation_shape,
+        )
+        new_wrapper.load_model_state(saved_state)
+        self.assertEqual(len(new_wrapper.replay_buffer), 0)
+
     def test_save_load_roundtrip(self):
         """Test saving and loading model state in a roundtrip."""
         # Add some experiences

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any, Dict
 
 import numpy as np
@@ -51,7 +55,7 @@ class TestReplayBufferTransferBasics:
     def test_get_transfer_slice_empty_buffer(self):
         """Empty buffer returns empty slice with metadata."""
         buffer = PrioritizedReplayBuffer(max_size=100)
-        slice_data = buffer.get_transfer_slice(max_size=10, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=10)
 
         assert isinstance(slice_data, dict)
         assert slice_data["experiences"] == []
@@ -64,9 +68,9 @@ class TestReplayBufferTransferBasics:
         """max_size must be positive."""
         buffer = PrioritizedReplayBuffer(max_size=100)
         with pytest.raises(ValueError, match="max_size must be positive"):
-            buffer.get_transfer_slice(max_size=0, seed=42)
+            buffer.get_transfer_slice(max_size=0)
         with pytest.raises(ValueError, match="max_size must be positive"):
-            buffer.get_transfer_slice(max_size=-5, seed=42)
+            buffer.get_transfer_slice(max_size=-5)
 
     def test_get_transfer_slice_caps_at_requested_size(self):
         """Slice is capped at max_size even when buffer has more experiences."""
@@ -80,7 +84,7 @@ class TestReplayBufferTransferBasics:
                 done=False,
             )
 
-        slice_data = buffer.get_transfer_slice(max_size=10, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=10)
         assert len(slice_data["experiences"]) == 10
         assert len(slice_data["priorities"]) == 10
 
@@ -96,7 +100,7 @@ class TestReplayBufferTransferBasics:
                 done=False,
             )
 
-        slice_data = buffer.get_transfer_slice(max_size=20, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=20)
         assert len(slice_data["experiences"]) == 7
         assert len(slice_data["priorities"]) == 7
 
@@ -112,7 +116,7 @@ class TestReplayBufferTransferBasics:
                 done=False,
             )
 
-        slice_data = buffer.get_transfer_slice(max_size=5, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=5)
 
         # Most recent 5 experiences have state values [15], [16], [17], [18], [19]
         assert len(slice_data["experiences"]) == 5
@@ -139,7 +143,7 @@ class TestReplayBufferTransferBasics:
         assert len(buffer) == 10
         assert buffer.position == 5
 
-        slice_data = buffer.get_transfer_slice(max_size=5, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=5)
 
         # Most recent 5 are experiences 20, 21, 22, 23, 24
         assert len(slice_data["experiences"]) == 5
@@ -159,7 +163,7 @@ class TestReplayBufferTransferBasics:
             done=False,
         )
 
-        slice_data = buffer.get_transfer_slice(max_size=10, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=10)
         exp = slice_data["experiences"][0]
 
         # Modify the slice experience
@@ -185,7 +189,7 @@ class TestReplayBufferTransferBasics:
         buffer.priorities[5] = 2.5
         buffer.priorities[7] = 3.7
 
-        slice_data = buffer.get_transfer_slice(max_size=10, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=10)
         priorities = slice_data["priorities"]
 
         assert len(priorities) == 10
@@ -264,7 +268,7 @@ class TestReplayBufferTransferBasics:
         parent_buffer.priorities[5] = 5.5
         parent_buffer.priorities[8] = 8.8
 
-        slice_data = parent_buffer.get_transfer_slice(max_size=10, seed=42)
+        slice_data = parent_buffer.get_transfer_slice(max_size=10)
 
         # Load into child buffer
         child_buffer = PrioritizedReplayBuffer(max_size=100)
@@ -295,7 +299,7 @@ class TestReplayBufferTransferBasics:
             done=False,
         )
 
-        slice_data = parent_buffer.get_transfer_slice(max_size=10, seed=42)
+        slice_data = parent_buffer.get_transfer_slice(max_size=10)
 
         # Child has different settings
         child_buffer = PrioritizedReplayBuffer(max_size=100, alpha=0.6, epsilon=1e-6)
@@ -337,8 +341,8 @@ class TestReplayBufferTransferDeterminism:
         buffer1 = _build_buffer()
         buffer2 = _build_buffer()
 
-        slice1 = buffer1.get_transfer_slice(max_size=20, seed=seed)
-        slice2 = buffer2.get_transfer_slice(max_size=20, seed=seed)
+        slice1 = buffer1.get_transfer_slice(max_size=20)
+        slice2 = buffer2.get_transfer_slice(max_size=20)
 
         hash1 = _hash_slice_data(slice1)
         hash2 = _hash_slice_data(slice2)
@@ -356,9 +360,9 @@ class TestReplayBufferTransferDeterminism:
                 done=False,
             )
 
-        slice1 = buffer.get_transfer_slice(max_size=15, seed=42)
-        slice2 = buffer.get_transfer_slice(max_size=15, seed=42)
-        slice3 = buffer.get_transfer_slice(max_size=15, seed=42)
+        slice1 = buffer.get_transfer_slice(max_size=15)
+        slice2 = buffer.get_transfer_slice(max_size=15)
+        slice3 = buffer.get_transfer_slice(max_size=15)
 
         hash1 = _hash_slice_data(slice1)
         hash2 = _hash_slice_data(slice2)
@@ -378,8 +382,8 @@ class TestReplayBufferTransferDeterminism:
                 done=False,
             )
 
-        slice_small = buffer.get_transfer_slice(max_size=10, seed=42)
-        slice_large = buffer.get_transfer_slice(max_size=20, seed=42)
+        slice_small = buffer.get_transfer_slice(max_size=10)
+        slice_large = buffer.get_transfer_slice(max_size=20)
 
         hash_small = _hash_slice_data(slice_small)
         hash_large = _hash_slice_data(slice_large)
@@ -387,7 +391,7 @@ class TestReplayBufferTransferDeterminism:
         assert hash_small != hash_large, "Different max_size should produce different slices"
 
         # But each is reproducible
-        slice_small_2 = buffer.get_transfer_slice(max_size=10, seed=42)
+        slice_small_2 = buffer.get_transfer_slice(max_size=10)
         assert _hash_slice_data(slice_small_2) == hash_small
 
     def test_buffer_modifications_after_slice_dont_affect_slice(self):
@@ -402,7 +406,7 @@ class TestReplayBufferTransferDeterminism:
                 done=False,
             )
 
-        slice_data = buffer.get_transfer_slice(max_size=10, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=10)
         hash_before = _hash_slice_data(slice_data)
 
         # Modify buffer
@@ -436,7 +440,7 @@ class TestReplayBufferTransferEdgeCases:
             entropy=0.7,
         )
 
-        slice_data = buffer.get_transfer_slice(max_size=10, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=10)
         exp = slice_data["experiences"][0]
 
         assert "log_prob" in exp
@@ -456,7 +460,7 @@ class TestReplayBufferTransferEdgeCases:
                 done=False,
             )
 
-        slice_data = buffer.get_transfer_slice(max_size=5, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=5)
         assert slice_data["metadata"]["replay_strategy"] == "uniform"
 
         child_buffer = PrioritizedReplayBuffer(max_size=100, replay_strategy="uniform")
@@ -475,7 +479,7 @@ class TestReplayBufferTransferEdgeCases:
                 done=False,
             )
 
-        slice_data = buffer.get_transfer_slice(max_size=15, seed=42)
+        slice_data = buffer.get_transfer_slice(max_size=15)
         assert len(slice_data["experiences"]) == 15
 
     def test_load_empty_slice_into_empty_buffer(self):
@@ -505,7 +509,7 @@ class TestReplayBufferTransferEdgeCases:
         parent.priorities[10] = 10.5
         parent.priorities[20] = 20.5
 
-        slice_data = parent.get_transfer_slice(max_size=25, seed=42)
+        slice_data = parent.get_transfer_slice(max_size=25)
 
         child = PrioritizedReplayBuffer(max_size=100, alpha=0.7, epsilon=1e-5)
         child.load_transfer_slice(slice_data)
@@ -527,35 +531,50 @@ class TestReplayBufferTransferEdgeCases:
             assert parent.priorities[parent_idx] == child.priorities[child_idx]
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SLICE_HASH_HELPER = REPO_ROOT / "tests" / "helpers" / "replay_slice_hash.py"
+SUBPROCESS_TIMEOUT_SECONDS = 120
+
+
+def _slice_hash_in_subprocess(hash_seed: str) -> str:
+    """Build a transfer slice in a fresh interpreter and return its canonical hash."""
+    env = os.environ.copy()
+    env["PYTHONHASHSEED"] = hash_seed
+    env["PYTHONPATH"] = str(REPO_ROOT)
+
+    result = subprocess.run(
+        [sys.executable, str(SLICE_HASH_HELPER)],
+        cwd=str(REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
+    assert result.returncode == 0, (
+        f"Slice-hash subprocess failed (PYTHONHASHSEED={hash_seed}):\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+    return result.stdout.strip()
+
+
 @pytest.mark.determinism
 class TestReplayBufferTransferCrossProcessDeterminism:
     """Cross-process determinism tests (matches test_cross_process_determinism.py style)."""
 
-    def test_slice_hash_is_stable_across_interpreter_restarts(self, tmp_path):
-        """Slice hash must be identical across fresh interpreter runs (hypothetical).
+    def test_slice_is_byte_identical_across_interpreters(self):
+        """AC #902: identical config in two fresh processes yields identical slices.
 
-        This test validates the hash function itself is deterministic. In a real
-        cross-process test (similar to test_cross_process_determinism.py), you
-        would spawn subprocesses with different PYTHONHASHSEED values and confirm
-        identical slice hashes.
+        The subprocesses use *different* ``PYTHONHASHSEED`` values, so any
+        dependence on dict/set hash ordering or other per-process state would
+        surface as a hash mismatch.
         """
-        def _build_and_hash():
-            buffer = PrioritizedReplayBuffer(max_size=100)
-            np.random.seed(42)
-            for i in range(30):
-                buffer.append(
-                    state=np.random.randn(4).astype(np.float32),
-                    action=i % 4,
-                    reward=np.random.randn(),
-                    next_state=np.random.randn(4).astype(np.float32),
-                    done=False,
-                )
-            slice_data = buffer.get_transfer_slice(max_size=15, seed=42)
-            return _hash_slice_data(slice_data)
-
-        hash1 = _build_and_hash()
-        hash2 = _build_and_hash()
-        assert hash1 == hash2, "Hash must be stable across repeated builds"
+        hash1 = _slice_hash_in_subprocess("1")
+        hash2 = _slice_hash_in_subprocess("2")
+        assert hash1, "Subprocess produced an empty slice hash"
+        assert hash1 == hash2, (
+            "Transfer slice differs across processes with different PYTHONHASHSEED - "
+            "selection likely depends on per-process hash ordering"
+        )
 
 
 if __name__ == "__main__":
