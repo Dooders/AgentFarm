@@ -225,12 +225,40 @@ def test_inheritance_telemetry_records_applied_and_skipped():
     telemetry.record_skipped(WARMSTART_REASON_NO_POLICY_STATE)
 
     payload = telemetry.to_dict()
-    assert payload["lamarckian_warmstart_applied"] == 2
-    assert payload["lamarckian_warmstart_skipped"] == 3
-    assert payload["lamarckian_warmstart_skipped_reasons"] == {
+    assert payload["warmstart_applied"] == 2
+    assert payload["warmstart_skipped"] == 3
+    assert payload["warmstart_skipped_reasons"] == {
         WARMSTART_REASON_INCOMPATIBLE_STATE: 2,
         WARMSTART_REASON_NO_POLICY_STATE: 1,
     }
+    # Coverage = applied / (applied + skipped); no gate skips => gate hit-rate 1.0.
+    assert payload["warmstart_coverage"] == 2 / 5
+    assert payload["gate_not_cleared"] == 0
+    assert payload["gate_hit_rate"] == 1.0
+    assert payload["blend_alpha"] is None
+
+
+def test_inheritance_telemetry_empty_metrics_are_none():
+    payload = InheritanceTelemetry().to_dict()
+    assert payload["warmstart_coverage"] is None
+    assert payload["gate_hit_rate"] is None
+    assert payload["blend_alpha"] is None
+
+
+def test_inheritance_telemetry_gate_hit_rate_and_blend_alpha():
+    telemetry = InheritanceTelemetry()
+    telemetry.record_blend_alpha(0.25)
+    telemetry.record_applied()
+    telemetry.record_applied()
+    telemetry.record_applied()
+    telemetry.record_skipped(WARMSTART_REASON_GATE_NOT_CLEARED)
+
+    payload = telemetry.to_dict()
+    # 4 attempts, 1 gated => coverage 3/4, gate hit-rate (4-1)/4.
+    assert payload["warmstart_coverage"] == 3 / 4
+    assert payload["gate_not_cleared"] == 1
+    assert payload["gate_hit_rate"] == 3 / 4
+    assert payload["blend_alpha"] == 0.25
 
 
 def test_inheritance_telemetry_records_decide_action_failures():

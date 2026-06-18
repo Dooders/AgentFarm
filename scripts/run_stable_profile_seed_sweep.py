@@ -62,6 +62,12 @@ from farm.core.hyperparameter_chromosome import (  # noqa: E402
     MutationMode,
 )
 from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode  # noqa: E402
+from farm.core.policy_inheritance import (  # noqa: E402
+    P2_PLASTICITY_DAMPING,
+    P3_REPLAY_BUFFER_LIMIT,
+    P4_BLEND_ALPHA,
+    P4_FITNESS_GATE_MIN_RESOURCES,
+)
 from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
     STABLE_SUB_PROFILES,
     InitialConditionsConfig,
@@ -134,6 +140,30 @@ def _build_parser() -> argparse.ArgumentParser:
             "'p3': weights + optimizer state + replay slice. "
             "'p4': gated/blended transfer."
         ),
+    )
+    parser.add_argument(
+        "--warmstart-plasticity-damping",
+        type=float,
+        default=P2_PLASTICITY_DAMPING,
+        help="P2 damping factor in (0, 1] for child LR/epsilon.",
+    )
+    parser.add_argument(
+        "--warmstart-replay-buffer-limit",
+        type=int,
+        default=P3_REPLAY_BUFFER_LIMIT,
+        help="P3 cap (>= 1) on replay transitions transferred to the child.",
+    )
+    parser.add_argument(
+        "--warmstart-blend-alpha",
+        type=float,
+        default=P4_BLEND_ALPHA,
+        help="P4 blend coefficient in [0, 1] weighting the parent's policy.",
+    )
+    parser.add_argument(
+        "--warmstart-fitness-gate-min-resources",
+        type=float,
+        default=P4_FITNESS_GATE_MIN_RESOURCES,
+        help="P4 minimum parent resource level (>= 0) to clear the fitness gate.",
     )
     parser.add_argument("--initial-diversity-mutation-rate", type=float, default=1.0)
     parser.add_argument("--initial-diversity-mutation-scale", type=float, default=0.25)
@@ -260,6 +290,22 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
         ),
         selection_pressure=args.selection_pressure,
         inheritance_mode=str(getattr(args, "inheritance_mode", "baldwinian")),
+        warmstart_plasticity_damping=float(
+            getattr(args, "warmstart_plasticity_damping", P2_PLASTICITY_DAMPING)
+        ),
+        warmstart_replay_buffer_limit=int(
+            getattr(args, "warmstart_replay_buffer_limit", P3_REPLAY_BUFFER_LIMIT)
+        ),
+        warmstart_blend_alpha=float(
+            getattr(args, "warmstart_blend_alpha", P4_BLEND_ALPHA)
+        ),
+        warmstart_fitness_gate_min_resources=float(
+            getattr(
+                args,
+                "warmstart_fitness_gate_min_resources",
+                P4_FITNESS_GATE_MIN_RESOURCES,
+            )
+        ),
         seed=seed,
     )
 
@@ -408,6 +454,22 @@ def _inheritance_settings_dict(args: argparse.Namespace) -> Dict[str, Any]:
     """Snapshot of inheritance mode related args for the manifest."""
     return {
         "inheritance_mode": str(getattr(args, "inheritance_mode", "baldwinian")),
+        "warmstart_plasticity_damping": float(
+            getattr(args, "warmstart_plasticity_damping", P2_PLASTICITY_DAMPING)
+        ),
+        "warmstart_replay_buffer_limit": int(
+            getattr(args, "warmstart_replay_buffer_limit", P3_REPLAY_BUFFER_LIMIT)
+        ),
+        "warmstart_blend_alpha": float(
+            getattr(args, "warmstart_blend_alpha", P4_BLEND_ALPHA)
+        ),
+        "warmstart_fitness_gate_min_resources": float(
+            getattr(
+                args,
+                "warmstart_fitness_gate_min_resources",
+                P4_FITNESS_GATE_MIN_RESOURCES,
+            )
+        ),
     }
 
 

@@ -215,7 +215,7 @@ class TestPairedMetricDeltas(unittest.TestCase):
                 "peak_death_rate": 0.4,
                 "oscillation_amplitude": 12.0,
             },
-            "lamarckian_warmstart_rate": 0.75,
+            "warmstart_rate": 0.75,
         }
 
     def test_seed_pairing_returns_tuple(self):
@@ -259,11 +259,13 @@ class TestExtractMetadataMetrics(unittest.TestCase):
                             "oscillation_amplitude": 12,
                         },
                         "policy_inheritance_metrics": {
-                            "lamarckian_warmstart_applied": 8,
-                            "lamarckian_warmstart_skipped": 2,
-                            "lamarckian_warmstart_skipped_reasons": {
+                            "warmstart_applied": 8,
+                            "warmstart_skipped": 2,
+                            "warmstart_skipped_reasons": {
                                 "incompatible_state": 2,
                             },
+                            "gate_hit_rate": 1.0,
+                            "blend_alpha": 0.5,
                             "decide_action_failures": 4,
                             "decide_action_failure_reasons": {
                                 "RuntimeError": 3,
@@ -275,12 +277,14 @@ class TestExtractMetadataMetrics(unittest.TestCase):
                 encoding="utf-8",
             )
             metrics = _extract_metadata_metrics(run_dir)
-        self.assertAlmostEqual(metrics["lamarckian_warmstart_rate"], 0.8)
-        self.assertEqual(metrics["lamarckian_warmstart_applied"], 8)
-        self.assertEqual(metrics["lamarckian_warmstart_skipped"], 2)
+        self.assertAlmostEqual(metrics["warmstart_rate"], 0.8)
+        self.assertEqual(metrics["warmstart_applied"], 8)
+        self.assertEqual(metrics["warmstart_skipped"], 2)
         self.assertEqual(
-            metrics["lamarckian_warmstart_skipped_reasons"], {"incompatible_state": 2}
+            metrics["warmstart_skipped_reasons"], {"incompatible_state": 2}
         )
+        self.assertAlmostEqual(metrics["gate_hit_rate"], 1.0)
+        self.assertAlmostEqual(metrics["blend_alpha"], 0.5)
         self.assertEqual(metrics["decide_action_failures"], 4.0)
         self.assertEqual(
             metrics["decide_action_failure_reasons"],
@@ -295,9 +299,9 @@ class TestExtractMetadataMetrics(unittest.TestCase):
 class TestWarmstartCoverage(unittest.TestCase):
     def _run(self, applied: int, skipped: int, reasons: Optional[dict] = None):
         return {
-            "lamarckian_warmstart_applied": applied,
-            "lamarckian_warmstart_skipped": skipped,
-            "lamarckian_warmstart_skipped_reasons": reasons or {},
+            "warmstart_applied": applied,
+            "warmstart_skipped": skipped,
+            "warmstart_skipped_reasons": reasons or {},
         }
 
     def test_rate_from_run(self):
@@ -326,7 +330,7 @@ class TestWarmstartCoverage(unittest.TestCase):
             }
         }
         coverage = _compute_mechanism_coverage(treatments, ["conservative"], ["lamarckian"])
-        warmstart = coverage["conservative"]["lamarckian"]["lamarckian_warmstart"]
+        warmstart = coverage["conservative"]["lamarckian"]["warmstart"]
         self.assertAlmostEqual(warmstart["mean_rate"], 0.8)
         self.assertEqual(warmstart["total_applied"], 8)
 
@@ -334,10 +338,12 @@ class TestWarmstartCoverage(unittest.TestCase):
         coverage = {
             "conservative": {
                 "lamarckian": {
-                    "lamarckian_warmstart": {
+                    "warmstart": {
                         "n": 1,
                         "mean_rate": 0.8,
                         "rate_ci95": [0.8, 0.8],
+                        "mean_gate_hit_rate": 1.0,
+                        "blend_alpha": 0.5,
                         "total_applied": 8,
                         "total_skipped": 2,
                         "skip_reasons": {"incompatible_state": 2},
@@ -348,7 +354,7 @@ class TestWarmstartCoverage(unittest.TestCase):
         }
         md = _build_markdown({}, {}, ["lamarckian"], "baldwinian", mechanism_coverage=coverage)
         self.assertIn("## Mechanism coverage (treatment only)", md)
-        self.assertIn("Lamarckian warm-start rate is an absolute treatment-arm statistic", md)
+        self.assertIn("Warm-start rate is an absolute treatment-arm statistic", md)
         self.assertNotIn("| lamarckian | warmstart rate delta |", md)
 
 

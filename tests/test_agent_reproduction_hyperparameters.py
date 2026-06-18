@@ -156,9 +156,9 @@ def test_reproduce_lamarckian_policy_applies_warmstart_and_tracks_counter():
 
     assert success is True
     telemetry = parent.environment.inheritance_telemetry
-    assert telemetry.lamarckian_warmstart_applied == 1
-    assert telemetry.lamarckian_warmstart_skipped == 0
-    assert dict(telemetry.lamarckian_warmstart_skipped_reasons) == {}
+    assert telemetry.warmstart_applied == 1
+    assert telemetry.warmstart_skipped == 0
+    assert dict(telemetry.warmstart_skipped_reasons) == {}
     offspring.behavior.decision_module.algorithm.load_model_state.assert_called_once()
 
 
@@ -223,9 +223,9 @@ def test_reproduce_lamarckian_incompatible_policy_counts_as_skipped():
 
     assert success is True
     telemetry = parent.environment.inheritance_telemetry
-    assert telemetry.lamarckian_warmstart_applied == 0
-    assert telemetry.lamarckian_warmstart_skipped == 1
-    assert telemetry.lamarckian_warmstart_skipped_reasons[
+    assert telemetry.warmstart_applied == 0
+    assert telemetry.warmstart_skipped == 1
+    assert telemetry.warmstart_skipped_reasons[
         WARMSTART_REASON_INCOMPATIBLE_STATE
     ] == 1
     offspring.behavior.decision_module.algorithm.load_model_state.assert_not_called()
@@ -579,13 +579,19 @@ def test_reproduce_uses_environment_partial_add_rollback_hook_when_available():
 
 
 
-def _build_p_mode_parent(inheritance_mode: str) -> AgentCore:
-    """Build a parent with the given inheritance_mode and warm-start API mocks."""
+def _build_p_mode_parent(inheritance_mode: str, **policy_kwargs) -> AgentCore:
+    """Build a parent with the given inheritance_mode and warm-start API mocks.
+
+    Extra ``policy_kwargs`` (e.g. ``warmstart_blend_alpha``) are forwarded to
+    the :class:`IntrinsicEvolutionPolicy` so tests can verify tuning params are
+    threaded through the reproduction dispatch.
+    """
     parent = _build_parent_agent_for_reproduction()
     parent.environment.intrinsic_evolution_policy = IntrinsicEvolutionPolicy(
         mutation_rate=0.0,
         mutation_scale=0.0,
         inheritance_mode=inheritance_mode,
+        **policy_kwargs,
     )
     parent.behavior = Mock()
     parent.behavior.decision_module = Mock()
@@ -637,8 +643,8 @@ def test_reproduce_p2_mode_applies_warmstart_and_tracks_counter():
 
     assert success is True
     telemetry = parent.environment.inheritance_telemetry
-    assert telemetry.lamarckian_warmstart_applied == 1
-    assert telemetry.lamarckian_warmstart_skipped == 0
+    assert telemetry.warmstart_applied == 1
+    assert telemetry.warmstart_skipped == 0
     offspring.behavior.decision_module.algorithm.load_model_state.assert_called_once()
 
 
@@ -654,8 +660,8 @@ def test_reproduce_p3_mode_applies_warmstart_and_tracks_counter():
 
     assert success is True
     telemetry = parent.environment.inheritance_telemetry
-    assert telemetry.lamarckian_warmstart_applied == 1
-    assert telemetry.lamarckian_warmstart_skipped == 0
+    assert telemetry.warmstart_applied == 1
+    assert telemetry.warmstart_skipped == 0
     offspring.behavior.decision_module.algorithm.load_model_state.assert_called_once()
 
 
@@ -673,8 +679,8 @@ def test_reproduce_p4_mode_applies_warmstart_when_gate_cleared():
 
     assert success is True
     telemetry = parent.environment.inheritance_telemetry
-    assert telemetry.lamarckian_warmstart_applied == 1
-    assert telemetry.lamarckian_warmstart_skipped == 0
+    assert telemetry.warmstart_applied == 1
+    assert telemetry.warmstart_skipped == 0
     offspring.behavior.decision_module.algorithm.load_model_state.assert_called_once()
 
 
@@ -693,10 +699,68 @@ def test_reproduce_p4_mode_skips_when_gate_not_cleared():
 
     assert success is True
     telemetry = parent.environment.inheritance_telemetry
-    assert telemetry.lamarckian_warmstart_applied == 0
-    assert telemetry.lamarckian_warmstart_skipped == 1
-    assert telemetry.lamarckian_warmstart_skipped_reasons[WARMSTART_REASON_GATE_NOT_CLEARED] == 1
+    assert telemetry.warmstart_applied == 0
+    assert telemetry.warmstart_skipped == 1
+    assert telemetry.warmstart_skipped_reasons[WARMSTART_REASON_GATE_NOT_CLEARED] == 1
     offspring.behavior.decision_module.algorithm.load_model_state.assert_not_called()
+
+
+def test_reproduce_p4_records_configured_blend_alpha():
+    """A non-default warmstart_blend_alpha must reach telemetry via the dispatch."""
+    parent = _build_p_mode_parent("p4", warmstart_blend_alpha=0.25)
+    parent.resource_level = 100.0
+    offspring = _build_offspring_mock()
+
+    with patch("farm.core.agent.factory.AgentFactory") as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    telemetry = parent.environment.inheritance_telemetry
+    assert telemetry.warmstart_applied == 1
+    assert telemetry.blend_alpha == 0.25
+
+
+def test_reproduce_p4_honors_configured_fitness_gate():
+    """A custom fitness-gate threshold must gate the parent through the dispatch."""
+    from farm.core.policy_inheritance import WARMSTART_REASON_GATE_NOT_CLEARED
+
+    # Threshold 50 with a resource level of 10 (above the default 1.0) must skip.
+    parent = _build_p_mode_parent(
+        "p4", warmstart_fitness_gate_min_resources=50.0
+    )
+    parent.resource_level = 10.0
+    offspring = _build_offspring_mock()
+
+    with patch("farm.core.agent.factory.AgentFactory") as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    telemetry = parent.environment.inheritance_telemetry
+    assert telemetry.warmstart_applied == 0
+    assert telemetry.warmstart_skipped_reasons[WARMSTART_REASON_GATE_NOT_CLEARED] == 1
+
+
+def test_reproduce_p2_honors_configured_plasticity_damping():
+    """A custom plasticity damping must scale the inherited LR/epsilon payload."""
+    parent = _build_p_mode_parent("p2", warmstart_plasticity_damping=0.1)
+    offspring = _build_offspring_mock()
+
+    with patch("farm.core.agent.factory.AgentFactory") as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    load_model_state = offspring.behavior.decision_module.algorithm.load_model_state
+    payload = load_model_state.call_args.args[0]
+    damped = payload["plasticity_state"]
+    # Source LR 0.01 and epsilon 0.3 (see _build_p_mode_parent) scaled by 0.1.
+    assert damped["learning_rate"] == pytest.approx(0.001)
+    assert damped["epsilon"] == pytest.approx(0.03)
 
 
 def test_reproduce_baldwinian_mode_never_calls_warmstart():
@@ -711,8 +775,8 @@ def test_reproduce_baldwinian_mode_never_calls_warmstart():
 
     assert success is True
     telemetry = parent.environment.inheritance_telemetry
-    assert telemetry.lamarckian_warmstart_applied == 0
-    assert telemetry.lamarckian_warmstart_skipped == 0
+    assert telemetry.warmstart_applied == 0
+    assert telemetry.warmstart_skipped == 0
     offspring.behavior.decision_module.algorithm.load_model_state.assert_not_called()
 
 
@@ -738,9 +802,9 @@ def test_reproduce_warmstart_failure_is_non_fatal():
 
     assert success is True
     telemetry = parent.environment.inheritance_telemetry
-    assert telemetry.lamarckian_warmstart_applied == 0
-    assert telemetry.lamarckian_warmstart_skipped == 1
-    assert telemetry.lamarckian_warmstart_skipped_reasons[WARMSTART_REASON_LOAD_FAILED] == 1
+    assert telemetry.warmstart_applied == 0
+    assert telemetry.warmstart_skipped == 1
+    assert telemetry.warmstart_skipped_reasons[WARMSTART_REASON_LOAD_FAILED] == 1
 
 
 def test_reproduce_extended_state_unsupported_is_observable():
@@ -770,10 +834,10 @@ def test_reproduce_extended_state_unsupported_is_observable():
 
     assert success is True
     telemetry = parent.environment.inheritance_telemetry
-    assert telemetry.lamarckian_warmstart_applied == 0
-    assert telemetry.lamarckian_warmstart_skipped == 1
+    assert telemetry.warmstart_applied == 0
+    assert telemetry.warmstart_skipped == 1
     assert (
-        telemetry.lamarckian_warmstart_skipped_reasons[
+        telemetry.warmstart_skipped_reasons[
             WARMSTART_REASON_EXTENDED_STATE_UNSUPPORTED
         ]
         == 1

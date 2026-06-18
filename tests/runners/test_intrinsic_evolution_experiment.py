@@ -28,6 +28,12 @@ from farm.core.initial_diversity import (
     InitialDiversityMetrics,
     SeedingMode,
 )
+from farm.core.policy_inheritance import (
+    P2_PLASTICITY_DAMPING,
+    P3_REPLAY_BUFFER_LIMIT,
+    P4_BLEND_ALPHA,
+    P4_FITNESS_GATE_MIN_RESOURCES,
+)
 from farm.runners.intrinsic_evolution_experiment import (
     IntrinsicEvolutionExperiment,
     IntrinsicEvolutionExperimentConfig,
@@ -139,6 +145,46 @@ class TestIntrinsicEvolutionPolicy(unittest.TestCase):
         for mode in ("baldwinian", "lamarckian", "p2", "p3", "p4"):
             policy = IntrinsicEvolutionPolicy(inheritance_mode=mode)
             self.assertEqual(policy.inheritance_mode, mode)
+
+    def test_warmstart_tuning_defaults(self):
+        policy = IntrinsicEvolutionPolicy()
+        self.assertEqual(policy.warmstart_plasticity_damping, P2_PLASTICITY_DAMPING)
+        self.assertEqual(policy.warmstart_replay_buffer_limit, P3_REPLAY_BUFFER_LIMIT)
+        self.assertEqual(policy.warmstart_blend_alpha, P4_BLEND_ALPHA)
+        self.assertEqual(
+            policy.warmstart_fitness_gate_min_resources,
+            P4_FITNESS_GATE_MIN_RESOURCES,
+        )
+
+    def test_warmstart_tuning_overrides_accepted(self):
+        policy = IntrinsicEvolutionPolicy(
+            warmstart_plasticity_damping=0.25,
+            warmstart_replay_buffer_limit=64,
+            warmstart_blend_alpha=0.75,
+            warmstart_fitness_gate_min_resources=5.0,
+        )
+        self.assertEqual(policy.warmstart_plasticity_damping, 0.25)
+        self.assertEqual(policy.warmstart_replay_buffer_limit, 64)
+        self.assertEqual(policy.warmstart_blend_alpha, 0.75)
+        self.assertEqual(policy.warmstart_fitness_gate_min_resources, 5.0)
+
+    def test_invalid_plasticity_damping_raises(self):
+        for bad in (0.0, -0.1, 1.5):
+            with self.assertRaises(ValueError):
+                IntrinsicEvolutionPolicy(warmstart_plasticity_damping=bad)
+
+    def test_invalid_replay_buffer_limit_raises(self):
+        with self.assertRaises(ValueError):
+            IntrinsicEvolutionPolicy(warmstart_replay_buffer_limit=0)
+
+    def test_invalid_blend_alpha_raises(self):
+        for bad in (-0.1, 1.1):
+            with self.assertRaises(ValueError):
+                IntrinsicEvolutionPolicy(warmstart_blend_alpha=bad)
+
+    def test_invalid_fitness_gate_min_resources_raises(self):
+        with self.assertRaises(ValueError):
+            IntrinsicEvolutionPolicy(warmstart_fitness_gate_min_resources=-1.0)
 
 
 class TestIntrinsicEvolutionExperimentConfig(unittest.TestCase):
@@ -313,11 +359,15 @@ class TestRunnerOrchestration(unittest.TestCase):
             self.assertEqual(metadata["policy"]["mutation_mode"], "gaussian")
             self.assertEqual(metadata["policy"]["inheritance_mode"], "baldwinian")
             inheritance_metrics = metadata["policy_inheritance_metrics"]
-            self.assertEqual(inheritance_metrics["lamarckian_warmstart_applied"], 0)
-            self.assertEqual(inheritance_metrics["lamarckian_warmstart_skipped"], 0)
+            self.assertEqual(inheritance_metrics["warmstart_applied"], 0)
+            self.assertEqual(inheritance_metrics["warmstart_skipped"], 0)
             self.assertEqual(
-                inheritance_metrics["lamarckian_warmstart_skipped_reasons"], {}
+                inheritance_metrics["warmstart_skipped_reasons"], {}
             )
+            self.assertIsNone(inheritance_metrics["warmstart_coverage"])
+            self.assertIsNone(inheritance_metrics["gate_hit_rate"])
+            self.assertIsNone(inheritance_metrics["blend_alpha"])
+            self.assertEqual(inheritance_metrics["gate_not_cleared"], 0)
             self.assertEqual(inheritance_metrics["decide_action_failures"], 0)
             self.assertEqual(
                 inheritance_metrics["decide_action_failure_reasons"], {}

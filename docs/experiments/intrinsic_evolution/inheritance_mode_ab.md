@@ -79,7 +79,7 @@ Primary readouts:
 - Stability: `startup_transient.peak_death_rate`,
   `startup_transient.oscillation_amplitude`, `lineage.churn_rate`
 - Diversity impact: `speciation_final`, `speciation_slope`
-- Mechanism coverage: `lamarckian_warmstart_rate`
+- Mechanism coverage: `warmstart_rate`, `gate_hit_rate` (P4), `blend_alpha` (P4)
 
 Per-profile recommendation categories (label-aware):
 

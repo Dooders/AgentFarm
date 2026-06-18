@@ -56,7 +56,7 @@ STABILITY_KEYS: List[str] = [
     "startup_transient.peak_death_rate",
     "startup_transient.oscillation_amplitude",
 ]
-INFO_KEYS: List[str] = ["lamarckian_warmstart_rate", "decide_action_failures"]
+INFO_KEYS: List[str] = ["warmstart_rate", "decide_action_failures"]
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -157,13 +157,15 @@ def _extract_metadata_metrics(run_dir: Path) -> Dict[str, Any]:
 
     startup = meta.get("startup_transient_metrics", {})
     inheritance = meta.get("policy_inheritance_metrics", {})
-    applied = int(inheritance.get("lamarckian_warmstart_applied", 0))
-    skipped = int(inheritance.get("lamarckian_warmstart_skipped", 0))
+    applied = int(inheritance.get("warmstart_applied", 0))
+    skipped = int(inheritance.get("warmstart_skipped", 0))
     skipped_reasons = dict(
-        inheritance.get("lamarckian_warmstart_skipped_reasons", {}) or {}
+        inheritance.get("warmstart_skipped_reasons", {}) or {}
     )
     denom = applied + skipped
     warmstart_rate = float(applied / denom) if denom > 0 else float("nan")
+    gate_hit_rate = inheritance.get("gate_hit_rate")
+    blend_alpha = inheritance.get("blend_alpha")
     # ``decide_action_failures`` was added so paired A/B comparisons can flag
     # arms where the new fail-loud decision path is degrading silently
     # (see ``InheritanceTelemetry`` and the 2026-05-22 dev-log entry).
@@ -177,10 +179,12 @@ def _extract_metadata_metrics(run_dir: Path) -> Dict[str, Any]:
             "peak_death_rate": float(startup.get("peak_death_rate", float("nan"))),
             "oscillation_amplitude": float(startup.get("oscillation_amplitude", float("nan"))),
         },
-        "lamarckian_warmstart_applied": applied,
-        "lamarckian_warmstart_skipped": skipped,
-        "lamarckian_warmstart_rate": warmstart_rate,
-        "lamarckian_warmstart_skipped_reasons": skipped_reasons,
+        "warmstart_applied": applied,
+        "warmstart_skipped": skipped,
+        "warmstart_rate": warmstart_rate,
+        "warmstart_skipped_reasons": skipped_reasons,
+        "gate_hit_rate": (float(gate_hit_rate) if gate_hit_rate is not None else None),
+        "blend_alpha": (float(blend_alpha) if blend_alpha is not None else None),
         "decide_action_failures": decide_failures,
         "decide_action_failure_reasons": decide_failure_reasons,
     }
@@ -492,8 +496,8 @@ def _plot_startup_transient(
 
 
 def _warmstart_rate_from_run(run: Dict[str, Any]) -> Optional[float]:
-    applied = int(run.get("lamarckian_warmstart_applied", 0))
-    skipped = int(run.get("lamarckian_warmstart_skipped", 0))
+    applied = int(run.get("warmstart_applied", 0))
+    skipped = int(run.get("warmstart_skipped", 0))
     denom = applied + skipped
     if denom <= 0:
         return None
@@ -503,36 +507,48 @@ def _warmstart_rate_from_run(run: Dict[str, Any]) -> Optional[float]:
 def _summarize_warmstart_coverage(
     treatment_runs: Dict[int, Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """Aggregate Lamarckian warm-start coverage for one (profile, arm) pair."""
+    """Aggregate warm-start coverage for one (profile, arm) pair."""
     per_seed: Dict[str, Dict[str, Any]] = {}
     rates: List[float] = []
+    gate_hit_rates: List[float] = []
+    blend_alphas: List[float] = []
     total_applied = 0
     total_skipped = 0
     skip_reasons: Counter = Counter()
 
     for seed in sorted(treatment_runs):
         run = treatment_runs[seed]
-        applied = int(run.get("lamarckian_warmstart_applied", 0))
-        skipped = int(run.get("lamarckian_warmstart_skipped", 0))
+        applied = int(run.get("warmstart_applied", 0))
+        skipped = int(run.get("warmstart_skipped", 0))
         rate = _warmstart_rate_from_run(run)
+        gate_hit_rate = run.get("gate_hit_rate")
+        blend_alpha = run.get("blend_alpha")
         per_seed[str(seed)] = {
             "applied": applied,
             "skipped": skipped,
             "rate": rate,
-            "skip_reasons": dict(run.get("lamarckian_warmstart_skipped_reasons", {}) or {}),
+            "gate_hit_rate": gate_hit_rate,
+            "blend_alpha": blend_alpha,
+            "skip_reasons": dict(run.get("warmstart_skipped_reasons", {}) or {}),
         }
         total_applied += applied
         total_skipped += skipped
-        for reason, count in (run.get("lamarckian_warmstart_skipped_reasons", {}) or {}).items():
+        for reason, count in (run.get("warmstart_skipped_reasons", {}) or {}).items():
             skip_reasons[str(reason)] += int(count)
         if rate is not None:
             rates.append(rate)
+        if gate_hit_rate is not None:
+            gate_hit_rates.append(float(gate_hit_rate))
+        if blend_alpha is not None:
+            blend_alphas.append(float(blend_alpha))
 
     lo, hi = _t_ci(rates) if rates else (None, None)
     return {
         "n": len(rates),
         "mean_rate": _mean(rates) if rates else None,
         "rate_ci95": [lo, hi],
+        "mean_gate_hit_rate": _mean(gate_hit_rates) if gate_hit_rates else None,
+        "blend_alpha": blend_alphas[0] if blend_alphas else None,
         "total_applied": total_applied,
         "total_skipped": total_skipped,
         "skip_reasons": dict(skip_reasons),
@@ -552,7 +568,7 @@ def _compute_mechanism_coverage(
         for arm in arm_labels:
             treatment_runs = treatments.get(arm, {}).get(profile, {})
             out[profile][arm] = {
-                "lamarckian_warmstart": _summarize_warmstart_coverage(treatment_runs),
+                "warmstart": _summarize_warmstart_coverage(treatment_runs),
             }
     return out
 
@@ -615,26 +631,32 @@ def _build_markdown(
             "## Mechanism coverage (treatment only)",
             "",
             (
-                "Lamarckian warm-start rate is an absolute treatment-arm statistic. "
+                "Warm-start rate is an absolute treatment-arm statistic. "
                 f"The `{baseline_label}` baseline performs no warm-start attempts, "
-                "so paired deltas are undefined."
+                "so paired deltas are undefined. Gate hit-rate and blend alpha are "
+                "P4-specific (n/a for other modes)."
             ),
             "",
-            "| Profile | Arm | Mean rate | 95% CI | Applied | Skipped | Skip reasons | n |",
-            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+            (
+                "| Profile | Arm | Mean rate | 95% CI | Gate hit-rate | Blend alpha "
+                "| Applied | Skipped | Skip reasons | n |"
+            ),
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
         for profile in PROFILE_ORDER:
             if profile not in mechanism_coverage:
                 continue
             for arm in arm_labels:
                 warmstart = mechanism_coverage.get(profile, {}).get(arm, {}).get(
-                    "lamarckian_warmstart", {}
+                    "warmstart", {}
                 )
                 if not warmstart:
                     continue
                 lines.append(
                     f"| {profile} | {arm} | {_fmt(warmstart.get('mean_rate'))} "
                     f"| {_fmt(warmstart.get('rate_ci95'))} "
+                    f"| {_fmt(warmstart.get('mean_gate_hit_rate'))} "
+                    f"| {_fmt(warmstart.get('blend_alpha'))} "
                     f"| {warmstart.get('total_applied', 0)} "
                     f"| {warmstart.get('total_skipped', 0)} "
                     f"| {_fmt_skip_reasons(warmstart.get('skip_reasons', {}))} "
