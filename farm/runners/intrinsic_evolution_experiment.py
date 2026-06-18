@@ -44,7 +44,7 @@ logger = get_logger(__name__)
 CoparentStrategy = Literal["nearest_alive_same_type", "random_alive_same_type"]
 SelectionPressurePreset = Literal["none", "low", "medium", "high"]
 InitialConditionsProfileName = Literal["stable", "stress", "exploratory", "legacy"]
-InheritanceMode = Literal["baldwinian", "lamarckian"]
+InheritanceMode = Literal["baldwinian", "lamarckian", "p2", "p3", "p4"]
 
 # ── Selection-pressure preset definitions ─────────────────────────────────────
 # Each preset maps to a ReproductionPressureConfig with sensible defaults that
@@ -472,8 +472,18 @@ class IntrinsicEvolutionPolicy:
         reproduction_pressure: Fine-grained density-dependent cost config.
             Ignored when ``selection_pressure`` is not ``None``.
         inheritance_mode: Offspring policy-state inheritance mode.
-            ``"baldwinian"`` keeps cold-start offspring policies.
-            ``"lamarckian"`` attempts compatible policy warm-starts.
+            ``"baldwinian"`` keeps cold-start offspring policies (default).
+            ``"lamarckian"`` (P1) attempts compatible policy warm-starts.
+            ``"p2"`` adds plasticity damping: weights are inherited with a
+            lowered initial learning rate and exploration rate (ε) so the
+            inherited weights are not immediately overwritten.
+            ``"p3"`` adds continuation machinery: weights plus optimizer state
+            and a bounded replay-buffer slice are transferred so the offspring
+            continues the parent's learning trajectory.
+            ``"p4"`` applies a gated/blended transfer: a fitness gate screens
+            the parent, and weights are blended as
+            ``θ_child = α·θ_parent + (1−α)·θ_init`` to bound local-niche
+            lock-in.
     """
 
     enabled: bool = True
@@ -517,8 +527,10 @@ class IntrinsicEvolutionPolicy:
             raise ValueError(
                 "coparent_strategy must be 'nearest_alive_same_type' or 'random_alive_same_type'."
             )
-        if self.inheritance_mode not in ("baldwinian", "lamarckian"):
-            raise ValueError("inheritance_mode must be 'baldwinian' or 'lamarckian'.")
+        if self.inheritance_mode not in ("baldwinian", "lamarckian", "p2", "p3", "p4"):
+            raise ValueError(
+                "inheritance_mode must be one of 'baldwinian', 'lamarckian', 'p2', 'p3', 'p4'."
+            )
         # Derive reproduction_pressure from the selection_pressure preset/scale when set.
         if self.selection_pressure is not None:
             derived = _preset_or_scale_to_pressure_config(self.selection_pressure)
