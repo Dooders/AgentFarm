@@ -157,11 +157,26 @@ def _extract_metadata_metrics(run_dir: Path) -> Dict[str, Any]:
 
     startup = meta.get("startup_transient_metrics", {})
     inheritance = meta.get("policy_inheritance_metrics", {})
-    applied = int(inheritance.get("warmstart_applied", 0))
-    skipped = int(inheritance.get("warmstart_skipped", 0))
-    skipped_reasons = dict(
-        inheritance.get("warmstart_skipped_reasons", {}) or {}
+    applied = int(
+        inheritance.get(
+            "warmstart_applied",
+            inheritance.get("lamarckian_warmstart_applied", 0),
+        )
     )
+    skipped = int(
+        inheritance.get(
+            "warmstart_skipped",
+            inheritance.get("lamarckian_warmstart_skipped", 0),
+        )
+    )
+    if "warmstart_skipped_reasons" in inheritance:
+        skipped_reasons = dict(inheritance.get("warmstart_skipped_reasons") or {})
+    elif "lamarckian_warmstart_skipped_reasons" in inheritance:
+        skipped_reasons = dict(
+            inheritance.get("lamarckian_warmstart_skipped_reasons") or {}
+        )
+    else:
+        skipped_reasons = {}
     denom = applied + skipped
     warmstart_rate = float(applied / denom) if denom > 0 else float("nan")
     gate_hit_rate = inheritance.get("gate_hit_rate")
