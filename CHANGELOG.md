@@ -22,6 +22,82 @@ Suggested grouping:
 
 ## Entries
 
+### 2026-06-16
+
+#### Docs
+
+- **Inherited payload design** — added `docs/design/inherited_payload_design.md` (Issue #848) re-deriving what offspring should inherit from a parent's learned decision module after the Baldwinian vs Lamarckian A/B and early-life fitness follow-ups showed full policy-weight copy is a null and action priors already cross via Chromosome A; updated the hyperparameter-genome devlog open questions and clarified non-default Lamarckian wording. ([#905](https://github.com/Dooders/AgentFarm/pull/905))
+
+---
+
+### 2026-06-09
+
+#### Added
+
+- **Per-agent evolvable RL goals (Chromosome C)** — added nine `reward_*` loci to `HyperparameterChromosome`, rewired `AgentCore._calculate_reward` to read heritable goal weights (with caching), and introduced `IntrinsicGoalsExperiment` plus `scripts/run_intrinsic_goals_experiment.py` to run uniform-vs-unique goal-diversity arms with per-step action-mix and goal-gene telemetry; documented in `docs/experiments/intrinsic_evolution/intrinsic_goals.md`. Default chromosomes reproduce the historical reward formula unchanged. ([#891](https://github.com/Dooders/AgentFarm/pull/891), [#899](https://github.com/Dooders/AgentFarm/pull/899))
+- **Determinism regression expansion** — hardened the determinism harness (`tests/test_deterministic.py`) to compare intermediate snapshots and DB contents without masking production seeding, added `tests/test_cross_process_determinism.py` for cross-process reproducibility, and wired both into the deterministic-simulation CI workflow. ([#898](https://github.com/Dooders/AgentFarm/pull/898), [#900](https://github.com/Dooders/AgentFarm/pull/900))
+- **Test-suite coverage pass** — added property-based and utility tests, expanded coverage for `farm/research/analysis` and database model/utilities, fixed false-positive tests, and updated `.coveragerc` / `pytest.ini` / CI coverage settings. ([#896](https://github.com/Dooders/AgentFarm/pull/896), [#897](https://github.com/Dooders/AgentFarm/pull/897))
+
+#### Fixed
+
+- Snapshot determinism checks now require every requested step to be present (not just a subset), and early-terminated simulations compare only the overlapping step range instead of failing on missing later snapshots. ([#898](https://github.com/Dooders/AgentFarm/pull/898), [#900](https://github.com/Dooders/AgentFarm/pull/900))
+- Action-mix telemetry no longer counts inactive agents or stale `last_action_name` values, fixing skewed aggregate plots in the intrinsic-goals experiment. ([#899](https://github.com/Dooders/AgentFarm/pull/899))
+- Component tests no longer infinite-loop when probing genome IDs against a bare `Mock` database object. ([#898](https://github.com/Dooders/AgentFarm/pull/898))
+
+#### Docs
+
+- Devlog `2026-06-09-every-agent-a-different-goal.md` introduces the goal-diversity experiment and its first readouts. ([#891](https://github.com/Dooders/AgentFarm/pull/891))
+- `docs/deterministic_simulations.md` now points at `tests/test_deterministic.py` and documents the cross-process determinism pytest entry point. ([#898](https://github.com/Dooders/AgentFarm/pull/898))
+
+---
+
+### 2026-06-05
+
+#### Added
+
+- **Early-life offspring fitness analysis** — added `scripts/analyze_early_life_fitness.py` and `scripts/plot_early_life_fitness.py` to quantify newborn-level fitness under Baldwinian vs Lamarckian inheritance (paired-seed deltas, startup transients, reward/action breakdowns) with unit tests and a devlog entry on measuring at the wrong level. ([#890](https://github.com/Dooders/AgentFarm/pull/890))
+
+---
+
+### 2026-06-01
+
+#### Docs
+
+- Refreshed the Baldwinian vs Lamarckian A/B devlog (`2026-05-21-baldwinian-vs-lamarckian-ab-harness.md`) with post-fix aggregate results, warm-start coverage context, and updated index links. ([#889](https://github.com/Dooders/AgentFarm/pull/889))
+
+---
+
+### 2026-05-31
+
+#### Changed
+
+- `compare_inheritance_arms.py` now reports warm-start coverage metrics (applied vs skipped counts and skip-reason breakdowns) so Lamarckian A/B readouts distinguish "inheritance disabled" from "inheritance attempted but incompatible." ([#888](https://github.com/Dooders/AgentFarm/pull/888))
+
+---
+
+### 2026-05-22
+
+#### Added
+
+- **Baldwinian vs Lamarckian inheritance A/B** — added `farm/core/policy_inheritance.py`, `InheritanceTelemetry`, `scripts/run_inheritance_mode_ab.py`, and `scripts/compare_inheritance_arms.py` to run matched intrinsic-evolution sweeps under Baldwinian (fresh policy) vs Lamarckian (parent policy warm-start) arms with paired-seed delta summaries, heatmaps, and lineage metrics; documented in `docs/experiments/intrinsic_evolution/inheritance_mode_ab.md`. ([#886](https://github.com/Dooders/AgentFarm/pull/886))
+- **`farm/analysis/lineage_metrics.py`** — shared helper for churn/cluster-count extraction used by inheritance and crossover comparison scripts. ([#887](https://github.com/Dooders/AgentFarm/pull/887))
+
+#### Changed
+
+- **Decision-path refactor** — rewired `TianshouWrapper` action selection through explicit `_policy_q_values` + masked-softmax composition with optional action weights, fixing a defect where learned policy weights did not influence executed actions (invalidating pre-fix inheritance A/B aggregates); `DecisionModule.decide_action` now multiplicatively combines policy probabilities with per-action weights. ([#886](https://github.com/Dooders/AgentFarm/pull/886))
+- Structured logging only attaches the JSON traceback processor when JSON output is enabled, keeping console rendering clean in non-JSON environments. ([#887](https://github.com/Dooders/AgentFarm/pull/887))
+
+#### Fixed
+
+- `compare_inheritance_arms` paired-delta heatmap handles null `mean_delta` entries in JSON summaries without crashing. ([#887](https://github.com/Dooders/AgentFarm/pull/887))
+- `compare_inheritance_arms` robust paired deltas now require `n >= 2` seeds. ([#886](https://github.com/Dooders/AgentFarm/pull/886))
+
+#### Docs
+
+- Devlog `2026-05-21-baldwinian-vs-lamarckian-ab-harness.md` and backfilled CHANGELOG entries through 2026-05-20. ([#886](https://github.com/Dooders/AgentFarm/pull/886))
+
+---
+
 ### 2026-05-20
 
 #### Docs
