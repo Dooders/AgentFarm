@@ -45,6 +45,10 @@ from farm.core.initial_diversity import (  # noqa: E402
     InitialDiversityConfig,
     SeedingMode,
 )
+from scripts._warmstart_cli import (  # noqa: E402
+    add_warmstart_tuning_arguments,
+    warmstart_tuning_kwargs,
+)
 from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
     InitialConditionsConfig,
     IntrinsicEvolutionExperiment,
@@ -213,6 +217,19 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--inheritance-mode",
+        type=str,
+        default="baldwinian",
+        choices=["baldwinian", "lamarckian", "p2", "p3", "p4"],
+        help=(
+            "Policy inheritance mode for offspring. 'baldwinian' (default): "
+            "cold-start. 'lamarckian' (P1): weights only. 'p2': weights + "
+            "plasticity damping. 'p3': weights + optimizer state + replay "
+            "slice. 'p4': gated/blended transfer."
+        ),
+    )
+    add_warmstart_tuning_arguments(parser)
+    parser.add_argument(
         "--log-level",
         type=str,
         default="INFO",
@@ -267,6 +284,8 @@ def _build_run(args: argparse.Namespace) -> IntrinsicEvolutionExperiment:
         coparent_strategy=args.coparent_strategy,
         coparent_max_radius=args.coparent_max_radius,
         selection_pressure=_parse_selection_pressure(args.selection_pressure),
+        inheritance_mode=args.inheritance_mode,
+        **warmstart_tuning_kwargs(args),
         seed=args.seed,
     )
 

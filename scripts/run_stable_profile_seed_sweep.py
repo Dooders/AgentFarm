@@ -62,6 +62,10 @@ from farm.core.hyperparameter_chromosome import (  # noqa: E402
     MutationMode,
 )
 from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode  # noqa: E402
+from scripts._warmstart_cli import (  # noqa: E402
+    add_warmstart_tuning_arguments,
+    warmstart_tuning_kwargs,
+)
 from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
     STABLE_SUB_PROFILES,
     InitialConditionsConfig,
@@ -135,6 +139,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "'p4': gated/blended transfer."
         ),
     )
+    add_warmstart_tuning_arguments(parser)
     parser.add_argument("--initial-diversity-mutation-rate", type=float, default=1.0)
     parser.add_argument("--initial-diversity-mutation-scale", type=float, default=0.25)
     parser.add_argument(
@@ -260,6 +265,7 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
         ),
         selection_pressure=args.selection_pressure,
         inheritance_mode=str(getattr(args, "inheritance_mode", "baldwinian")),
+        **warmstart_tuning_kwargs(args),
         seed=seed,
     )
 
@@ -408,6 +414,7 @@ def _inheritance_settings_dict(args: argparse.Namespace) -> Dict[str, Any]:
     """Snapshot of inheritance mode related args for the manifest."""
     return {
         "inheritance_mode": str(getattr(args, "inheritance_mode", "baldwinian")),
+        **warmstart_tuning_kwargs(args),
     }
 
 

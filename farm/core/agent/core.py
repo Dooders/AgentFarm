@@ -33,6 +33,10 @@ from farm.core.hyperparameter_chromosome import (
 from farm.core.environment import _AgentList
 from farm.core.inheritance_telemetry import InheritanceTelemetry
 from farm.core.policy_inheritance import (
+    P2_PLASTICITY_DAMPING,
+    P3_REPLAY_BUFFER_LIMIT,
+    P4_BLEND_ALPHA,
+    P4_FITNESS_GATE_MIN_RESOURCES,
     apply_lamarckian_policy_warmstart,
     apply_p2_policy_warmstart,
     apply_p3_policy_warmstart,
@@ -56,6 +60,39 @@ _WARMSTART_DISPATCH = {
     "p3": apply_p3_policy_warmstart,
     "p4": apply_p4_policy_warmstart,
 }
+
+
+def _warmstart_kwargs_for_mode(mode: str, policy: Any) -> Dict[str, Any]:
+    """Build the per-mode tuning kwargs for a warm-start hook from ``policy``.
+
+    The richer variants (P2/P3/P4) expose tunable knobs on the runner's
+    :class:`IntrinsicEvolutionPolicy`. We read them via ``getattr`` with the
+    module-default fallback so test doubles and legacy policy objects that do
+    not carry the ``warmstart_*`` fields still warm-start with the documented
+    defaults instead of raising.
+    """
+    if mode == "p2":
+        return {
+            "plasticity_damping": getattr(
+                policy, "warmstart_plasticity_damping", P2_PLASTICITY_DAMPING
+            )
+        }
+    if mode == "p3":
+        return {
+            "replay_buffer_limit": getattr(
+                policy, "warmstart_replay_buffer_limit", P3_REPLAY_BUFFER_LIMIT
+            )
+        }
+    if mode == "p4":
+        return {
+            "blend_alpha": getattr(policy, "warmstart_blend_alpha", P4_BLEND_ALPHA),
+            "fitness_gate_min_resources": getattr(
+                policy,
+                "warmstart_fitness_gate_min_resources",
+                P4_FITNESS_GATE_MIN_RESOURCES,
+            ),
+        }
+    return {}
 
 
 def compute_effective_reproduction_cost(agent: Any, base_cost: float) -> float:
@@ -1242,11 +1279,19 @@ class AgentCore:
             # ``baldwinian`` (cold start) and any unrecognized mode are no-ops.
             return
 
-        skip_reason = warmstart_hook(self, offspring)
+        warmstart_kwargs = _warmstart_kwargs_for_mode(inheritance_mode, policy)
+        skip_reason = warmstart_hook(self, offspring, **warmstart_kwargs)
 
         telemetry = getattr(self.environment, "inheritance_telemetry", None)
         if not isinstance(telemetry, InheritanceTelemetry):
             return
+        # The P4 blend coefficient is a run-level constant; record it
+        # regardless of this birth's per-attempt skip outcome so the serialized
+        # metadata surfaces the effective alpha alongside coverage. Recording it
+        # also marks the run as P4 for ``InheritanceTelemetry._gate_hit_rate``,
+        # which is gated on ``blend_alpha`` being set.
+        if inheritance_mode == "p4":
+            telemetry.record_blend_alpha(warmstart_kwargs.get("blend_alpha"))
         if skip_reason is None:
             telemetry.record_applied()
         else:

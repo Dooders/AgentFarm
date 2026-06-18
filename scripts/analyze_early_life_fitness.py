@@ -149,8 +149,8 @@ def _read_warmstart_rate(run_dir: Path) -> Optional[float]:
     pim = meta.get("policy_inheritance_metrics")
     if not isinstance(pim, dict):
         return None
-    applied = pim.get("lamarckian_warmstart_applied")
-    skipped = pim.get("lamarckian_warmstart_skipped")
+    applied = pim.get("warmstart_applied")
+    skipped = pim.get("warmstart_skipped")
     if applied is None or skipped is None:
         return None
     total = float(applied) + float(skipped)

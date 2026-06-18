@@ -23,6 +23,10 @@ _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
+from scripts._warmstart_cli import (  # noqa: E402
+    add_warmstart_tuning_arguments,
+    warmstart_tuning_kwargs,
+)
 from scripts import analyze_stable_profile_seed_sweep as analyzer_mod  # noqa: E402
 from scripts import run_stable_profile_seed_sweep as runner_mod  # noqa: E402
 from scripts.run_stable_profile_seed_sweep import (  # noqa: E402
@@ -89,6 +93,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mutation-rate", type=float, default=0.15)
     parser.add_argument("--mutation-scale", type=float, default=0.10)
     parser.add_argument("--selection-pressure", type=str, default="low")
+    add_warmstart_tuning_arguments(parser)
     parser.add_argument("--initial-diversity-mutation-rate", type=float, default=1.0)
     parser.add_argument("--initial-diversity-mutation-scale", type=float, default=0.25)
     parser.add_argument(
@@ -141,6 +146,7 @@ def _build_runner_args(
         mutation_scale=args.mutation_scale,
         selection_pressure=args.selection_pressure,
         inheritance_mode=preset["inheritance_mode"],
+        **warmstart_tuning_kwargs(args),
         initial_diversity_mutation_rate=args.initial_diversity_mutation_rate,
         initial_diversity_mutation_scale=args.initial_diversity_mutation_scale,
         log_level=args.log_level,

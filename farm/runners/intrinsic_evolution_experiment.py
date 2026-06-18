@@ -34,6 +34,12 @@ from farm.core.initial_diversity import (
     InitialDiversityConfig,
     SeedingMode,
 )
+from farm.core.policy_inheritance import (
+    P2_PLASTICITY_DAMPING,
+    P3_REPLAY_BUFFER_LIMIT,
+    P4_BLEND_ALPHA,
+    P4_FITNESS_GATE_MIN_RESOURCES,
+)
 from farm.core.simulation import run_simulation
 from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger, VALID_SCALERS
 from farm.utils.logging import get_logger
@@ -484,6 +490,14 @@ class IntrinsicEvolutionPolicy:
             the parent, and weights are blended as
             ``θ_child = α·θ_parent + (1−α)·θ_init`` to bound local-niche
             lock-in.
+        warmstart_plasticity_damping: P2 damping factor in ``(0, 1]`` applied
+            to the child's inherited learning rate and exploration rate.
+        warmstart_replay_buffer_limit: P3 cap (>= 1) on the number of replay
+            transitions transferred from parent to child.
+        warmstart_blend_alpha: P4 blend coefficient in ``[0, 1]`` weighting the
+            parent's policy in ``θ_child = α·θ_parent + (1−α)·θ_init``.
+        warmstart_fitness_gate_min_resources: P4 minimum parent resource level
+            (>= 0) required to clear the fitness gate.
     """
 
     enabled: bool = True
@@ -502,6 +516,10 @@ class IntrinsicEvolutionPolicy:
     seed: Optional[int] = None
     selection_pressure: Union[SelectionPressurePreset, float, None] = None
     inheritance_mode: InheritanceMode = "baldwinian"
+    warmstart_plasticity_damping: float = P2_PLASTICITY_DAMPING
+    warmstart_replay_buffer_limit: int = P3_REPLAY_BUFFER_LIMIT
+    warmstart_blend_alpha: float = P4_BLEND_ALPHA
+    warmstart_fitness_gate_min_resources: float = P4_FITNESS_GATE_MIN_RESOURCES
     reproduction_pressure: ReproductionPressureConfig = field(
         default_factory=ReproductionPressureConfig
     )
@@ -530,6 +548,18 @@ class IntrinsicEvolutionPolicy:
         if self.inheritance_mode not in ("baldwinian", "lamarckian", "p2", "p3", "p4"):
             raise ValueError(
                 "inheritance_mode must be one of 'baldwinian', 'lamarckian', 'p2', 'p3', 'p4'."
+            )
+        if not 0.0 < self.warmstart_plasticity_damping <= 1.0:
+            raise ValueError(
+                "warmstart_plasticity_damping must be in the interval (0, 1]."
+            )
+        if self.warmstart_replay_buffer_limit < 1:
+            raise ValueError("warmstart_replay_buffer_limit must be at least 1.")
+        if not 0.0 <= self.warmstart_blend_alpha <= 1.0:
+            raise ValueError("warmstart_blend_alpha must be between 0 and 1.")
+        if self.warmstart_fitness_gate_min_resources < 0.0:
+            raise ValueError(
+                "warmstart_fitness_gate_min_resources must be non-negative."
             )
         # Derive reproduction_pressure from the selection_pressure preset/scale when set.
         if self.selection_pressure is not None:

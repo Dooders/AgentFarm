@@ -14,12 +14,21 @@ _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
+from pathlib import Path  # noqa: E402
+
 import pytest  # noqa: E402
 
+from farm.core.policy_inheritance import (  # noqa: E402
+    P2_PLASTICITY_DAMPING,
+    P3_REPLAY_BUFFER_LIMIT,
+    P4_BLEND_ALPHA,
+    P4_FITNESS_GATE_MIN_RESOURCES,
+)
 from scripts.run_inheritance_mode_ab import (  # noqa: E402
     ARM_PRESETS,
     DEFAULT_ARMS,
     _build_parser,
+    _build_runner_args,
 )
 
 
@@ -75,6 +84,39 @@ class TestABParserArmChoices(unittest.TestCase):
             ["--arms", "baldwinian", "lamarckian", "p2", "p3", "p4"]
         )
         self.assertEqual(set(args.arms), set(ARM_PRESETS))
+
+
+class TestWarmstartTuningForwarding(unittest.TestCase):
+    def test_defaults_forwarded_to_runner_args(self):
+        args = _build_parser().parse_args(["--arms", "p4"])
+        runner_args = _build_runner_args(args, "p4", Path("/tmp/out"))
+        self.assertEqual(
+            runner_args.warmstart_plasticity_damping, P2_PLASTICITY_DAMPING
+        )
+        self.assertEqual(
+            runner_args.warmstart_replay_buffer_limit, P3_REPLAY_BUFFER_LIMIT
+        )
+        self.assertEqual(runner_args.warmstart_blend_alpha, P4_BLEND_ALPHA)
+        self.assertEqual(
+            runner_args.warmstart_fitness_gate_min_resources,
+            P4_FITNESS_GATE_MIN_RESOURCES,
+        )
+
+    def test_overrides_forwarded_to_runner_args(self):
+        args = _build_parser().parse_args(
+            [
+                "--arms", "p4",
+                "--warmstart-plasticity-damping", "0.25",
+                "--warmstart-replay-buffer-limit", "64",
+                "--warmstart-blend-alpha", "0.75",
+                "--warmstart-fitness-gate-min-resources", "5.0",
+            ]
+        )
+        runner_args = _build_runner_args(args, "p4", Path("/tmp/out"))
+        self.assertEqual(runner_args.warmstart_plasticity_damping, 0.25)
+        self.assertEqual(runner_args.warmstart_replay_buffer_limit, 64)
+        self.assertEqual(runner_args.warmstart_blend_alpha, 0.75)
+        self.assertEqual(runner_args.warmstart_fitness_gate_min_resources, 5.0)
 
 
 if __name__ == "__main__":
