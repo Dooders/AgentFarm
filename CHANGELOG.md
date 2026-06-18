@@ -22,7 +22,29 @@ Suggested grouping:
 
 ## Entries
 
+### 2026-06-17
+
+#### Added
+
+- **Bounded, deterministic replay-buffer transfer** — added `get_transfer_slice()` / `load_transfer_slice()` to `PrioritizedReplayBuffer` and wired them into the Tianshou wrapper (`_get_replay_buffer_state` / `_load_replay_buffer_state` with a `_deserialize_replay_value` helper) so offspring can inherit a deterministic, size-bounded slice of a parent's experience while preserving PER metadata (beta, beta step count, replay strategy). Covered by `tests/decision/test_replay_buffer_transfer.py` and a `tests/helpers/replay_slice_hash.py` helper; closes the #902 item in the inherited-payload design. ([#909](https://github.com/Dooders/AgentFarm/pull/909))
+- **Extended-state policy inheritance and warmstart** — extended `policy_inheritance.py` with `_supports_extended_state` detection and a streamlined `_get_parent_algorithm_state`, switched `AgentCore` to a dispatch table for warmstart hooks, and added P2–P4 `inheritance_mode` values for richer payload variants, with explicit skip reasons when an algorithm cannot consume the extended payload. ([#911](https://github.com/Dooders/AgentFarm/pull/911))
+
+#### Fixed
+
+- Empty or zero-limit replay buffers (`replay_buffer_limit=0`) no longer drop PER metadata on serialize, and the unused `seed` parameter was removed from `get_transfer_slice` to simplify the API. ([#909](https://github.com/Dooders/AgentFarm/pull/909))
+- Warmstart failures from unsupported extended state are now non-fatal and report a specific skip reason instead of aborting inheritance. ([#911](https://github.com/Dooders/AgentFarm/pull/911))
+
+---
+
 ### 2026-06-16
+
+#### Added
+
+- **Richer Tianshou model-state payload** — `farm/core/decision/algorithms/tianshou.py` now exposes an extended model state (alpha/epsilon and related optimizer fields) with a `_coerce_float` static helper and try/except/else error handling so core policy weights are always preserved even when optional payload serialization fails. ([#907](https://github.com/Dooders/AgentFarm/pull/907))
+
+#### Fixed
+
+- Replay-buffer checkpoint restore now reinstates `replay_strategy` so PER/uniform sampling matches the saved run, and `replay_buffer_limit=0` is treated as an empty slice instead of serializing the full buffer via Python's negative-zero slice quirk. ([#907](https://github.com/Dooders/AgentFarm/pull/907))
 
 #### Docs
 
