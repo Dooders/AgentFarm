@@ -665,6 +665,37 @@ def test_reproduce_p3_mode_applies_warmstart_and_tracks_counter():
     offspring.behavior.decision_module.algorithm.load_model_state.assert_called_once()
 
 
+def test_reproduce_p3_threads_configured_replay_buffer_limit():
+    """A custom warmstart_replay_buffer_limit must reach get_model_state."""
+    parent = _build_p_mode_parent("p3", warmstart_replay_buffer_limit=64)
+    offspring = _build_offspring_mock()
+
+    captured: dict = {}
+
+    def _capturing_get_model_state(**kwargs):
+        captured.update(kwargs)
+        return {
+            "policy_state_dict": {"w": Mock(shape=(2, 2))},
+            "optimizer_state": {"optim": {}},
+            "replay_buffer_state": {"transitions": [], "size": 0},
+        }
+
+    parent.behavior.decision_module.algorithm.get_model_state = (
+        _capturing_get_model_state
+    )
+
+    with patch("farm.core.agent.factory.AgentFactory") as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    assert captured["replay_buffer_limit"] == 64
+    telemetry = parent.environment.inheritance_telemetry
+    assert telemetry.warmstart_applied == 1
+    assert telemetry.warmstart_skipped == 0
+
+
 def test_reproduce_p4_mode_applies_warmstart_when_gate_cleared():
     """P4 mode with sufficient resources should apply warm-start."""
     parent = _build_p_mode_parent("p4")

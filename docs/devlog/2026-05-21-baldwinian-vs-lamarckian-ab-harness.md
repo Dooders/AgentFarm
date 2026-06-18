@@ -160,6 +160,8 @@ The experiment path that produced these numbers:
   `apply_lamarckian_policy_warmstart`
 - Telemetry in run metadata:
   `policy_inheritance_metrics.lamarckian_warmstart_applied/skipped`
+  (renamed to mode-neutral `warmstart_applied/skipped` on 2026-06-17 when the
+  P2–P4 variants landed)
 - `scripts/run_inheritance_mode_ab.py` — orchestrates both arms
 - `scripts/compare_inheritance_arms.py` — paired-seed deltas and verdicts
 - `scripts/run_stable_profile_seed_sweep.py` accepts `--inheritance-mode`

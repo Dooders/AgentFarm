@@ -23,11 +23,9 @@ _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
-from farm.core.policy_inheritance import (  # noqa: E402
-    P2_PLASTICITY_DAMPING,
-    P3_REPLAY_BUFFER_LIMIT,
-    P4_BLEND_ALPHA,
-    P4_FITNESS_GATE_MIN_RESOURCES,
+from scripts._warmstart_cli import (  # noqa: E402
+    add_warmstart_tuning_arguments,
+    warmstart_tuning_kwargs,
 )
 from scripts import analyze_stable_profile_seed_sweep as analyzer_mod  # noqa: E402
 from scripts import run_stable_profile_seed_sweep as runner_mod  # noqa: E402
@@ -95,30 +93,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mutation-rate", type=float, default=0.15)
     parser.add_argument("--mutation-scale", type=float, default=0.10)
     parser.add_argument("--selection-pressure", type=str, default="low")
-    parser.add_argument(
-        "--warmstart-plasticity-damping",
-        type=float,
-        default=P2_PLASTICITY_DAMPING,
-        help="P2 damping factor in (0, 1] for child LR/epsilon.",
-    )
-    parser.add_argument(
-        "--warmstart-replay-buffer-limit",
-        type=int,
-        default=P3_REPLAY_BUFFER_LIMIT,
-        help="P3 cap (>= 1) on replay transitions transferred to the child.",
-    )
-    parser.add_argument(
-        "--warmstart-blend-alpha",
-        type=float,
-        default=P4_BLEND_ALPHA,
-        help="P4 blend coefficient in [0, 1] weighting the parent's policy.",
-    )
-    parser.add_argument(
-        "--warmstart-fitness-gate-min-resources",
-        type=float,
-        default=P4_FITNESS_GATE_MIN_RESOURCES,
-        help="P4 minimum parent resource level (>= 0) to clear the fitness gate.",
-    )
+    add_warmstart_tuning_arguments(parser)
     parser.add_argument("--initial-diversity-mutation-rate", type=float, default=1.0)
     parser.add_argument("--initial-diversity-mutation-scale", type=float, default=0.25)
     parser.add_argument(
@@ -171,20 +146,7 @@ def _build_runner_args(
         mutation_scale=args.mutation_scale,
         selection_pressure=args.selection_pressure,
         inheritance_mode=preset["inheritance_mode"],
-        warmstart_plasticity_damping=getattr(
-            args, "warmstart_plasticity_damping", P2_PLASTICITY_DAMPING
-        ),
-        warmstart_replay_buffer_limit=getattr(
-            args, "warmstart_replay_buffer_limit", P3_REPLAY_BUFFER_LIMIT
-        ),
-        warmstart_blend_alpha=getattr(
-            args, "warmstart_blend_alpha", P4_BLEND_ALPHA
-        ),
-        warmstart_fitness_gate_min_resources=getattr(
-            args,
-            "warmstart_fitness_gate_min_resources",
-            P4_FITNESS_GATE_MIN_RESOURCES,
-        ),
+        **warmstart_tuning_kwargs(args),
         initial_diversity_mutation_rate=args.initial_diversity_mutation_rate,
         initial_diversity_mutation_scale=args.initial_diversity_mutation_scale,
         log_level=args.log_level,

@@ -1285,8 +1285,11 @@ class AgentCore:
         telemetry = getattr(self.environment, "inheritance_telemetry", None)
         if not isinstance(telemetry, InheritanceTelemetry):
             return
-        # The P4 blend coefficient is a run-level constant; record it so the
-        # serialized metadata surfaces the effective alpha alongside coverage.
+        # The P4 blend coefficient is a run-level constant; record it
+        # regardless of this birth's per-attempt skip outcome so the serialized
+        # metadata surfaces the effective alpha alongside coverage. Recording it
+        # also marks the run as P4 for ``InheritanceTelemetry._gate_hit_rate``,
+        # which is gated on ``blend_alpha`` being set.
         if inheritance_mode == "p4":
             telemetry.record_blend_alpha(warmstart_kwargs.get("blend_alpha"))
         if skip_reason is None:

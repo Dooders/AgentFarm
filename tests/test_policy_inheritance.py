@@ -231,10 +231,12 @@ def test_inheritance_telemetry_records_applied_and_skipped():
         WARMSTART_REASON_INCOMPATIBLE_STATE: 2,
         WARMSTART_REASON_NO_POLICY_STATE: 1,
     }
-    # Coverage = applied / (applied + skipped); no gate skips => gate hit-rate 1.0.
+    # Coverage = applied / (applied + skipped). No blend_alpha was recorded, so
+    # this is a non-P4 run: gate_hit_rate is None (the gate never ran) rather
+    # than a misleading 1.0, staying symmetric with the None blend_alpha.
     assert payload["warmstart_coverage"] == 2 / 5
     assert payload["gate_not_cleared"] == 0
-    assert payload["gate_hit_rate"] == 1.0
+    assert payload["gate_hit_rate"] is None
     assert payload["blend_alpha"] is None
 
 

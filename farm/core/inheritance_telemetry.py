@@ -80,9 +80,14 @@ class InheritanceTelemetry:
         """Fraction of warm-start attempts that cleared the P4 fitness gate.
 
         Computed over all attempts as ``(total - gate_not_cleared) / total``.
-        ``None`` when there were no attempts. For non-gated modes this is 1.0
-        because nothing is attributed to ``gate_not_cleared``.
+        Returns ``None`` for non-gated modes and for runs with no attempts:
+        only P4 records a ``blend_alpha`` (see :meth:`record_blend_alpha`), so
+        a ``None`` ``blend_alpha`` means no gate ran and a numeric hit-rate
+        would be a misleading ``1.0``. This keeps the gate metric P4-specific
+        and symmetric with ``blend_alpha`` for downstream reporting.
         """
+        if self.blend_alpha is None:
+            return None
         total = self.warmstart_applied + self.warmstart_skipped
         if total <= 0:
             return None
