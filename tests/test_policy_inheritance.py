@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 from farm.core.inheritance_telemetry import InheritanceTelemetry
 from farm.core.policy_inheritance import (
+    WARMSTART_REASON_EXTENDED_STATE_UNSUPPORTED,
     WARMSTART_REASON_GATE_NOT_CLEARED,
     WARMSTART_REASON_INCOMPATIBLE_STATE,
     WARMSTART_REASON_LOAD_FAILED,
@@ -586,3 +587,141 @@ def test_p4_returns_load_failed_when_load_raises():
         parent_state, child_state, child_load=_load, parent_resource_level=10.0
     )
     assert apply_p4_policy_warmstart(parent, offspring) == WARMSTART_REASON_LOAD_FAILED
+
+
+# ---------------------------------------------------------------------------
+# Extended-state capability detection (observable downgrade)
+# ---------------------------------------------------------------------------
+
+
+def test_p2_skips_when_extended_state_unsupported():
+    """P2 must report EXTENDED_STATE_UNSUPPORTED rather than silently downgrade.
+
+    ``_make_pair`` builds a ``get_model_state`` that takes no kwargs (like an
+    older algorithm), so P2 cannot obtain plasticity state.
+    """
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_pair(parent_state, child_state, child_load=load)
+
+    reason = apply_p2_policy_warmstart(parent, offspring)
+
+    assert reason == WARMSTART_REASON_EXTENDED_STATE_UNSUPPORTED
+    load.assert_not_called()
+
+
+def test_p3_skips_when_extended_state_unsupported():
+    """P3 must report EXTENDED_STATE_UNSUPPORTED when kwargs aren't accepted."""
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_pair(parent_state, child_state, child_load=load)
+
+    reason = apply_p3_policy_warmstart(parent, offspring)
+
+    assert reason == WARMSTART_REASON_EXTENDED_STATE_UNSUPPORTED
+    load.assert_not_called()
+
+
+def test_p1_works_with_kwargless_get_model_state():
+    """Lamarckian (P1) needs no extended state, so a kwargless API still works."""
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_pair(parent_state, child_state, child_load=load)
+
+    assert apply_lamarckian_policy_warmstart(parent, offspring) is None
+    load.assert_called_once()
+
+
+def test_p4_works_with_kwargless_get_model_state():
+    """P4 blends weights only, so it does not require extended-state support."""
+    parent_state = {"policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))}}
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_pair(parent_state, child_state, child_load=load)
+
+    assert apply_p4_policy_warmstart(parent, offspring) is None
+    load.assert_called_once()
+
+
+def test_extended_state_supported_via_var_keyword():
+    """A ``**kwargs`` signature is treated as supporting extended state."""
+    parent_state = {
+        "policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))},
+        "plasticity_state": {"learning_rate": 0.01},
+    }
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+
+    def _get_model_state(**_kwargs):
+        return parent_state
+
+    parent = SimpleNamespace(
+        agent_id="parent",
+        behavior=SimpleNamespace(
+            decision_module=SimpleNamespace(
+                algorithm=SimpleNamespace(get_model_state=_get_model_state),
+            ),
+        ),
+    )
+    offspring = SimpleNamespace(
+        agent_id="child",
+        behavior=SimpleNamespace(
+            decision_module=SimpleNamespace(
+                algorithm=SimpleNamespace(
+                    policy=SimpleNamespace(state_dict=lambda: child_state),
+                    load_model_state=load,
+                ),
+            ),
+        ),
+    )
+
+    assert apply_p2_policy_warmstart(parent, offspring) is None
+    load.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Non-fatal payload construction
+# ---------------------------------------------------------------------------
+
+
+def test_p2_malformed_plasticity_is_non_fatal():
+    """A non-numeric learning_rate must yield LOAD_FAILED, never raise."""
+    parent_state = {
+        "policy_state_dict": {"w": SimpleNamespace(shape=(2, 2))},
+        "plasticity_state": {"learning_rate": "not-a-number"},
+    }
+    child_state = {"w": SimpleNamespace(shape=(2, 2))}
+    load = Mock()
+    parent, offspring = _make_extended_pair(parent_state, child_state, child_load=load)
+
+    reason = apply_p2_policy_warmstart(parent, offspring)
+
+    assert reason == WARMSTART_REASON_LOAD_FAILED
+    load.assert_not_called()
+
+
+def test_p4_does_not_blend_integer_tensors():
+    """Integer (non-float) tensors must pass through verbatim, not blend."""
+    try:
+        import torch  # noqa: PLC0415
+    except ImportError:
+        return  # skip on environments without torch
+
+    parent_buffer = torch.tensor([4, 4], dtype=torch.long)
+    child_buffer = torch.tensor([0, 0], dtype=torch.long)
+
+    parent_state = {"policy_state_dict": {"n": parent_buffer}}
+    child_state = {"n": child_buffer}
+    load = Mock()
+    parent, offspring = _make_extended_pair(
+        parent_state, child_state, child_load=load, parent_resource_level=10.0
+    )
+
+    reason = apply_p4_policy_warmstart(parent, offspring, blend_alpha=0.5)
+
+    assert reason is None
+    payload = load.call_args.args[0]
+    assert payload["policy_state_dict"]["n"] is parent_buffer

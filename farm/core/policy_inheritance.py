@@ -28,9 +28,16 @@ P2–P4 variant hooks are also provided here (see the variant ladder in
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+import inspect
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from farm.utils.logging import get_logger
+
+try:  # torch is an optional dependency at import time; the P4 blend degrades
+    # gracefully (copies parent weights) when it is unavailable.
+    import torch
+except ImportError:  # pragma: no cover - exercised only in torch-less envs
+    torch = None  # type: ignore[assignment]
 
 logger = get_logger(__name__)
 
@@ -49,6 +56,12 @@ WARMSTART_REASON_LOAD_FAILED = "load_failed"
 
 # P4-specific: parent did not clear the fitness gate.
 WARMSTART_REASON_GATE_NOT_CLEARED = "gate_not_cleared"
+
+# P2/P3: the parent algorithm cannot supply the richer module state these
+# variants require (its ``get_model_state`` does not accept the extended
+# kwargs). Surfaced as a distinct skip so a misconfigured arm shows up as
+# all-skipped instead of silently masquerading as a successful transfer.
+WARMSTART_REASON_EXTENDED_STATE_UNSUPPORTED = "extended_state_unsupported"
 
 # Default plasticity damping factor applied by the P2 variant.
 # The child's inherited LR and ε are scaled by this factor so the
@@ -108,43 +121,14 @@ def apply_lamarckian_policy_warmstart(parent: Any, offspring: Any) -> Optional[s
     enough to run on long simulations without a noticeable wall-clock
     penalty.
     """
-    parent_behavior = getattr(parent, "behavior", None)
-    child_behavior = getattr(offspring, "behavior", None)
-    parent_module = getattr(parent_behavior, "decision_module", None)
-    child_module = getattr(child_behavior, "decision_module", None)
-    if parent_module is None or child_module is None:
-        return WARMSTART_REASON_NO_DECISION_MODULE
+    _, child_algorithm, parent_state, skip_reason = _get_parent_algorithm_state(
+        parent, offspring
+    )
+    if skip_reason is not None:
+        return skip_reason
 
-    parent_algorithm = getattr(parent_module, "algorithm", None)
-    child_algorithm = getattr(child_module, "algorithm", None)
-    if parent_algorithm is None or child_algorithm is None:
-        return WARMSTART_REASON_NO_ALGORITHM
-
-    get_model_state = getattr(parent_algorithm, "get_model_state", None)
+    policy_state = parent_state["policy_state_dict"]
     load_model_state = getattr(child_algorithm, "load_model_state", None)
-    if not callable(get_model_state) or not callable(load_model_state):
-        return WARMSTART_REASON_NO_WARMSTART_API
-
-    try:
-        parent_state = get_model_state()
-    except Exception:
-        logger.exception(
-            "lamarckian_warmstart_parent_state_failed",
-            parent_id=getattr(parent, "agent_id", None),
-            offspring_id=getattr(offspring, "agent_id", None),
-        )
-        return WARMSTART_REASON_PARENT_STATE_FAILED
-
-    if not isinstance(parent_state, dict):
-        return WARMSTART_REASON_NO_POLICY_STATE
-    policy_state = parent_state.get("policy_state_dict")
-    if not isinstance(policy_state, dict) or not policy_state:
-        return WARMSTART_REASON_NO_POLICY_STATE
-
-    child_policy = getattr(child_algorithm, "policy", None)
-    if not _policy_state_is_compatible(policy_state, child_policy):
-        return WARMSTART_REASON_INCOMPATIBLE_STATE
-
     try:
         load_model_state({"policy_state_dict": policy_state})
     except Exception:
@@ -157,6 +141,35 @@ def apply_lamarckian_policy_warmstart(parent: Any, offspring: Any) -> Optional[s
     return None
 
 
+_EXTENDED_STATE_PARAMS = (
+    "include_optimizer_state",
+    "include_replay_buffer",
+    "replay_buffer_limit",
+    "include_plasticity_state",
+)
+
+
+def _supports_extended_state(get_model_state: Callable) -> bool:
+    """Return whether ``get_model_state`` accepts the extended-payload kwargs.
+
+    We inspect the signature explicitly instead of catching ``TypeError`` from
+    the call: a ``TypeError`` raised *inside* a conforming implementation must
+    not be silently misread as "this algorithm doesn't support extended state",
+    which would downgrade a P2/P3 arm to a weights-only transfer without any
+    observable signal.
+    """
+    try:
+        signature = inspect.signature(get_model_state)
+    except (TypeError, ValueError):
+        # Builtins / C-callables without an introspectable signature: assume the
+        # documented API surface is present rather than guessing.
+        return True
+    params = signature.parameters
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return True
+    return all(name in params for name in _EXTENDED_STATE_PARAMS)
+
+
 def _get_parent_algorithm_state(
     parent: Any,
     offspring: Any,
@@ -165,12 +178,17 @@ def _get_parent_algorithm_state(
     include_replay_buffer: bool = False,
     replay_buffer_limit: Optional[int] = None,
     include_plasticity_state: bool = False,
-) -> tuple:
+) -> Tuple[Any, Any, Optional[Dict[str, Any]], Optional[str]]:
     """Extract the parent's algorithm objects and model state.
 
     Returns a 4-tuple ``(parent_algorithm, child_algorithm, parent_state, skip_reason)``.
     If ``skip_reason`` is not ``None`` the caller should propagate it immediately;
     the other three elements will be ``None``.
+
+    When a caller requests extended payloads (optimizer/replay/plasticity) but
+    the parent algorithm's ``get_model_state`` cannot supply them, the skip
+    reason is :data:`WARMSTART_REASON_EXTENDED_STATE_UNSUPPORTED` so the outcome
+    is recorded rather than silently degrading to a weights-only transfer.
     """
     parent_behavior = getattr(parent, "behavior", None)
     child_behavior = getattr(offspring, "behavior", None)
@@ -189,26 +207,30 @@ def _get_parent_algorithm_state(
     if not callable(get_model_state) or not callable(load_model_state):
         return None, None, None, WARMSTART_REASON_NO_WARMSTART_API
 
-    try:
-        parent_state = get_model_state(
-            include_optimizer_state=include_optimizer_state,
-            include_replay_buffer=include_replay_buffer,
-            replay_buffer_limit=replay_buffer_limit,
-            include_plasticity_state=include_plasticity_state,
+    wants_extended = (
+        include_optimizer_state
+        or include_replay_buffer
+        or include_plasticity_state
+        or replay_buffer_limit is not None
+    )
+    if wants_extended and not _supports_extended_state(get_model_state):
+        logger.warning(
+            "warmstart_extended_state_unsupported",
+            parent_id=getattr(parent, "agent_id", None),
+            offspring_id=getattr(offspring, "agent_id", None),
         )
-    except TypeError:
-        # Fallback: the implementation does not accept extended kwargs (e.g. in
-        # tests or older algorithm versions).  Call without arguments and accept
-        # the core policy state without the optional payloads.
-        try:
-            parent_state = get_model_state()
-        except Exception:
-            logger.exception(
-                "warmstart_parent_state_failed",
-                parent_id=getattr(parent, "agent_id", None),
-                offspring_id=getattr(offspring, "agent_id", None),
+        return None, None, None, WARMSTART_REASON_EXTENDED_STATE_UNSUPPORTED
+
+    try:
+        if wants_extended:
+            parent_state = get_model_state(
+                include_optimizer_state=include_optimizer_state,
+                include_replay_buffer=include_replay_buffer,
+                replay_buffer_limit=replay_buffer_limit,
+                include_plasticity_state=include_plasticity_state,
             )
-            return None, None, None, WARMSTART_REASON_PARENT_STATE_FAILED
+        else:
+            parent_state = get_model_state()
     except Exception:
         logger.exception(
             "warmstart_parent_state_failed",
@@ -255,36 +277,39 @@ def apply_p2_policy_warmstart(
     if skip_reason is not None:
         return skip_reason
 
-    policy_state = parent_state["policy_state_dict"]
-    plasticity_state = parent_state.get("plasticity_state", {})
-    step_count = parent_state.get("step_count")
-
-    # Build the child payload: weights + damped plasticity parameters.
-    child_payload: Dict[str, Any] = {"policy_state_dict": policy_state}
-
-    if step_count is not None:
-        child_payload["step_count"] = step_count
-
-    if plasticity_state:
-        damped: Dict[str, Any] = {}
-        if "learning_rate" in plasticity_state:
-            damped["learning_rate"] = float(plasticity_state["learning_rate"]) * plasticity_damping
-        if "learning_rates" in plasticity_state:
-            damped["learning_rates"] = {
-                k: float(v) * plasticity_damping
-                for k, v in plasticity_state["learning_rates"].items()
-            }
-        if "epsilon" in plasticity_state:
-            damped["epsilon"] = float(plasticity_state["epsilon"]) * plasticity_damping
-        if "eps_test" in plasticity_state:
-            damped["eps_test"] = float(plasticity_state["eps_test"]) * plasticity_damping
-        if "train_mode" in plasticity_state:
-            damped["train_mode"] = plasticity_state["train_mode"]
-        if damped:
-            child_payload["plasticity_state"] = damped
-
+    # Payload construction and load are both treated as non-fatal: any failure
+    # returns a skip reason so reproduction continues with a cold-start child,
+    # matching the Lamarckian (P1) contract that warm-start never aborts a
+    # birth event.
     load_model_state = getattr(child_algorithm, "load_model_state", None)
     try:
+        policy_state = parent_state["policy_state_dict"]
+        plasticity_state = parent_state.get("plasticity_state", {})
+        step_count = parent_state.get("step_count")
+
+        child_payload: Dict[str, Any] = {"policy_state_dict": policy_state}
+
+        if step_count is not None:
+            child_payload["step_count"] = step_count
+
+        if plasticity_state:
+            damped: Dict[str, Any] = {}
+            if "learning_rate" in plasticity_state:
+                damped["learning_rate"] = float(plasticity_state["learning_rate"]) * plasticity_damping
+            if "learning_rates" in plasticity_state:
+                damped["learning_rates"] = {
+                    k: float(v) * plasticity_damping
+                    for k, v in plasticity_state["learning_rates"].items()
+                }
+            if "epsilon" in plasticity_state:
+                damped["epsilon"] = float(plasticity_state["epsilon"]) * plasticity_damping
+            if "eps_test" in plasticity_state:
+                damped["eps_test"] = float(plasticity_state["eps_test"]) * plasticity_damping
+            if "train_mode" in plasticity_state:
+                damped["train_mode"] = plasticity_state["train_mode"]
+            if damped:
+                child_payload["plasticity_state"] = damped
+
         load_model_state(child_payload)
     except Exception:
         logger.exception(
@@ -331,25 +356,26 @@ def apply_p3_policy_warmstart(
     if skip_reason is not None:
         return skip_reason
 
-    policy_state = parent_state["policy_state_dict"]
-
-    # Build the child payload: weights + optional continuation machinery.
-    child_payload: Dict[str, Any] = {"policy_state_dict": policy_state}
-
-    step_count = parent_state.get("step_count")
-    if step_count is not None:
-        child_payload["step_count"] = step_count
-
-    optimizer_state = parent_state.get("optimizer_state")
-    if isinstance(optimizer_state, dict) and optimizer_state:
-        child_payload["optimizer_state"] = optimizer_state
-
-    replay_buffer_state = parent_state.get("replay_buffer_state")
-    if isinstance(replay_buffer_state, dict) and replay_buffer_state:
-        child_payload["replay_buffer_state"] = replay_buffer_state
-
+    # Payload construction and load are non-fatal (see P2): failures return a
+    # skip reason rather than raising into the reproduction transaction.
     load_model_state = getattr(child_algorithm, "load_model_state", None)
     try:
+        policy_state = parent_state["policy_state_dict"]
+
+        child_payload: Dict[str, Any] = {"policy_state_dict": policy_state}
+
+        step_count = parent_state.get("step_count")
+        if step_count is not None:
+            child_payload["step_count"] = step_count
+
+        optimizer_state = parent_state.get("optimizer_state")
+        if isinstance(optimizer_state, dict) and optimizer_state:
+            child_payload["optimizer_state"] = optimizer_state
+
+        replay_buffer_state = parent_state.get("replay_buffer_state")
+        if isinstance(replay_buffer_state, dict) and replay_buffer_state:
+            child_payload["replay_buffer_state"] = replay_buffer_state
+
         load_model_state(child_payload)
     except Exception:
         logger.exception(
@@ -388,11 +414,17 @@ def apply_p4_policy_warmstart(
     This soft warm-start bounds local-niche lock-in by not fully committing to
     the parent's learned representation.
 
+    Scope note: the current implementation blends *policy weights only* (the
+    P1-level payload). The design ladder allows P4 to layer the gate/blend over
+    P2/P3 payloads as well; that is intentionally left as a follow-up so the
+    gate and blend can be evaluated in isolation first.
+
     Returns ``None`` on success; returns a ``WARMSTART_REASON_*`` string on any
     skip, including ``WARMSTART_REASON_GATE_NOT_CLEARED`` when the parent does
     not meet the fitness threshold.
     """
-    # Fitness gate: check parent resource level.
+    # Fitness gate: check parent resource level. Agents without a
+    # ``resource_level`` attribute skip the gate (it cannot be evaluated).
     parent_resource_level = getattr(parent, "resource_level", None)
     if parent_resource_level is not None:
         if float(parent_resource_level) < fitness_gate_min_resources:
@@ -410,45 +442,46 @@ def apply_p4_policy_warmstart(
     if skip_reason is not None:
         return skip_reason
 
-    parent_policy_state = parent_state["policy_state_dict"]
-
-    # Capture the child's current (init) weights before blending.
-    child_policy = getattr(child_algorithm, "policy", None)
-    try:
-        child_init_state = child_policy.state_dict() if child_policy is not None else {}
-    except Exception:
-        child_init_state = {}
-
-    # Blend: θ_child = α*θ_parent + (1-α)*θ_init
-    try:
-        import torch  # noqa: PLC0415
-    except ImportError:
-        torch = None  # type: ignore[assignment]
-
-    blended_state: Dict[str, Any] = {}
-    for key, parent_value in parent_policy_state.items():
-        child_value = child_init_state.get(key)
-        if child_value is None:
-            blended_state[key] = parent_value
-            continue
-        if (
-            torch is not None
-            and isinstance(parent_value, torch.Tensor)
-            and isinstance(child_value, torch.Tensor)
-        ):
-            blended_state[key] = (
-                blend_alpha * parent_value + (1.0 - blend_alpha) * child_value
-            ).detach()
-        else:
-            blended_state[key] = parent_value
-
-    step_count = parent_state.get("step_count")
-    child_payload: Dict[str, Any] = {"policy_state_dict": blended_state}
-    if step_count is not None:
-        child_payload["step_count"] = step_count
-
+    # Blend + load are non-fatal (see P2): tensor dtype/device mismatches or a
+    # failed load return a skip reason instead of aborting reproduction.
     load_model_state = getattr(child_algorithm, "load_model_state", None)
     try:
+        parent_policy_state = parent_state["policy_state_dict"]
+
+        # Capture the child's current (init) weights before blending.
+        child_policy = getattr(child_algorithm, "policy", None)
+        try:
+            child_init_state = child_policy.state_dict() if child_policy is not None else {}
+        except Exception:
+            child_init_state = {}
+
+        # Blend: θ_child = α*θ_parent + (1-α)*θ_init. Only float tensors are
+        # blended; non-tensor entries and integer buffers (e.g. BatchNorm
+        # ``num_batches_tracked``) are copied from the parent verbatim.
+        blended_state: Dict[str, Any] = {}
+        for key, parent_value in parent_policy_state.items():
+            child_value = child_init_state.get(key)
+            if child_value is None:
+                blended_state[key] = parent_value
+                continue
+            if (
+                torch is not None
+                and isinstance(parent_value, torch.Tensor)
+                and isinstance(child_value, torch.Tensor)
+                and parent_value.is_floating_point()
+                and child_value.is_floating_point()
+            ):
+                blended_state[key] = (
+                    blend_alpha * parent_value + (1.0 - blend_alpha) * child_value
+                ).detach()
+            else:
+                blended_state[key] = parent_value
+
+        step_count = parent_state.get("step_count")
+        child_payload: Dict[str, Any] = {"policy_state_dict": blended_state}
+        if step_count is not None:
+            child_payload["step_count"] = step_count
+
         load_model_state(child_payload)
     except Exception:
         logger.exception(

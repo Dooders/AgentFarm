@@ -714,3 +714,68 @@ def test_reproduce_baldwinian_mode_never_calls_warmstart():
     assert telemetry.lamarckian_warmstart_applied == 0
     assert telemetry.lamarckian_warmstart_skipped == 0
     offspring.behavior.decision_module.algorithm.load_model_state.assert_not_called()
+
+
+def test_reproduce_warmstart_failure_is_non_fatal():
+    """A raising warm-start must not fail reproduction; it records a skip.
+
+    This guards the contract that policy warm-start is best-effort: a failure
+    in the (P2) payload load leaves a cold-start child rather than aborting the
+    birth event and refunding the parent's resources.
+    """
+    from farm.core.policy_inheritance import WARMSTART_REASON_LOAD_FAILED
+
+    parent = _build_p_mode_parent("p2")
+    offspring = _build_offspring_mock()
+    offspring.behavior.decision_module.algorithm.load_model_state.side_effect = (
+        RuntimeError("boom")
+    )
+
+    with patch("farm.core.agent.factory.AgentFactory") as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    telemetry = parent.environment.inheritance_telemetry
+    assert telemetry.lamarckian_warmstart_applied == 0
+    assert telemetry.lamarckian_warmstart_skipped == 1
+    assert telemetry.lamarckian_warmstart_skipped_reasons[WARMSTART_REASON_LOAD_FAILED] == 1
+
+
+def test_reproduce_extended_state_unsupported_is_observable():
+    """A P3 run on a kwargless algorithm records EXTENDED_STATE_UNSUPPORTED.
+
+    Rather than silently downgrading to a weights-only (P1) transfer, the
+    outcome is attributed so a misconfigured arm shows up as all-skipped.
+    """
+    from farm.core.policy_inheritance import (
+        WARMSTART_REASON_EXTENDED_STATE_UNSUPPORTED,
+    )
+
+    parent = _build_p_mode_parent("p3")
+
+    def _kwargless_get_model_state():
+        return {"policy_state_dict": {"w": Mock(shape=(2, 2))}}
+
+    parent.behavior.decision_module.algorithm.get_model_state = (
+        _kwargless_get_model_state
+    )
+    offspring = _build_offspring_mock()
+
+    with patch("farm.core.agent.factory.AgentFactory") as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    telemetry = parent.environment.inheritance_telemetry
+    assert telemetry.lamarckian_warmstart_applied == 0
+    assert telemetry.lamarckian_warmstart_skipped == 1
+    assert (
+        telemetry.lamarckian_warmstart_skipped_reasons[
+            WARMSTART_REASON_EXTENDED_STATE_UNSUPPORTED
+        ]
+        == 1
+    )
+    offspring.behavior.decision_module.algorithm.load_model_state.assert_not_called()
