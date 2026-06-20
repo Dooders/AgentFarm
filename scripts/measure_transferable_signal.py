@@ -81,7 +81,6 @@ if str(_repo_root) not in sys.path:
 
 from farm.config import SimulationConfig  # noqa: E402
 from farm.core.agent.core import AgentCore  # noqa: E402
-from farm.core.decision.algorithms.tianshou import TianshouWrapper  # noqa: E402
 from farm.core.decision.decision import DecisionModule  # noqa: E402
 from farm.core.simulation import run_simulation  # noqa: E402
 from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
