@@ -173,6 +173,16 @@ class ParallelExperimentRunner:
             Results or error information
         """
         try:
+            # Pin torch threads for worker processes to prevent CPU oversubscription
+            import os
+            os.environ["OMP_NUM_THREADS"] = "1"
+            os.environ["MKL_NUM_THREADS"] = "1"
+            try:
+                import torch
+                torch.set_num_threads(1)
+            except ImportError:
+                pass
+
             # Ensure output directory exists
             os.makedirs(output_path, exist_ok=True)
 

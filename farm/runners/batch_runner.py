@@ -191,6 +191,16 @@ class BatchRunner:
 def run_simulation_wrapper(args):
     params, config_file_path, num_steps, path = args
     try:
+        # Pin torch threads for worker processes to prevent CPU oversubscription
+        import os
+        os.environ["OMP_NUM_THREADS"] = "1"
+        os.environ["MKL_NUM_THREADS"] = "1"
+        try:
+            import torch
+            torch.set_num_threads(1)
+        except ImportError:
+            pass
+
         if config_file_path:
             # Check if it's a centralized config request
             if config_file_path.startswith("centralized:"):
