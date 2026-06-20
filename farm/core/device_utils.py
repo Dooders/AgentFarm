@@ -225,7 +225,9 @@ class DeviceManager:
             return
 
         if self.cpu_threads < 1:
-            logger.warning("invalid_cpu_threads", cpu_threads=self.cpu_threads)
+            logger.warning(
+                "cpu_threads_must_be_positive", cpu_threads=self.cpu_threads, minimum=1
+            )
             return
 
         os.environ["OMP_NUM_THREADS"] = str(self.cpu_threads)

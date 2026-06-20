@@ -52,6 +52,8 @@ class TestDeviceManagerGetDevice:
     def test_cpu_thread_policy_applied_for_cpu_device(self, monkeypatch):
         calls = []
         monkeypatch.setattr(torch, "set_num_threads", lambda n: calls.append(n))
+        monkeypatch.setenv("OMP_NUM_THREADS", "999")
+        monkeypatch.setenv("MKL_NUM_THREADS", "999")
         dm = DeviceManager(preference="cpu", cpu_threads=2)
         device = dm.get_device()
         assert device.type == "cpu"
