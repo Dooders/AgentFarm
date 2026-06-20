@@ -1,10 +1,13 @@
 """Tests for farm/core/device_utils.py – DeviceManager and convenience helpers."""
 
+import os
+
 import pytest
 import torch
 
 from farm.core.device_utils import (
     DeviceManager,
+    create_device_from_config,
     get_device,
     get_device_manager,
     safe_tensor_to_device,
@@ -27,17 +30,35 @@ class TestDeviceManagerInit:
         assert dm.fallback is True
         assert dm.memory_fraction is None
         assert dm.validate_compatibility is True
+        assert dm.cpu_threads == 1
         assert not dm._initialized
 
     def test_custom_params(self):
-        dm = DeviceManager(preference="cpu", fallback=False, memory_fraction=0.5, validate_compatibility=False)
+        dm = DeviceManager(
+            preference="cpu",
+            fallback=False,
+            memory_fraction=0.5,
+            validate_compatibility=False,
+            cpu_threads=2,
+        )
         assert dm.preference == "cpu"
         assert dm.fallback is False
         assert dm.memory_fraction == 0.5
         assert dm.validate_compatibility is False
+        assert dm.cpu_threads == 2
 
 
 class TestDeviceManagerGetDevice:
+    def test_cpu_thread_policy_applied_for_cpu_device(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(torch, "set_num_threads", lambda n: calls.append(n))
+        dm = DeviceManager(preference="cpu", cpu_threads=2)
+        device = dm.get_device()
+        assert device.type == "cpu"
+        assert calls == [2]
+        assert os.environ["OMP_NUM_THREADS"] == "2"
+        assert os.environ["MKL_NUM_THREADS"] == "2"
+
     def test_cpu_preference_returns_cpu(self):
         dm = DeviceManager(preference="cpu")
         device = dm.get_device()
@@ -126,6 +147,13 @@ class TestConvenienceFunctions:
         # After reconfiguration the manager should be reset
         assert not m2._initialized or m2.preference == "auto"
 
+    def test_get_device_manager_reconfigures_on_different_cpu_threads(self):
+        m1 = get_device_manager(preference="cpu", cpu_threads=1)
+        m2 = get_device_manager(preference="cpu", cpu_threads=2)
+        assert m1 is m2
+        assert m2.cpu_threads == 2
+        assert not m2._initialized
+
     def test_safe_tensor_to_device_function(self):
         t = torch.tensor([3.0])
         result = safe_tensor_to_device(t, torch.device("cpu"))
@@ -142,3 +170,37 @@ class TestGetOptimalDevice:
         dm = DeviceManager(preference="cpu")
         d = dm.get_optimal_device_for_model(model_size_mb=10.0)
         assert isinstance(d, torch.device)
+
+
+class TestDeviceManagerCaching:
+    def test_cuda_availability_cached(self, monkeypatch):
+        calls = {"is_available": 0}
+
+        def fake_is_available():
+            calls["is_available"] += 1
+            return False
+
+        dm = DeviceManager()
+        monkeypatch.setattr(torch.cuda, "is_available", fake_is_available)
+
+        assert dm._is_cuda_available() is False
+        assert dm._is_cuda_available() is False
+        assert calls["is_available"] == 1
+
+
+class TestCreateDeviceFromConfig:
+    def test_uses_nested_cpu_threads(self):
+        class DeviceSettings:
+            device_preference = "cpu"
+            device_fallback = True
+            device_memory_fraction = None
+            device_validate_compatibility = True
+            cpu_threads = 3
+
+        class Config:
+            device = DeviceSettings()
+
+        device = create_device_from_config(Config())
+        assert device.type == "cpu"
+        assert _dutils._global_device_manager is not None
+        assert _dutils._global_device_manager.cpu_threads == 3

@@ -231,6 +231,7 @@ device_preference: "auto"            # "auto", "cpu", "cuda", "cuda:X"
 device_fallback: true                # Fallback to CPU if preferred device unavailable
 device_memory_fraction: null         # GPU memory fraction (0.0-1.0)
 device_validate_compatibility: true  # Validate tensor compatibility
+cpu_threads: 1                       # CPU thread cap for torch/OpenMP/MKL on CPU runs
 
 # Simulation control
 simulation_steps: 100                # Number of steps to simulate
@@ -241,6 +242,10 @@ max_wait_steps: 10                   # Maximum wait steps between actions
 debug: false                         # Enable debug output
 verbose_logging: false               # Enable verbose logging
 ```
+
+When running many small per-agent models on CPU, `cpu_threads: 1` usually avoids
+thread oversubscription and improves step time. For a single large model on CPU,
+increasing `cpu_threads` may improve throughput.
 
 ## Visualization Configuration
 

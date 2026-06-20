@@ -2,10 +2,11 @@
 Device utilities for managing PyTorch device selection, validation, and fallbacks.
 
 This module provides centralized device management for neural network computations,
-with support for configurable device preferences, automatic fallbacks, and tensor
-compatibility validation.
+with support for configurable device preferences, automatic fallbacks, tensor
+compatibility validation, and CPU thread policy controls.
 """
 
+import os
 import warnings
 from typing import Optional, Union
 
@@ -29,6 +30,7 @@ class DeviceManager:
         fallback: bool = True,
         memory_fraction: Optional[float] = None,
         validate_compatibility: bool = True,
+        cpu_threads: Optional[int] = 1,
     ):
         """
         Initialize the device manager.
@@ -38,13 +40,31 @@ class DeviceManager:
             fallback: Whether to fallback to CPU if preferred device unavailable
             memory_fraction: GPU memory fraction to reserve (0.0-1.0)
             validate_compatibility: Whether to validate tensor compatibility
+            cpu_threads: CPU thread cap for PyTorch/OpenMP/MKL. ``None`` keeps defaults.
         """
         self.preference = preference
         self.fallback = fallback
         self.memory_fraction = memory_fraction
         self.validate_compatibility = validate_compatibility
+        self.cpu_threads = cpu_threads
         self._device: Optional[torch.device] = None
         self._initialized = False
+        self._cached_cuda_available: Optional[bool] = None
+        self._cached_cuda_device_count: Optional[int] = None
+
+    def _is_cuda_available(self) -> bool:
+        """Return cached CUDA availability result."""
+        if self._cached_cuda_available is None:
+            self._cached_cuda_available = torch.cuda.is_available()
+        return self._cached_cuda_available
+
+    def _get_cuda_device_count(self) -> int:
+        """Return cached CUDA device count."""
+        if self._cached_cuda_device_count is None:
+            self._cached_cuda_device_count = (
+                torch.cuda.device_count() if self._is_cuda_available() else 0
+            )
+        return self._cached_cuda_device_count
 
     def get_device(self) -> torch.device:
         """
@@ -82,7 +102,7 @@ class DeviceManager:
 
     def _auto_select_device(self) -> torch.device:
         """Automatically select the best available device."""
-        if torch.cuda.is_available():
+        if self._is_cuda_available():
             # Check if CUDA is actually working
             try:
                 # Test CUDA device
@@ -110,7 +130,7 @@ class DeviceManager:
 
     def _resolve_cuda_device(self) -> torch.device:
         """Resolve CUDA device specification."""
-        if not torch.cuda.is_available():
+        if not self._is_cuda_available():
             if self.fallback:
                 logger.warning("CUDA requested but not available, falling back to CPU")
                 return torch.device("cpu")
@@ -124,7 +144,7 @@ class DeviceManager:
         elif self.preference.startswith("cuda:"):
             try:
                 device_idx = int(self.preference.split(":")[1])
-                if device_idx >= torch.cuda.device_count():
+                if device_idx >= self._get_cuda_device_count():
                     if self.fallback:
                         logger.warning(
                             f"CUDA device {device_idx} not available, falling back to cuda:0"
@@ -168,7 +188,9 @@ class DeviceManager:
 
     def _configure_device(self) -> None:
         """Configure device-specific settings."""
-        if self._device and self._device.type == "cuda":
+        if self._device and self._device.type == "cpu":
+            self._configure_cpu_threads()
+        elif self._device and self._device.type == "cuda":
             if self.memory_fraction is not None:
                 if 0.0 <= self.memory_fraction <= 1.0:
                     try:
@@ -195,6 +217,33 @@ class DeviceManager:
                 "cuda_device_configured",
                 device_name=device_props.name,
                 memory_gb=device_props.total_memory // (1024**3),
+            )
+
+    def _configure_cpu_threads(self) -> None:
+        """Configure CPU math thread limits for CPU-backed runs."""
+        if self.cpu_threads is None:
+            return
+
+        if self.cpu_threads < 1:
+            logger.warning("invalid_cpu_threads", cpu_threads=self.cpu_threads)
+            return
+
+        os.environ["OMP_NUM_THREADS"] = str(self.cpu_threads)
+        os.environ["MKL_NUM_THREADS"] = str(self.cpu_threads)
+        try:
+            torch.set_num_threads(self.cpu_threads)
+            logger.info(
+                "cpu_threads_configured",
+                cpu_threads=self.cpu_threads,
+                omp_num_threads=os.environ["OMP_NUM_THREADS"],
+                mkl_num_threads=os.environ["MKL_NUM_THREADS"],
+            )
+        except RuntimeError as e:
+            logger.warning(
+                "cpu_threads_configuration_failed",
+                cpu_threads=self.cpu_threads,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
 
     def validate_tensor_compatibility(
@@ -304,6 +353,7 @@ def get_device_manager(
     fallback: bool = True,
     memory_fraction: Optional[float] = None,
     validate_compatibility: bool = True,
+    cpu_threads: Optional[int] = 1,
 ) -> DeviceManager:
     """
     Get or create a global device manager instance.
@@ -313,6 +363,7 @@ def get_device_manager(
         fallback: Whether to fallback to CPU
         memory_fraction: GPU memory fraction
         validate_compatibility: Whether to validate compatibility
+        cpu_threads: CPU thread cap for CPU-backed runs
 
     Returns:
         DeviceManager: Global device manager instance
@@ -325,6 +376,7 @@ def get_device_manager(
             fallback=fallback,
             memory_fraction=memory_fraction,
             validate_compatibility=validate_compatibility,
+            cpu_threads=cpu_threads,
         )
     else:
         # Update configuration if different
@@ -333,12 +385,14 @@ def get_device_manager(
             or _global_device_manager.fallback != fallback
             or _global_device_manager.memory_fraction != memory_fraction
             or _global_device_manager.validate_compatibility != validate_compatibility
+            or _global_device_manager.cpu_threads != cpu_threads
         ):
             _global_device_manager.reset()
             _global_device_manager.preference = preference
             _global_device_manager.fallback = fallback
             _global_device_manager.memory_fraction = memory_fraction
             _global_device_manager.validate_compatibility = validate_compatibility
+            _global_device_manager.cpu_threads = cpu_threads
 
     return _global_device_manager
 
@@ -348,6 +402,7 @@ def get_device(
     fallback: bool = True,
     memory_fraction: Optional[float] = None,
     validate_compatibility: bool = True,
+    cpu_threads: Optional[int] = 1,
 ) -> torch.device:
     """
     Convenience function to get device directly.
@@ -357,6 +412,7 @@ def get_device(
         fallback: Whether to fallback to CPU
         memory_fraction: GPU memory fraction
         validate_compatibility: Whether to validate compatibility
+        cpu_threads: CPU thread cap for CPU-backed runs
 
     Returns:
         torch.device: The selected device
@@ -366,6 +422,7 @@ def get_device(
         fallback=fallback,
         memory_fraction=memory_fraction,
         validate_compatibility=validate_compatibility,
+        cpu_threads=cpu_threads,
     )
     return manager.get_device()
 
@@ -434,9 +491,19 @@ def create_device_from_config(config) -> torch.device:
         expected_types=(bool,),
     )
 
+    cpu_threads = get_nested_then_flat(
+        config=config,
+        nested_parent_attr="device",
+        nested_attr_name="cpu_threads",
+        flat_attr_name="cpu_threads",
+        default_value=1,
+        expected_types=(int, type(None)),
+    )
+
     return get_device(
         preference=preference,
         fallback=fallback,
         memory_fraction=memory_fraction,
         validate_compatibility=validate_compatibility,
+        cpu_threads=cpu_threads,
     )

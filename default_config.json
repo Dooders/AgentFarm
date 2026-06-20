@@ -211,6 +211,7 @@
   "device_fallback": true,
   "device_memory_fraction": null,
   "device_validate_compatibility": true,
+  "cpu_threads": 1,
   "agent_processing_batch_size": 32,
   "resource_processing_batch_size": 100,
   "enable_parallel_processing": false,

@@ -231,6 +231,8 @@ def generate_combined_config_schema() -> Dict[str, Any]:
     sim_props = _dataclass_to_properties(
         SimulationConfig, known_enums=simulation_known_enums
     )
+    if "cpu_threads" in sim_props:
+        sim_props["cpu_threads"]["minimum"] = 1
     performance_props = _dataclass_to_properties(PerformanceConfig)
     if "max_learning_updates_per_step" in performance_props:
         performance_props["max_learning_updates_per_step"]["minimum"] = 0
