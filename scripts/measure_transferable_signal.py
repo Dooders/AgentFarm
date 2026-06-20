@@ -424,8 +424,7 @@ def _json_safe(obj: Any) -> Any:
 
 def install_instrumentation() -> None:
     """Patch ``DecisionModule`` once to route capture / greedy through ``_REC``."""
-    global _INSTALLED
-    if _INSTALLED:
+    if getattr(install_instrumentation, "_installed", False):
         return
 
     orig_init = DecisionModule.__init__
@@ -460,7 +459,7 @@ def install_instrumentation() -> None:
     DecisionModule.__init__ = patched_init  # type: ignore[assignment]
     DecisionModule.decide_action = patched_decide  # type: ignore[assignment]
     AgentCore.reproduce = patched_reproduce  # type: ignore[assignment]
-    _INSTALLED = True
+    install_instrumentation._installed = True
 
 
 # ---------------------------------------------------------------------------
