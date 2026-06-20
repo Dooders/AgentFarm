@@ -707,8 +707,10 @@ def eval_episode_return(
     net_reward = float(focal["reward"])
     try:
         env.cleanup()
-    except Exception:
-        pass
+    except Exception as exc:
+        # Best-effort cleanup: evaluation metrics are already computed, so do
+        # not fail the run on teardown errors. Emit a warning for visibility.
+        print(f"[measure_transferable_signal] warning: env.cleanup() failed: {exc}", file=sys.stderr)
     return {
         "net_reward": net_reward,
         "survived": bool(survived),
