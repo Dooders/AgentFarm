@@ -452,7 +452,9 @@ class DeviceConfig:
     device_fallback: bool = True  # Whether to fallback to CPU if preferred device unavailable
     device_memory_fraction: Optional[float] = None  # GPU memory fraction to use (0.0-1.0)
     device_validate_compatibility: bool = True  # Whether to validate tensor compatibility when moving devices
-    cpu_threads: Optional[int] = 1  # CPU thread cap for CPU-backed torch workloads (None keeps defaults)
+    cpu_threads: Optional[int] = field(
+        default=1, metadata={"minimum": 1}
+    )  # CPU thread cap for CPU-backed torch workloads (None keeps defaults)
 
 
 @dataclass

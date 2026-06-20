@@ -61,6 +61,11 @@ class TestDeviceManagerGetDevice:
         assert os.environ["OMP_NUM_THREADS"] == "2"
         assert os.environ["MKL_NUM_THREADS"] == "2"
 
+    def test_invalid_cpu_threads_raise_value_error(self):
+        dm = DeviceManager(preference="cpu", cpu_threads=0)
+        with pytest.raises(ValueError, match="cpu_threads must be >= 1"):
+            dm.get_device()
+
     def test_cpu_preference_returns_cpu(self):
         dm = DeviceManager(preference="cpu")
         device = dm.get_device()
@@ -191,7 +196,7 @@ class TestDeviceManagerCaching:
 
 
 class TestCreateDeviceFromConfig:
-    def test_uses_nested_cpu_threads(self, monkeypatch):
+    def test_create_device_from_config_applies_cpu_threads(self, monkeypatch):
         calls = []
         monkeypatch.setattr(torch, "set_num_threads", lambda n: calls.append(n))
 

@@ -137,6 +137,19 @@ def _dataclass_to_properties(
         if enum_vals:
             schema_entry["enum"] = enum_vals
 
+        # Add numeric/string constraints from dataclass field metadata
+        for key in (
+            "minimum",
+            "maximum",
+            "exclusiveMinimum",
+            "exclusiveMaximum",
+            "minLength",
+            "maxLength",
+            "pattern",
+        ):
+            if key in f.metadata:
+                schema_entry[key] = f.metadata[key]
+
         props[f.name] = schema_entry
 
     return props
@@ -231,7 +244,6 @@ def generate_combined_config_schema() -> Dict[str, Any]:
     sim_props = _dataclass_to_properties(
         SimulationConfig, known_enums=simulation_known_enums
     )
-    sim_props["cpu_threads"]["minimum"] = 1
     performance_props = _dataclass_to_properties(PerformanceConfig)
     if "max_learning_updates_per_step" in performance_props:
         performance_props["max_learning_updates_per_step"]["minimum"] = 0

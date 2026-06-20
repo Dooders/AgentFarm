@@ -231,7 +231,9 @@ class DeviceManager:
             logger.warning(
                 "invalid_cpu_threads", cpu_threads=self.cpu_threads, minimum=1
             )
-            return
+            raise ValueError(
+                f"cpu_threads must be >= 1 or None, got {self.cpu_threads}"
+            )
 
         os.environ["OMP_NUM_THREADS"] = str(self.cpu_threads)
         os.environ["MKL_NUM_THREADS"] = str(self.cpu_threads)
