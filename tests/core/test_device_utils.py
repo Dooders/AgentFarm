@@ -204,5 +204,5 @@ class TestCreateDeviceFromConfig:
 
         device = create_device_from_config(Config())
         assert device.type == "cpu"
-        assert _dutils._global_device_manager is not None
-        assert _dutils._global_device_manager.cpu_threads == 3
+        manager = get_device_manager(preference="cpu", cpu_threads=3)
+        assert manager.cpu_threads == 3

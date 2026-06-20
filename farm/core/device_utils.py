@@ -188,9 +188,12 @@ class DeviceManager:
 
     def _configure_device(self) -> None:
         """Configure device-specific settings."""
-        if self._device and self._device.type == "cpu":
+        if self._device is None:
+            return
+
+        if self._device.type == "cpu":
             self._configure_cpu_threads()
-        elif self._device and self._device.type == "cuda":
+        elif self._device.type == "cuda":
             if self.memory_fraction is not None:
                 if 0.0 <= self.memory_fraction <= 1.0:
                     try:
