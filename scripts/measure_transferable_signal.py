@@ -535,6 +535,9 @@ def build_eval_config(
     pop.max_population = 1
     _use_disk_database(config)
     _apply_profile_overrides(config, profile)
+    # Frozen-policy rollouts: disable deferred gradient steps so injected
+    # snapshot weights stay fixed for the full held-out episode.
+    config.performance.max_learning_updates_per_step = -1
     return config
 
 
