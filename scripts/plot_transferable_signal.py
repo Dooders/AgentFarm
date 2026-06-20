@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
@@ -73,8 +74,15 @@ def plot_budget(summary: Dict[str, Any], out: Path) -> Path:
 
     his = [float(_verdict_for(per_profile[p], gate_metric)["ci95"][1]) for p in profiles]
     los = [float(_verdict_for(per_profile[p], gate_metric)["ci95"][0]) for p in profiles]
-    span = max(his) - min(0.0, min(los))
-    ax.set_ylim(min(0.0, min(los)) - span * 0.12, max(his) + span * 0.32)
+    finite_his = [v for v in his if math.isfinite(v)]
+    finite_los = [v for v in los if math.isfinite(v)]
+    y_hi = max(finite_his) if finite_his else 1.0
+    y_lo = min(0.0, min(finite_los)) if finite_los else 0.0
+    # Enforce a minimum span so ax.set_ylim receives distinct limits even when
+    # CI endpoints are identical (e.g. a single seed where CI is undefined).
+    _MIN_SPAN = 1e-6
+    span = max(y_hi - y_lo, _MIN_SPAN)
+    ax.set_ylim(y_lo - span * 0.12, y_hi + span * 0.32)
 
     for i, profile in enumerate(profiles):
         verdict = _verdict_for(per_profile[profile], gate_metric)

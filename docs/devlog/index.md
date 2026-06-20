@@ -13,11 +13,11 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
         The opening step of the #904 inheritance-ladder experiment: before
         building richer P2-P4 payloads, confirm there is anything worth
         inheriting. In a learning-positive regime (8 agents, 3000 steps,
-        reproduction disabled), paired pure-greedy held-out rollouts show
-        end-of-life policies robustly beat their own random init in all three
-        profiles (Δ +566 to +616, 95% CIs exclude zero, sign agreement 1.00).
-        The gate passes — though the signal is largely survival-based — so the
-        richer-payload work is justified.
+        reproduction disabled), paired held-out rollouts under the
+        non-degenerate weighted policy show a modest but robust early-age
+        decision-quality signal in all three profiles (~+15–30 net reward,
+        95% CIs exclude zero). The gate passes at a realistic effect size,
+        justifying the richer-payload work.
       </p>
       <span class="post-card__more">Read the post</span>
     </a>

@@ -75,13 +75,6 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
-torch.set_num_threads(1)
-try:
-    torch.set_num_interop_threads(1)
-except RuntimeError:
-    # Already initialized (e.g. torch used before import); intra-op cap still applies.
-    pass
-
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
@@ -116,6 +109,21 @@ _PROFILE_FIELD_MAP = {
     "resource_regen_rate": ("resources", "resource_regen_rate"),
     "resource_regen_amount": ("resources", "resource_regen_amount"),
 }
+
+
+def _configure_torch_threads() -> None:
+    """Pin Torch intra/inter-op thread counts to 1.
+
+    Tiny networks are fastest single-threaded. Calling this at __main__ time
+    (rather than at import time) avoids unexpectedly overriding the thread
+    settings of any process that imports this module as a library.
+    """
+    torch.set_num_threads(1)
+    try:
+        torch.set_num_interop_threads(1)
+    except RuntimeError:
+        # Already initialized (e.g. torch used before import); intra-op cap still applies.
+        pass
 
 
 StateDict = Dict[str, torch.Tensor]
@@ -465,7 +473,17 @@ def _apply_profile_overrides(config: SimulationConfig, profile: str) -> Dict[str
     """Apply STABLE_SUB_PROFILES[profile] ecology to a SimulationConfig."""
     overrides = STABLE_SUB_PROFILES[profile]
     for key, value in overrides.items():
-        section_name, field_name = _PROFILE_FIELD_MAP[key]
+        mapping = _PROFILE_FIELD_MAP.get(key)
+        if mapping is None:
+            # Unknown key — forward-compat: skip rather than crash.  Log so
+            # callers notice when STABLE_SUB_PROFILES gains keys not yet in
+            # _PROFILE_FIELD_MAP.
+            print(
+                f"_apply_profile_overrides: ignoring unknown profile key {key!r}",
+                file=sys.stderr,
+            )
+            continue
+        section_name, field_name = mapping
         section = getattr(config, section_name, None)
         if section is not None and hasattr(section, field_name):
             setattr(section, field_name, value)
@@ -1269,6 +1287,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    _configure_torch_threads()
     if os.environ.get("PYTHONHASHSEED") != "0":
         os.environ["PYTHONHASHSEED"] = "0"
         os.execv(sys.executable, [sys.executable] + sys.argv)
