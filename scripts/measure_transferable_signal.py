@@ -840,8 +840,10 @@ def run_cell(profile: str, seed: int, args: argparse.Namespace) -> Dict[str, Any
 
     try:
         env.cleanup()
-    except Exception:
-        pass
+    except Exception as exc:
+        # Cleanup is best-effort: do not fail the run teardown path, but
+        # surface the failure so it is not silently swallowed.
+        print(f"Warning: env.cleanup() failed: {exc}", file=sys.stderr)
 
     # Cell-level budget = mean per-policy delta, for every metric we tracked.
     metric_keys = ["reward_delta", "survival_delta", "reward_rate_delta"] + [
