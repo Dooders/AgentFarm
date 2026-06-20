@@ -229,7 +229,7 @@ class DeviceManager:
 
         if self.cpu_threads < 1:
             logger.warning(
-                "cpu_threads_must_be_positive", cpu_threads=self.cpu_threads, minimum=1
+                "invalid_cpu_threads", cpu_threads=self.cpu_threads, minimum=1
             )
             return
 
@@ -245,7 +245,7 @@ class DeviceManager:
             )
         except RuntimeError as e:
             logger.warning(
-                "cpu_threads_configuration_failed",
+                "cpu_threads_config_failed",
                 cpu_threads=self.cpu_threads,
                 error_type=type(e).__name__,
                 error_message=str(e),

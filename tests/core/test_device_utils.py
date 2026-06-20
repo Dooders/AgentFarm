@@ -191,7 +191,10 @@ class TestDeviceManagerCaching:
 
 
 class TestCreateDeviceFromConfig:
-    def test_uses_nested_cpu_threads(self):
+    def test_uses_nested_cpu_threads(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(torch, "set_num_threads", lambda n: calls.append(n))
+
         class DeviceSettings:
             device_preference = "cpu"
             device_fallback = True
@@ -206,3 +209,4 @@ class TestCreateDeviceFromConfig:
         assert device.type == "cpu"
         manager = get_device_manager(preference="cpu", cpu_threads=3)
         assert manager.cpu_threads == 3
+        assert calls == [3]
