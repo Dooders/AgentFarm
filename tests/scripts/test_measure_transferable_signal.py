@@ -19,7 +19,6 @@ import os
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
