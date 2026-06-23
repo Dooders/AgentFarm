@@ -9,13 +9,25 @@ import dataclasses
 import datetime
 from dataclasses import fields, is_dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, get_args, get_origin
+from typing import Any, Dict, List, Optional, Tuple, Union, get_args, get_origin
+
+try:
+    # PEP 604 unions (``int | None``) report this origin on Python 3.10+.
+    from types import UnionType
+except ImportError:  # pragma: no cover - Python < 3.10
+    UnionType = None  # type: ignore[assignment,misc]
 
 from pydantic import BaseModel, ValidationError
 
 from farm.core.observations import ObservationConfig, StorageMode
 
-from .config import PerformanceConfig, RedisMemoryConfig, SimulationConfig, VisualizationConfig
+from .config import (
+    DeviceConfig,
+    PerformanceConfig,
+    RedisMemoryConfig,
+    SimulationConfig,
+    VisualizationConfig,
+)
 
 
 def _python_type_to_schema_type(annotation: Any) -> str:
@@ -92,6 +104,24 @@ def _get_default_from_instance(instance: Any, name: str) -> Any:
         return None
 
 
+def _is_optional_type(field_type: Any) -> bool:
+    """Return True if the annotation is an Optional/union that includes ``None``.
+
+    Handles both ``typing.Union``/``Optional`` and PEP 604 ``X | None`` unions.
+    """
+    origin = get_origin(field_type)
+    is_union = origin is Union or (UnionType is not None and origin is UnionType)
+    return is_union and type(None) in get_args(field_type)
+
+
+def _get_schema_type_with_nullability(field_type: Any) -> Any:
+    """Return schema type for dataclass field, preserving Optional nullability."""
+    schema_type: Any = _python_type_to_schema_type(field_type)
+    if _is_optional_type(field_type):
+        return [schema_type, "null"]
+    return schema_type
+
+
 def _dataclass_to_properties(
     dc_cls: type, known_enums: Optional[Dict[str, List[Any]]] = None
 ) -> Dict[str, Dict[str, Any]]:
@@ -124,7 +154,7 @@ def _dataclass_to_properties(
                 default_value = None
 
         schema_entry: Dict[str, Any] = {
-            "type": _python_type_to_schema_type(f.type),
+            "type": _get_schema_type_with_nullability(f.type),
             "default": default_value,
         }
 
@@ -136,6 +166,20 @@ def _dataclass_to_properties(
         enum_vals = _enum_values(f.type)
         if enum_vals:
             schema_entry["enum"] = enum_vals
+
+        # Copy declarative validation constraints (e.g., minimum, pattern) from
+        # dataclass field metadata into the emitted JSON schema properties.
+        for key in (
+            "minimum",
+            "maximum",
+            "exclusiveMinimum",
+            "exclusiveMaximum",
+            "minLength",
+            "maxLength",
+            "pattern",
+        ):
+            if key in f.metadata:
+                schema_entry[key] = f.metadata[key]
 
         props[f.name] = schema_entry
 
@@ -248,6 +292,15 @@ def generate_combined_config_schema() -> Dict[str, Any]:
     ):
         if key in performance_props:
             sim_props[key] = performance_props[key]
+
+    # Flatten device settings into the simulation section so device fields
+    # (including ``cpu_threads``) are emitted by the generator rather than
+    # maintained by hand. ``device_preference`` is treated as an enum.
+    device_props = _dataclass_to_properties(
+        DeviceConfig, known_enums={"device_preference": ["auto", "cpu", "cuda"]}
+    )
+    sim_props.update(device_props)
+
     # Remove nested sections from simulation section to avoid duplication
     # These are handled as separate top-level sections in the schema
     for nested in ("visualization", "redis", "observation"):

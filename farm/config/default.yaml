@@ -240,6 +240,7 @@ device_preference: "auto"
 device_fallback: true
 device_memory_fraction: null
 device_validate_compatibility: true
+cpu_threads: 1
 
 # Performance optimization settings
 agent_processing_batch_size: 32

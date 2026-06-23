@@ -452,6 +452,27 @@ class DeviceConfig:
     device_fallback: bool = True  # Whether to fallback to CPU if preferred device unavailable
     device_memory_fraction: Optional[float] = None  # GPU memory fraction to use (0.0-1.0)
     device_validate_compatibility: bool = True  # Whether to validate tensor compatibility when moving devices
+    cpu_threads: Optional[int] = field(
+        default=1, metadata={"minimum": 1}
+    )  # CPU thread cap for CPU-backed torch workloads (None keeps defaults)
+
+    def __post_init__(self) -> None:
+        """Validate device settings so misconfiguration fails fast at config load.
+
+        Without this, an invalid ``cpu_threads`` would only surface later, when a
+        device is first resolved during agent construction.
+        """
+        if self.cpu_threads is None:
+            return
+        # bool is a subclass of int in Python; reject bool explicitly.
+        if type(self.cpu_threads) is bool or not isinstance(self.cpu_threads, int):
+            raise ValueError(
+                f"device.cpu_threads must be an int >= 1 or None, got {self.cpu_threads!r}"
+            )
+        if self.cpu_threads < 1:
+            raise ValueError(
+                f"device.cpu_threads must be >= 1 or None, got {self.cpu_threads}"
+            )
 
 
 @dataclass
@@ -1375,6 +1396,7 @@ class SimulationConfig:
                     "device_fallback",
                     "device_memory_fraction",
                     "device_validate_compatibility",
+                    "cpu_threads",
                 ],
             ),
             "curriculum": (CurriculumConfig, ["curriculum_phases"]),

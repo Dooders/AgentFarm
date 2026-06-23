@@ -1,15 +1,22 @@
 """Tests for farm/core/device_utils.py – DeviceManager and convenience helpers."""
 
+import os
+
 import pytest
 import torch
 
 from farm.core.device_utils import (
     DeviceManager,
+    create_device_from_config,
     get_device,
     get_device_manager,
     safe_tensor_to_device,
 )
 import farm.core.device_utils as _dutils
+
+
+def _mock_cpu_threads_config_error(*_args, **_kwargs):
+    raise ValueError("bad cpu_threads")
 
 
 @pytest.fixture(autouse=True)
@@ -27,17 +34,83 @@ class TestDeviceManagerInit:
         assert dm.fallback is True
         assert dm.memory_fraction is None
         assert dm.validate_compatibility is True
+        assert dm.cpu_threads == 1
         assert not dm._initialized
 
     def test_custom_params(self):
-        dm = DeviceManager(preference="cpu", fallback=False, memory_fraction=0.5, validate_compatibility=False)
+        dm = DeviceManager(
+            preference="cpu",
+            fallback=False,
+            memory_fraction=0.5,
+            validate_compatibility=False,
+            cpu_threads=2,
+        )
         assert dm.preference == "cpu"
         assert dm.fallback is False
         assert dm.memory_fraction == 0.5
         assert dm.validate_compatibility is False
+        assert dm.cpu_threads == 2
 
 
 class TestDeviceManagerGetDevice:
+    def test_cpu_thread_policy_applied_for_cpu_device(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(torch, "set_num_threads", lambda n: calls.append(n))
+        monkeypatch.setenv("OMP_NUM_THREADS", "999")
+        monkeypatch.setenv("MKL_NUM_THREADS", "999")
+        dm = DeviceManager(preference="cpu", cpu_threads=2)
+        device = dm.get_device()
+        assert device.type == "cpu"
+        assert calls == [2]
+        assert os.environ["OMP_NUM_THREADS"] == "2"
+        assert os.environ["MKL_NUM_THREADS"] == "2"
+
+    def test_cpu_threads_none_skips_thread_configuration(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(torch, "set_num_threads", lambda n: calls.append(n))
+        dm = DeviceManager(preference="cpu", cpu_threads=None)
+        device = dm.get_device()
+        assert device.type == "cpu"
+        assert calls == []
+
+    def test_cpu_threads_sets_blas_env_vars(self, monkeypatch):
+        monkeypatch.setattr(torch, "set_num_threads", lambda n: None)
+        for env_var in (
+            "OMP_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "OPENBLAS_NUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+            "VECLIB_MAXIMUM_THREADS",
+        ):
+            monkeypatch.delenv(env_var, raising=False)
+        dm = DeviceManager(preference="cpu", cpu_threads=2)
+        dm.get_device()
+        assert os.environ["OMP_NUM_THREADS"] == "2"
+        assert os.environ["MKL_NUM_THREADS"] == "2"
+        assert os.environ["OPENBLAS_NUM_THREADS"] == "2"
+        assert os.environ["NUMEXPR_NUM_THREADS"] == "2"
+        assert os.environ["VECLIB_MAXIMUM_THREADS"] == "2"
+
+    def test_invalid_cpu_threads_raises_value_error(self):
+        dm = DeviceManager(preference="cpu", cpu_threads=0)
+        with pytest.raises(ValueError, match="cpu_threads must be >= 1"):
+            dm.get_device()
+
+    def test_bool_cpu_threads_raises_value_error(self):
+        dm = DeviceManager(preference="cpu", cpu_threads=True)
+        with pytest.raises(ValueError, match="cpu_threads must be an int >= 1"):
+            dm.get_device()
+
+    def test_failed_configuration_does_not_leave_manager_initialized(self, monkeypatch):
+        monkeypatch.setattr(
+            DeviceManager, "_configure_cpu_threads", _mock_cpu_threads_config_error
+        )
+        dm = DeviceManager(preference="cpu", cpu_threads=2)
+        with pytest.raises(ValueError, match="bad cpu_threads"):
+            dm.get_device()
+        assert dm._initialized is False
+        assert dm._device is None
+
     def test_cpu_preference_returns_cpu(self):
         dm = DeviceManager(preference="cpu")
         device = dm.get_device()
@@ -126,6 +199,13 @@ class TestConvenienceFunctions:
         # After reconfiguration the manager should be reset
         assert not m2._initialized or m2.preference == "auto"
 
+    def test_get_device_manager_reconfigures_on_different_cpu_threads(self):
+        m1 = get_device_manager(preference="cpu", cpu_threads=1)
+        m2 = get_device_manager(preference="cpu", cpu_threads=2)
+        assert m1 is m2
+        assert m2.cpu_threads == 2
+        assert not m2._initialized
+
     def test_safe_tensor_to_device_function(self):
         t = torch.tensor([3.0])
         result = safe_tensor_to_device(t, torch.device("cpu"))
@@ -142,3 +222,41 @@ class TestGetOptimalDevice:
         dm = DeviceManager(preference="cpu")
         d = dm.get_optimal_device_for_model(model_size_mb=10.0)
         assert isinstance(d, torch.device)
+
+
+class TestDeviceManagerCaching:
+    def test_cuda_availability_cached(self, monkeypatch):
+        calls = {"is_available": 0}
+
+        def fake_is_available():
+            calls["is_available"] += 1
+            return False
+
+        dm = DeviceManager()
+        monkeypatch.setattr(torch.cuda, "is_available", fake_is_available)
+
+        assert dm._is_cuda_available() is False
+        assert dm._is_cuda_available() is False
+        assert calls["is_available"] == 1
+
+
+class TestCreateDeviceFromConfig:
+    def test_create_device_from_config_applies_cpu_threads(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(torch, "set_num_threads", lambda n: calls.append(n))
+
+        class DeviceSettings:
+            device_preference = "cpu"
+            device_fallback = True
+            device_memory_fraction = None
+            device_validate_compatibility = True
+            cpu_threads = 3
+
+        class Config:
+            device = DeviceSettings()
+
+        device = create_device_from_config(Config())
+        assert device.type == "cpu"
+        manager = get_device_manager(preference="cpu", cpu_threads=3)
+        assert manager.cpu_threads == 3
+        assert calls == [3]
