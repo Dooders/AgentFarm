@@ -92,6 +92,14 @@ def _get_default_from_instance(instance: Any, name: str) -> Any:
         return None
 
 
+def _schema_type_for_dataclass_field(field_type: Any) -> Any:
+    """Return schema type for dataclass field, preserving Optional nullability."""
+    schema_type: Any = _python_type_to_schema_type(field_type)
+    if get_origin(field_type) is Union and type(None) in get_args(field_type):
+        return [schema_type, "null"]
+    return schema_type
+
+
 def _dataclass_to_properties(
     dc_cls: type, known_enums: Optional[Dict[str, List[Any]]] = None
 ) -> Dict[str, Dict[str, Any]]:
@@ -124,14 +132,9 @@ def _dataclass_to_properties(
                 default_value = None
 
         schema_entry: Dict[str, Any] = {
-            "type": _python_type_to_schema_type(f.type),
+            "type": _schema_type_for_dataclass_field(f.type),
             "default": default_value,
         }
-
-        origin = get_origin(f.type)
-        args = get_args(f.type)
-        if origin is Union and type(None) in args:
-            schema_entry["type"] = [schema_entry["type"], "null"]
 
         # Add enums if known by name
         if known_enums and f.name in known_enums:
