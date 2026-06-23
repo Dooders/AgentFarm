@@ -742,6 +742,15 @@ def rotate_local_grid(
 # Process-lifetime cache of disk masks keyed by (size, R, device, dtype). The
 # mask geometry never changes for a given key, so we compute it once and return
 # defensive clones from make_disk_mask().
+#
+# Memory is bounded by the cardinality of distinct (size, R, device, dtype)
+# tuples, all of which are simulation-constant, so the cache holds at most a
+# handful of small tensors for the process lifetime.
+#
+# Thread-safety: the read-compute-write below is intentionally lock-free. Under
+# the GIL the dict operations are atomic, and the worst case for a cold-key race
+# is two threads computing the same mask and writing identical values, which is
+# harmless.
 _DISK_MASK_CACHE: Dict[Tuple[int, int, str, Any], torch.Tensor] = {}
 
 
