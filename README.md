@@ -145,14 +145,16 @@ Run the REST/WebSocket API for managing simulations and analysis:
 
 ```bash
 # From repository root
-python -m farm.api.server
-# or
-python farm/api/server.py
+uvicorn farm.api.server:app --host 0.0.0.0 --port 5000
 ```
+
+> **Note:** Use the `uvicorn` command directly. Running `python -m farm.api.server`
+> (or `python farm/api/server.py`) enables `reload=True`, which requires an import
+> string and exits with `WARNING: You must pass the application as an import string …`.
 
 Defaults:
 - Binds to port 5000
-- Writes logs to `logs/api.log`
+- Writes structured logs to `logs/application.json.log` (and `logs/application.log`)
 
 Key endpoints:
 - `POST /api/simulation/new` — create and run a simulation
@@ -240,7 +242,7 @@ For detailed documentation and advanced usage:
 - [Core Architecture](docs/core_architecture.md)
 - [Hyperparameter Chromosome Design](docs/design/hyperparameter_chromosome.md)
 - [Devlog](docs/devlog/index.md)
-- [Latest Devlog: Evolving Hyperparameter Genomes in Foraging and Learning Agents](docs/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.md)
+- [Latest Devlog: The transferable-signal gate — do learned policies beat their own init?](docs/devlog/2026-06-20-transferable-signal-budget.md)
 - [Full Documentation Index](docs/README.md)
 
 ### GitHub Pages
@@ -266,6 +268,10 @@ Please see [Contributing Guidelines](CONTRIBUTING.md) for more information on ho
 - **Don't Repeat Yourself (DRY)**: Avoid duplicating code or logic; centralize shared functionality to improve maintainability and reduce errors.
 - **Keep It Simple, Stupid (KISS)**: Favor simple, straightforward solutions over complex ones to enhance readability and reduce bugs.
 - **Composition Over Inheritance**: Prefer composing objects (e.g., via dependencies) to achieve behavior rather than relying on inheritance hierarchies, for greater flexibility.
+
+## License
+
+AgentFarm is licensed under the [Apache License 2.0](LICENSE).
 
 ## Support
 

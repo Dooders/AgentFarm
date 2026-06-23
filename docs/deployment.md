@@ -6,7 +6,7 @@ Deploy the Python package and API according to your environment (venv, container
 
 - Install with `pip install -r requirements.txt` and `pip install -e .` (or install a built wheel in production).
 - Run simulations via `run_simulation.py`, `farm.core.cli`, or your own entrypoints.
-- Run the HTTP API with `python -m farm.api.server` (see [README](../README.md) for defaults and endpoints).
+- Run the HTTP API with `uvicorn farm.api.server:app --host 0.0.0.0 --port 5000` (see [README](../README.md) for defaults and endpoints). Do not use `python -m farm.api.server`; the `reload=True` flag in `__main__` requires an import string and exits with a warning.
 
 There is no single Dockerfile or cloud manifest maintained in this repository; treat deployment as environment-specific.
 
