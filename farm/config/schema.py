@@ -137,6 +137,19 @@ def _dataclass_to_properties(
         if enum_vals:
             schema_entry["enum"] = enum_vals
 
+        # Add numeric/string constraints from dataclass field metadata
+        for key in (
+            "minimum",
+            "maximum",
+            "exclusiveMinimum",
+            "exclusiveMaximum",
+            "minLength",
+            "maxLength",
+            "pattern",
+        ):
+            if key in f.metadata:
+                schema_entry[key] = f.metadata[key]
+
         props[f.name] = schema_entry
 
     return props
