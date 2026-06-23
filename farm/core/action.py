@@ -1045,15 +1045,13 @@ def reproduce_action(agent: "AgentCore") -> dict:
             env_config = getattr(env, "config", None)
             population_config = getattr(env_config, "population", None)
             max_population = getattr(population_config, "max_population", None)
-            if isinstance(max_population, (int, float)) and max_population > 0:
-                alive_agents = getattr(env, "alive_agent_objects", None)
-                # Prefer alive agent objects when available; fall back to the
-                # legacy agent-id list for environments without this property.
-                # An empty alive-agent list is still authoritative (population 0).
-                if alive_agents is not None:
-                    current_population = len(alive_agents)
-                else:
+            if isinstance(max_population, int) and not isinstance(max_population, bool) and max_population > 0:
+                # Prefer the PettingZoo-style agent-id list when available (O(1) len);
+                # fall back to alive agent objects for environments without `agents`.
+                if hasattr(env, "agents"):
                     current_population = len(getattr(env, "agents", []))
+                else:
+                    current_population = len(getattr(env, "alive_agent_objects", []))
                 if current_population >= max_population:
                     return {
                         "success": False,
