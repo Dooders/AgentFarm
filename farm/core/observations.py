@@ -784,7 +784,7 @@ def make_disk_mask(
     # a hotspot in profiling). Memoize the computed mask and hand callers a
     # defensive copy so the cached tensor can never be mutated in place.
     #
-    # Normalise the device so that "cuda" (no explicit index) is resolved to the
+    # Normalize the device so that "cuda" (no explicit index) is resolved to the
     # current CUDA device before building the cache key.  Without this,
     # str("cuda") == str("cuda") even when torch.cuda.current_device() differs
     # across calls, which could return a cached tensor from the wrong GPU and
