@@ -783,12 +783,21 @@ def make_disk_mask(
     # distance arithmetic on every observation tick is wasteful (it showed up as
     # a hotspot in profiling). Memoize the computed mask and hand callers a
     # defensive copy so the cached tensor can never be mutated in place.
-    cache_key = (int(size), int(R), str(device), dtype)
+    #
+    # Normalise the device so that "cuda" (no explicit index) is resolved to the
+    # current CUDA device before building the cache key.  Without this,
+    # str("cuda") == str("cuda") even when torch.cuda.current_device() differs
+    # across calls, which could return a cached tensor from the wrong GPU and
+    # trigger device-mismatch errors.
+    _device = torch.device(device)
+    if _device.type == "cuda" and _device.index is None:
+        _device = torch.device("cuda", torch.cuda.current_device())
+    cache_key = (int(size), int(R), str(_device), dtype)
     cached = _DISK_MASK_CACHE.get(cache_key)
     if cached is None:
         yy, xx = torch.meshgrid(
-            torch.arange(size, device=device),
-            torch.arange(size, device=device),
+            torch.arange(size, device=_device),
+            torch.arange(size, device=_device),
             indexing="ij",
         )
         cy = cx = size // 2

@@ -7,7 +7,7 @@ Consolidates all perception logic from the environment into a single component.
 
 import math
 import time as _time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
