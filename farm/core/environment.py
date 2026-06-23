@@ -1784,9 +1784,20 @@ class Environment(AECEnv):
             Configuration object containing observation settings.
         """
         if config and hasattr(config, "observation") and config.observation is not None:
-            self.observation_config = config.observation
+            observation_config = config.observation
         else:
-            self.observation_config = ObservationConfig()
+            observation_config = ObservationConfig()
+        # ``enable_metrics`` only drives benchmarking instrumentation
+        # (per-store ``.item()`` syncs and non-zero counts) that is never
+        # consumed during a live simulation. It is a measurable cost on the hot
+        # observation path, so force it off for the environment-owned config.
+        # Benchmarks/tests that need these metrics construct ``AgentObservation``
+        # directly with their own config and are unaffected.
+        if observation_config.enable_metrics:
+            observation_config = observation_config.model_copy(
+                update={"enable_metrics": False}
+            )
+        self.observation_config = observation_config
         S = 2 * self.observation_config.R + 1
         # Robust numpy dtype mapping from torch dtype or string
         torch_dtype = (
