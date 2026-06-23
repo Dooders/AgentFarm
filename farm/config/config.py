@@ -400,6 +400,7 @@ class AgentBehaviorConfig:
     starvation_threshold: float = 10
     offspring_cost: int = 3
     min_reproduction_resources: int = 8
+    reproduction_chance: float = 0.5
     offspring_initial_resources: int = 5
     social_range: int = 30  # Range for social interactions (share/attack)
     move_mult_no_resources: float = 1.5  # Multiplier when no resources nearby
@@ -1354,6 +1355,7 @@ class SimulationConfig:
                     "starvation_threshold",
                     "offspring_cost",
                     "min_reproduction_resources",
+                    "reproduction_chance",
                     "offspring_initial_resources",
                     "social_range",
                     "move_mult_no_resources",

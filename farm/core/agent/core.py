@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import torch
 
 from farm.core.action import Action, action_registry
+from farm.core.population import is_population_at_cap
 from farm.core.agent.behaviors.base import IAgentBehavior
 from farm.core.agent.components.base import AgentComponent
 from farm.core.agent.config.component_configs import AgentComponentConfig
@@ -1110,6 +1111,9 @@ class AgentCore:
 
         # Check if we have environment to add offspring to
         if not self.environment:
+            return False
+
+        if is_population_at_cap(self.environment):
             return False
 
         resource_comp = self.get_component("resource")

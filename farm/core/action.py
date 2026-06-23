@@ -20,11 +20,14 @@ Technical Details:
 """
 
 import math
+import random
 from collections import Counter
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
 import numpy as np
+
+from farm.core.population import get_population_cap_status
 
 if TYPE_CHECKING:
     from farm.core.agent import AgentCore
@@ -905,8 +908,6 @@ def move_action(agent: "AgentCore") -> dict:
     Returns:
         dict: Action result containing success status and details
     """
-    import random
-
     # Validate agent configuration
     if not validate_agent_config(agent, "move"):
         return {
@@ -1005,6 +1006,7 @@ def reproduce_action(agent: "AgentCore") -> dict:
     probability-based decision making, and offspring creation into a complete lifecycle.
 
     Behavior details:
+    - Enforces the environment's population cap (population.max_population) when set
     - Checks minimum resource requirements (min_reproduction_resources, default: 8)
     - Verifies total cost including offspring_cost (default: 5) can be met
     - Applies reproduction chance probability (reproduction_chance, default: 0.5)
@@ -1016,8 +1018,6 @@ def reproduce_action(agent: "AgentCore") -> dict:
     Returns:
         dict: Action result containing success status and details
     """
-    import random
-
     # Validate agent configuration
     if not validate_agent_config(agent, "reproduce"):
         return {
@@ -1027,14 +1027,33 @@ def reproduce_action(agent: "AgentCore") -> dict:
         }
 
     # Get reproduction parameters from config
-    min_resources = getattr(agent.config, "min_reproduction_resources", 8)
-    offspring_cost = getattr(agent.config, "offspring_cost", 5)
-    reproduction_chance = getattr(agent.config, "reproduction_chance", 0.5)
+    reproduction_config = getattr(agent.config, "reproduction", None)
+
+    def _get_reproduction_config_value(name: str, default: Any) -> Any:
+        return getattr(reproduction_config, name, getattr(agent.config, name, default))
+
+    min_resources = _get_reproduction_config_value("min_reproduction_resources", 8)
+    offspring_cost = _get_reproduction_config_value("offspring_cost", 5)
+    reproduction_chance = _get_reproduction_config_value("reproduction_chance", 0.5)
 
     # Check total resource requirements (minimum + offspring cost)
     total_required = min_resources + offspring_cost
 
     try:
+        env = getattr(agent, "environment", None)
+        if env is not None:
+            cap_status = get_population_cap_status(env)
+            if cap_status is not None and cap_status[0]:
+                _, current_population, max_population = cap_status
+                return {
+                    "success": False,
+                    "error": f"Maximum population reached ({current_population}/{max_population})",
+                    "details": {
+                        "current_population": current_population,
+                        "max_population": max_population,
+                    },
+                }
+
         if not check_resource_requirement(agent, total_required, "reproduce"):
             return {
                 "success": False,

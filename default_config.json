@@ -11,6 +11,7 @@
   "starvation_threshold": 10,
   "offspring_cost": 3,
   "min_reproduction_resources": 8,
+  "reproduction_chance": 0.5,
   "offspring_initial_resources": 5,
   "perception_radius": 2,
   "base_attack_strength": 2,

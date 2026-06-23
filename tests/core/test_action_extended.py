@@ -1,6 +1,7 @@
 """Extended tests for action system covering execution and validation."""
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from farm.core.action import (
@@ -8,6 +9,7 @@ from farm.core.action import (
     calculate_euclidean_distance,
     check_resource_requirement,
     gather_action,
+    reproduce_action,
     validate_action_result,
 )
 
@@ -84,7 +86,92 @@ class TestActionExtended(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(agent.resource_level, 5.0)
 
+    def test_reproduce_action_blocks_when_population_cap_reached(self):
+        """Reproduction should be blocked once max_population is reached."""
+        agent = Mock()
+        agent.agent_id = "test_agent"
+        agent.resource_level = 100.0
+        agent.generation = 0
+        agent.reproduce.return_value = True
+        agent.config = SimpleNamespace(
+            reproduction=SimpleNamespace(
+                min_reproduction_resources=1.0,
+                offspring_cost=1.0,
+                reproduction_chance=1.0,
+            )
+        )
+        agent.environment = SimpleNamespace(
+            alive_agent_objects=[Mock(), Mock()],
+            agents=["a", "b"],
+            config=SimpleNamespace(
+                population=SimpleNamespace(max_population=2),
+            ),
+        )
+
+        result = reproduce_action(agent)
+
+        self.assertFalse(result["success"])
+        self.assertIn("Maximum population reached", result["error"])
+        agent.reproduce.assert_not_called()
+
+    def test_reproduce_action_blocks_when_population_cap_is_float(self):
+        """A float max_population (e.g. from YAML) must still enforce the cap."""
+        agent = Mock()
+        agent.agent_id = "test_agent"
+        agent.resource_level = 100.0
+        agent.generation = 0
+        agent.reproduce.return_value = True
+        agent.config = SimpleNamespace(
+            reproduction=SimpleNamespace(
+                min_reproduction_resources=1.0,
+                offspring_cost=1.0,
+                reproduction_chance=1.0,
+            )
+        )
+        agent.environment = SimpleNamespace(
+            alive_agent_objects=[Mock(), Mock()],
+            agents=["a", "b"],
+            config=SimpleNamespace(
+                population=SimpleNamespace(max_population=2.0),
+            ),
+        )
+
+        result = reproduce_action(agent)
+
+        self.assertFalse(result["success"])
+        self.assertIn("Maximum population reached", result["error"])
+        agent.reproduce.assert_not_called()
+
+    def test_reproduce_action_uses_component_config_thresholds(self):
+        """Reproduction resource checks should use component reproduction config."""
+        agent = Mock()
+        agent.agent_id = "test_agent"
+        agent.resource_level = 11.0
+        agent.reproduce.return_value = True
+        agent.config = SimpleNamespace(
+            reproduction=SimpleNamespace(
+                min_reproduction_resources=10.0,
+                offspring_cost=2.0,
+                reproduction_chance=1.0,
+            )
+        )
+        agent.environment = SimpleNamespace(
+            alive_agent_objects=[],
+            agents=[],
+            config=SimpleNamespace(
+                population=SimpleNamespace(max_population=99),
+            ),
+        )
+
+        result = reproduce_action(agent)
+
+        self.assertFalse(result["success"])
+        self.assertIn("Insufficient resources", result["error"])
+        self.assertEqual(result["details"]["min_resources"], 10.0)
+        self.assertEqual(result["details"]["offspring_cost"], 2.0)
+        self.assertEqual(result["details"]["total_required"], 12.0)
+        agent.reproduce.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
-
