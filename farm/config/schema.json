@@ -607,7 +607,10 @@
           "default": true
         },
         "device_memory_fraction": {
-          "type": "number",
+          "type": [
+            "number",
+            "null"
+          ],
           "default": null
         },
         "device_validate_compatibility": {

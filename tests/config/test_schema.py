@@ -1,16 +1,30 @@
 """Tests for config schema generation module."""
 
+import json
+import sys
 import unittest
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Dict, List, Optional
 
+import farm.config as _farm_config_pkg
 from farm.config.schema import (
     _dataclass_to_properties,
     _enum_values,
+    _is_optional_type,
     _pydantic_model_to_properties,
     _python_type_to_schema_type,
     generate_combined_config_schema,
+)
+
+_SCHEMA_JSON_PATH = Path(_farm_config_pkg.__file__).parent / "schema.json"
+_DEVICE_FIELDS = (
+    "device_preference",
+    "device_fallback",
+    "device_memory_fraction",
+    "device_validate_compatibility",
+    "cpu_threads",
 )
 
 
@@ -265,6 +279,53 @@ class TestGenerateCombinedConfigSchema(unittest.TestCase):
         self.assertEqual(obs["title"], "Observation")
         self.assertIn("enums", obs)
         self.assertIn("storage_mode", obs["enums"])
+
+    def test_simulation_includes_device_fields(self):
+        sim_props = self.schema["sections"]["simulation"]["properties"]
+        for name in _DEVICE_FIELDS:
+            self.assertIn(name, sim_props)
+        # cpu_threads is Optional[int] with a minimum constraint from metadata.
+        self.assertEqual(sim_props["cpu_threads"]["type"], ["integer", "null"])
+        self.assertEqual(sim_props["cpu_threads"]["minimum"], 1)
+        # Optional float field is nullable too.
+        self.assertEqual(
+            sim_props["device_memory_fraction"]["type"], ["number", "null"]
+        )
+
+    def test_committed_schema_json_device_block_matches_generator(self):
+        """Guard against drift between the generator and the committed artifact.
+
+        The device block in ``schema.json`` is produced by the generator; if the
+        dataclass changes, regenerate the device fields rather than hand-editing.
+        """
+        with open(_SCHEMA_JSON_PATH, "r", encoding="utf-8") as f:
+            committed = json.load(f)
+
+        committed_sim = committed["sections"]["simulation"]["properties"]
+        generated_sim = self.schema["sections"]["simulation"]["properties"]
+        for name in _DEVICE_FIELDS:
+            self.assertIn(name, committed_sim, f"{name} missing from schema.json")
+            self.assertEqual(
+                committed_sim[name],
+                generated_sim[name],
+                f"schema.json device field '{name}' drifted from the generator",
+            )
+
+
+class TestIsOptionalType(unittest.TestCase):
+    """Tests for _is_optional_type covering typing and PEP 604 unions."""
+
+    def test_optional_typing_union(self):
+        self.assertTrue(_is_optional_type(Optional[int]))
+
+    def test_non_optional(self):
+        self.assertFalse(_is_optional_type(int))
+
+    @unittest.skipIf(
+        sys.version_info < (3, 10), "PEP 604 unions require Python 3.10+"
+    )
+    def test_pep604_union(self):
+        self.assertTrue(_is_optional_type(int | None))
 
 
 if __name__ == "__main__":

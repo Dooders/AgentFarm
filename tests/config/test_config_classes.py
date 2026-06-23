@@ -10,7 +10,7 @@ This module tests the core configuration dataclasses including:
 import unittest
 from types import SimpleNamespace
 from farm.config import RedisMemoryConfig, VisualizationConfig
-from farm.config.config import PerformanceConfig
+from farm.config.config import DeviceConfig, PerformanceConfig
 from farm.core.agent.config.component_configs import AgentComponentConfig
 
 
@@ -281,6 +281,30 @@ class TestPerformanceConfig(unittest.TestCase):
     def test_max_learning_updates_per_step_rejects_negative_values(self):
         with self.assertRaises(ValueError):
             PerformanceConfig(max_learning_updates_per_step=-1)
+
+
+class TestDeviceConfig(unittest.TestCase):
+    """Test cases for DeviceConfig fail-fast validation."""
+
+    def test_defaults_to_single_cpu_thread(self):
+        config = DeviceConfig()
+        self.assertEqual(config.cpu_threads, 1)
+
+    def test_none_cpu_threads_allowed(self):
+        config = DeviceConfig(cpu_threads=None)
+        self.assertIsNone(config.cpu_threads)
+
+    def test_rejects_zero_cpu_threads_at_load(self):
+        with self.assertRaises(ValueError):
+            DeviceConfig(cpu_threads=0)
+
+    def test_rejects_negative_cpu_threads_at_load(self):
+        with self.assertRaises(ValueError):
+            DeviceConfig(cpu_threads=-2)
+
+    def test_rejects_bool_cpu_threads_at_load(self):
+        with self.assertRaises(ValueError):
+            DeviceConfig(cpu_threads=True)
 
 
 if __name__ == '__main__':

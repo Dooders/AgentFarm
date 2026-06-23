@@ -65,6 +65,32 @@ class TestDeviceManagerGetDevice:
         assert os.environ["OMP_NUM_THREADS"] == "2"
         assert os.environ["MKL_NUM_THREADS"] == "2"
 
+    def test_cpu_threads_none_skips_thread_configuration(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(torch, "set_num_threads", lambda n: calls.append(n))
+        dm = DeviceManager(preference="cpu", cpu_threads=None)
+        device = dm.get_device()
+        assert device.type == "cpu"
+        assert calls == []
+
+    def test_cpu_threads_sets_blas_env_vars(self, monkeypatch):
+        monkeypatch.setattr(torch, "set_num_threads", lambda n: None)
+        for env_var in (
+            "OMP_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "OPENBLAS_NUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+            "VECLIB_MAXIMUM_THREADS",
+        ):
+            monkeypatch.delenv(env_var, raising=False)
+        dm = DeviceManager(preference="cpu", cpu_threads=2)
+        dm.get_device()
+        assert os.environ["OMP_NUM_THREADS"] == "2"
+        assert os.environ["MKL_NUM_THREADS"] == "2"
+        assert os.environ["OPENBLAS_NUM_THREADS"] == "2"
+        assert os.environ["NUMEXPR_NUM_THREADS"] == "2"
+        assert os.environ["VECLIB_MAXIMUM_THREADS"] == "2"
+
     def test_invalid_cpu_threads_raises_value_error(self):
         dm = DeviceManager(preference="cpu", cpu_threads=0)
         with pytest.raises(ValueError, match="cpu_threads must be >= 1"):

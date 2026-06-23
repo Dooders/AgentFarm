@@ -15,6 +15,18 @@ from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Environment variables consulted by CPU math backends (OpenMP, MKL, OpenBLAS,
+# NumExpr, Accelerate/vecLib). These are read once when each backend
+# initializes, so setting them only affects subprocesses spawned afterward; the
+# current process is pinned via ``torch.set_num_threads``.
+_CPU_THREAD_ENV_VARS = (
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+    "VECLIB_MAXIMUM_THREADS",
+)
+
 
 class DeviceManager:
     """
@@ -226,7 +238,15 @@ class DeviceManager:
             )
 
     def _configure_cpu_threads(self) -> None:
-        """Configure CPU math thread limits for CPU-backed runs."""
+        """Configure CPU math thread limits for CPU-backed runs.
+
+        ``torch.set_num_threads`` is the authoritative in-process control and is
+        the only setting that re-pins the already-initialized PyTorch CPU thread
+        pool. The environment variables (OpenMP/MKL/BLAS) are read by those math
+        backends *once at initialization*, so writing them here does not resize
+        the current process's thread pools; they only take effect for CPU math
+        backends in subprocesses spawned afterward (e.g. parallel workers).
+        """
         if self.cpu_threads is None:
             return
 
@@ -246,16 +266,12 @@ class DeviceManager:
             )
             raise ValueError(f"cpu_threads must be >= 1, got {self.cpu_threads}")
 
-        os.environ["OMP_NUM_THREADS"] = str(self.cpu_threads)
-        os.environ["MKL_NUM_THREADS"] = str(self.cpu_threads)
+        thread_str = str(self.cpu_threads)
+        for env_var in _CPU_THREAD_ENV_VARS:
+            os.environ[env_var] = thread_str
+
         try:
             torch.set_num_threads(self.cpu_threads)
-            logger.info(
-                "cpu_threads_configured",
-                cpu_threads=self.cpu_threads,
-                omp_num_threads=os.environ["OMP_NUM_THREADS"],
-                mkl_num_threads=os.environ["MKL_NUM_THREADS"],
-            )
         except RuntimeError as e:
             logger.warning(
                 "cpu_threads_config_failed",
@@ -263,6 +279,14 @@ class DeviceManager:
                 error_type=type(e).__name__,
                 error_message=str(e),
             )
+            return
+
+        logger.info(
+            "cpu_threads_configured",
+            requested_cpu_threads=self.cpu_threads,
+            torch_num_threads=torch.get_num_threads(),
+            subprocess_env_vars=list(_CPU_THREAD_ENV_VARS),
+        )
 
     def validate_tensor_compatibility(
         self, tensor: torch.Tensor, target_device: torch.device
