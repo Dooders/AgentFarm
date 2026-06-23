@@ -75,7 +75,7 @@ from __future__ import annotations
 import math
 import time as _time
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -739,6 +739,12 @@ def rotate_local_grid(
     return rot
 
 
+# Process-lifetime cache of disk masks keyed by (size, R, device, dtype). The
+# mask geometry never changes for a given key, so we compute it once and return
+# defensive clones from make_disk_mask().
+_DISK_MASK_CACHE: Dict[Tuple[int, int, str, Any], torch.Tensor] = {}
+
+
 def make_disk_mask(
     size: int, R: int, device="cpu", dtype=torch.float32
 ) -> torch.Tensor:
@@ -772,14 +778,24 @@ def make_disk_mask(
         tensor(1.)
         >>> # All pixels within Euclidean distance 3 of center are 1.0
     """
-    yy, xx = torch.meshgrid(
-        torch.arange(size, device=device),
-        torch.arange(size, device=device),
-        indexing="ij",
-    )
-    cy = cx = size // 2
-    dist2 = (yy - cy) ** 2 + (xx - cx) ** 2
-    return (dist2 <= (R * R)).to(dtype)
+    # The mask is fully determined by (size, R, device, dtype), all of which are
+    # constant for the lifetime of a simulation. Building it with meshgrid +
+    # distance arithmetic on every observation tick is wasteful (it showed up as
+    # a hotspot in profiling). Memoize the computed mask and hand callers a
+    # defensive copy so the cached tensor can never be mutated in place.
+    cache_key = (int(size), int(R), str(device), dtype)
+    cached = _DISK_MASK_CACHE.get(cache_key)
+    if cached is None:
+        yy, xx = torch.meshgrid(
+            torch.arange(size, device=device),
+            torch.arange(size, device=device),
+            indexing="ij",
+        )
+        cy = cx = size // 2
+        dist2 = (yy - cy) ** 2 + (xx - cx) ** 2
+        cached = (dist2 <= (R * R)).to(dtype)
+        _DISK_MASK_CACHE[cache_key] = cached
+    return cached.clone()
 
 
 class AgentObservation:

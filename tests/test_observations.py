@@ -280,6 +280,31 @@ class TestMakeDiskMask:
         assert mask[3, 6] == 1.0  # Distance 3 from center (inclusive)
         assert mask[3, 5] == 1.0  # Distance 2 from center
 
+    def test_memoized_result_matches_fresh_computation(self):
+        """Memoized masks must be value-identical to a fresh computation."""
+        for size, R in [(13, 5), (11, 5), (7, 3), (13, 6)]:
+            yy, xx = torch.meshgrid(
+                torch.arange(size), torch.arange(size), indexing="ij"
+            )
+            c = size // 2
+            reference = ((yy - c) ** 2 + (xx - c) ** 2 <= R * R).to(torch.float32)
+            # Two successive calls (the second is served from cache) must both
+            # equal the reference.
+            assert torch.equal(make_disk_mask(size, R), reference)
+            assert torch.equal(make_disk_mask(size, R), reference)
+
+    def test_returned_masks_are_independent_copies(self):
+        """Callers must receive defensive copies so they can store/mutate safely."""
+        a = make_disk_mask(13, 5)
+        b = make_disk_mask(13, 5)
+        # Distinct underlying storage.
+        assert a.data_ptr() != b.data_ptr()
+        # Mutating a returned mask must not corrupt the cache for later callers.
+        a.zero_()
+        c = make_disk_mask(13, 5)
+        assert c.sum() > 0
+        assert torch.equal(b, c)
+
 
 class TestRotationHelpers:
     """Tests for rotation math and rotated cropping."""
