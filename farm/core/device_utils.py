@@ -231,16 +231,14 @@ class DeviceManager:
             return
 
         # bool is a subclass of int in Python; reject bool explicitly.
-        if isinstance(self.cpu_threads, bool) or not isinstance(self.cpu_threads, int):
+        if type(self.cpu_threads) is bool or not isinstance(self.cpu_threads, int):
             logger.warning(
                 "invalid_cpu_threads_type",
                 cpu_threads=self.cpu_threads,
                 cpu_threads_type=type(self.cpu_threads).__name__,
                 expected_type="int",
             )
-            raise ValueError(
-                f"cpu_threads must be an int >= 1 or None, got {self.cpu_threads!r}"
-            )
+            raise ValueError(f"cpu_threads must be an int >= 1, got {self.cpu_threads!r}")
 
         if self.cpu_threads < 1:
             logger.warning(
@@ -393,21 +391,18 @@ def get_device_manager(
     """
     global _global_device_manager
 
-    resolved_cpu_threads = (
-        1 if cpu_threads is _CPU_THREADS_UNSET else cpu_threads
-    )
-
     if _global_device_manager is None:
+        initial_cpu_threads = 1 if cpu_threads is _CPU_THREADS_UNSET else cpu_threads
         _global_device_manager = DeviceManager(
             preference=preference,
             fallback=fallback,
             memory_fraction=memory_fraction,
             validate_compatibility=validate_compatibility,
-            cpu_threads=resolved_cpu_threads,
+            cpu_threads=initial_cpu_threads,
         )
     else:
         effective_cpu_threads = (
-            resolved_cpu_threads
+            cpu_threads
             if cpu_threads is not _CPU_THREADS_UNSET
             else _global_device_manager.cpu_threads
         )
@@ -425,7 +420,7 @@ def get_device_manager(
             _global_device_manager.memory_fraction = memory_fraction
             _global_device_manager.validate_compatibility = validate_compatibility
             if cpu_threads is not _CPU_THREADS_UNSET:
-                _global_device_manager.cpu_threads = resolved_cpu_threads
+                _global_device_manager.cpu_threads = cpu_threads
 
     return _global_device_manager
 
