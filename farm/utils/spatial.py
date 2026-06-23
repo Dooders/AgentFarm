@@ -5,15 +5,16 @@ bilinear interpolation, distance calculations, and other spatial operations.
 """
 
 import math
-from typing import Tuple
+from typing import Tuple, Union
 
+import numpy as np
 import torch
 
 
 def bilinear_distribute_value(
     position: Tuple[float, float],
     value: float,
-    grid: torch.Tensor,
+    grid: Union[torch.Tensor, np.ndarray],
     grid_size: Tuple[int, int],
 ) -> None:
     """
@@ -22,10 +23,15 @@ def bilinear_distribute_value(
     This preserves continuous position information by distributing values
     across the four nearest grid cells based on the fractional position components.
 
+    ``grid`` is mutated in place via 2D indexed addition, which is supported
+    identically by ``torch.Tensor`` and ``numpy.ndarray``. Keep this function
+    restricted to that shared subset of operations so both backends stay valid;
+    the perception hot path relies on the NumPy form.
+
     Args:
         position: (x, y) continuous coordinates
         value: Value to distribute
-        grid: Target grid tensor of shape (H, W)
+        grid: Target grid (torch tensor or NumPy array) of shape (H, W)
         grid_size: (width, height) of the grid
     """
     x, y = position

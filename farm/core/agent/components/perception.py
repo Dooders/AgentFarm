@@ -7,7 +7,7 @@ Consolidates all perception logic from the environment into a single component.
 
 import math
 import time as _time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -269,16 +269,18 @@ class PerceptionComponent(AgentComponent):
         grid_size = (width, height)
         ax, ay = discretize_position_continuous(self.core.position, grid_size, discretization_method)
 
-        # Ensure spatial index is up to date before observation generation
-        if hasattr(env, "spatial_index") and env.spatial_index:
-            env.spatial_index.update()
+        # NOTE: We intentionally do not force ``env.spatial_index.update()`` here.
+        # Every spatial query performed during this observation already forces an
+        # update internally (``get_nearby`` calls ``update()``), and the memmap
+        # resource path does not touch the spatial index at all. The explicit call
+        # was therefore redundant and added a fast-path ``update()`` invocation to
+        # every per-agent observation.
 
-        # Build local resource layer
-        resource_local = torch.zeros(
-            (S, S),
-            dtype=torch.float32,
-            device=device,
-        )
+        # The local resource layer is accumulated below. For the memmap path it
+        # is produced directly as a torch tensor; for the spatial-query paths it
+        # is accumulated in a NumPy float32 buffer (much faster scalar indexing
+        # than per-element torch writes) and converted to a torch tensor once.
+        resource_local: Optional[torch.Tensor] = None
 
         # Get max resource amount
         if hasattr(env, "max_resource") and env.max_resource is not None:
@@ -332,8 +334,13 @@ class PerceptionComponent(AgentComponent):
             logger.warning(f"Failed to query nearby resources: {e}")
             nearby_resources = []
 
-        # Distribute resources to local grid
+        # Distribute resources to local grid. Accumulation happens in a NumPy
+        # float32 buffer using the exact same arithmetic (and the same
+        # ``bilinear_distribute_value`` helper, which duck-types over NumPy
+        # arrays) so results are bit-identical to the previous torch-backed
+        # accumulation, while avoiding slow per-element torch index writes.
         if not used_memmap and use_bilinear:
+            resource_np = np.zeros((S, S), dtype=np.float32)
             _tb0 = _time.perf_counter()
             for res in nearby_resources:
                 # Convert world to local continuous coords where (R, R) is agent center
@@ -342,24 +349,33 @@ class PerceptionComponent(AgentComponent):
                 bilinear_distribute_value(
                     (lx, ly),
                     float(res.amount) / float(max_amount),
-                    resource_local,
+                    resource_np,
                     (S, S),
                 )
                 # 4 target points per bilinear distribution
                 self._perception_profile["bilinear_points"] += 4
             _tb1 = _time.perf_counter()
             self._perception_profile["bilinear_time_s"] += max(0.0, _tb1 - _tb0)
+            resource_local = torch.from_numpy(resource_np).to(device=device)
         elif not used_memmap:
+            resource_np = np.zeros((S, S), dtype=np.float32)
             _tn0 = _time.perf_counter()
             for res in nearby_resources:
                 rx, ry = discretize_position_continuous(res.position, (width, height), discretization_method)
                 lx = rx - (ax - R)
                 ly = ry - (ay - R)
                 if 0 <= lx < S and 0 <= ly < S:
-                    resource_local[int(ly), int(lx)] += float(res.amount) / float(max_amount)
+                    resource_np[int(ly), int(lx)] += float(res.amount) / float(max_amount)
                     self._perception_profile["nearest_points"] += 1
             _tn1 = _time.perf_counter()
             self._perception_profile["nearest_time_s"] += max(0.0, _tn1 - _tn0)
+            resource_local = torch.from_numpy(resource_np).to(device=device)
+
+        # Guaranteed fallback: the memmap branch can raise (leaving
+        # ``used_memmap`` set but ``resource_local`` unassigned), in which case
+        # an all-zero resource layer matches the previous behavior.
+        if resource_local is None:
+            resource_local = torch.zeros((S, S), dtype=torch.float32, device=device)
 
         # Create empty layers for obstacles and terrain cost
         obstacles_local = torch.zeros_like(resource_local)

@@ -31,6 +31,7 @@ from farm.core.agent.config.component_configs import (
     ResourceConfig as ComponentResourceConfig,
 )
 from farm.core.environment import Environment
+from farm.core.observations import ObservationConfig
 
 
 class TestEnvironment(unittest.TestCase):
@@ -200,6 +201,33 @@ class TestEnvironment(unittest.TestCase):
         self.assertTrue(hasattr(self.env.agents, "__contains__"))
         self.assertIsNotNone(self.env.observation_space)
         self.assertIsNotNone(self.env.action_space)
+
+    def test_observation_metrics_disabled_on_live_env_config(self):
+        """The environment must force ``enable_metrics`` off on its observation
+        config (it is benchmarking-only instrumentation on the hot path) without
+        mutating the caller's config object."""
+        source_config = SimulationConfig(
+            environment=EnvironmentConfig(width=20, height=20),
+            population=PopulationConfig(system_agents=0, independent_agents=0, control_agents=0),
+            max_steps=10,
+            seed=42,
+        )
+        source_config.observation = ObservationConfig(R=3, enable_metrics=True)
+
+        env = Environment(
+            width=20,
+            height=20,
+            resource_distribution={"amount": 5},
+            config=source_config,
+            db_path=":memory:",
+        )
+        try:
+            # Environment-owned config has metrics disabled.
+            self.assertFalse(env.observation_config.enable_metrics)
+            # Caller's original config object is left untouched (model_copy, not mutate).
+            self.assertTrue(source_config.observation.enable_metrics)
+        finally:
+            env.cleanup()
 
     def test_agents_equals_list_by_ordered_value(self):
         """agents should compare equal to a list with the same ordering."""

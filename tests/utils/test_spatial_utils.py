@@ -4,6 +4,7 @@ Verifies exact-cell placement, four-cell weight splitting, and the key
 mass-conservation invariant via Hypothesis.
 """
 
+import numpy as np
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
@@ -80,3 +81,34 @@ class TestBilinearProperties:
         for y_idx, x_idx in nonzero.tolist():
             assert abs(x_idx - x) <= 1.0
             assert abs(y_idx - y) <= 1.0
+
+
+class TestBilinearBackendEquivalence:
+    """The perception hot path accumulates into a NumPy float32 buffer instead of
+    a torch tensor. These tests lock in that the two backends produce identical
+    results so the optimization stays behavior-preserving."""
+
+    @given(
+        x=st.floats(0, WIDTH - 1, allow_nan=False),
+        y=st.floats(0, HEIGHT - 1, allow_nan=False),
+        value=st.floats(-100, 100, allow_nan=False),
+    )
+    def test_numpy_matches_torch_float32(self, x, y, value):
+        torch_grid = torch.zeros((HEIGHT, WIDTH), dtype=torch.float32)
+        numpy_grid = np.zeros((HEIGHT, WIDTH), dtype=np.float32)
+
+        bilinear_distribute_value((x, y), value, torch_grid, (WIDTH, HEIGHT))
+        bilinear_distribute_value((x, y), value, numpy_grid, (WIDTH, HEIGHT))
+
+        assert np.array_equal(torch_grid.numpy(), numpy_grid)
+
+    def test_numpy_accumulation_matches_torch_over_many_points(self):
+        points = [(2.25, 4.75, 1.0), (3.5, 1.5, 0.4), (2.25, 4.75, 0.9), (8.9, 6.1, 2.0)]
+        torch_grid = torch.zeros((HEIGHT, WIDTH), dtype=torch.float32)
+        numpy_grid = np.zeros((HEIGHT, WIDTH), dtype=np.float32)
+
+        for px, py, val in points:
+            bilinear_distribute_value((px, py), val, torch_grid, (WIDTH, HEIGHT))
+            bilinear_distribute_value((px, py), val, numpy_grid, (WIDTH, HEIGHT))
+
+        assert np.array_equal(torch_grid.numpy(), numpy_grid)

@@ -1035,6 +1035,26 @@ class TestConsolidatedObservationSystem:
         assert 'bilinear_points' in component._perception_profile
         assert 'nearest_points' in component._perception_profile
 
+    def test_memmap_window_failure_yields_zero_resource_layer(self, component_with_environment):
+        """If the memmap resource window read raises, the resource layer must
+        fall back to an all-zero (S, S) grid rather than leaving it unassigned."""
+        component = component_with_environment
+
+        # Force the memmap branch and make the window read fail.
+        resource_manager = Mock()
+        resource_manager.has_memmap = True
+        resource_manager.get_resource_window.side_effect = RuntimeError("boom")
+        component.core.environment.resource_manager = resource_manager
+
+        world_layers = component._create_world_layers()
+
+        resources = world_layers["RESOURCES"]
+        assert isinstance(resources, torch.Tensor)
+        assert resources.shape == (7, 7)  # 2*R+1 where R=3
+        assert torch.all(resources == 0)
+        # The memmap branch must have been taken (no spatial query fallback used).
+        resource_manager.get_resource_window.assert_called_once()
+
 
 class TestErrorHandlingAndLogging:
     """Test improved error handling and logging."""
