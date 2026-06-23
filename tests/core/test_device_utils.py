@@ -15,7 +15,7 @@ from farm.core.device_utils import (
 import farm.core.device_utils as _dutils
 
 
-def _raise_value_error(*_args, **_kwargs):
+def _raise_cpu_threads_error(*_args, **_kwargs):
     raise ValueError("bad cpu_threads")
 
 
@@ -76,7 +76,9 @@ class TestDeviceManagerGetDevice:
             dm.get_device()
 
     def test_failed_configuration_does_not_leave_manager_initialized(self, monkeypatch):
-        monkeypatch.setattr(DeviceManager, "_configure_cpu_threads", _raise_value_error)
+        monkeypatch.setattr(
+            DeviceManager, "_configure_cpu_threads", _raise_cpu_threads_error
+        )
         dm = DeviceManager(preference="cpu", cpu_threads=2)
         with pytest.raises(ValueError, match="bad cpu_threads"):
             dm.get_device()

@@ -230,6 +230,7 @@ class DeviceManager:
         if self.cpu_threads is None:
             return
 
+        # bool is a subclass of int in Python; reject bool explicitly.
         if isinstance(self.cpu_threads, bool) or not isinstance(self.cpu_threads, int):
             logger.warning(
                 "invalid_cpu_threads_type",

@@ -1,6 +1,7 @@
 """Tests for config schema generation module."""
 
 import unittest
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional
 
@@ -123,6 +124,19 @@ class TestDataclassToProperties(unittest.TestCase):
 
         props = _dataclass_to_properties(DeviceConfig)
         self.assertEqual(props["cpu_threads"]["type"], ["integer", "null"])
+
+    def test_copies_metadata_constraints_to_schema(self):
+        @dataclass
+        class ConstrainedConfig:
+            value: int = field(
+                default=3,
+                metadata={"minimum": 1, "maximum": 5, "pattern": r"^[0-9]+$"},
+            )
+
+        props = _dataclass_to_properties(ConstrainedConfig)
+        self.assertEqual(props["value"]["minimum"], 1)
+        self.assertEqual(props["value"]["maximum"], 5)
+        self.assertEqual(props["value"]["pattern"], r"^[0-9]+$")
 
 
 class TestPydanticModelToProperties(unittest.TestCase):
