@@ -145,7 +145,8 @@ def _dataclass_to_properties(
         if enum_vals:
             schema_entry["enum"] = enum_vals
 
-        # Add numeric/string constraints from dataclass field metadata
+        # Copy declarative validation constraints (e.g., minimum, pattern) from
+        # dataclass field metadata into the emitted JSON schema properties.
         for key in (
             "minimum",
             "maximum",

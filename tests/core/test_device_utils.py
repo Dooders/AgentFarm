@@ -65,12 +65,12 @@ class TestDeviceManagerGetDevice:
         assert os.environ["OMP_NUM_THREADS"] == "2"
         assert os.environ["MKL_NUM_THREADS"] == "2"
 
-    def test_invalid_cpu_threads_raise_value_error(self):
+    def test_invalid_cpu_threads_raises_value_error(self):
         dm = DeviceManager(preference="cpu", cpu_threads=0)
         with pytest.raises(ValueError, match="cpu_threads must be >= 1"):
             dm.get_device()
 
-    def test_bool_cpu_threads_raise_value_error(self):
+    def test_bool_cpu_threads_raises_value_error(self):
         dm = DeviceManager(preference="cpu", cpu_threads=True)
         with pytest.raises(ValueError, match="cpu_threads must be an int >= 1"):
             dm.get_device()

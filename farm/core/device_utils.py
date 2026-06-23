@@ -230,7 +230,7 @@ class DeviceManager:
         if self.cpu_threads is None:
             return
 
-        if not isinstance(self.cpu_threads, int) or isinstance(self.cpu_threads, bool):
+        if isinstance(self.cpu_threads, bool) or not isinstance(self.cpu_threads, int):
             logger.warning(
                 "invalid_cpu_threads_type",
                 cpu_threads=self.cpu_threads,
