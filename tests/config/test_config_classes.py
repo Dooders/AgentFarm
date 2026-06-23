@@ -238,6 +238,7 @@ class TestAgentComponentConfig(unittest.TestCase):
                         "starvation_threshold": 8,
                         "offspring_cost": 4.0,
                         "min_reproduction_resources": 12.0,
+                        "reproduction_chance": 0.75,
                         "offspring_initial_resources": 6.0,
                         "starting_health": 90.0,
                         "base_attack_strength": 3.0,
@@ -271,6 +272,7 @@ class TestAgentComponentConfig(unittest.TestCase):
         self.assertEqual(component_config.decision.dqn_hidden_size, 32)
         self.assertEqual(component_config.decision.tau, 0.02)
         self.assertEqual(component_config.reproduction.min_reproduction_resources, 12.0)
+        self.assertEqual(component_config.reproduction.reproduction_chance, 0.75)
 
 
 class TestPerformanceConfig(unittest.TestCase):

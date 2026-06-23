@@ -114,6 +114,34 @@ class TestActionExtended(unittest.TestCase):
         self.assertIn("Maximum population reached", result["error"])
         agent.reproduce.assert_not_called()
 
+    def test_reproduce_action_blocks_when_population_cap_is_float(self):
+        """A float max_population (e.g. from YAML) must still enforce the cap."""
+        agent = Mock()
+        agent.agent_id = "test_agent"
+        agent.resource_level = 100.0
+        agent.generation = 0
+        agent.reproduce.return_value = True
+        agent.config = SimpleNamespace(
+            reproduction=SimpleNamespace(
+                min_reproduction_resources=1.0,
+                offspring_cost=1.0,
+                reproduction_chance=1.0,
+            )
+        )
+        agent.environment = SimpleNamespace(
+            alive_agent_objects=[Mock(), Mock()],
+            agents=["a", "b"],
+            config=SimpleNamespace(
+                population=SimpleNamespace(max_population=2.0),
+            ),
+        )
+
+        result = reproduce_action(agent)
+
+        self.assertFalse(result["success"])
+        self.assertIn("Maximum population reached", result["error"])
+        agent.reproduce.assert_not_called()
+
     def test_reproduce_action_uses_component_config_thresholds(self):
         """Reproduction resource checks should use component reproduction config."""
         agent = Mock()

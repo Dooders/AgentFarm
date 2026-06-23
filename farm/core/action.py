@@ -20,11 +20,14 @@ Technical Details:
 """
 
 import math
+import random
 from collections import Counter
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
 import numpy as np
+
+from farm.core.population import get_population_cap_status
 
 if TYPE_CHECKING:
     from farm.core.agent import AgentCore
@@ -905,8 +908,6 @@ def move_action(agent: "AgentCore") -> dict:
     Returns:
         dict: Action result containing success status and details
     """
-    import random
-
     # Validate agent configuration
     if not validate_agent_config(agent, "move"):
         return {
@@ -1005,6 +1006,7 @@ def reproduce_action(agent: "AgentCore") -> dict:
     probability-based decision making, and offspring creation into a complete lifecycle.
 
     Behavior details:
+    - Enforces the environment's population cap (population.max_population) when set
     - Checks minimum resource requirements (min_reproduction_resources, default: 8)
     - Verifies total cost including offspring_cost (default: 5) can be met
     - Applies reproduction chance probability (reproduction_chance, default: 0.5)
@@ -1016,8 +1018,6 @@ def reproduce_action(agent: "AgentCore") -> dict:
     Returns:
         dict: Action result containing success status and details
     """
-    import random
-
     # Validate agent configuration
     if not validate_agent_config(agent, "reproduce"):
         return {
@@ -1042,25 +1042,17 @@ def reproduce_action(agent: "AgentCore") -> dict:
     try:
         env = getattr(agent, "environment", None)
         if env is not None:
-            env_config = getattr(env, "config", None)
-            population_config = getattr(env_config, "population", None)
-            max_population = getattr(population_config, "max_population", None)
-            if isinstance(max_population, int) and not isinstance(max_population, bool) and max_population > 0:
-                # Prefer the PettingZoo-style agent-id list when available (O(1) len);
-                # fall back to alive agent objects for environments without `agents`.
-                if hasattr(env, "agents"):
-                    current_population = len(getattr(env, "agents", []))
-                else:
-                    current_population = len(getattr(env, "alive_agent_objects", []))
-                if current_population >= max_population:
-                    return {
-                        "success": False,
-                        "error": f"Maximum population reached ({current_population}/{max_population})",
-                        "details": {
-                            "current_population": current_population,
-                            "max_population": max_population,
-                        },
-                    }
+            cap_status = get_population_cap_status(env)
+            if cap_status is not None and cap_status[0]:
+                _, current_population, max_population = cap_status
+                return {
+                    "success": False,
+                    "error": f"Maximum population reached ({current_population}/{max_population})",
+                    "details": {
+                        "current_population": current_population,
+                        "max_population": max_population,
+                    },
+                }
 
         if not check_resource_requirement(agent, total_required, "reproduce"):
             return {

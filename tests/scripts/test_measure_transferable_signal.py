@@ -350,13 +350,13 @@ def test_eval_config_is_single_agent():
 
 
 def test_reproduction_is_blocked_in_train_and_eval_modes():
-    """The reproduce no-op patch is the only reliable population cap.
+    """The reproduce no-op patch fully suppresses reproduction in train/eval.
 
-    ``reproduce_action`` enforces no ``max_population`` cap and the action stays
-    in every agent's set, so the gate blocks reproduction by patching
-    ``AgentCore.reproduce`` while the recorder is active. Without this the
-    population explodes (100+ agents on high-resource ecologies) and exhausts
-    RAM / slows each step to seconds.
+    While ``reproduce_action`` now honors ``population.max_population``, train
+    and eval probes need reproduction disabled entirely (not merely capped), so
+    the gate patches ``AgentCore.reproduce`` to a no-op while the recorder is
+    active. Without this the population grows up to the cap and slows each step,
+    so this asserts the patch returns ``False`` in both modes.
     """
     from scripts.measure_transferable_signal import _REC, install_instrumentation
     from farm.core.agent.core import AgentCore
