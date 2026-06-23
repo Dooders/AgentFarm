@@ -92,7 +92,7 @@ def _get_default_from_instance(instance: Any, name: str) -> Any:
         return None
 
 
-def _schema_type_for_dataclass_field(field_type: Any) -> Any:
+def _get_schema_type_with_nullability(field_type: Any) -> Any:
     """Return schema type for dataclass field, preserving Optional nullability."""
     schema_type: Any = _python_type_to_schema_type(field_type)
     if get_origin(field_type) is Union and type(None) in get_args(field_type):
@@ -132,7 +132,7 @@ def _dataclass_to_properties(
                 default_value = None
 
         schema_entry: Dict[str, Any] = {
-            "type": _schema_type_for_dataclass_field(f.type),
+            "type": _get_schema_type_with_nullability(f.type),
             "default": default_value,
         }
 
