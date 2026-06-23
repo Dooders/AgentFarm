@@ -1027,14 +1027,43 @@ def reproduce_action(agent: "AgentCore") -> dict:
         }
 
     # Get reproduction parameters from config
-    min_resources = getattr(agent.config, "min_reproduction_resources", 8)
-    offspring_cost = getattr(agent.config, "offspring_cost", 5)
-    reproduction_chance = getattr(agent.config, "reproduction_chance", 0.5)
+    reproduction_config = getattr(agent.config, "reproduction", None)
+
+    def _get_reproduction_config_value(name: str, default: Any) -> Any:
+        return getattr(reproduction_config, name, getattr(agent.config, name, default))
+
+    min_resources = _get_reproduction_config_value("min_reproduction_resources", 8)
+    offspring_cost = _get_reproduction_config_value("offspring_cost", 5)
+    reproduction_chance = _get_reproduction_config_value("reproduction_chance", 0.5)
 
     # Check total resource requirements (minimum + offspring cost)
     total_required = min_resources + offspring_cost
 
     try:
+        env = getattr(agent, "environment", None)
+        if env is not None:
+            env_config = getattr(env, "config", None)
+            population_config = getattr(env_config, "population", None)
+            max_population = getattr(population_config, "max_population", None)
+            if isinstance(max_population, (int, float)) and max_population > 0:
+                alive_agents = getattr(env, "alive_agent_objects", None)
+                # Prefer alive agent objects when available; fall back to the
+                # legacy agent-id list for environments without this property.
+                # An empty alive-agent list is still authoritative (population 0).
+                if alive_agents is not None:
+                    current_population = len(alive_agents)
+                else:
+                    current_population = len(getattr(env, "agents", []))
+                if current_population >= max_population:
+                    return {
+                        "success": False,
+                        "error": f"Maximum population reached ({current_population}/{max_population})",
+                        "details": {
+                            "current_population": current_population,
+                            "max_population": max_population,
+                        },
+                    }
+
         if not check_resource_requirement(agent, total_required, "reproduce"):
             return {
                 "success": False,
