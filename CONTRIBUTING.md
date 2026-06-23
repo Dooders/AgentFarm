@@ -9,32 +9,52 @@ Thank you for your interest in contributing to AgentFarm! This document provides
 - **Documentation**: Help improve or expand documentation
 - **Code Contributions**: Submit code improvements or new features
 
+## Branching Model
+
+**`dev` is the default integration branch — all contributions target `dev`, not `main`.**
+
+- **`dev`**: The active development branch. Base your work on `dev` and open all pull requests against `dev`.
+- **`main`**: The stable, release branch. It is updated only by maintainers (typically by merging `dev`). Please do **not** open pull requests against `main`.
+
+When you fork or clone, make sure your feature branch starts from the latest `dev`:
+
+```bash
+git checkout dev
+git pull upstream dev   # or `origin dev` if working directly on the repo
+git checkout -b my-feature-branch
+```
+
 ## Getting Started
 
 1. **Fork the repository** to your GitHub account
 2. **Clone your fork** to your local machine
-3. **Create and activate a virtual environment** (recommended): `python -m venv venv` then `source venv/bin/activate`
-4. **Install dependencies and the package in editable mode**: `pip install -r requirements.txt` and `pip install -e .`
-5. **Create a new branch** for your contribution
-6. **Make your changes** following our coding standards
-7. **Test your changes** (for example `pytest` from the repository root)
-8. **Commit your changes** with clear, descriptive commit messages
-9. **Push to your fork** and submit a pull request
+3. **Add the upstream remote**: `git remote add upstream https://github.com/Dooders/AgentFarm.git`
+4. **Create and activate a virtual environment** (recommended): `python -m venv venv` then `source venv/bin/activate`
+5. **Install dependencies and the package in editable mode**: `pip install -r requirements.txt` and `pip install -e .`
+6. **Create a new branch from `dev`** for your contribution (see [Branching Model](#branching-model))
+7. **Make your changes** following our coding standards
+8. **Test your changes** (for example `pytest` from the repository root)
+9. **Commit your changes** with clear, descriptive commit messages
+10. **Push to your fork** and submit a pull request **targeting the `dev` branch**
 
 ## Pull Request Process
 
-1. Ensure your code follows the project's coding standards
-2. Update documentation as necessary
-3. Include a clear description of the changes in your pull request
-4. Link any relevant issues in your pull request description
-5. Be responsive to feedback and be willing to make changes if requested
+1. **Target the `dev` branch** — pull requests against `main` will be asked to retarget
+2. Ensure your branch is up to date with the latest `dev` before opening or updating your PR
+3. Ensure your code follows the project's coding standards
+4. Update documentation as necessary
+5. Include a clear description of the changes in your pull request
+6. Link any relevant issues in your pull request description
+7. Be responsive to feedback and be willing to make changes if requested
 
 ## Coding Standards
 
-- Follow PEP 8 style guidelines for Python code
+- Follow PEP 8 style guidelines for Python code (line length 120, as configured for Ruff/Pylint)
+- Lint your changes with `ruff check .` (and optionally `pylint farm`) before opening a PR
+- Run the test suite with `pytest` from the repository root; add or update tests under `tests/` for behavior changes
 - Write meaningful comments and docstrings
 - Keep functions and methods small and focused on a single task
-- Include appropriate tests for new functionality
+- Favor SOLID, DRY, KISS, and composition over inheritance when adding or refactoring code
 
 ## Reporting Bugs
 
