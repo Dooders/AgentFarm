@@ -1026,23 +1026,14 @@ def reproduce_action(agent: "AgentCore") -> dict:
             "details": {},
         }
 
+    def _get_reproduction_param(name: str, default: Any) -> Any:
+        return getattr(reproduction_config, name, getattr(agent.config, name, default))
+
     # Get reproduction parameters from config
     reproduction_config = getattr(agent.config, "reproduction", None)
-    min_resources = getattr(
-        reproduction_config,
-        "min_reproduction_resources",
-        getattr(agent.config, "min_reproduction_resources", 8),
-    )
-    offspring_cost = getattr(
-        reproduction_config,
-        "offspring_cost",
-        getattr(agent.config, "offspring_cost", 5),
-    )
-    reproduction_chance = getattr(
-        reproduction_config,
-        "reproduction_chance",
-        getattr(agent.config, "reproduction_chance", 0.5),
-    )
+    min_resources = _get_reproduction_param("min_reproduction_resources", 8)
+    offspring_cost = _get_reproduction_param("offspring_cost", 5)
+    reproduction_chance = _get_reproduction_param("reproduction_chance", 0.5)
 
     # Check total resource requirements (minimum + offspring cost)
     total_required = min_resources + offspring_cost
@@ -1050,11 +1041,9 @@ def reproduce_action(agent: "AgentCore") -> dict:
     try:
         env = getattr(agent, "environment", None)
         if env is not None:
-            max_population = getattr(
-                getattr(getattr(env, "config", None), "population", None),
-                "max_population",
-                None,
-            )
+            env_config = getattr(env, "config", None)
+            population_config = getattr(env_config, "population", None)
+            max_population = getattr(population_config, "max_population", None)
             if isinstance(max_population, (int, float)) and max_population > 0:
                 alive_agents = getattr(env, "alive_agent_objects", None)
                 current_population = (
