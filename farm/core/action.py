@@ -1027,14 +1027,51 @@ def reproduce_action(agent: "AgentCore") -> dict:
         }
 
     # Get reproduction parameters from config
-    min_resources = getattr(agent.config, "min_reproduction_resources", 8)
-    offspring_cost = getattr(agent.config, "offspring_cost", 5)
-    reproduction_chance = getattr(agent.config, "reproduction_chance", 0.5)
+    reproduction_config = getattr(agent.config, "reproduction", None)
+    min_resources = getattr(
+        reproduction_config,
+        "min_reproduction_resources",
+        getattr(agent.config, "min_reproduction_resources", 8),
+    )
+    offspring_cost = getattr(
+        reproduction_config,
+        "offspring_cost",
+        getattr(agent.config, "offspring_cost", 5),
+    )
+    reproduction_chance = getattr(
+        reproduction_config,
+        "reproduction_chance",
+        getattr(agent.config, "reproduction_chance", 0.5),
+    )
 
     # Check total resource requirements (minimum + offspring cost)
     total_required = min_resources + offspring_cost
 
     try:
+        env = getattr(agent, "environment", None)
+        if env is not None:
+            max_population = getattr(
+                getattr(getattr(env, "config", None), "population", None),
+                "max_population",
+                None,
+            )
+            if isinstance(max_population, (int, float)) and max_population > 0:
+                alive_agents = getattr(env, "alive_agent_objects", None)
+                current_population = (
+                    len(alive_agents)
+                    if alive_agents is not None
+                    else len(getattr(env, "agents", []))
+                )
+                if current_population >= max_population:
+                    return {
+                        "success": False,
+                        "error": f"Maximum population reached ({current_population}/{max_population})",
+                        "details": {
+                            "current_population": current_population,
+                            "max_population": max_population,
+                        },
+                    }
+
         if not check_resource_requirement(agent, total_required, "reproduce"):
             return {
                 "success": False,

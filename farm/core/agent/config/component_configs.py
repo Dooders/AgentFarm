@@ -101,6 +101,12 @@ class ReproductionConfig:
     offspring_cost: float = 5.0
     """Resources consumed by parent when reproducing."""
 
+    min_reproduction_resources: float = 8.0
+    """Minimum resources required before reproduction can be attempted."""
+
+    reproduction_chance: float = 0.5
+    """Probability gate for each reproduction attempt."""
+
 
 @dataclass(frozen=True)
 class ReproductionPressureConfig:
@@ -296,6 +302,7 @@ class AgentComponentConfig:
             starvation_threshold = getattr(agent_behavior, 'starvation_threshold', 10)
             offspring_cost = getattr(agent_behavior, 'offspring_cost', 5.0)
             offspring_initial_resources = getattr(agent_behavior, 'offspring_initial_resources', 10.0)
+            min_reproduction_resources = getattr(agent_behavior, "min_reproduction_resources", 8.0)
             
             # Combat config
             starting_health = getattr(agent_behavior, 'starting_health', 100.0)
@@ -307,6 +314,7 @@ class AgentComponentConfig:
             starvation_threshold = 10
             offspring_cost = 5.0
             offspring_initial_resources = 10.0
+            min_reproduction_resources = 8.0
             starting_health = 100.0
             base_attack_strength = 10.0
             base_defense_strength = 5.0
@@ -353,6 +361,7 @@ class AgentComponentConfig:
             reproduction=ReproductionConfig(
                 offspring_cost=offspring_cost,
                 offspring_initial_resources=offspring_initial_resources,
+                min_reproduction_resources=min_reproduction_resources,
             ),
             decision=DecisionConfig(**decision_kwargs),
         )
