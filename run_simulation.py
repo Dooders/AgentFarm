@@ -5,24 +5,8 @@ Simple script to run a single simulation using the farm simulation framework.
 
 # Standard library imports
 import argparse
-import cProfile
 import os
-import pstats
 import sys
-import time
-import warnings
-from io import StringIO
-
-# Local imports
-from farm.config import SimulationConfig
-from farm.core.hyperparameter_chromosome import BoundaryMode, MutationMode
-from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode
-from farm.core.simulation import run_simulation
-from farm.utils.logging import configure_logging, get_logger
-
-# Suppress warnings that might interfere with CI output parsing
-warnings.filterwarnings("ignore", category=RuntimeWarning)
-warnings.filterwarnings("ignore", category=UserWarning, module="tianshou")
 
 # CRITICAL: Ensure PYTHONHASHSEED is set for deterministic simulations
 # This must be set before Python starts, so we restart if needed
@@ -34,6 +18,50 @@ if "PYTHONHASHSEED" not in os.environ or os.environ["PYTHONHASHSEED"] != "0":
 
 # If we reach here, PYTHONHASHSEED is set correctly
 # Note: We don't print this during normal operation to avoid cluttering output
+
+# CRITICAL: Pin CPU math threads BEFORE importing numpy/torch (or anything that
+# imports them). OpenMP/MKL/BLAS read their thread-pool env vars once at import,
+# so this must run before the heavy imports below to cap the parent process's
+# non-torch math pools. ``farm.cpu_thread_bootstrap`` is intentionally
+# lightweight (stdlib + yaml only) so importing it here does not pull in numpy.
+from farm.cpu_thread_bootstrap import (  # noqa: E402
+    pin_cpu_math_threads,
+    resolve_cpu_threads_from_config,
+)
+
+
+def _preparse_device_context(argv) -> "tuple[str, str | None]":
+    """Read just ``--environment``/``--profile`` so CPU threads can be resolved
+    from config before the heavy imports below run."""
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--environment", type=str, default="development")
+    pre.add_argument("--profile", type=str, default=None)
+    known, _ = pre.parse_known_args(argv)
+    return known.environment, known.profile
+
+
+_pre_environment, _pre_profile = _preparse_device_context(sys.argv[1:])
+pin_cpu_math_threads(
+    resolve_cpu_threads_from_config(environment=_pre_environment, profile=_pre_profile)
+)
+
+# Remaining standard library imports (safe to import after thread pinning)
+import cProfile  # noqa: E402
+import pstats  # noqa: E402
+import time  # noqa: E402
+import warnings  # noqa: E402
+from io import StringIO  # noqa: E402
+
+# Local imports
+from farm.config import SimulationConfig  # noqa: E402
+from farm.core.hyperparameter_chromosome import BoundaryMode, MutationMode  # noqa: E402
+from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode  # noqa: E402
+from farm.core.simulation import run_simulation  # noqa: E402
+from farm.utils.logging import configure_logging, get_logger  # noqa: E402
+
+# Suppress warnings that might interfere with CI output parsing
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="tianshou")
 
 
 def run_profiled_simulation(num_steps, config, output_dir, enable_console_logging=False):

@@ -11,21 +11,10 @@ from typing import Optional, Union
 
 import torch
 
+from farm.cpu_thread_bootstrap import CPU_THREAD_ENV_VARS as _CPU_THREAD_ENV_VARS
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-# Environment variables consulted by CPU math backends (OpenMP, MKL, OpenBLAS,
-# NumExpr, Accelerate/vecLib). These are read once when each backend
-# initializes, so setting them only affects subprocesses spawned afterward; the
-# current process is pinned via ``torch.set_num_threads``.
-_CPU_THREAD_ENV_VARS = (
-    "OMP_NUM_THREADS",
-    "MKL_NUM_THREADS",
-    "OPENBLAS_NUM_THREADS",
-    "NUMEXPR_NUM_THREADS",
-    "VECLIB_MAXIMUM_THREADS",
-)
 
 
 class DeviceManager:
