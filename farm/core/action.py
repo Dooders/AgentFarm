@@ -1026,11 +1026,11 @@ def reproduce_action(agent: "AgentCore") -> dict:
             "details": {},
         }
 
-    def _get_reproduction_param(name: str, default: Any) -> Any:
-        return getattr(reproduction_config, name, getattr(agent.config, name, default))
-
     # Get reproduction parameters from config
     reproduction_config = getattr(agent.config, "reproduction", None)
+
+    def _get_reproduction_param(name: str, default: Any) -> Any:
+        return getattr(reproduction_config, name, getattr(agent.config, name, default))
     min_resources = _get_reproduction_param("min_reproduction_resources", 8)
     offspring_cost = _get_reproduction_param("offspring_cost", 5)
     reproduction_chance = _get_reproduction_param("reproduction_chance", 0.5)
@@ -1046,6 +1046,8 @@ def reproduce_action(agent: "AgentCore") -> dict:
             max_population = getattr(population_config, "max_population", None)
             if isinstance(max_population, (int, float)) and max_population > 0:
                 alive_agents = getattr(env, "alive_agent_objects", None)
+                # Prefer alive agent objects when available; fall back to the
+                # legacy agent-id list for lightweight test doubles/environments.
                 current_population = (
                     len(alive_agents)
                     if alive_agents is not None

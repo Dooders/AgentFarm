@@ -114,7 +114,7 @@ class TestActionExtended(unittest.TestCase):
         self.assertIn("Maximum population reached", result["error"])
         agent.reproduce.assert_not_called()
 
-    def test_reproduce_action_uses_reproduction_component_thresholds(self):
+    def test_reproduce_action_uses_component_config_thresholds(self):
         """Reproduction resource checks should use component reproduction config."""
         agent = Mock()
         agent.agent_id = "test_agent"
