@@ -353,6 +353,7 @@ class DeviceManager:
 
 # Global device manager instance
 _global_device_manager: Optional[DeviceManager] = None
+_CPU_THREADS_UNSET = object()
 
 
 def get_device_manager(
@@ -360,7 +361,7 @@ def get_device_manager(
     fallback: bool = True,
     memory_fraction: Optional[float] = None,
     validate_compatibility: bool = True,
-    cpu_threads: Optional[int] = 1,
+    cpu_threads: Union[int, None, object] = _CPU_THREADS_UNSET,
 ) -> DeviceManager:
     """
     Get or create a global device manager instance.
@@ -377,29 +378,39 @@ def get_device_manager(
     """
     global _global_device_manager
 
+    resolved_cpu_threads = (
+        1 if cpu_threads is _CPU_THREADS_UNSET else cpu_threads
+    )
+
     if _global_device_manager is None:
         _global_device_manager = DeviceManager(
             preference=preference,
             fallback=fallback,
             memory_fraction=memory_fraction,
             validate_compatibility=validate_compatibility,
-            cpu_threads=cpu_threads,
+            cpu_threads=resolved_cpu_threads,
         )
     else:
+        effective_cpu_threads = (
+            resolved_cpu_threads
+            if cpu_threads is not _CPU_THREADS_UNSET
+            else _global_device_manager.cpu_threads
+        )
         # Update configuration if different
         if (
             _global_device_manager.preference != preference
             or _global_device_manager.fallback != fallback
             or _global_device_manager.memory_fraction != memory_fraction
             or _global_device_manager.validate_compatibility != validate_compatibility
-            or _global_device_manager.cpu_threads != cpu_threads
+            or _global_device_manager.cpu_threads != effective_cpu_threads
         ):
             _global_device_manager.reset()
             _global_device_manager.preference = preference
             _global_device_manager.fallback = fallback
             _global_device_manager.memory_fraction = memory_fraction
             _global_device_manager.validate_compatibility = validate_compatibility
-            _global_device_manager.cpu_threads = cpu_threads
+            if cpu_threads is not _CPU_THREADS_UNSET:
+                _global_device_manager.cpu_threads = resolved_cpu_threads
 
     return _global_device_manager
 
@@ -409,7 +420,7 @@ def get_device(
     fallback: bool = True,
     memory_fraction: Optional[float] = None,
     validate_compatibility: bool = True,
-    cpu_threads: Optional[int] = 1,
+    cpu_threads: Union[int, None, object] = _CPU_THREADS_UNSET,
 ) -> torch.device:
     """
     Convenience function to get device directly.
