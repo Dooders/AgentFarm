@@ -646,7 +646,10 @@
           ]
         },
         "cpu_threads": {
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "default": 1,
           "minimum": 1
         }

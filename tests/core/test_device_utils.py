@@ -66,6 +66,23 @@ class TestDeviceManagerGetDevice:
         with pytest.raises(ValueError, match="cpu_threads must be >= 1"):
             dm.get_device()
 
+    def test_bool_cpu_threads_raise_value_error(self):
+        dm = DeviceManager(preference="cpu", cpu_threads=True)
+        with pytest.raises(ValueError, match="cpu_threads must be an int >= 1"):
+            dm.get_device()
+
+    def test_failed_configuration_does_not_leave_manager_initialized(self, monkeypatch):
+        monkeypatch.setattr(
+            DeviceManager,
+            "_configure_cpu_threads",
+            lambda self: (_ for _ in ()).throw(ValueError("bad cpu_threads")),
+        )
+        dm = DeviceManager(preference="cpu", cpu_threads=2)
+        with pytest.raises(ValueError, match="bad cpu_threads"):
+            dm.get_device()
+        assert dm._initialized is False
+        assert dm._device is None
+
     def test_cpu_preference_returns_cpu(self):
         dm = DeviceManager(preference="cpu")
         device = dm.get_device()

@@ -9,7 +9,7 @@ import dataclasses
 import datetime
 from dataclasses import fields, is_dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, get_args, get_origin
+from typing import Any, Dict, List, Optional, Tuple, Union, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 
@@ -127,6 +127,11 @@ def _dataclass_to_properties(
             "type": _python_type_to_schema_type(f.type),
             "default": default_value,
         }
+
+        origin = get_origin(f.type)
+        args = get_args(f.type)
+        if origin is Union and type(None) in args:
+            schema_entry["type"] = [schema_entry["type"], "null"]
 
         # Add enums if known by name
         if known_enums and f.name in known_enums:

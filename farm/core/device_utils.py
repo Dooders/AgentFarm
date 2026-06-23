@@ -7,7 +7,6 @@ compatibility validation, and CPU thread policy controls.
 """
 
 import os
-import warnings
 from typing import Optional, Union
 
 import torch
@@ -75,8 +74,12 @@ class DeviceManager:
         """
         if not self._initialized:
             self._device = self._resolve_device()
+            try:
+                self._configure_device()
+            except Exception:
+                self.reset()
+                raise
             self._initialized = True
-            self._configure_device()
 
         assert self._device is not None, "Device should be initialized"
         return self._device
@@ -226,6 +229,17 @@ class DeviceManager:
         """Configure CPU math thread limits for CPU-backed runs."""
         if self.cpu_threads is None:
             return
+
+        if isinstance(self.cpu_threads, bool) or not isinstance(self.cpu_threads, int):
+            logger.warning(
+                "invalid_cpu_threads_type",
+                cpu_threads=self.cpu_threads,
+                cpu_threads_type=type(self.cpu_threads).__name__,
+                expected_type="int",
+            )
+            raise ValueError(
+                f"cpu_threads must be an int >= 1 or None, got {self.cpu_threads!r}"
+            )
 
         if self.cpu_threads < 1:
             logger.warning(

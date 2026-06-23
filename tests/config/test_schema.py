@@ -118,6 +118,12 @@ class TestDataclassToProperties(unittest.TestCase):
         self.assertIn("height", props)
         self.assertEqual(props["width"]["type"], "integer")
 
+    def test_optional_dataclass_field_allows_null(self):
+        from farm.config.config import DeviceConfig
+
+        props = _dataclass_to_properties(DeviceConfig)
+        self.assertEqual(props["cpu_threads"]["type"], ["integer", "null"])
+
 
 class TestPydanticModelToProperties(unittest.TestCase):
     """Tests for _pydantic_model_to_properties."""
