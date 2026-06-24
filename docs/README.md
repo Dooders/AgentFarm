@@ -207,6 +207,8 @@ We welcome contributions to both the platform and its documentation:
 
 ## 📄 License & Attribution
 
+AgentFarm is licensed under the [Apache License 2.0](../LICENSE).
+
 This project is part of the [Dooders](https://github.com/Dooders) research initiative exploring complex adaptive systems through computational modeling.
 
 ---

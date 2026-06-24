@@ -142,7 +142,7 @@ class TestLoadRaw(unittest.TestCase):
             os.unlink(temp_path)
 
     @patch('builtins.open', side_effect=IOError("File not found"))
-    def test_load_raw_file_not_found(self, mock_open):
+    def test_load_raw_file_not_found(self, _mock_open):
         """Test _load_raw with file not found."""
         with self.assertRaises(IOError):
             _load_raw("nonexistent.json")

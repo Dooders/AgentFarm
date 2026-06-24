@@ -1,10 +1,9 @@
-from __future__ import annotations
-
 """
 Simple timing instrumentation.
 
 Provides a context manager that records wall-clock duration of a block.
 """
+from __future__ import annotations
 
 import time
 from contextlib import contextmanager

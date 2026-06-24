@@ -3,8 +3,6 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-np.random.seed(42)  # Set seed for reproducibility in tests
-
 from farm.core.action import (
     Action,
     ActionType,
@@ -17,6 +15,8 @@ from farm.core.action import (
     validate_action_result,
     weighted_random_choice,
 )
+
+np.random.seed(42)  # Set seed for reproducibility in tests
 
 
 def test_action_space_helpers_complete_and_consistent():

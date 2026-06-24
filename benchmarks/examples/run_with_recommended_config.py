@@ -68,7 +68,7 @@ def main():
         save_config=True,
     )
 
-    print(f"\nSimulation completed successfully!")
+    print("\nSimulation completed successfully!")
     print(f"Results saved to {os.path.abspath(args.output)}")
     print("\nYou can now perform post-simulation analysis on the results.")
 

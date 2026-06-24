@@ -80,14 +80,14 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import torch
 import torch.nn.functional as F
 
-from farm.utils.logging import get_logger
-
-logger = get_logger(__name__)
 from pydantic import BaseModel, Field, field_validator
 
 from farm.core.channels import ChannelBehavior, get_channel_registry
 from farm.core.observation_render import ObservationRenderer
 from farm.core.spatial import SpatialIndex
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class SparsePoints:

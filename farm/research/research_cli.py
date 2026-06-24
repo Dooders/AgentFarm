@@ -124,7 +124,7 @@ def main():
                 exp_path
             )  # Get the folder name as the experiment ID
             print(f"Created experiment with ID: {exp_id}")
-            print(f"Use this ID when running the experiment")
+            print("Use this ID when running the experiment")
         except TypeError as e:
             print(f"Error: Could not save configuration - {str(e)}")
             print("Make sure your config file only contains JSON-serializable values")

@@ -16,7 +16,7 @@ import pytest
 # Skip the entire module if fakeredis is not installed
 fakeredis = pytest.importorskip("fakeredis", reason="fakeredis not installed")
 
-from farm.database.memory import AgentMemory, AgentMemoryManager, RedisMemoryConfig
+from farm.database.memory import AgentMemory, AgentMemoryManager, RedisMemoryConfig  # noqa: E402
 
 
 def _make_fake_client():

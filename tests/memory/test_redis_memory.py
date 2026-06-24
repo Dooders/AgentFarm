@@ -12,7 +12,7 @@ import pytest
 
 fakeredis = pytest.importorskip("fakeredis", reason="fakeredis not installed")
 
-from farm.memory.redis_memory import (
+from farm.memory.redis_memory import (  # noqa: E402
     AgentMemory,
     AgentMemoryManager,
     RedisMemoryConfig,

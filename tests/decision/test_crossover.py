@@ -621,7 +621,7 @@ class TestPublicImports:
 # ---------------------------------------------------------------------------
 
 
-from farm.core.decision.training.crossover import (
+from farm.core.decision.training.crossover import (  # noqa: E402
     _infer_arch_from_state_dict,
     _resolve_parent,
 )

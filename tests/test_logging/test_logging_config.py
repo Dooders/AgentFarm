@@ -548,7 +548,6 @@ class TestConfigureLogging:
 
     def test_with_file_logging(self):
         """Test configuration with file logging."""
-        import logging
         tmpdir = tempfile.mkdtemp()
         try:
             configure_logging(
@@ -574,7 +573,7 @@ class TestConfigureLogging:
             import shutil
             try:
                 shutil.rmtree(tmpdir)
-            except:
+            except Exception:
                 pass  # Ignore cleanup errors on Windows
 
     def test_custom_context_class(self):

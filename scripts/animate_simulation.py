@@ -360,7 +360,7 @@ def create_simulation_video(
         # Also create a GIF if requested
         if create_gif:
             gif_output_path = os.path.join(output_dir, f"simulation_{iteration}.gif")
-            print(f"Creating GIF animation...")
+            print("Creating GIF animation...")
 
             # For GIFs, we might want to reduce the size to keep file size reasonable
             # clip.resize(width=480)  # Resize to smaller width for GIF

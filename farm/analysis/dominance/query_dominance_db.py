@@ -1,8 +1,5 @@
 import argparse
 import logging
-from farm.utils.logging import get_logger
-
-logger = get_logger(__name__)
 
 import pandas as pd
 from sqlalchemy import create_engine, desc, func, text
@@ -19,6 +16,9 @@ from farm.analysis.dominance.sqlalchemy_models import (
     Simulation,
     init_db,
 )
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Configure logging
 logging.basicConfig(

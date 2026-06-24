@@ -46,13 +46,15 @@ def run_analysis_tests():
 
     if result.failures:
         print("\nFailures:")
+        newline = "\n"
         for test, traceback in result.failures:
-            print(f"  - {test}: {traceback.split('AssertionError: ')[-1].split('\\n')[0]}")
+            print(f"  - {test}: {traceback.split('AssertionError: ')[-1].split(newline)[0]}")
 
     if result.errors:
         print("\nErrors:")
+        newline = "\n"
         for test, traceback in result.errors:
-            print(f"  - {test}: {traceback.split('\\n')[-2]}")
+            print(f"  - {test}: {traceback.split(newline)[-2]}")
 
     return result.wasSuccessful()
 

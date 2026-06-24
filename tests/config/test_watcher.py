@@ -58,7 +58,8 @@ class TestConfigWatcher(unittest.TestCase):
         """watch_file registers a callback for the file."""
         p = self._config_path()
         _write_config(p)
-        cb = lambda config: None
+        def cb(config):
+            return None
         self.watcher.watch_file(p, cb)
         watched = self.watcher.get_watched_files()
         self.assertIn(os.path.realpath(p), watched)
@@ -66,7 +67,8 @@ class TestConfigWatcher(unittest.TestCase):
     def test_watch_file_missing_file(self):
         """watch_file on a non-existent file stores empty hash."""
         p = self._config_path("missing.yaml")
-        cb = lambda config: None
+        def cb(config):
+            return None
         self.watcher.watch_file(p, cb)
         watched = self.watcher.get_watched_files()
         self.assertIn(os.path.realpath(p), watched)
@@ -75,7 +77,8 @@ class TestConfigWatcher(unittest.TestCase):
         """unwatch_file removes the callback and the file entry."""
         p = self._config_path()
         _write_config(p)
-        cb = lambda config: None
+        def cb(config):
+            return None
         self.watcher.watch_file(p, cb)
         self.watcher.unwatch_file(p, cb)
         watched = self.watcher.get_watched_files()
@@ -226,7 +229,8 @@ class TestReloadableConfig(unittest.TestCase):
         rc = ReloadableConfig(config)
 
         called = []
-        cb = lambda config: called.append(True)
+        def cb(config):
+            return called.append(True)
         rc.add_change_callback(cb)
         rc.remove_change_callback(cb)
 

@@ -8,9 +8,8 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 from farm.core.interfaces import DatabaseProtocol
+from farm.core.services import EnvConfigService
 from farm.utils.logging import get_logger
-
-logger = get_logger(__name__)
 
 from .chart_actions import (
     plot_action_frequency_over_time,
@@ -43,7 +42,8 @@ from .chart_simulation import (
 )
 from .chart_utils import save_plot  # Import from utilities module
 from .llm_client import LLMClient
-from farm.core.services import EnvConfigService
+
+logger = get_logger(__name__)
 
 
 class ChartAnalyzer:

@@ -95,9 +95,9 @@ class ExperimentRegistry:
                 )
 
         # Apply parameter defaults from JSON schema for missing parameters
-        for key, field in schema.get("properties", {}).items():
-            if key not in effective_params and "default" in field:
-                effective_params[key] = field["default"]
+        for key, field_spec in schema.get("properties", {}).items():
+            if key not in effective_params and "default" in field_spec:
+                effective_params[key] = field_spec["default"]
 
         # Instantiate experiment with validated parameters
         return info.cls(**effective_params)

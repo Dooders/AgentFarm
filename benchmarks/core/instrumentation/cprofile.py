@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 """
 Instrumentation for capturing cProfile data and a lightweight JSON summary.
 """
+from __future__ import annotations
 
 import cProfile
 import json

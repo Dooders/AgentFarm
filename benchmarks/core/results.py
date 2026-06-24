@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 """
 Results model with environment and VCS capture, plus metrics helpers.
 """
+from __future__ import annotations
 
 import json
 import os
