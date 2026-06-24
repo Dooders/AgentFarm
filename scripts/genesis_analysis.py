@@ -82,7 +82,7 @@ def main():
                     print(f"No iteration folders found in {experiment_path}")
                     return
             else:
-                print(f"No valid experiment structure found")
+                print("No valid experiment structure found")
                 return
 
         print(f"Found {len(iteration_folders)} iteration folders")

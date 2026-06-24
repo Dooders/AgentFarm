@@ -43,7 +43,7 @@ class ColumnValidator:
         missing = self.required_columns - set(df.columns)
         if missing:
             raise DataValidationError(
-                f"Missing required columns",
+                "Missing required columns",
                 missing_columns=missing
             )
 

@@ -63,7 +63,7 @@ def query_database(db_path: str) -> None:
 
             # Query step data for this simulation
             cursor.execute(
-                f"SELECT COUNT(*) FROM simulation_steps WHERE simulation_id = ?",
+                "SELECT COUNT(*) FROM simulation_steps WHERE simulation_id = ?",
                 (sim_id,),
             )
             step_count = cursor.fetchone()[0]
@@ -71,7 +71,7 @@ def query_database(db_path: str) -> None:
 
             # Query agent states
             cursor.execute(
-                f"SELECT COUNT(DISTINCT agent_id) FROM agent_states WHERE simulation_id = ?",
+                "SELECT COUNT(DISTINCT agent_id) FROM agent_states WHERE simulation_id = ?",
                 (sim_id,),
             )
             agent_count = cursor.fetchone()[0]
@@ -79,14 +79,14 @@ def query_database(db_path: str) -> None:
 
             # Query actions
             cursor.execute(
-                f"SELECT COUNT(*) FROM agent_actions WHERE simulation_id = ?", (sim_id,)
+                "SELECT COUNT(*) FROM agent_actions WHERE simulation_id = ?", (sim_id,)
             )
             action_count = cursor.fetchone()[0]
             logger.info(f"    Actions: {action_count}")
 
             # Query actions by type
             cursor.execute(
-                f"""
+                """
                 SELECT action_type, COUNT(*)
                 FROM agent_actions
                 WHERE simulation_id = ?
@@ -96,13 +96,13 @@ def query_database(db_path: str) -> None:
             )
             action_types = cursor.fetchall()
             if action_types:
-                logger.info(f"    Action types:")
+                logger.info("    Action types:")
                 for action_type, count in action_types:
                     logger.info(f"      {action_type}: {count}")
 
             # Query reproduction events - reconstruct from agents table
             cursor.execute(
-                f"SELECT COUNT(*) FROM agents WHERE simulation_id = ? AND birth_time > 0",
+                "SELECT COUNT(*) FROM agents WHERE simulation_id = ? AND birth_time > 0",
                 (sim_id,),
             )
             reproduction_count = cursor.fetchone()[0]
@@ -110,7 +110,7 @@ def query_database(db_path: str) -> None:
 
             # Query health incidents
             cursor.execute(
-                f"SELECT COUNT(*) FROM health_incidents WHERE simulation_id = ?",
+                "SELECT COUNT(*) FROM health_incidents WHERE simulation_id = ?",
                 (sim_id,),
             )
             health_count = cursor.fetchone()[0]

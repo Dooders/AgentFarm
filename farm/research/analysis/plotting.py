@@ -276,7 +276,7 @@ def plot_resource_consumption_trends(
             smoothed_mean,
             color=colors[agent_type],
             linewidth=2,
-            label=f"Mean Consumption",
+            label="Mean Consumption",
         )
 
         # Plot confidence interval

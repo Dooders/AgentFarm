@@ -1288,7 +1288,7 @@ def compute_critical_period_metrics(
                 )
 
     # Add logging to debug metric values
-    logger.info(f"Critical Period Metrics:")
+    logger.info("Critical Period Metrics:")
     logger.info(f"Survival Rate: {metrics.get('survival_rate', 0.0)}")
     logger.info(f"Reproduction Rate: {metrics.get('reproduction_rate', 0.0)}")
     logger.info(f"Resource Efficiency: {metrics.get('resource_efficiency', 0.0)}")
