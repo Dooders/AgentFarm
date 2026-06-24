@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(pip show *)",
-      "Bash(python -c \"import ruff; print\\(ruff.__version__\\)\")",
-      "Bash(pip index *)"
-    ]
-  }
-}
