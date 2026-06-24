@@ -922,4 +922,4 @@ if __name__ == "__main__":
     os.makedirs("logs", exist_ok=True)
 
     # Start FastAPI server with uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000, reload=True)
+    uvicorn.run("farm.api.server:app", host="0.0.0.0", port=5000, reload=True)
