@@ -28,17 +28,17 @@ import time
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from farm.utils.logging import get_logger
-
-logger = get_logger(__name__)
-
 import numpy as np
 from scipy.spatial import cKDTree
+
+from farm.utils.logging import get_logger
 
 from .dirty_regions import DirtyRegionTracker
 from .gpu_kernels import SpatialGpuKernels
 from .hash_grid import SpatialHashGrid
 from .quadtree import Quadtree, QuadtreeNode
+
+logger = get_logger(__name__)
 
 
 # Priority constants for position updates
@@ -795,7 +795,8 @@ class SpatialIndex:
         cell_size: Optional[float] = None,
     ) -> None:
         if position_getter is None:
-            position_getter = lambda x: getattr(x, "position", None)
+            def position_getter(x):
+                return getattr(x, "position", None)
         self._named_indices[name] = {
             "data_reference": data_reference,
             "data_getter": data_getter,

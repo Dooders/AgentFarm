@@ -87,19 +87,15 @@ class TestProcessSystemDynamicsData:
             }
         )
 
-        with (
-            patch(
-                "farm.analysis.system_dynamics.data.process_population_data",
-                return_value=pop,
-            ),
-            patch(
-                "farm.analysis.system_dynamics.data.process_resource_data",
-                return_value=res,
-            ),
-            patch(
-                "farm.analysis.system_dynamics.data.process_temporal_data",
-                return_value=tmp,
-            ),
+        with patch(
+            "farm.analysis.system_dynamics.data.process_population_data",
+            return_value=pop,
+        ), patch(
+            "farm.analysis.system_dynamics.data.process_resource_data",
+            return_value=res,
+        ), patch(
+            "farm.analysis.system_dynamics.data.process_temporal_data",
+            return_value=tmp,
         ):
             merged = process_system_dynamics_data(tmp_path)
 
@@ -161,14 +157,12 @@ class TestFoundationRuns:
             output_path=tmp_path,
             metadata={"experiment_path": str(exp)},
         )
-        with (
-            patch.object(
-                population_module,
-                "run_analysis",
-                side_effect=RuntimeError("population failed"),
-            ),
-            patch.object(resources_module, "run_analysis", side_effect=noop_run),
-            patch.object(temporal_module, "run_analysis", side_effect=noop_run),
+        with patch.object(
+            population_module,
+            "run_analysis",
+            side_effect=RuntimeError("population failed"),
+        ), patch.object(resources_module, "run_analysis", side_effect=noop_run), patch.object(
+            temporal_module, "run_analysis", side_effect=noop_run
         ):
             run_foundation_analyses(coupled_system_df, ctx)
 

@@ -20,7 +20,7 @@ MEMORY_ACCEPTANCE_RSS_DELTA_RATIO: float = float(
     os.getenv("MEMMAP_RSS_DELTA_RATIO", "0.5")
 )
 
-import numpy as np
+import numpy as np  # noqa: E402
 
 try:
     import torch  # type: ignore

@@ -14,9 +14,9 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from farm.core.simulation import run_simulation
-from farm.config.config import SimulationConfig
-from farm.utils.logging import get_logger
+from farm.core.simulation import run_simulation  # noqa: E402
+from farm.config.config import SimulationConfig  # noqa: E402
+from farm.utils.logging import get_logger  # noqa: E402
 
 logger = get_logger(__name__)
 

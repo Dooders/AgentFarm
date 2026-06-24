@@ -97,7 +97,7 @@ def example_3_dataframe_analysis():
     # Comprehensive analysis (auto-detects reproduction columns)
     df_analyzed = orchestrator.analyze_dataframe_comprehensively(df)
 
-    print(f"✅ Example 3: DataFrame analysis")
+    print("✅ Example 3: DataFrame analysis")
     print(f"   Original columns: {len(df.columns)}")
     print(f"   After analysis: {len(df_analyzed.columns)}")
     print(f"   Columns added: {len(df_analyzed.columns) - len(df.columns)}")

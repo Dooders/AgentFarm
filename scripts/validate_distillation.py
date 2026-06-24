@@ -66,6 +66,7 @@ from farm.core.decision.training.distillation_rollout import (  # noqa: E402
     compare_parent_student_rollouts,
 )
 from farm.core.decision.training.sim_rollout_adapter import (  # noqa: E402
+    EnvFactory,
     PolicyRolloutAdapter,
     SimRolloutConfig,
     SimRolloutResult,
@@ -260,8 +261,8 @@ def _write_pair_markdown(path: str, report_dict: Dict[str, Any]) -> None:
         "",
         "## Offline metrics",
         "",
-        f"| Metric | Value |",
-        f"|--------|-------|",
+        "| Metric | Value |",
+        "|--------|-------|",
         f"| Action agreement | {report_dict.get('action_agreement')} |",
         f"| KL divergence | {report_dict.get('kl_divergence')} |",
         f"| MSE | {report_dict.get('mse')} |",

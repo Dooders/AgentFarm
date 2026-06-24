@@ -70,6 +70,7 @@ from farm.core.decision.training.finetune import (  # noqa: E402
     FINETUNE_OPTIMIZERS,
     QUANTIZATION_APPLIED_MODES,
     FineTuner,
+    FineTuningConfig,
     load_finetuning_config_from_yaml,
 )
 

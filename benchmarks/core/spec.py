@@ -1,11 +1,10 @@
-from __future__ import annotations
-
 """
 RunSpec loader and validator for benchmark/profiling runs.
 
 Supports YAML or JSON files. Provides a simple validated dict structure
 consumable by the Runner and SweepRunner.
 """
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass

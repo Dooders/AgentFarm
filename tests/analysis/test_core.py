@@ -70,7 +70,7 @@ class TestBaseAnalysisModule:
 
     def test_database_support(self, minimal_module):
         """Test database support methods."""
-        assert minimal_module.supports_database() == False
+        assert not minimal_module.supports_database()
         assert minimal_module.get_db_filename() is None
         assert minimal_module.get_db_loader() is None
 

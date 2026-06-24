@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Core Experiment abstractions for the benchmarking framework.
 
@@ -11,6 +9,7 @@ Notes:
 - Experiments should be small, composable units that execute a single measured run.
 - Iteration orchestration is handled by the Runner.
 """
+from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field

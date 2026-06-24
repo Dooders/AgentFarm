@@ -923,7 +923,6 @@ class TestRunAnalysisBackground:
             _active_analyses_thread_lock,
         )
         from farm.analysis.service import AnalysisResult
-        from pathlib import Path
 
         mock_ctrl = Mock()
         mock_result = Mock(spec=AnalysisResult)
@@ -991,7 +990,6 @@ class TestRunAnalysisBackground:
             _active_analyses_thread_lock,
         )
         from farm.analysis.service import AnalysisResult
-        from pathlib import Path
 
         import pandas as pd
 
@@ -1041,7 +1039,6 @@ class TestRunAnalysisBackground:
             _active_analyses_thread_lock,
         )
         from farm.analysis.service import AnalysisResult
-        from pathlib import Path
 
         mock_ctrl = Mock()
         mock_result = Mock(spec=AnalysisResult)

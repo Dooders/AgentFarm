@@ -854,7 +854,6 @@ class TestSpatialIndex(unittest.TestCase):
 
     def test_very_large_number_of_agents(self):
         """Test performance and correctness with >10k agents."""
-        import time
 
         num_agents = 15000  # >10k
         for i in range(num_agents):

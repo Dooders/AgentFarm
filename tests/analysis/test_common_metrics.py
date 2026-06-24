@@ -232,7 +232,8 @@ class TestAnalyzeCorrelations:
         })
 
         # Filter to only category B
-        filter_func = lambda df: df[df['category'] == 'B']
+        def filter_func(df):
+            return df[df['category'] == 'B']
 
         result = analyze_correlations(
             df,

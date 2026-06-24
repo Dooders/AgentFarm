@@ -17,11 +17,11 @@ import numpy as np
 import torch
 from pydantic import ValidationError
 
-np.random.seed(42)  # For reproducibility in tests
-
 from farm.core.action import get_action_count
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import TIANSHOU_AVAILABLE, DecisionModule
+
+np.random.seed(42)  # For reproducibility in tests
 
 
 class TestDecisionModule(unittest.TestCase):
