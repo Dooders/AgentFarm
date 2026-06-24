@@ -66,6 +66,7 @@ from farm.core.decision.training.distillation_rollout import (  # noqa: E402
     compare_parent_student_rollouts,
 )
 from farm.core.decision.training.sim_rollout_adapter import (  # noqa: E402
+    EnvFactory,
     PolicyRolloutAdapter,
     SimRolloutConfig,
     SimRolloutResult,
@@ -627,8 +628,6 @@ def _load_env_factory(
         Seed for initializing the shim :class:`SeededLinearMDP` dynamics (must match
         :class:`SimRolloutConfig.base_seed` used by :class:`PolicyRolloutAdapter`).
     """
-    from farm.core.decision.training.sim_rollout_adapter import EnvFactory  # noqa: F401
-
     if not sim_env_factory:
         # Default: SeededLinearMDP shim wrapped to satisfy EpisodeEnvProtocol.
         # SeededLinearMDP.reset(episode_seed) returns a bare numpy array and
