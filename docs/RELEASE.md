@@ -28,6 +28,14 @@ Choose one approach and stick to it so contributors know what to expect:
 
 Track planned work with [GitHub Milestones](https://github.com/Dooders/AgentFarm/milestones) named after the target version (`0.2.0`, etc.).
 
+Each release should have a scope document under [`docs/milestones/`](milestones/) (for example [`0.2.0.md`](milestones/0.2.0.md)). Create the GitHub milestone with **Actions → Create release milestone** (`.github/workflows/create-release-milestone.yml`) or locally:
+
+```bash
+gh workflow run create-release-milestone.yml \
+  -f version=0.2.0 \
+  -f assign_issues=954,944,930,952,953
+```
+
 ## Pre-release checklist
 
 Before opening a release PR:

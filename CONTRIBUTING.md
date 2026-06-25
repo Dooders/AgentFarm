@@ -52,6 +52,7 @@ git checkout -b my-feature-branch
 All contributor PRs merge into **`dev`**. Releases cut from `dev` into **`main`** on a milestone or time-based cadence tracked via [GitHub Milestones](https://github.com/Dooders/AgentFarm/milestones).
 
 - Your PR ships in the **next release** after it merges to `dev`, assuming that release's milestone is not already frozen.
+- See the current target scope in [`docs/milestones/`](docs/milestones/) (e.g. [`0.2.0.md`](docs/milestones/0.2.0.md)) and the [GitHub milestone](https://github.com/Dooders/AgentFarm/milestones).
 - Maintainers may label PRs `release-blocker` or `breaking-change` when triaging.
 - For the full maintainer release process, see [docs/RELEASE.md](docs/RELEASE.md).
 

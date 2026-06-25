@@ -1,0 +1,93 @@
+name: Create release milestone
+
+# Maintainer utility: create (or reuse) a GitHub milestone for a target release.
+# See docs/milestones/ for scope documents and docs/RELEASE.md for the release process.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.2.0)"
+        required: true
+        type: string
+      description:
+        description: "Optional milestone description override"
+        required: false
+        type: string
+      assign_issues:
+        description: "Comma-separated issue/PR numbers to assign to this milestone"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  issues: write
+
+jobs:
+  create-milestone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Create or find milestone
+        id: milestone
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_DESCRIPTION: ${{ inputs.description }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if ! echo "$INPUT_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Version must look like 0.2.0 or 0.2.0-rc1 (got: $INPUT_VERSION)"
+            exit 1
+          fi
+
+          DESCRIPTION="$INPUT_DESCRIPTION"
+          if [ -z "$DESCRIPTION" ]; then
+            if [ -f "docs/milestones/${INPUT_VERSION}.md" ]; then
+              DESCRIPTION="Release ${INPUT_VERSION}. Scope: docs/milestones/${INPUT_VERSION}.md · Process: docs/RELEASE.md"
+            else
+              DESCRIPTION="Release ${INPUT_VERSION}. See docs/RELEASE.md for the release process."
+            fi
+          fi
+
+          EXISTING=$(gh api "repos/${REPOSITORY}/milestones" --paginate --jq ".[] | select(.title==\"${INPUT_VERSION}\") | .number" | head -n 1)
+          if [ -n "$EXISTING" ]; then
+            echo "Milestone ${INPUT_VERSION} already exists (#${EXISTING})."
+            echo "number=${EXISTING}" >> "$GITHUB_OUTPUT"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          NUMBER=$(gh api "repos/${REPOSITORY}/milestones" \
+            -f title="${INPUT_VERSION}" \
+            -f state="open" \
+            -f description="${DESCRIPTION}" \
+            --jq '.number')
+          echo "Created milestone ${INPUT_VERSION} (#${NUMBER})."
+          echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Assign issues and pull requests
+        if: inputs.assign_issues != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+          ASSIGN_ISSUES: ${{ inputs.assign_issues }}
+          MILESTONE_NUMBER: ${{ steps.milestone.outputs.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra NUMBERS <<< "${ASSIGN_ISSUES// /}"
+          for raw in "${NUMBERS[@]}"; do
+            NUMBER="${raw//[^0-9]/}"
+            if [ -z "$NUMBER" ]; then
+              continue
+            fi
+            gh api "repos/${REPOSITORY}/issues/${NUMBER}" \
+              -X PATCH \
+              -f milestone="${MILESTONE_NUMBER}" >/dev/null
+            echo "Assigned #${NUMBER} to milestone ${INPUT_VERSION} (#${MILESTONE_NUMBER})."
+          done

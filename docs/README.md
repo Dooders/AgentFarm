@@ -14,7 +14,7 @@ Navigation hub for the published docs site and repository guides.
 |------|------------|
 | **User / researcher** | [Experiment QuickStart](ExperimentQuickStart.md) · [Experiments](experiments.md) · [Devlog](devlog/index.md) |
 | **Developer** | [CONTRIBUTING](../CONTRIBUTING.md) · [Developer guide](developer-guide.md) · [Core architecture](core_architecture.md) |
-| **Maintainer** | [Release process](RELEASE.md) |
+| **Maintainer** | [Release process](RELEASE.md) · [Milestone 0.2.0](milestones/0.2.0.md) |
 | **Operator** | [Deployment](deployment.md) · [Logging guide](logging_guide.md) · [Monitoring](monitoring.md) |
 
 ## Guides
