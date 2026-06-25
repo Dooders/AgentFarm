@@ -1,5 +1,7 @@
 # Research Tools
 
+> **Deprecated:** Legacy feature documentation scheduled for consolidation in a future docs reorganization. Prefer [Installation](../getting-started/installation.md) and the [documentation hub](../README.md) for current navigation.
+
 ![Feature](https://img.shields.io/badge/feature-research%20tools-red)
 
 ## Table of Contents

@@ -1,5 +1,7 @@
 # Spatial Indexing & Performance
 
+> **Deprecated:** Legacy feature documentation scheduled for consolidation in a future docs reorganization. Prefer [Installation](../getting-started/installation.md) and the [documentation hub](../README.md) for current navigation.
+
 ![Feature](https://img.shields.io/badge/feature-spatial%20%26%20performance-brightgreen)
 
 ## Table of Contents

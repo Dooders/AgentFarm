@@ -1,5 +1,7 @@
 # Agent-Based Modeling & Analysis
 
+> **Deprecated:** Legacy feature documentation scheduled for consolidation in a future docs reorganization. Prefer [Installation](../getting-started/installation.md) and the [documentation hub](../README.md) for current navigation.
+
 ![Project Status](https://img.shields.io/badge/feature-agent%20modeling-blue)
 
 > **Documentation note:** Many narrative examples below use **illustrative pseudocode** (for example `BaseAgent`, `run_simulation_batch`, and `SimulationConfig(width=...)` flat constructors). The real API uses **nested** `SimulationConfig` fields (`environment`, `population`, `resources`, …), **`run_simulation(...)`** which returns an **`Environment`**, and **`farm.core.analysis.SimulationAnalyzer`** as implemented in `farm/core/analysis.py` (see [System Dynamics Analysis](#system-dynamics-analysis)). For sweeps and multi-run studies use **`farm.runners.experiment_runner.ExperimentRunner`**. See [Usage examples](../usage_examples.md).
@@ -827,4 +829,4 @@ For questions and support:
 
 ---
 
-**Ready to explore complex systems?** Start with the [Basic Simulation Example](#example-1-basic-agent-based-simulation) or check out our [Quick Start Guide](../README.md#quick-start) to begin your agent-based modeling journey!
+**Ready to explore complex systems?** Start with the [Basic Simulation Example](#example-1-basic-agent-based-simulation) or the [Getting started guide](../getting-started/first-simulation.md).
