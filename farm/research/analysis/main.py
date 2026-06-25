@@ -30,7 +30,6 @@ from farm.research.analysis.plotting import (
 EXPERIMENT_DATA_PATH = "results/one_of_a_kind_v1/experiments/data"
 EXPERIMENT_ANALYSIS_PATH = "results/one_of_a_kind_v1/experiments/analysis"
 
-from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

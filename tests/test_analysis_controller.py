@@ -316,7 +316,6 @@ def test_wait_for_completion_success(controller, mock_analysis_service):
 
 def test_get_state_with_completed_result(controller, mock_analysis_service):
     """Test get_state includes result info when completed."""
-    from farm.analysis.service import AnalysisResult
 
     mock_analysis_service.validate_request = Mock()
 
@@ -346,7 +345,6 @@ def test_get_state_with_completed_result(controller, mock_analysis_service):
 
 def test_get_state_with_error_result(controller, mock_analysis_service):
     """Test get_state includes error info when failed."""
-    from farm.analysis.service import AnalysisResult
 
     mock_analysis_service.validate_request = Mock()
 
@@ -395,7 +393,6 @@ def test_del_calls_cleanup(mock_config_service, mock_analysis_service):
 
 def test_progress_handler_with_pause(controller, mock_analysis_service):
     """Test progress handler respects pause state."""
-    import time
     import threading
 
     mock_analysis_service.validate_request = Mock()
@@ -480,7 +477,6 @@ def test_start_no_op_when_thread_alive_not_paused(mock_config_service, mock_anal
 
 def test_start_spawns_thread_and_runs_analysis(mock_config_service, mock_analysis_service):
     """start() creates a real thread that calls _run_analysis."""
-    from farm.analysis.service import AnalysisResult
     from pathlib import Path as LibPath
 
     mock_analysis_service.validate_request = Mock()
@@ -511,7 +507,6 @@ def test_start_spawns_thread_and_runs_analysis(mock_config_service, mock_analysi
 
 def test_run_analysis_failure(mock_config_service, mock_analysis_service):
     """_run_analysis notifies 'error' status when result.success is False."""
-    from farm.analysis.service import AnalysisResult
 
     mock_analysis_service.validate_request = Mock()
     mock_result = Mock(spec=AnalysisResult)

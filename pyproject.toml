@@ -100,3 +100,5 @@ ignore = [
 # Allow more leniency in test files
 "tests/**/*" = ["S101", "PLR2004"]
 "**/__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+# Exploratory notebooks are not held to production import/style rules
+"notebooks/**/*.ipynb" = ["E402", "E401", "F541", "F811", "F821"]

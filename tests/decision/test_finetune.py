@@ -690,13 +690,13 @@ class TestFineTunerQATTraining:
         states = _make_states(200)
         metrics = tuner.finetune(states)
         assert len(metrics.train_losses) == 2
-        assert all(math.isfinite(l) for l in metrics.train_losses)
+        assert all(math.isfinite(loss) for loss in metrics.train_losses)
 
     def test_qat_training_produces_finite_losses(self):
         for mode in ("ptq_dynamic", "ptq_static", "qat_float"):
             tuner = FineTuner(_make_net(0), _make_net(1), _qat_cfg(mode=mode))
             metrics = tuner.finetune(_make_states(200))
-            assert all(math.isfinite(l) for l in metrics.train_losses), f"NaN loss in mode {mode}"
+            assert all(math.isfinite(loss) for loss in metrics.train_losses), f"NaN loss in mode {mode}"
 
     def test_fakeq_active_during_training(self):
         """WeightOnlyFakeQuantLinear layers must be in train() mode during _run_epoch."""

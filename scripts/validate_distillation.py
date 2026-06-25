@@ -66,6 +66,7 @@ from farm.core.decision.training.distillation_rollout import (  # noqa: E402
     compare_parent_student_rollouts,
 )
 from farm.core.decision.training.sim_rollout_adapter import (  # noqa: E402
+    EnvFactory,
     PolicyRolloutAdapter,
     SimRolloutConfig,
     SimRolloutResult,

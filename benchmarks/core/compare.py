@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 """
 Compare two RunResult JSON files and emit a concise Markdown summary.
 """
+from __future__ import annotations
 
 import json
 from typing import Any, Dict

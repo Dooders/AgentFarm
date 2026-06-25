@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import torch
 
-np.random.seed(42)  # For reproducibility in tests
-
 from farm.core.decision.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, StudentQNetwork
+
+np.random.seed(42)  # For reproducibility in tests
 
 
 class TestBaseDQNConfig(unittest.TestCase):

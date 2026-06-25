@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 """
 Markdown report generation for individual runs and sweeps.
 """
+from __future__ import annotations
 
 import json
 import os

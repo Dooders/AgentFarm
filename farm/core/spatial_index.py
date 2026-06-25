@@ -18,7 +18,7 @@ warnings.warn(
     stacklevel=2,
 )
 
-from .spatial import (
+from .spatial import (  # noqa: E402
     SpatialIndex,
     DirtyRegion,
     DirtyRegionTracker,

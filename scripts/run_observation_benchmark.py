@@ -20,8 +20,8 @@ warnings.filterwarnings("ignore")
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from benchmarks.core.registry import REGISTRY
-from benchmarks.core.runner import Runner
+from benchmarks.core.registry import REGISTRY  # noqa: E402
+from benchmarks.core.runner import Runner  # noqa: E402
 
 def display_results(results, params, test_name, baseline_obs=20000):
     """Display benchmark results in a consistent format."""

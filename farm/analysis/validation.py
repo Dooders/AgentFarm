@@ -59,8 +59,8 @@ class ColumnValidator:
                         invalid_types[col_name] = f"Expected numeric, got {actual_dtype}"
 
                 # Check string types
-                elif expected_type == str:
-                    if not pd.api.types.is_string_dtype(actual_dtype) and actual_dtype != object:
+                elif expected_type is str:
+                    if not pd.api.types.is_string_dtype(actual_dtype) and actual_dtype is not object:
                         invalid_types[col_name] = f"Expected string, got {actual_dtype}"
 
                 # Check datetime types

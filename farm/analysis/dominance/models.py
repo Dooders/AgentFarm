@@ -1,11 +1,11 @@
 from typing import Dict, List, Optional, Union
 
+import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-import pandas as pd
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
 class DominanceDataModel(BaseModel):

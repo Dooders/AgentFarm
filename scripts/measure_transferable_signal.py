@@ -54,6 +54,9 @@ import json
 import math
 import os
 import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence
 
 # The regime trains many tiny per-agent DQNs. With the default BLAS/OpenMP
 # thread pools, torch oversubscribes (dozens of threads thrash across cores)
@@ -68,12 +71,8 @@ for _thread_var in (
 ):
     os.environ.setdefault(_thread_var, "1")
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
-
-import numpy as np
-import torch
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:

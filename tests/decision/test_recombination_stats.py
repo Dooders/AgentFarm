@@ -592,9 +592,6 @@ class TestInitExports:
     def test_all_public_symbols_importable(self):
         from farm.core.decision.training import (  # noqa: F401
             NUMERIC_METRIC_KEYS,
-            BootstrapCIResult,
-            ConditionSummary,
-            TTestResult,
             aggregate_conditions,
             bootstrap_ci,
             compute_condition_summary,

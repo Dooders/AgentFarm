@@ -12,18 +12,16 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from farm.utils.logging import get_logger
-
-logger = get_logger(__name__)
-
 from farm.analysis.advantage.compute import (
     compute_advantage_dominance_correlation,
     compute_advantages,
 )
-
 from farm.analysis.core import BaseAnalysisModule
 from farm.analysis.dominance import get_orchestrator
+from farm.utils.logging import get_logger
 from scripts.analysis_config import setup_and_process_simulations
+
+logger = get_logger(__name__)
 
 
 def process_single_simulation(session, iteration, config, **kwargs):
