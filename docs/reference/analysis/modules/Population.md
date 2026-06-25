@@ -386,10 +386,10 @@ output_path, df = population_module.run_analysis(
 
 ## See Also
 
-- [API Reference](../API_REFERENCE.md) - Complete API documentation
+- [API Reference](../../api/API_REFERENCE.md) - Complete API documentation
 - [Agents Module](./Agents.md) - Individual agent analysis
 - [Resources Module](./Resources.md) - Resource analysis
-- [Quick Reference](../QUICK_REFERENCE.md) - Common patterns
+- [Quick Reference](../../api-reference.md) - Common patterns
 
 ---
 

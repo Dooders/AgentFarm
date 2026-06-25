@@ -1,6 +1,6 @@
 # AgentFarm Spatial Module Performance Analysis & Benchmarking Summary
 
-> **Note:** Hard numbers in this narrative may not match your machine. For **committed, schema-checked** timings used in CI, see [`benchmarks/results/spatial_benchmark_verified.json`](../../benchmarks/results/spatial_benchmark_verified.json) and [`benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md`](../../benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md).
+> **Note:** Hard numbers in this narrative may not match your machine. For **committed, schema-checked** timings used in CI, see [`benchmarks/results/spatial_benchmark_verified.json`](../../../benchmarks/results/spatial_benchmark_verified.json) and [`benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md`](../../../benchmarks/results/SPATIAL_BENCHMARK_VERIFIED.md).
 
 ## Executive Summary
 

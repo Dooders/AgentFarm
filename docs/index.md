@@ -68,7 +68,7 @@ env = run_simulation(
           Compose adaptive agents, environments, and rules. Track interactions,
           resources, and emergent dynamics over time.
         </p>
-        <a class="feature__link" href="{{ '/concepts/module-overview/' | relative_url }}">Architecture</a>
+        <a class="feature__link" href="{{ '/concepts/architecture/' | relative_url }}">Architecture</a>
       </div>
 
       <div class="feature">

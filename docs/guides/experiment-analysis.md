@@ -103,7 +103,7 @@ Analyzes agent genomes, chromosomes, lineage, and population-level genetic
 statistics from simulation databases and evolution experiments.  This module
 integrates with the `AnalysisService` and can be invoked directly:
 
-See also the dedicated guide: [Genetics Analysis Module](genetics_analysis.md).
+See also the dedicated guide: [Genetics Analysis Module](../guides/genetics-analysis.md).
 
 > **Note:** The path-based `AnalysisService` workflow (shown below) loads
 > genetics data from a `simulation.db` SQLite file inside `experiment_path`.

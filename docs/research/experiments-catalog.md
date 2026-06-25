@@ -7,7 +7,7 @@ dedicated documentation covering motivation, configuration, output
 artifacts, and (where available) results.
 
 > Looking for the generic multi-iteration runner instead of a specific
-> experiment? See [ExperimentRunner — Running Multi-Iteration Simulations](experiment_runner.md).
+> experiment? See [ExperimentRunner — Running Multi-Iteration Simulations](../guides/experiment-runner.md).
 
 ## Evolutionary dynamics
 
@@ -27,10 +27,10 @@ runs.
   ([`farm/runners/intrinsic_evolution_experiment.py`](../farm/runners/intrinsic_evolution_experiment.py))
 - **CLI:** [`scripts/run_intrinsic_evolution_experiment.py`](../scripts/run_intrinsic_evolution_experiment.py)
 - **Docs:**
-  - [Design and reference](research/experiments/intrinsic_evolution/intrinsic_evolution.md)
-  - [10,000-step results](research/experiments/intrinsic_evolution/RESULTS.md)
-  - [Stable profile comparison](research/experiments/intrinsic_evolution/stable_profile_comparison.md)
-  - [Analysis summary](research/experiments/intrinsic_evolution/analysis/analysis_summary.md)
+  - [Design and reference](experiments/intrinsic_evolution/intrinsic_evolution.md)
+  - [10,000-step results](experiments/intrinsic_evolution/RESULTS.md)
+  - [Stable profile comparison](experiments/intrinsic_evolution/stable_profile_comparison.md)
+  - [Analysis summary](experiments/intrinsic_evolution/analysis/analysis_summary.md)
 
 ### Hyperparameter Evolution Convergence
 
@@ -43,7 +43,7 @@ that prevents lower-bound collapse, and the adaptive-mutation controller.
 - **Runner:** `EvolutionExperiment`
   ([`farm/runners/evolution_experiment.py`](../farm/runners/evolution_experiment.py))
 - **CLI:** [`scripts/run_evolution_experiment.py`](../scripts/run_evolution_experiment.py)
-- **Docs:** [Hyperparameter Evolution Convergence](research/experiments/hyperparameter_evolution_convergence.md)
+- **Docs:** [Hyperparameter Evolution Convergence](experiments/hyperparameter_evolution_convergence.md)
 
 ### Multi-Seed Cohort
 
@@ -56,7 +56,7 @@ single-run seed variance from configuration comparisons.
 - **Runner:** `CohortRunner`
   ([`farm/runners/cohort_runner.py`](../farm/runners/cohort_runner.py))
 - **CLI:** [`scripts/run_cohort_experiment.py`](../scripts/run_cohort_experiment.py)
-- **Docs:** [Multi-Seed Cohort Runner](research/experiments/multi_seed_cohort.md)
+- **Docs:** [Multi-Seed Cohort Runner](experiments/multi_seed_cohort.md)
 
 ## Agent cognition & architecture
 
@@ -72,12 +72,12 @@ adaptation, and decision quality.
 
 - **Status:** Design and analysis notes; ongoing research.
 - **Docs:**
-  - [Overview](research/experiments/memory_agent/README.md)
-  - [Memory model](research/experiments/memory_agent/Memory.md)
-  - [Design and considerations](research/experiments/memory_agent/DesignConsiderations.md)
-  - [Implementation](research/experiments/memory_agent/Implementation.md)
-  - [Detailed walkthrough](research/experiments/memory_agent/Detail.md)
-  - [Advanced topics](research/experiments/memory_agent/Advanced.md)
+  - [Overview](experiments/memory_agent/README.md)
+  - [Memory model](experiments/memory_agent/Memory.md)
+  - [Design and considerations](experiments/memory_agent/DesignConsiderations.md)
+  - [Implementation](experiments/memory_agent/Implementation.md)
+  - [Detailed walkthrough](experiments/memory_agent/Detail.md)
+  - [Advanced topics](experiments/memory_agent/Advanced.md)
 
 ## Emergent behavior & dominance
 
@@ -94,14 +94,14 @@ agent type ultimately thrives.
 - **Status:** Case study with published findings; data and analysis
   artifacts available in the docs tree.
 - **Docs:**
-  - [Findings](research/experiments/one_of_a_kind/Findings.md)
-  - [Dominance measures](research/experiments/one_of_a_kind/Measures.md)
-  - [Initial positioning](research/experiments/one_of_a_kind/InitialPositioning.md)
-  - [Positioning metrics](research/experiments/one_of_a_kind/PositioningMetrics.md)
-  - [Competition](research/experiments/one_of_a_kind/Competition.md)
-  - [Cooperation](research/experiments/one_of_a_kind/Cooperation.md)
-  - [Reproduction](research/experiments/one_of_a_kind/Reproduction.md)
-  - [Dominance dynamics](research/experiments/one_of_a_kind/Dominance.md)
+  - [Findings](experiments/one_of_a_kind/Findings.md)
+  - [Dominance measures](experiments/one_of_a_kind/Measures.md)
+  - [Initial positioning](experiments/one_of_a_kind/InitialPositioning.md)
+  - [Positioning metrics](experiments/one_of_a_kind/PositioningMetrics.md)
+  - [Competition](experiments/one_of_a_kind/Competition.md)
+  - [Cooperation](experiments/one_of_a_kind/Cooperation.md)
+  - [Reproduction](experiments/one_of_a_kind/Reproduction.md)
+  - [Dominance dynamics](experiments/one_of_a_kind/Dominance.md)
 
 ### Rabbit's Foot
 
@@ -113,7 +113,7 @@ dominant strategy.
 
 - **Status:** Design proposal; mechanics, configuration, and metrics
   specified ahead of implementation.
-- **Docs:** [Design](research/experiments/rabbits_foot/Design.md)
+- **Docs:** [Design](experiments/rabbits_foot/Design.md)
 
 ## Adding a new experiment
 

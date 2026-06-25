@@ -2,7 +2,7 @@
 
 This note documents how to capture and interpret learning-rate convergence from the hyperparameter chromosome evolution runner.
 
-> Looking for *intra-population* (in-situ) evolution where each agent carries its own chromosome and selection emerges from survival? See [Intrinsic Evolution Experiment](./intrinsic_evolution.md). The two runners are complementary.
+> Looking for *intra-population* (in-situ) evolution where each agent carries its own chromosome and selection emerges from survival? See [Intrinsic Evolution Experiment](intrinsic_evolution/intrinsic_evolution.md). The two runners are complementary.
 
 ## Quick start: stable preset
 

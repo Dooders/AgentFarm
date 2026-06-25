@@ -20,7 +20,7 @@ Two inheritance modes on the same intrinsic-evolution stack:
   policy warm-start copied from the parent at reproduction.
 
 Everything else is held fixed across arms — see the
-[protocol doc](../research/experiments/intrinsic_evolution/inheritance_mode_ab.md)
+[protocol doc](../experiments/intrinsic_evolution/inheritance_mode_ab.md)
 for the full parameter list. Highlights:
 
 | Knob | Value |

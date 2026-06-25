@@ -469,10 +469,10 @@ result = service.run(AnalysisRequest(
 
 ## See Also
 
-- [API Reference](../API_REFERENCE.md) - Complete API
+- [API Reference](../../api/API_REFERENCE.md) - Complete API
 - [Population Module](./Population.md) - Population analysis
 - [Spatial Module](./Spatial.md) - Spatial patterns
-- [Quick Reference](../QUICK_REFERENCE.md) - Common patterns
+- [Quick Reference](../../api-reference.md) - Common patterns
 
 ---
 

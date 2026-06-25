@@ -1,6 +1,6 @@
 ## IPC API reference
 
-**Status:** This document specifies the **intended** Electron IPC surface for the planned Configuration Explorer (see [Electron Config Explorer architecture](electron/config_explorer_architecture.md)). A matching preload/main implementation is **not** checked into this repository yet; [`farm/editor/`](../farm/editor/) currently hosts Jest tests only.
+**Status:** This document specifies the **intended** Electron IPC surface for the planned Configuration Explorer (see [Electron Config Explorer architecture](../reference/electron/config_explorer_architecture.md)). A matching preload/main implementation is **not** checked into this repository yet; [`farm/editor/`](../farm/editor/) currently hosts Jest tests only.
 
 When implemented, requests are expected to use `ipcRenderer.invoke(channel, payload)` with structured responses, and preload should expose `window.electronAPI` with methods that wrap allowed channels.
 

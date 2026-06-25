@@ -34,7 +34,7 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 
 ## Concepts
 
-- [Architecture](concepts/architecture.md) · [Module overview](concepts/module-overview.md) · [Core architecture](concepts/core-architecture.md)
+- [Architecture](concepts/architecture.md)
 - [Agents and decisions](concepts/agents-and-decisions.md)
 - [Actions](concepts/actions.md) · [Observation channels](concepts/observation-channels.md)
 - [Spatial indexing](concepts/spatial/spatial_indexing.md)
@@ -54,7 +54,7 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 
 ## Design & archive
 
-- [Design RFCs](design/agent_loop.md)
+- [Design RFCs](design/README.md)
 - [Archived features](archive/features/) · [Archived analysis notes](archive/analysis-extensions/)
 
 ## Package docs

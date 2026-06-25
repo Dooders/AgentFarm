@@ -482,7 +482,7 @@ python scripts/compare_distillation_modes.py \
   --json-out reports/distillation_mode_comparison.json
 ```
 
-See [`docs/distillation_soft_label_comparison.md`](../distillation_soft_label_comparison.md) for recorded results and discussion.
+See [`docs/distillation_soft_label_comparison.md`](../research/distillation-soft-label-comparison.md) for recorded results and discussion.
 
 ---
 
@@ -1145,5 +1145,5 @@ For a **single** generation with the full `run_crossover_search.py` flag surface
 | [`docs/design/distill_quantize_crossover_finetune.md`](../design/distill_quantize_crossover_finetune.md) | Architecture overview, Mermaid pipeline diagram, module map, and recorded experimental results |
 | [`docs/design/crossover_strategies.md`](../design/crossover_strategies.md) | Detailed semantics of `random`, `layer`, and `weighted` crossover strategies with code examples |
 | [`docs/design/crossover_search_space.md`](../design/crossover_search_space.md) | Grid definitions, pre-defined search presets, and leaderboard format for `run_crossover_search.py` / `run_multi_gen_search.py` |
-| [`docs/distillation_soft_label_comparison.md`](../distillation_soft_label_comparison.md) | Hard vs blended vs soft distillation objective comparison with reproducible results |
+| [`docs/distillation_soft_label_comparison.md`](../research/distillation-soft-label-comparison.md) | Hard vs blended vs soft distillation objective comparison with reproducible results |
 | [`farm/config/default.yaml`](../../farm/config/default.yaml) | All YAML defaults including the `crossover_child_finetune` section |

@@ -170,7 +170,7 @@ lineage signal.
 For longer / heavier-pressure runs, increase `--num-steps` further or
 pass `--selection-pressure high` (or a numeric scale) to apply stronger
 density-dependent costs. See
-`[docs/research/experiments/intrinsic_evolution.md](../../docs/research/experiments/intrinsic_evolution.md)`
+[Design doc](intrinsic_evolution.md)
 for the runner reference.
 
 ## Artifacts on disk

@@ -34,7 +34,7 @@ Shared setup:
 - database mode: **disk-backed SQLite** (`--disk-database`)
 
 Commands and full artifact paths live in
-[crossover_rerun.md](../research/experiments/intrinsic_evolution/crossover_rerun.md).
+[crossover_rerun.md](../experiments/intrinsic_evolution/crossover_rerun.md).
 
 ## The headline result
 
@@ -132,5 +132,5 @@ the diverging trajectory.**
 
 - [When one seed disagrees with six](2026-05-12-seed-sweep-reality-check.md)
 - [Does the resource buffer pick the genes?](2026-05-04-resource-buffer-shapes-intrinsic-evolution.md)
-- [Crossover rerun experiment doc](../research/experiments/intrinsic_evolution/crossover_rerun.md)
-- [Intrinsic evolution docs](../research/experiments/intrinsic_evolution/intrinsic_evolution.md)
+- [Crossover rerun experiment doc](../experiments/intrinsic_evolution/crossover_rerun.md)
+- [Intrinsic evolution docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)

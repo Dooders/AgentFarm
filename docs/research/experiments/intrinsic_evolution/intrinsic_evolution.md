@@ -207,7 +207,7 @@ print(f"Final mean LR: {result.final_gene_statistics['learning_rate']['mean']}")
 | `enabled`                | `True`                         | Master switch. When `False`, reproduction inherits chromosomes unchanged.                                                                                        |
 | `mutation_rate`          | `0.1`                          | Per-gene mutation probability at each reproduction event.                                                                                                        |
 | `mutation_scale`         | `0.1`                          | Per-gene scale at each reproduction event.                                                                                                                       |
-| `mutation_mode`          | `MutationMode.GAUSSIAN`        | `gaussian` or `multiplicative`. See `[HyperparameterChromosome` docs](../design/hyperparameter_chromosome.md).                                                   |
+| `mutation_mode`          | `MutationMode.GAUSSIAN`        | `gaussian` or `multiplicative`. See `[HyperparameterChromosome` docs](../../../design/hyperparameter_chromosome.md).                                                   |
 | `boundary_mode`          | `BoundaryMode.CLAMP`           | `clamp`, `reflect`, or `interior_biased`. Controls out-of-bounds handling after mutation.                                                                        |
 | `interior_bias_fraction` | `1e-3`                         | Used only when `boundary_mode = interior_biased`.                                                                                                                |
 | `crossover_enabled`      | `False`                        | When `True`, pick a co-parent and run `crossover_chromosomes` before mutation.                                                                                   |
@@ -433,7 +433,7 @@ distinct chromosome per agent in expectation, but exact uniqueness is
 not guaranteed (collisions are possible, especially with small
 populations or low scales). Use `SeedingMode.UNIQUE` or
 `SeedingMode.MIN_DISTANCE` for stronger guarantees - see
-[`docs/concepts/initial-diversity.md`](../../initial_diversity.md). Statistical
+[`docs/concepts/initial-diversity.md`](../../../concepts/initial-diversity.md). Statistical
 power per genotype is low until lineages expand.
 - **Crossover requires same `agent_type`.** Cross-type pollination is not
 supported. Co-parent selection always filters to identical

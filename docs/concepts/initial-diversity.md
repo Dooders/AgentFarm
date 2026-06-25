@@ -13,7 +13,7 @@ behaviorally identical.
 ## Configuration
 
 Driven by `SimulationConfig.initial_diversity`, which is an
-[`InitialDiversityConfig`](../farm/core/initial_diversity.py).
+[`InitialDiversityConfig`](../../../farm/core/initial_diversity.py).
 
 ```python
 from farm.config import SimulationConfig
@@ -58,7 +58,7 @@ candidate is accepted and the metrics report a fallback. Choose
 ## Telemetry
 
 Every seeding pass returns an
-[`InitialDiversityMetrics`](../farm/core/initial_diversity.py) instance,
+[`InitialDiversityMetrics`](../../../farm/core/initial_diversity.py) instance,
 attached to the environment as `environment.initial_diversity_metrics`:
 
 | Field | Description |
@@ -95,13 +95,13 @@ unchanged config) produce identical seeded chromosomes and identical metrics.
 when the caller leaves `mode=none`. Pass an explicit `InitialDiversityConfig`
 on `base_config` to opt into a stricter mode (e.g. `unique`) for an
 intrinsic-evolution run. See
-[`docs/research/experiments/intrinsic_evolution/intrinsic_evolution.md`](research/experiments/intrinsic_evolution/intrinsic_evolution.md)
+[`docs/research/experiments/intrinsic_evolution/intrinsic_evolution.md`](../research/experiments/intrinsic_evolution/intrinsic_evolution.md)
 for runner-specific guidance.
 
 ## Pluggable diversity sources
 
 `apply_initial_diversity(environment, cfg, rng, source=...)` accepts any
-implementation of the [`InitialDiversitySource`](../farm/core/initial_diversity.py)
+implementation of the [`InitialDiversitySource`](../../../farm/core/initial_diversity.py)
 `Protocol`:
 
 ```python

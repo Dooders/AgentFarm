@@ -157,7 +157,7 @@ result = service.run(AnalysisRequest(
 
 ## See Also
 
-- [API Reference](../API_REFERENCE.md)
+- [API Reference](../../api/API_REFERENCE.md)
 - [Population Module](./Population.md)
 
 ---

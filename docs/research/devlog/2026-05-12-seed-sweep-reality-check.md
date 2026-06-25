@@ -227,7 +227,7 @@ the sweep:
   **Conservative:** crossover *does* robustly lower speciation index vs.
   baseline (both `uniform` and `blend` arms). See
   [Gene flow and the buffer](2026-05-18-gene-flow-and-the-buffer.md) and
-  [crossover rerun docs](../research/experiments/intrinsic_evolution/crossover_rerun.md)
+  [crossover rerun docs](../experiments/intrinsic_evolution/crossover_rerun.md)
   ([Issue #845](https://github.com/Dooders/AgentFarm/issues/845)).
 - Widening the buffer axis to include `stress` and `legacy` profiles
   is still on the list, but should be multi-seed from the start.
@@ -245,7 +245,7 @@ and `seed_sweep_summary.json`.
 ## Related docs
 
 - [Prior devlog: does the resource buffer pick the genes?](2026-05-04-resource-buffer-shapes-intrinsic-evolution.md)
-- [Glossary](../glossary.md)
-- [Intrinsic evolution experiment docs](../research/experiments/intrinsic_evolution/intrinsic_evolution.md)
-- [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md)
+- [Glossary](../../reference/glossary.md)
+- [Intrinsic evolution experiment docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)
+- [Hyperparameter chromosome design](../../design/hyperparameter_chromosome.md)
 - [Hyperparameter genome devlog](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.md)

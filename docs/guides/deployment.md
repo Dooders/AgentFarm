@@ -17,7 +17,7 @@ There is no single Dockerfile or cloud manifest maintained in this repository; t
 - Static hosting of a `dist/` web build, and/or
 - Packaged Electron artifacts from `electron-builder` (or similar),
 
-documented in that application’s own README. Design targets are described in [Electron Config Explorer architecture](electron/config_explorer_architecture.md).
+documented in that application’s own README. Design targets are described in [Electron Config Explorer architecture](../reference/electron/config_explorer_architecture.md).
 
 ### Environment variables (target UI)
 

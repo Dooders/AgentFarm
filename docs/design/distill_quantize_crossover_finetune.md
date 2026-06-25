@@ -213,7 +213,7 @@ All numbers below were collected with the **default synthetic-state harness** (n
 
 ### Distillation Results
 
-*Source:* `scripts/compare_distillation_modes.py` — full write-up in [`docs/distillation_soft_label_comparison.md`](../distillation_soft_label_comparison.md).
+*Source:* `scripts/compare_distillation_modes.py` — full write-up in [`docs/distillation_soft_label_comparison.md`](../research/distillation-soft-label-comparison.md).
 
 | Mode | α | Final action agreement | Final prob. similarity | Best val loss |
 |------|---|------------------------|----------------------|---------------|
@@ -430,7 +430,7 @@ Sweeps 9 crossover × fine-tune combinations and writes a leaderboard JSON. See 
 
 | Document | Content |
 |----------|---------|
-| [`docs/distillation_soft_label_comparison.md`](../distillation_soft_label_comparison.md) | Three-way comparison of hard / blended / soft distillation objectives with reproducible metrics |
+| [`docs/distillation_soft_label_comparison.md`](../research/distillation-soft-label-comparison.md) | Three-way comparison of hard / blended / soft distillation objectives with reproducible metrics |
 | [`docs/design/crossover_strategies.md`](crossover_strategies.md) | Crossover strategy semantics, benchmark results, QAT fine-tuning recipe, and test coverage |
 | [`docs/design/crossover_search_space.md`](crossover_search_space.md) | Search space definition (crossover recipes × fine-tune regimes), pre-defined grids, metrics |
 | [`docs/archive/features/ai_machine_learning.md`](../archive/features/ai_machine_learning.md) | User-facing ML feature overview including the crossover child fine-tuning section |

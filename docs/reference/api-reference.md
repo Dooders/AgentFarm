@@ -1,6 +1,6 @@
 # API Reference
 
-High-level map of major entry points in AgentFarm. For authoritative signatures, use the source modules cited below and [usage examples](usage_examples.md).
+High-level map of major entry points in AgentFarm. For authoritative signatures, use the source modules cited below and [usage examples](../guides/usage-examples.md).
 
 ## Core API Index
 
@@ -689,7 +689,7 @@ class ActionRepository:
 
 The analysis stack is **modular** (registry + per-domain packages), not a small set of classes named `ComparativeAnalysis` / `AgentAnalysis` / `ExperimentAnalysis`.
 
-- **Module index**: [docs/reference/analysis/modules/README.md](reference/analysis/modules/README.md)
+- **Module index**: [docs/reference/analysis/modules/README.md](../reference/analysis/modules/README.md)
 - **Orchestrated runs**: `AnalysisService`, `AnalysisRequest`, `AnalysisResult` in `farm.analysis.service`
 - **Registry**: `farm.analysis.registry` (`get_module`, `get_module_names`, …)
 - **Cross-run comparison (API)**: `compare_simulations` in `farm.analysis.comparative_analysis`
@@ -706,7 +706,7 @@ The analysis stack is **modular** (registry + per-domain packages), not a small 
 
 There is **no** `ConfigBuilder` in this repository. There are **no** standalone `save_config` / `merge_configs` / `validate_config` functions matching the old stubs that used to appear here.
 
-Human-facing guides: [Configuration guide](reference/config/configuration_guide.md), [configuration API notes](reference/config/configuration_api.md).
+Human-facing guides: [Configuration guide](../reference/config/configuration_guide.md), [configuration API notes](../reference/config/configuration_api.md).
 
 ## Runners (`farm.runners`)
 
@@ -787,4 +787,4 @@ Types vary by submodule. Common patterns: agent ids as `str`, grid positions as 
 
 ---
 
-This page is a **high-level index** and entry-point reference. Prefer reading the cited modules and [usage examples](usage_examples.md) for authoritative signatures.
+This page is a **high-level index** and entry-point reference. Prefer reading the cited modules and [usage examples](../guides/usage-examples.md) for authoritative signatures.

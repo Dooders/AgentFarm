@@ -480,18 +480,19 @@ For in-depth technical information, refer to:
 
 **Core Implementation:**
 
-- [Perception System Design](../perception_system_design.md) - Complete spatial index implementation details
-- [Core Architecture](../concepts/core-architecture.md) - System integration and spatial management patterns
+- [Perception System Design](../perception-system-design.md) - Complete spatial index implementation details
+- [Spatial indexing](spatial_indexing.md) - Performance and backend details
+- [Architecture](../architecture.md) - System integration patterns
 
 **Performance & optimization:**
 
-- [Configuration Guide](../reference/config/configuration_guide.md) - Complete spatial indexing configuration reference
+- [Configuration Guide](../../reference/config/configuration_guide.md) - Complete spatial indexing configuration reference
 - [Batch spatial updates](batch_spatial_updates_guide.md) - Dirty regions and batched updates
 - [Spatial module performance](spatial_module_performance_summary.md) - Benchmarks and scaling notes
 
 **Related topics:**
 
-- [Redis agent memory](../redis_agent_memory.md) - Optional distributed memory for agents
+- [Redis agent memory](../redis-agent-memory.md) - Optional distributed memory for agents
 
 ### 🔧 Implementation Files
 
@@ -503,7 +504,7 @@ Key implementation modules:
 
 ### ⚙️ Configuration Examples
 
-See [Configuration Guide](../reference/config/configuration_guide.md) for:
+See [Configuration Guide](../../reference/config/configuration_guide.md) for:
 
 - Complete configuration options
 - Performance tuning recommendations

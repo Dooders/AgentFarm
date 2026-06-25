@@ -17,7 +17,7 @@ title: "Does the Resource Buffer Pick the Genes? Three Stable Profiles Compared"
 A natural follow-up to the [hyperparameter genome experiments](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.md)
 is whether the *amount* of food in the world changes *what* gets selected,
 not just how many agents survive. So I ran the
-[intrinsic-evolution runner](../research/experiments/intrinsic_evolution/intrinsic_evolution.md)
+[intrinsic-evolution runner](../experiments/intrinsic_evolution/intrinsic_evolution.md)
 three times with everything held fixed except the `stable` initial-conditions
 profile — small adjustments to the starting resource pool, count, and regen
 rate — and compared the outputs.
@@ -30,7 +30,7 @@ the population does the same: under abundant food clusters keep separating,
 under tight food they merge.
 
 The raw numbers and side-by-side tables live in
-[stable profile comparison](../research/experiments/intrinsic_evolution/stable_profile_comparison.md).
+[stable profile comparison](../experiments/intrinsic_evolution/stable_profile_comparison.md).
 This post is the narrative.
 
 ![Resource buffer shapes selection direction and population structure](figures/resource_buffer_selection_structure.png)
@@ -40,7 +40,7 @@ This post is the narrative.
 Every run is 1,000 logged steps after a 200-step warmup, single seed (42),  
 30 founders seeded by independent mutation, mutation rate 0.15 / scale 0.10,  
 crossover off, GMM  
-[speciation](../glossary.md#speciation) tracking, and `selection_pressure="low"` (a
+[speciation](../../reference/glossary.md#speciation) tracking, and `selection_pressure="low"` (a
 small density-dependent reproduction cost, no global carrying-cap term).
 
 The only thing that varies is the resource buffer:
@@ -129,7 +129,7 @@ when poor.
 ## Reading the speciation traces
 
 The speciation index is a silhouette score on chromosome-space clusters (see
-[intrinsic evolution docs](../research/experiments/intrinsic_evolution/intrinsic_evolution.md)).
+[intrinsic evolution docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)).
 Higher means clusters are better separated. Plotting it over time tells
 you whether the population is splitting into niches or collapsing back
 toward one type. The three runs all start in the 0.65–0.73 range and
@@ -187,16 +187,16 @@ A few obvious follow-ups:
   resolves into a single dominant cluster or stabilises around k=2.](https://github.com/Dooders/AgentFarm/issues/844)
 - ~~[Re-run buffered with crossover enabled](https://github.com/Dooders/AgentFarm/issues/845)~~
   — done (2026-05-18): rising speciation trajectories survive crossover;
-  see [crossover rerun](../research/experiments/intrinsic_evolution/crossover_rerun.md).
+  see [crossover rerun](../experiments/intrinsic_evolution/crossover_rerun.md).
 - [Add `stress` and `legacy` profiles to widen the buffer axis.](https://github.com/Dooders/AgentFarm/issues/846)
 
 For the full numerical results, side-by-side tables, and per-variant
 artifact links, see
-[stable profile comparison](../research/experiments/intrinsic_evolution/stable_profile_comparison.md).
+[stable profile comparison](../experiments/intrinsic_evolution/stable_profile_comparison.md).
 
 ## Related docs
 
-- [Glossary](../glossary.md)
-- [Intrinsic evolution experiment docs](../research/experiments/intrinsic_evolution/intrinsic_evolution.md)
-- [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md)
+- [Glossary](../../reference/glossary.md)
+- [Intrinsic evolution experiment docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)
+- [Hyperparameter chromosome design](../../design/hyperparameter_chromosome.md)
 - [Hyperparameter genome devlog](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.md)
