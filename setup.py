@@ -1,8 +1,10 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
+
+from farm._version import __version__
 
 setup(
     name="agentfarm",
-    version="0.1.0",
+    version=__version__,
     packages=find_packages(),
     include_package_data=True,
-) 
+)

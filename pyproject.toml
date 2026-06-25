@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentfarm"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Agent Farm Simulation Framework"
 readme = "README.md"
 license = "Apache-2.0"
@@ -12,6 +12,9 @@ license-files = ["LICENSE"]
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools.dynamic]
+version = {attr = "farm._version.__version__"}
 
 [tool.pylint.messages_control]
 disable = [

@@ -126,8 +126,7 @@ from farm.analysis.validation import (
     validate_simulation_data,
 )
 
-# Version info
-__version__ = "2.0.0"
+from farm._version import __version__
 __author__ = "AgentFarm Team"
 __all__ = [
     # Protocols
