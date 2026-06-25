@@ -1,6 +1,6 @@
 ## Step 1: Prepare Your Environment
 
-Ensure you have the necessary prerequisites installed (Python, pip, Git) and set up a virtual environment as outlined in the [Quickstart Guide](https://github.com/Dooders/AgentFarm/blob/main/docs/SimulationQuickStart.md).
+Ensure you have the necessary prerequisites installed (Python, pip, Git) and set up a virtual environment as outlined in the [Installation Guide](../getting-started/installation.md).
 
 ## Step 2: Clone the Repository
 
