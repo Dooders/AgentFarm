@@ -93,6 +93,84 @@ REPLACEMENTS: list[tuple[str, str]] = [
     ("](../features/", "](../archive/features/"),
 ]
 
+_SPLIT = next(i for i, (old, _) in enumerate(REPLACEMENTS) if not old.startswith("docs/"))
+ABSOLUTE_REPLACEMENTS = REPLACEMENTS[:_SPLIT]
+RELATIVE_REPLACEMENTS = REPLACEMENTS[_SPLIT:]
+_LINK_TARGET = re.compile(r"^]\((?:\.\./)?([^)#]+)")
+
+
+def _doc_dir_parts(path: Path) -> tuple[str, ...]:
+    return path.relative_to(DOCS).parts[:-1]
+
+
+def _undo_bad_relative(path: Path, text: str) -> str:
+    """Reverse prefix-doubling and missing-parent mistakes from a global rewrite pass."""
+    parts = _doc_dir_parts(path)
+    depth = len(parts)
+    fixes: list[tuple[str, str]] = []
+
+    if "research" in parts:
+        fixes.extend(
+            [
+                ("](research/experiments/", "](experiments/"),
+                ("](../research/experiments/", "](../experiments/"),
+                ("](research/devlog/", "](devlog/"),
+                ("](../research/devlog/", "](../devlog/"),
+                ("](research/experiments-catalog.md", "](experiments-catalog.md"),
+                ("](../research/experiments-catalog.md", "](../experiments-catalog.md"),
+            ]
+        )
+    elif depth > 0:
+        fixes.extend(
+            [
+                ("](research/experiments/", "](../research/experiments/"),
+                ("](research/devlog/", "](../research/devlog/"),
+                ("](research/experiments-catalog.md", "](../research/experiments-catalog.md"),
+            ]
+        )
+
+    if "reference" in parts:
+        fixes.extend(
+            [
+                ("](reference/config/", "](config/"),
+                ("](../reference/config/", "](../config/"),
+                ("](reference/data/", "](data/"),
+                ("](../reference/data/", "](../data/"),
+                ("](reference/analysis/", "](analysis/"),
+                ("](../reference/analysis/", "](../analysis/"),
+                ("](reference/electron/", "](electron/"),
+                ("](../reference/electron/", "](../electron/"),
+            ]
+        )
+    elif depth > 0:
+        fixes.extend(
+            [
+                ("](reference/config/", "](../reference/config/"),
+                ("](reference/data/", "](../reference/data/"),
+                ("](reference/analysis/", "](../reference/analysis/"),
+                ("](reference/electron/", "](../reference/electron/"),
+            ]
+        )
+
+    for bad, good in fixes:
+        text = text.replace(bad, good)
+    return text
+
+
+def _relative_replacements_for(path: Path) -> list[tuple[str, str]]:
+    parts = _doc_dir_parts(path)
+    depth = len(parts)
+    selected: list[tuple[str, str]] = []
+    for old, new in RELATIVE_REPLACEMENTS:
+        match = _LINK_TARGET.match(new)
+        if match and match.group(1).split("/")[0] in parts:
+            continue
+        effective_new = new
+        if old.startswith("](") and not old.startswith("](../") and depth > 0:
+            effective_new = f"](../{new[2:]}"
+        selected.append((old, effective_new))
+    return selected
+
 
 def fix_docs() -> None:
     for path in DOCS.rglob("*"):
@@ -100,7 +178,10 @@ def fix_docs() -> None:
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         original = text
-        for old, new in REPLACEMENTS:
+        text = _undo_bad_relative(path, text)
+        for old, new in ABSOLUTE_REPLACEMENTS:
+            text = text.replace(old, new)
+        for old, new in _relative_replacements_for(path):
             text = text.replace(old, new)
         if text != original:
             path.write_text(text, encoding="utf-8")
