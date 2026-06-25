@@ -191,4 +191,4 @@ python scripts/plot_early_life_fitness.py \
 
 - [Baldwinian vs Lamarckian: policy warm-start across three resource regimes](2026-05-21-baldwinian-vs-lamarckian-ab-harness.md)
 - [Is the DQN actually learning?](2026-05-16-is-the-dqn-actually-learning.md)
-- [Inheritance A/B experiment doc](../research/experiments/intrinsic_evolution/inheritance_mode_ab.md)
+- [Inheritance A/B experiment doc](../experiments/intrinsic_evolution/inheritance_mode_ab.md)

@@ -582,7 +582,7 @@ For in-depth technical information, refer to:
 
 - [Observation channels](observation_channels.md) - Channel layout and sizing considerations
 - [Memmap optimization](memmap_optimization.md) - Memory-mapped / footprint-related tuning
-- [Configuration Guide](reference/config/configuration_guide.md) - Complete configuration reference
+- [Configuration Guide](../reference/config/configuration_guide.md) - Complete configuration reference
 
 **Integration & Usage:**
 
@@ -600,7 +600,7 @@ Key implementation modules:
 
 ### ⚙️ Configuration Examples
 
-See [Configuration Guide](reference/config/configuration_guide.md) for:
+See [Configuration Guide](../reference/config/configuration_guide.md) for:
 
 - Complete configuration options
 - Performance tuning recommendations

@@ -689,7 +689,7 @@ class ActionRepository:
 
 The analysis stack is **modular** (registry + per-domain packages), not a small set of classes named `ComparativeAnalysis` / `AgentAnalysis` / `ExperimentAnalysis`.
 
-- **Module index**: [docs/reference/analysis/modules/README.md](reference/analysis/modules/README.md)
+- **Module index**: [docs/reference/analysis/modules/README.md](analysis/modules/README.md)
 - **Orchestrated runs**: `AnalysisService`, `AnalysisRequest`, `AnalysisResult` in `farm.analysis.service`
 - **Registry**: `farm.analysis.registry` (`get_module`, `get_module_names`, …)
 - **Cross-run comparison (API)**: `compare_simulations` in `farm.analysis.comparative_analysis`
@@ -706,7 +706,7 @@ The analysis stack is **modular** (registry + per-domain packages), not a small 
 
 There is **no** `ConfigBuilder` in this repository. There are **no** standalone `save_config` / `merge_configs` / `validate_config` functions matching the old stubs that used to appear here.
 
-Human-facing guides: [Configuration guide](reference/config/configuration_guide.md), [configuration API notes](reference/config/configuration_api.md).
+Human-facing guides: [Configuration guide](config/configuration_guide.md), [configuration API notes](config/configuration_api.md).
 
 ## Runners (`farm.runners`)
 

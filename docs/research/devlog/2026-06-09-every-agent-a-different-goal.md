@@ -157,6 +157,6 @@ and *why* the population shrinks.
 
 ## Related docs
 
-- [Intrinsic goals experiment doc](../research/experiments/intrinsic_evolution/intrinsic_goals.md)
-- [Intrinsic evolution docs](../research/experiments/intrinsic_evolution/intrinsic_evolution.md)
+- [Intrinsic goals experiment doc](../experiments/intrinsic_evolution/intrinsic_goals.md)
+- [Intrinsic evolution docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)
 - [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md)

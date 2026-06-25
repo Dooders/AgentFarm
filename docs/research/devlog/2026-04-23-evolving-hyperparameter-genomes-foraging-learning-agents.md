@@ -126,7 +126,7 @@ narrow set of hyperparameters evolve through this path.
   cold-start by default. (An opt-in `lamarckian` mode that warm-starts offspring
   policy weights was since added under #849, but it is not the default and showed no
   robust fitness gain; see the
-  [Baldwinian vs Lamarckian A/B](../research/experiments/intrinsic_evolution/inheritance_mode_ab.md).)
+  [Baldwinian vs Lamarckian A/B](../experiments/intrinsic_evolution/inheritance_mode_ab.md).)
 
 ## Current state and next questions
 
@@ -141,7 +141,7 @@ Current capabilities in this line of work:
   conservative/balanced/buffered resource buffers) are part of the workflow,
   not one-off side analysis.
 - The chromosome/reproduction path is documented and parameterized in the
-  [Intrinsic evolution docs](../research/experiments/intrinsic_evolution/intrinsic_evolution.md)
+  [Intrinsic evolution docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)
   and [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md).
 
 Open questions and next targets:
@@ -173,5 +173,5 @@ inheritance/ecology combinations produce robust gains across runs.
 
 - [Glossary](../glossary.md)
 - [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md)
-- [Intrinsic evolution experiment docs](../research/experiments/intrinsic_evolution/intrinsic_evolution.md)
+- [Intrinsic evolution experiment docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)
 - [Resource-buffer follow-up devlog](2026-05-04-resource-buffer-shapes-intrinsic-evolution.md)

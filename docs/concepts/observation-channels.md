@@ -707,7 +707,7 @@ For in-depth technical information, refer to:
 
 **Configuration & Usage:**
 
-- [Configuration Guide](reference/config/configuration_guide.md) - Complete channel configuration reference
+- [Configuration Guide](../reference/config/configuration_guide.md) - Complete channel configuration reference
 - [Usage Examples](usage_examples.md) - Practical channel implementation examples
 - [Module Overview](module-overview.md) - High-level channel system overview
 
@@ -722,7 +722,7 @@ Key implementation modules:
 
 ### ⚙️ Configuration Examples
 
-See [Configuration Guide](reference/config/configuration_guide.md) for:
+See [Configuration Guide](../reference/config/configuration_guide.md) for:
 
 - Complete configuration options
 - Performance tuning recommendations
