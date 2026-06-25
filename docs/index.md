@@ -68,7 +68,7 @@ env = run_simulation(
           Compose adaptive agents, environments, and rules. Track interactions,
           resources, and emergent dynamics over time.
         </p>
-        <a class="feature__link" href="{{ '/features/agent_based_modeling_analysis/' | relative_url }}">Modeling</a>
+        <a class="feature__link" href="{{ '/module_overview/' | relative_url }}">Architecture</a>
       </div>
 
       <div class="feature">
@@ -95,7 +95,7 @@ env = run_simulation(
           KD-tree, Quadtree, and Spatial Hash Grid backends with dirty-region
           tracking — thousands of agents, fast.
         </p>
-        <a class="feature__link" href="{{ '/features/spatial_indexing_performance/' | relative_url }}">Performance</a>
+        <a class="feature__link" href="{{ '/spatial/spatial_indexing/' | relative_url }}">Spatial indexing</a>
       </div>
 
       <div class="feature">
@@ -104,7 +104,7 @@ env = run_simulation(
           Repository-backed databases, behavioral clustering, causal analysis,
           and experiment-level comparisons.
         </p>
-        <a class="feature__link" href="{{ '/features/data_system/' | relative_url }}">Data system</a>
+        <a class="feature__link" href="{{ '/data/data_api/' | relative_url }}">Data API</a>
         <a class="feature__link" href="{{ '/genetics_analysis/' | relative_url }}">Genetics</a>
       </div>
 
@@ -153,7 +153,7 @@ env = run_simulation(
         <li class="quickstart__step">
           <div>
             <h4>Open the docs</h4>
-            <p>Browse the <a href="{{ '/README/' | relative_url }}">documentation index</a> for guides, API, and case studies.</p>
+            <p>Browse <a href="{{ '/getting-started/installation/' | relative_url }}">getting started</a> and the <a href="{{ '/README/' | relative_url }}">documentation hub</a>.</p>
           </div>
         </li>
       </ol>

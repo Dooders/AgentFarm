@@ -1,5 +1,7 @@
 # AgentFarm Features
 
+> **Deprecated:** Legacy feature documentation scheduled for consolidation in a future docs reorganization. Prefer [Installation](../getting-started/installation.md) and the [documentation hub](../README.md) for current navigation.
+
 **A Comprehensive Platform for Agent-Based Modeling & Simulation**
 
 ![Status](https://img.shields.io/badge/status-in%20development-orange)

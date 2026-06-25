@@ -56,14 +56,14 @@ collections:
 # Top navigation links shown in the site header. URLs use the trailing-slash
 # permalinks Jekyll generates from optional-front-matter pages.
 nav_links:
-  - title: Docs
-    url: /README/
+  - title: Getting Started
+    url: /getting-started/installation/
+  - title: Guides
+    url: /guides/neural-recombination/
+  - title: Reference
+    url: /api_reference/
   - title: Devlog
     url: /devlog/
-  - title: Experiments
-    url: /experiments/
-  - title: API
-    url: /api_reference/
   - title: GitHub
     url: https://github.com/Dooders/AgentFarm
     external: true
