@@ -159,7 +159,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Plot early-life fitness figures.")
     parser.add_argument("--summary", type=str, required=True,
                         help="Path to early_life_summary.json.")
-    parser.add_argument("--output-dir", type=str, default="docs/devlog/figures")
+    parser.add_argument("--output-dir", type=str, default="docs/research/devlog/figures")
     args = parser.parse_args()
 
     summary = json.loads(Path(args.summary).read_text(encoding="utf-8"))

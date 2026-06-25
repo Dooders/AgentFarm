@@ -21,7 +21,7 @@ python farm/core/cli.py --mode visualize --db-path simulations/simulation.db
 python farm/core/cli.py --mode analyze --db-path simulations/simulation.db
 ```
 
-See [Experiment QuickStart](../ExperimentQuickStart.md) for parameter studies.
+See [Experiment quickstart](experiments-quickstart.md) for parameter studies.
 
 ## API server
 
@@ -44,7 +44,7 @@ Key endpoints:
 - `GET /api/simulation/<sim_id>/export` — export data
 - `WS /ws/<client_id>` — WebSocket client channel
 
-See [Deployment](../deployment.md) for production notes.
+See [Deployment](../guides/deployment.md) for production notes.
 
 ## Benchmarks
 

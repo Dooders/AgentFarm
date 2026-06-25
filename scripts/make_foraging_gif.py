@@ -12,14 +12,14 @@ Two input modes are supported:
 
     python scripts/make_foraging_gif.py \
         --db-path docs/sample/simulation.db \
-        --output docs/devlog/figures/foraging-grid.gif
+        --output docs/research/devlog/figures/foraging-grid.gif
 
 2. Experiment iteration folder (compatible with `animate_simulation.py`)::
 
     python scripts/make_foraging_gif.py \
         --experiment-path results/<experiment_dir> \
         --iteration 0 \
-        --output docs/devlog/figures/foraging-grid.gif
+        --output docs/research/devlog/figures/foraging-grid.gif
 
 The GIF is assembled with PIL (no ffmpeg/moviepy dependency), so the script
 works in any environment with `matplotlib` and `pillow` installed.
@@ -650,7 +650,7 @@ def _build_parser() -> argparse.ArgumentParser:
     out.add_argument(
         "--output",
         type=str,
-        default="docs/devlog/figures/foraging-grid.gif",
+        default="docs/research/devlog/figures/foraging-grid.gif",
         help="Path to write the resulting GIF (default: %(default)s).",
     )
 

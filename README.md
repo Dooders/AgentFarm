@@ -22,13 +22,13 @@ pip install -r requirements.txt && pip install -e .
 python run_simulation.py --environment development --steps 1000
 ```
 
-Results appear under `simulations/`. See [Installation](docs/getting-started/installation.md) and [First simulation](docs/getting-started/first-simulation.md) for prerequisites, Redis, API server, and benchmarks.
+Results appear under `simulations/`. See [Installation](docs/getting-started/installation.md) and [First simulation](docs/getting-started/first-simulation.md) for more.
 
 ## Documentation
 
 - **Docs site:** [dooders.github.io/AgentFarm](https://dooders.github.io/AgentFarm/)
 - **Hub:** [docs/README.md](docs/README.md)
-- **Research:** [Devlog](docs/devlog/index.md) · [Experiments](docs/experiments.md)
+- **Research:** [Devlog](docs/research/devlog/index.md) · [Experiments](docs/research/experiments-catalog.md)
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License

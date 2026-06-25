@@ -262,7 +262,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--out-dir",
         type=str,
-        default="docs/devlog/figures",
+        default="docs/research/devlog/figures",
     )
     return parser
 

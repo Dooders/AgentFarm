@@ -6,7 +6,7 @@ This file is for **automated coding agents** working in this repository. Human c
 
 **AgentFarm** is a Python-first simulation and analysis platform for agent-based modeling, reinforcement learning experiments, and related research (see README for feature overview). The installable package lives under `farm/`. Tests live under `tests/`. There is a small JavaScript test suite for the editor under `farm/editor/`.
 
-**Note:** [docs/agents.md](docs/agents.md) describes a *research experiment* about system vs. individual agents in simulations. It is **not** this file and is unrelated to agent tooling.
+**Note:** [docs/concepts/agents-and-decisions.md](docs/concepts/agents-and-decisions.md) describes agent architecture in simulations. It is **not** this file and is unrelated to agent tooling.
 
 ## Environment setup
 

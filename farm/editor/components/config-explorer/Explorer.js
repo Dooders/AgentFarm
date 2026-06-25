@@ -64,7 +64,7 @@
 					<div class="title" id="details-title">Configuration</div>
 					<div class="docs-links">
 						<a href="https://github.com/Dooders/AgentFarm/blob/main/docs/configuration_guide.md" target="_blank" rel="noreferrer">Guide</a>
-						<a href="https://github.com/Dooders/AgentFarm/blob/main/docs/api_reference.md" target="_blank" rel="noreferrer">API</a>
+						<a href="https://github.com/Dooders/AgentFarm/blob/main/docs/reference/api-reference.md" target="_blank" rel="noreferrer">API</a>
 					</div>
 				</div>
 				<div class="details-content" id="details-content"></div>
