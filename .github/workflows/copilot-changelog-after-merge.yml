@@ -24,6 +24,7 @@ on:
     branches: [main]
     paths-ignore:
       - CHANGELOG.md
+      - docs/devlog/**
       - docs/research/devlog/**
 
 permissions:
@@ -107,7 +108,7 @@ jobs:
           # Guard on non-empty CHANGED so we don't emit a misleading "only
           # touched changelog/devlog" message when CHANGED is empty because the
           # diff itself failed.
-          NON_CHANGELOG=$(echo "$CHANGED" | grep -Ev '^(CHANGELOG.md|docs/research/devlog/.*)$' || true)
+          NON_CHANGELOG=$(echo "$CHANGED" | grep -Ev '^(CHANGELOG.md|docs/(research/)?devlog/.*)$' || true)
           if [ -n "$CHANGED" ] && [ -z "$NON_CHANGELOG" ]; then
             SKIP=true
             echo "Skipping: push only touched changelog/devlog files."
