@@ -55,7 +55,10 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 ## Design & archive
 
 - [Design RFCs](design/README.md)
+- [Documentation style guide](STYLE.md)
 - [Archived features](archive/features/) · [Archived analysis notes](archive/analysis-extensions/)
+
+Legacy GitHub Pages URLs (`/devlog/`, `/api_reference/`, etc.) redirect via stubs in `docs/redirects.yml` — regenerate with `python scripts/generate_doc_redirects.py`.
 
 ## Package docs
 

@@ -6,7 +6,7 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
-    <a class="post-card" href="{{ '/devlog/2026-06-20-transferable-signal-budget/' | relative_url }}">
+    <a class="post-card" href="{{ '/research/devlog/2026-06-20-transferable-signal-budget/' | relative_url }}">
       <span class="post-card__date">2026-06-20</span>
       <h3 class="post-card__title">The transferable-signal gate: do learned policies beat their own init?</h3>
       <p class="post-card__excerpt">
@@ -28,7 +28,7 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
     </p>
   </li>
   <li>
-    <a class="post-card" href="{{ '/devlog/2026-06-09-every-agent-a-different-goal/' | relative_url }}">
+    <a class="post-card" href="{{ '/research/devlog/2026-06-09-every-agent-a-different-goal/' | relative_url }}">
       <span class="post-card__date">2026-06-09</span>
       <h3 class="post-card__title">When every agent has a different goal</h3>
       <p class="post-card__excerpt">
@@ -49,7 +49,7 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
     </p>
   </li>
   <li>
-    <a class="post-card" href="{{ '/devlog/2026-06-04-are-we-measuring-at-the-wrong-level/' | relative_url }}">
+    <a class="post-card" href="{{ '/research/devlog/2026-06-04-are-we-measuring-at-the-wrong-level/' | relative_url }}">
       <span class="post-card__date">2026-06-04</span>
       <h3 class="post-card__title">Are we measuring at the wrong level?</h3>
       <p class="post-card__excerpt">
@@ -63,12 +63,12 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
     </a>
     <p class="post-card__excerpt">
       Related docs:
-      <a href="{{ '/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness/' | relative_url }}">The inheritance A/B this follows up</a>,
+      <a href="{{ '/research/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness/' | relative_url }}">The inheritance A/B this follows up</a>,
       <a href="{{ '/experiments/intrinsic_evolution/inheritance_mode_ab/' | relative_url }}">Inheritance A/B experiment doc</a>.
     </p>
   </li>
   <li>
-    <a class="post-card" href="{{ '/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness/' | relative_url }}">
+    <a class="post-card" href="{{ '/research/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness/' | relative_url }}">
       <span class="post-card__date">2026-05-21</span>
       <h3 class="post-card__title">Baldwinian vs Lamarckian: policy warm-start across three resource regimes</h3>
       <p class="post-card__excerpt">
@@ -81,11 +81,11 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
     <p class="post-card__excerpt">
       Related docs:
       <a href="{{ '/experiments/intrinsic_evolution/inheritance_mode_ab/' | relative_url }}">Inheritance A/B experiment doc</a>,
-      <a href="{{ '/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">Original Baldwinian context</a>.
+      <a href="{{ '/research/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">Original Baldwinian context</a>.
     </p>
   </li>
   <li>
-    <a class="post-card" href="{{ '/devlog/2026-05-18-gene-flow-and-the-buffer/' | relative_url }}">
+    <a class="post-card" href="{{ '/research/devlog/2026-05-18-gene-flow-and-the-buffer/' | relative_url }}">
       <span class="post-card__date">2026-05-18</span>
       <h3 class="post-card__title">Gene flow and the buffer</h3>
       <p class="post-card__excerpt">
@@ -98,12 +98,12 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
     </a>
     <p class="post-card__excerpt">
       Related docs:
-      <a href="{{ '/devlog/2026-05-12-seed-sweep-reality-check/' | relative_url }}">Replication baseline</a>,
+      <a href="{{ '/research/devlog/2026-05-12-seed-sweep-reality-check/' | relative_url }}">Replication baseline</a>,
       <a href="{{ '/experiments/intrinsic_evolution/crossover_rerun/' | relative_url }}">Crossover rerun experiment doc</a>.
     </p>
   </li>
   <li>
-    <a class="post-card" href="{{ '/devlog/2026-05-16-is-the-dqn-actually-learning/' | relative_url }}">
+    <a class="post-card" href="{{ '/research/devlog/2026-05-16-is-the-dqn-actually-learning/' | relative_url }}">
       <span class="post-card__date">2026-05-16</span>
       <h3 class="post-card__title">Is the DQN actually learning?</h3>
       <p class="post-card__excerpt">
@@ -126,7 +126,7 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
     </p>
   </li>
   <li>
-    <a class="post-card" href="{{ '/devlog/2026-05-12-seed-sweep-reality-check/' | relative_url }}">
+    <a class="post-card" href="{{ '/research/devlog/2026-05-12-seed-sweep-reality-check/' | relative_url }}">
       <span class="post-card__date">2026-05-12</span>
       <h3 class="post-card__title">When one seed disagrees with six</h3>
       <p class="post-card__excerpt">
@@ -139,12 +139,12 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
     </a>
     <p class="post-card__excerpt">
       Related docs:
-      <a href="{{ '/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/' | relative_url }}">Prior devlog</a>,
+      <a href="{{ '/research/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/' | relative_url }}">Prior devlog</a>,
       <a href="{{ '/experiments/intrinsic_evolution/intrinsic_evolution/' | relative_url }}">Intrinsic evolution docs</a>.
     </p>
   </li>
   <li>
-    <a class="post-card" href="{{ '/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/' | relative_url }}">
+    <a class="post-card" href="{{ '/research/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/' | relative_url }}">
       <span class="post-card__date">2026-05-04</span>
       <h3 class="post-card__title">Does the resource buffer pick the genes?</h3>
       <p class="post-card__excerpt">
@@ -159,11 +159,11 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
       <a href="{{ '/glossary/' | relative_url }}">Glossary</a>,
       <a href="{{ '/experiments/intrinsic_evolution/intrinsic_evolution/' | relative_url }}">Intrinsic evolution docs</a>,
       <a href="{{ '/design/hyperparameter_chromosome/' | relative_url }}">Hyperparameter chromosome design</a>,
-      <a href="{{ '/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">Companion devlog</a>.
+      <a href="{{ '/research/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">Companion devlog</a>.
     </p>
   </li>
   <li>
-    <a class="post-card" href="{{ '/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">
+    <a class="post-card" href="{{ '/research/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">
       <span class="post-card__date">2026-04-23</span>
       <h3 class="post-card__title">Evolving hyperparameter genomes in foraging and learning agents</h3>
       <p class="post-card__excerpt">
@@ -178,11 +178,11 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
       <a href="{{ '/glossary/' | relative_url }}">Glossary</a>,
       <a href="{{ '/design/hyperparameter_chromosome/' | relative_url }}">Hyperparameter chromosome design</a>,
       <a href="{{ '/experiments/intrinsic_evolution/intrinsic_evolution/' | relative_url }}">Intrinsic evolution docs</a>,
-      <a href="{{ '/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/' | relative_url }}">Follow-up devlog</a>.
+      <a href="{{ '/research/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/' | relative_url }}">Follow-up devlog</a>.
     </p>
   </li>
   <li>
-    <a class="post-card" href="{{ '/devlog/2026-04-17-dna-hyperparameter-evolution/' | relative_url }}">
+    <a class="post-card" href="{{ '/research/devlog/2026-04-17-dna-hyperparameter-evolution/' | relative_url }}">
       <span class="post-card__date">2026-04-17</span>
       <h3 class="post-card__title">DNA-style hyperparameter evolution results</h3>
       <p class="post-card__excerpt">

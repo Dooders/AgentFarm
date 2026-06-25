@@ -1,0 +1,19 @@
+# Lychee link checker configuration (documentation external URLs)
+
+max_concurrency = 4
+max_retries = 2
+timeout = 20
+insecure = false
+require_https = false
+
+exclude = [
+  '^https://github.com/Dooders/AgentFarm/(issues|pull|discussions)/',
+  '^https://github.com/.*/(issues|pull)/',
+  '^mailto:',
+  '^http://localhost',
+  '^https://localhost',
+  '^https://example\.com',
+  '^https://redis\.io',
+]
+
+max_redirects = 5
