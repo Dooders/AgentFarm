@@ -34,6 +34,8 @@ Run these from the repository root unless noted.
 | Tests with coverage (matches CI style) | `pytest -q --cov=farm --cov-report=term-missing` |
 | Include slow or integration tests | `pytest -m ""` or `pytest -m integration` / `-m slow` as needed |
 | Editor Jest tests | `cd farm/editor && npm test -- --runInBand` |
+| Docs internal link check | `python scripts/check_docs_links.py` |
+| Regenerate docs URL redirects | `python scripts/generate_doc_redirects.py` |
 | Regenerate verified spatial benchmark artifacts | `PYTHONHASHSEED=0 python benchmarks/implementations/spatial/comprehensive_spatial_benchmark.py --verified` |
 
 `pytest.ini` excludes `slow` and `integration` markers by default. Use `-m` to opt in when you need those suites.

@@ -1,0 +1,62 @@
+# Legacy URL redirects for GitHub Pages (Phase 2 doc moves).
+# Regenerate stub pages: python scripts/generate_doc_redirects.py
+
+# Old docs/<file>.md permalink -> new path (without .md, trailing slash added in build)
+files:
+  ExperimentQuickStart.md: getting-started/experiments-quickstart
+  LOGGING_QUICK_REFERENCE.md: reference/logging-quick-reference
+  PROFILING_AND_BENCHMARKING_PLAN.md: archive/profiling-and-benchmarking-plan
+  action_data.md: concepts/action-data
+  action_system.md: concepts/actions
+  agents.md: concepts/agents-and-decisions
+  alien_invasion_combat_simulation.md: research/alien-invasion-combat-simulation
+  api_reference.md: reference/api-reference
+  architectural_recommendations.md: design/architectural-recommendations
+  core_architecture.md: concepts/architecture
+  deep_q_learning.md: concepts/deep-q-learning
+  dependency-injection.md: concepts/dependency-injection
+  deployment.md: guides/deployment
+  deterministic_simulations.md: guides/deterministic-simulations
+  developer-guide.md: guides/development-setup
+  distillation_soft_label_comparison.md: research/distillation-soft-label-comparison
+  dynamic_channel_system.md: concepts/dynamic-channel-system
+  evolution_surface_catalog.md: research/evolution-surface-catalog
+  experiment_analysis.md: guides/experiment-analysis
+  experiment_runner.md: guides/experiment-runner
+  experiments.md: research/experiments-catalog
+  generic_combat_simulation_howto.md: guides/generic-combat-simulation
+  generic_simulation_scenario_howto.md: guides/generic-simulation-scenario
+  genetics_analysis.md: guides/genetics-analysis
+  glossary.md: reference/glossary
+  health_resource_analysis.md: guides/health-resource-analysis
+  identity.md: concepts/identity
+  initial_diversity.md: concepts/initial-diversity
+  ipc-api.md: reference/ipc-api
+  logging_guide.md: guides/logging
+  memmap_optimization.md: concepts/memmap-optimization
+  metrics.md: reference/metrics
+  module_overview.md: concepts/architecture
+  monitoring.md: guides/monitoring
+  observation_channels.md: concepts/observation-channels
+  perception_system_design.md: concepts/perception-system-design
+  perception_system.md: concepts/perception-system
+  redis_agent_memory.md: concepts/redis-agent-memory
+  repositories.md: reference/repositories-overview
+  state_system.md: concepts/state-system
+  STREAMING_CHUNKING.md: concepts/streaming-chunking
+  usage_examples.md: guides/usage-examples
+  user-guide.md: guides/development-setup
+  howto/neural_recombination_runbook.md: guides/neural-recombination-runbook
+
+# Old docs/<dir>/ entry points -> new default page
+directories:
+  config: reference/config/configuration_guide
+  data: reference/data/data_api
+  api: reference/api-reference
+  devlog: research/devlog
+  experiments: research/experiments-catalog
+  features: archive/features
+  howto: guides/neural-recombination-runbook
+  spatial: concepts/spatial/spatial_indexing
+  electron: reference/electron/config_explorer_architecture
+  analysis: reference/analysis/modules

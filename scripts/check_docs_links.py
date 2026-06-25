@@ -87,6 +87,10 @@ def resolve_link(source: Path, target: str) -> Path | None:
     return None
 
 
+def is_redirect_stub(text: str) -> bool:
+    return text.startswith("---\n") and "layout: redirect" in text.split("---", 2)[1]
+
+
 def main() -> int:
     errors: list[str] = []
     md_files = iter_markdown_files()
@@ -95,6 +99,8 @@ def main() -> int:
             text = md_file.read_text(encoding="utf-8")
         except OSError as exc:
             errors.append(f"{md_file.relative_to(REPO)}: read failed ({exc})")
+            continue
+        if is_redirect_stub(text):
             continue
         for match in LINK_PATTERN.finditer(text):
             raw = match.group(1).strip()

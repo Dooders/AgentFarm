@@ -1,0 +1,31 @@
+# Lychee link checker configuration (documentation external URLs)
+
+max_concurrency = 4
+max_retries = 2
+timeout = 20
+insecure = false
+require_https = false
+
+# Exclude Jekyll template directories — they contain Liquid syntax that lychee
+# cannot parse and would produce false-positive file-not-found errors.
+exclude_path = [
+  "docs/_includes",
+  "docs/_layouts",
+  "docs/404.html",
+]
+
+exclude = [
+  '^https://github.com/Dooders/AgentFarm/(issues|pull|discussions)/',
+  '^https://github.com/.*/(issues|pull)/',
+  '^mailto:',
+  '^http://localhost',
+  '^https://localhost',
+  '^https://example\.com',
+  '^https://redis\.io',
+  # Skip local file:// links; this job checks external HTTP/HTTPS URLs only.
+  # Relative links to source files outside docs/ resolve outside the scanning
+  # root and produce false-positive errors when checked as file:// URIs.
+  '^file://',
+]
+
+max_redirects = 5
