@@ -93,7 +93,7 @@ REPLACEMENTS: list[tuple[str, str]] = [
     ("](../features/", "](../archive/features/"),
 ]
 
-_SPLIT = next(i for i, (old, _) in enumerate(REPLACEMENTS) if not old.startswith("docs/"))
+_SPLIT = next((i for i, (old, _) in enumerate(REPLACEMENTS) if not old.startswith("docs/")), len(REPLACEMENTS))
 ABSOLUTE_REPLACEMENTS = REPLACEMENTS[:_SPLIT]
 RELATIVE_REPLACEMENTS = REPLACEMENTS[_SPLIT:]
 _LINK_TARGET = re.compile(r"^]\((?:\.\./)?([^)#]+)")
