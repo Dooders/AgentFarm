@@ -59,10 +59,10 @@ def compare_simulations(search_path: str, analysis_path: str) -> None:
     # TODO: Implement full comparative analysis logic
     # For now, create a placeholder result file
     result_file = analysis_path / "comparison_summary.txt"
-    with open(result_file, 'w') as f:
-        f.write(f"Comparative analysis of {len(simulation_dirs)} simulations\\n")
-        f.write(f"Simulation directories: {[str(d) for d in simulation_dirs]}\\n")
-        f.write("\\nNote: Full comparative analysis implementation pending\\n")
+    with open(result_file, "w", encoding="utf-8", newline="\n") as f:
+        f.write(f"Comparative analysis of {len(simulation_dirs)} simulations\n")
+        f.write(f"Simulation directories: {[str(d) for d in simulation_dirs]}\n")
+        f.write("\nNote: Full comparative analysis implementation pending\n")
 
     print(f"Comparative analysis placeholder created at: {result_file}")
 
