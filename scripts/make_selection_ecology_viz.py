@@ -12,7 +12,7 @@ The script generates a three-panel figure suitable for the devlog section:
 Example:
     python scripts/make_selection_ecology_viz.py \
         --db-path docs/sample/simulation.db \
-        --output docs/devlog/figures/selection-through-ecology.png
+        --output docs/research/devlog/figures/selection-through-ecology.png
 """
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("docs/devlog/figures/selection-through-ecology.png"),
+        default=Path("docs/research/devlog/figures/selection-through-ecology.png"),
         help="Output figure path.",
     )
     parser.add_argument(

@@ -155,7 +155,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("docs/devlog/figures/resource_buffer_selection_structure.png"),
+        default=Path("docs/research/devlog/figures/resource_buffer_selection_structure.png"),
         help="Output image path.",
     )
     parser.add_argument("--dpi", type=int, default=220, help="Saved image DPI.")

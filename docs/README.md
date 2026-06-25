@@ -1,36 +1,66 @@
 # AgentFarm documentation
 
-Navigation hub for the published docs site and repository guides.
+Navigation hub for tutorials, guides, concepts, reference material, and research writeups.
 
 ## New here?
 
 1. [Installation](getting-started/installation.md)
 2. [First simulation](getting-started/first-simulation.md)
-3. [Module overview](module_overview.md) — architecture and components
+3. [Architecture overview](concepts/architecture.md)
 
 ## By role
 
 | Role | Start here |
 |------|------------|
-| **User / researcher** | [Experiment QuickStart](ExperimentQuickStart.md) · [Experiments](experiments.md) · [Devlog](devlog/index.md) |
-| **Developer** | [CONTRIBUTING](../CONTRIBUTING.md) · [Developer guide](developer-guide.md) · [Core architecture](core_architecture.md) |
+| **User / researcher** | [Experiments catalog](research/experiments-catalog.md) · [Devlog](research/devlog/index.md) · [Experiment quickstart](getting-started/experiments-quickstart.md) |
+| **Developer** | [Development setup](guides/development-setup.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [Architecture](concepts/architecture.md) |
 | **Maintainer** | [Release process](RELEASE.md) · [Milestone 0.2.0](milestones/0.2.0.md) |
-| **Operator** | [Deployment](deployment.md) · [Logging guide](logging_guide.md) · [Monitoring](monitoring.md) |
+| **Operator** | [Deployment](guides/deployment.md) · [Logging](guides/logging.md) · [Monitoring](guides/monitoring.md) |
+
+## Getting started
+
+- [Installation](getting-started/installation.md)
+- [First simulation](getting-started/first-simulation.md)
+- [Experiment quickstart](getting-started/experiments-quickstart.md)
 
 ## Guides
 
-- [Configuration](config/configuration_guide.md)
-- [Neural recombination](guides/neural-recombination.md) — distillation, PTQ, QAT, crossover
-- [Neural recombination runbook](howto/neural_recombination_runbook.md) — full pipeline walkthrough
-- [Usage examples](usage_examples.md)
-- [API reference](api_reference.md)
+- [Configuration](reference/config/configuration_guide.md)
+- [Usage examples](guides/usage-examples.md)
+- [Experiment runner](guides/experiment-runner.md)
+- [Experiment analysis](guides/experiment-analysis.md)
+- [Deterministic simulations](guides/deterministic-simulations.md)
+- [Neural recombination](guides/neural-recombination.md) · [Runbook](guides/neural-recombination-runbook.md)
+- [Genetics analysis](guides/genetics-analysis.md)
 
-## Design & research
+## Concepts
 
-- [Design RFCs](design/agent_loop.md) — agent loop, chromosomes, crossover
-- [Devlog](devlog/index.md) — build notes and experiment outcomes
-- [Experiments catalog](experiments.md)
+- [Architecture](concepts/architecture.md)
+- [Agents and decisions](concepts/agents-and-decisions.md)
+- [Actions](concepts/actions.md) · [Observation channels](concepts/observation-channels.md)
+- [Spatial indexing](concepts/spatial/spatial_indexing.md)
+- [Deep Q-learning](concepts/deep-q-learning.md)
+
+## Reference
+
+- [API reference](reference/api-reference.md)
+- [Configuration](reference/config/configuration_guide.md) · [Data API](reference/data/data_api.md)
+- [Analysis modules](reference/analysis/modules/README.md)
+- [Glossary](reference/glossary.md) · [IPC API (planned UI)](reference/ipc-api.md)
+
+## Research
+
+- [Experiments catalog](research/experiments-catalog.md)
+- [Devlog](research/devlog/index.md)
+
+## Design & archive
+
+- [Design RFCs](design/README.md)
+- [Documentation style guide](STYLE.md)
+- [Archived features](archive/features/) · [Archived analysis notes](archive/analysis-extensions/)
+
+Legacy GitHub Pages URLs (`/devlog/`, `/api_reference/`, etc.) redirect via stubs in `docs/redirects.yml` — regenerate with `python scripts/generate_doc_redirects.py`.
 
 ## Package docs
 
-Module-local READMEs live next to code under `farm/` (for example [logging](../farm/utils/logging/README.md) and [decision](../farm/core/decision/README.md)).
+Module-local READMEs under `farm/` (for example [logging](../farm/utils/logging/README.md)).

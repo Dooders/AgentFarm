@@ -23,7 +23,7 @@ re-derived from what the system actually does.
 Three results post-date the original sketch and constrain the design:
 
 1. **Within-life learning barely moves the policy at the default horizon.**
-  The DQN diagnostic ([devlog 2026-05-16](../devlog/2026-05-16-is-the-dqn-actually-learning.md),
+  The DQN diagnostic ([devlog 2026-05-16](../research/devlog/2026-05-16-is-the-dqn-actually-learning.md),
    PR #878) showed that after fixing four training bugs, late-vs-early
    per-action decision quality still does not improve in a statistically
    defensible way at 500 steps (best t ≈ 1.15). Weight movement is modest
@@ -34,9 +34,9 @@ Three results post-date the original sketch and constrain the design:
   Lamarckian warm-start ([#849](https://github.com/Dooders/AgentFarm/issues/849),
    `farm/core/policy_inheritance.py`) copies the parent's entire
    `policy_state_dict` into the offspring. The 36-run A/B
-   ([devlog 2026-05-21](../devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness.md))
+   ([devlog 2026-05-21](../research/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness.md))
    and the newborn-level follow-up
-   ([devlog 2026-06-04](../devlog/2026-06-04-are-we-measuring-at-the-wrong-level.md))
+   ([devlog 2026-06-04](../research/devlog/2026-06-04-are-we-measuring-at-the-wrong-level.md))
    found **no fitness gain**: net early RL reward is, if anything, slightly
    *lower* under warm-start; the only robust effect is a ~1pp drop in
    negative-reward actions. Baldwinian stays the default.
@@ -128,7 +128,7 @@ learning is known to be ~null.
 
 Reuse the existing inheritance-A/B machinery
 (`scripts/run_inheritance_mode_ab.py`, `scripts/compare_inheritance_arms.py`,
-protocol in [inheritance_mode_ab.md](../experiments/intrinsic_evolution/inheritance_mode_ab.md))
+protocol in [inheritance_mode_ab.md](../research/experiments/intrinsic_evolution/inheritance_mode_ab.md))
 and add the `inheritance_mode` literals for P2–P4.
 
 1. **Run only in a learning-positive regime** (long horizon, small population),
@@ -204,7 +204,7 @@ place.
 ## Related docs
 
 - [Hyperparameter chromosome design](hyperparameter_chromosome.md)
-- [Inheritance A/B experiment protocol](../experiments/intrinsic_evolution/inheritance_mode_ab.md)
-- [Devlog: Baldwinian vs Lamarckian A/B](../devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness.md)
-- [Devlog: Are we measuring at the wrong level?](../devlog/2026-06-04-are-we-measuring-at-the-wrong-level.md)
-- [Devlog: Is the DQN actually learning?](../devlog/2026-05-16-is-the-dqn-actually-learning.md)
+- [Inheritance A/B experiment protocol](../research/experiments/intrinsic_evolution/inheritance_mode_ab.md)
+- [Devlog: Baldwinian vs Lamarckian A/B](../research/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness.md)
+- [Devlog: Are we measuring at the wrong level?](../research/devlog/2026-06-04-are-we-measuring-at-the-wrong-level.md)
+- [Devlog: Is the DQN actually learning?](../research/devlog/2026-05-16-is-the-dqn-actually-learning.md)
