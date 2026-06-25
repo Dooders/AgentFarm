@@ -11,13 +11,39 @@ from pathlib import Path
 
 def extract_release_notes(changelog_text: str, version: str) -> str | None:
     """Return the markdown block for ``## [version]`` if present."""
-    pattern = rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)"
-    match = re.search(pattern, changelog_text, flags=re.MULTILINE | re.DOTALL)
-    if not match:
+    header_pattern = re.compile(rf"^## \[{re.escape(version)}\][^\n]*$")
+    boundary_pattern = re.compile(r"^## \[|^## Entries$")
+    lines = changelog_text.splitlines()
+    entries_idx = next((i for i, line in enumerate(lines) if line == "## Entries"), len(lines))
+
+    header_idx: int | None = None
+    in_fence = False
+    for i, line in enumerate(lines):
+        if i >= entries_idx:
+            break
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence and header_pattern.match(line):
+            header_idx = i
+
+    if header_idx is None:
         return None
-    header = re.search(rf"^## \[{re.escape(version)}\][^\n]*", changelog_text, flags=re.MULTILINE)
-    body = match.group(1).strip()
-    return f"{header.group(0)}\n\n{body}".strip() if header else body
+
+    body_lines: list[str] = []
+    in_fence = False
+    for line in lines[header_idx + 1 :]:
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            body_lines.append(line)
+            continue
+        if not in_fence and boundary_pattern.match(line):
+            break
+        body_lines.append(line)
+
+    header_line = lines[header_idx]
+    body = "\n".join(body_lines).strip()
+    return f"{header_line}\n\n{body}".strip()
 
 
 def main(argv: list[str] | None = None) -> int:
