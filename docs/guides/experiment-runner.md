@@ -4,7 +4,7 @@ The generic `ExperimentRunner` provides functionality to run multiple
 simulation iterations with different parameters and analyze the results.
 This page describes how to use the runner directly; for the catalog of
 **defined experiments** (intrinsic evolution, hyperparameter convergence,
-multi-seed cohorts, etc.), see [Experiments](experiments.md).
+multi-seed cohorts, etc.), see [Experiments](../research/experiments-catalog.md).
 
 ## Overview
 

@@ -13,7 +13,7 @@ behaviorally identical.
 ## Configuration
 
 Driven by `SimulationConfig.initial_diversity`, which is an
-[`InitialDiversityConfig`](../farm/core/initial_diversity.py).
+[`InitialDiversityConfig`](../../../farm/core/initial_diversity.py).
 
 ```python
 from farm.config import SimulationConfig
@@ -58,7 +58,7 @@ candidate is accepted and the metrics report a fallback. Choose
 ## Telemetry
 
 Every seeding pass returns an
-[`InitialDiversityMetrics`](../farm/core/initial_diversity.py) instance,
+[`InitialDiversityMetrics`](../../../farm/core/initial_diversity.py) instance,
 attached to the environment as `environment.initial_diversity_metrics`:
 
 | Field | Description |
@@ -101,7 +101,7 @@ for runner-specific guidance.
 ## Pluggable diversity sources
 
 `apply_initial_diversity(environment, cfg, rng, source=...)` accepts any
-implementation of the [`InitialDiversitySource`](../farm/core/initial_diversity.py)
+implementation of the [`InitialDiversitySource`](../../../farm/core/initial_diversity.py)
 `Protocol`:
 
 ```python

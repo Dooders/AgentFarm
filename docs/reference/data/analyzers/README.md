@@ -149,17 +149,13 @@ All analyzers handle common issues:
 
 ## Cross-References
 
-For detailed information on specific analyzers:
+For detailed information on specific analyzers (see files in this directory):
 
-- **Action Analysis**: [Action Stats Analyzer](ActionStatsAnalyzer.md)
-- **Behavioral Analysis**: [Behavior Clustering Analyzer](BehaviorClusteringAnalyzer.md)
-- **Causal Analysis**: [Causal Analyzer](CausalAnalyzer.md)
-- **Decision Patterns**: [Decision Pattern Analyzer](DecisionPatternAnalyzer.md)
+- **Population Analysis**: [Population Analyzer](PopulationAnalyzer.md)
+- **Learning Analysis**: [Learning Analyzer](LearningAnalyzer.md)
 - **Resource Analysis**: [Resource Impact Analyzer](ResourceImpactAnalyzer.md)
 - **Sequence Analysis**: [Sequence Pattern Analyzer](SequencePatternAnalyzer.md)
 - **Temporal Analysis**: [Temporal Pattern Analyzer](TemporalPatternAnalyzer.md)
-- **Population Analysis**: [Population Analyzer](PopulationAnalyzer.md)
-- **Learning Analysis**: [Learning Analyzer](LearningAnalyzer.md)
 
 ## Notes
 

@@ -7,7 +7,7 @@ dedicated documentation covering motivation, configuration, output
 artifacts, and (where available) results.
 
 > Looking for the generic multi-iteration runner instead of a specific
-> experiment? See [ExperimentRunner — Running Multi-Iteration Simulations](experiment_runner.md).
+> experiment? See [ExperimentRunner — Running Multi-Iteration Simulations](../guides/experiment-runner.md).
 
 ## Evolutionary dynamics
 

@@ -701,15 +701,15 @@ For in-depth technical information, refer to:
 
 **Core Implementation:**
 
-- [Dynamic Channel System](dynamic_channel_system.md) - Complete channel implementation guide
-- [Perception System Design](perception_system_design.md) - Technical channel architecture details
-- [Core Architecture](core_architecture.md) - Channel processing pipeline and integration
+- [Dynamic Channel System](dynamic-channel-system.md) - Complete channel implementation guide
+- [Perception System Design](perception-system-design.md) - Technical channel architecture details
+- [Architecture](architecture.md) - Channel processing pipeline and integration
 
 **Configuration & Usage:**
 
 - [Configuration Guide](../reference/config/configuration_guide.md) - Complete channel configuration reference
-- [Usage Examples](usage_examples.md) - Practical channel implementation examples
-- [Module Overview](module-overview.md) - High-level channel system overview
+- [Usage Examples](../guides/usage-examples.md) - Practical channel implementation examples
+- [Architecture](architecture.md) - High-level channel system overview
 
 ### 🔧 Implementation Files
 

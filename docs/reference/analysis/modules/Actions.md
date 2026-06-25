@@ -555,7 +555,7 @@ print(f"Total categories: {summary['total_categories']}")
 
 ## See Also
 
-- [API Reference](../API_REFERENCE.md)
+- [API Reference](../../api/API_REFERENCE.md)
 - [Learning Module](./Learning.md)
 - [Agents Module](./Agents.md)
 

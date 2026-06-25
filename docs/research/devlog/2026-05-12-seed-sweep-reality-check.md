@@ -245,7 +245,7 @@ and `seed_sweep_summary.json`.
 ## Related docs
 
 - [Prior devlog: does the resource buffer pick the genes?](2026-05-04-resource-buffer-shapes-intrinsic-evolution.md)
-- [Glossary](../glossary.md)
+- [Glossary](../../reference/glossary.md)
 - [Intrinsic evolution experiment docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)
-- [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md)
+- [Hyperparameter chromosome design](../../design/hyperparameter_chromosome.md)
 - [Hyperparameter genome devlog](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.md)

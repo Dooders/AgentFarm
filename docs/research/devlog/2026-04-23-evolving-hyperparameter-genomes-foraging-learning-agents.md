@@ -8,20 +8,20 @@ simple: how much adaptive behavior can emerge under ecological constraints
 like finite resources and costly reproduction, without a hand-crafted fitness
 function or a predefined optimum to chase? This experiment is a small step
 toward answering that: each agent carries its own
-[hyperparameter chromosome](../design/hyperparameter_chromosome.md),
+[hyperparameter chromosome](../../design/hyperparameter_chromosome.md),
 offspring inherit it (with optional mutation and crossover), and selection is
 whatever the resource environment happens to apply.
 
 This isn't meant as a claim of open-ended evolution - it's a bounded
 simulation in which evolutionary dynamics are layered on top of
-[reinforcement learning](../concepts/deep-q-learning.md) agents that have to feed
+[reinforcement learning](../../concepts/deep-q-learning.md) agents that have to feed
 themselves to stay alive.
 
 ## What's evolving
 
 Each agent owns a `HyperparameterChromosome` built from its decision config at
 construction time. The schema (documented in
-[Hyperparameter Chromosome Design](../design/hyperparameter_chromosome.md))
+[Hyperparameter Chromosome Design](../../design/hyperparameter_chromosome.md))
 is currently two logical chromosomes that are crossed and mutated as a single
 gene vector:
 
@@ -77,7 +77,7 @@ die out. That's the whole selection story.
 
 Agents have an explicit `gather` action: locate the nearest resource node
 within range via the
-[spatial index](../concepts/spatial/spatial_indexing.md), consume from it, and credit
+[spatial index](../../concepts/spatial/spatial_indexing.md), consume from it, and credit
 the agent's resource pool. Foraging is one of the actions the RL policy
 chooses among, so the evolved learning hyperparameters and the foraging
 behavior are coupled through the decision module.
@@ -142,7 +142,7 @@ Current capabilities in this line of work:
   not one-off side analysis.
 - The chromosome/reproduction path is documented and parameterized in the
   [Intrinsic evolution docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)
-  and [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md).
+  and [Hyperparameter chromosome design](../../design/hyperparameter_chromosome.md).
 
 Open questions and next targets:
 
@@ -160,7 +160,7 @@ Open questions and next targets:
   warm-start (#849) turned out to be a fitness null and within-life learning
   is near-null at the default horizon (#878), the payload plan is no longer
   "copy more of the network." See
-  [Inherited payload design](../design/inherited_payload_design.md) for the
+  [Inherited payload design](../../design/inherited_payload_design.md) for the
   weights-plus-continuation-machinery variant ladder (P0–P4) and the
   signal-budget precondition.
 - [Add explicit Baldwinian-vs-Lamarckian A/B runs under matched settings to
@@ -171,7 +171,7 @@ inheritance/ecology combinations produce robust gains across runs.
 
 ## Related docs
 
-- [Glossary](../glossary.md)
-- [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md)
+- [Glossary](../../reference/glossary.md)
+- [Hyperparameter chromosome design](../../design/hyperparameter_chromosome.md)
 - [Intrinsic evolution experiment docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)
 - [Resource-buffer follow-up devlog](2026-05-04-resource-buffer-shapes-intrinsic-evolution.md)

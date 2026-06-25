@@ -317,10 +317,10 @@ print(f"Groups: {info['function_groups']}")
 
 ## See Also
 
-- [API Reference](../API_REFERENCE.md) - Complete API documentation
-- [Quick Reference](../QUICK_REFERENCE.md) - Common patterns
+- [API Reference](../../api/API_REFERENCE.md) - Complete API documentation
+- [Quick Reference](../../api-reference.md) - Common patterns
 - [Architecture](../../../farm/analysis/ARCHITECTURE.md) - System design
-- [Main Documentation](../INDEX.md) - Documentation index
+- [Main Documentation](../../api-reference.md) - Documentation index
 
 ---
 

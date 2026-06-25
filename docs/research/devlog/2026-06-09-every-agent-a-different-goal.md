@@ -159,4 +159,4 @@ and *why* the population shrinks.
 
 - [Intrinsic goals experiment doc](../experiments/intrinsic_evolution/intrinsic_goals.md)
 - [Intrinsic evolution docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)
-- [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md)
+- [Hyperparameter chromosome design](../../design/hyperparameter_chromosome.md)

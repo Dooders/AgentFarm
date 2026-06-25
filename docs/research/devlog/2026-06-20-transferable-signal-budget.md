@@ -241,7 +241,7 @@ python scripts/plot_transferable_signal.py \
 ## Related docs
 
 - [Implement inherited-payload ladder (P2-P4) and run the #848 experiment (#904)](https://github.com/Dooders/AgentFarm/issues/904)
-- [Inherited payload design](../design/inherited_payload_design.md)
+- [Inherited payload design](../../design/inherited_payload_design.md)
 - [Is the DQN actually learning?](2026-05-16-is-the-dqn-actually-learning.md)
 - [Baldwinian vs Lamarckian: policy warm-start across three resource regimes](2026-05-21-baldwinian-vs-lamarckian-ab-harness.md)
 - [Are we measuring at the wrong level?](2026-06-04-are-we-measuring-at-the-wrong-level.md)

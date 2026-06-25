@@ -246,5 +246,5 @@ python run_simulation.py \
 
 ## Links
 
-- Full Guide: [logging_guide.md](logging_guide.md)
+- Full Guide: [logging_guide.md](../guides/logging.md)
 - Examples: [farm/utils/logging/README.md](../farm/utils/logging/README.md)

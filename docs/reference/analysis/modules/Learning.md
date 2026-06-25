@@ -321,7 +321,7 @@ learning_result = service.run(AnalysisRequest(
 
 ## See Also
 
-- [API Reference](../API_REFERENCE.md)
+- [API Reference](../../api/API_REFERENCE.md)
 - [Agents Module](./Agents.md)
 - [Actions Module](./Actions.md)
 

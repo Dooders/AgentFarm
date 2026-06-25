@@ -574,20 +574,20 @@ For in-depth technical information, refer to:
 
 **Design & Architecture:**
 
-- [Perception System Design](perception_system_design.md) - Complete technical implementation details
-- [Core Architecture](core_architecture.md) - System integration and architecture patterns
-- [Dynamic Channel System](dynamic_channel_system.md) - Channel system implementation details
+- [Perception System Design](perception-system-design.md) - Complete technical implementation details
+- [Architecture](architecture.md) - System integration and architecture patterns
+- [Dynamic Channel System](dynamic-channel-system.md) - Channel system implementation details
 
 **Performance & Optimization:**
 
-- [Observation channels](observation_channels.md) - Channel layout and sizing considerations
-- [Memmap optimization](memmap_optimization.md) - Memory-mapped / footprint-related tuning
+- [Observation channels](observation-channels.md) - Channel layout and sizing considerations
+- [Memmap optimization](memmap-optimization.md) - Memory-mapped / footprint-related tuning
 - [Configuration Guide](../reference/config/configuration_guide.md) - Complete configuration reference
 
 **Integration & Usage:**
 
-- [API Reference](api_reference.md) - Complete API documentation
-- [Usage Examples](usage_examples.md) - Practical implementation examples
+- [API Reference](../reference/api-reference.md) - Complete API documentation
+- [Usage Examples](../guides/usage-examples.md) - Practical implementation examples
 
 ### 🔧 Implementation Files
 

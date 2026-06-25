@@ -175,7 +175,7 @@ result = service.run(AnalysisRequest(
 
 ## See Also
 
-- [API Reference](../API_REFERENCE.md)
+- [API Reference](../../api/API_REFERENCE.md)
 - [Resources Module](./Resources.md)
 - [Agents Module](./Agents.md)
 

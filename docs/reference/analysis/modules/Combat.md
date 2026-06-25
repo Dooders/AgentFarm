@@ -163,7 +163,7 @@ print(f"Win rate: {best_matchup['win_rate']:.1%}")
 
 ## See Also
 
-- [API Reference](../API_REFERENCE.md)
+- [API Reference](../../api/API_REFERENCE.md)
 - [Agents Module](./Agents.md)
 - [Actions Module](./Actions.md)
 

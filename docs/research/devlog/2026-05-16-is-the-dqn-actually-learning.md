@@ -355,7 +355,7 @@ simulation where the policy has enough room to matter.
 
 ## Related docs
 
-- [Deep Q-learning module reference](../concepts/deep-q-learning.md)
-- [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md)
+- [Deep Q-learning module reference](../../concepts/deep-q-learning.md)
+- [Hyperparameter chromosome design](../../design/hyperparameter_chromosome.md)
 - [PR #878](https://github.com/Dooders/AgentFarm/pull/878)
 - Diagnostic script: `scripts/diagnose_dqn_learning.py`

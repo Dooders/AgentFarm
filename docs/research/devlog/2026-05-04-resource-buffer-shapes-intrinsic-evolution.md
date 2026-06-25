@@ -40,7 +40,7 @@ This post is the narrative.
 Every run is 1,000 logged steps after a 200-step warmup, single seed (42),  
 30 founders seeded by independent mutation, mutation rate 0.15 / scale 0.10,  
 crossover off, GMM  
-[speciation](../glossary.md#speciation) tracking, and `selection_pressure="low"` (a
+[speciation](../../reference/glossary.md#speciation) tracking, and `selection_pressure="low"` (a
 small density-dependent reproduction cost, no global carrying-cap term).
 
 The only thing that varies is the resource buffer:
@@ -196,7 +196,7 @@ artifact links, see
 
 ## Related docs
 
-- [Glossary](../glossary.md)
+- [Glossary](../../reference/glossary.md)
 - [Intrinsic evolution experiment docs](../experiments/intrinsic_evolution/intrinsic_evolution.md)
-- [Hyperparameter chromosome design](../design/hyperparameter_chromosome.md)
+- [Hyperparameter chromosome design](../../design/hyperparameter_chromosome.md)
 - [Hyperparameter genome devlog](2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents.md)
