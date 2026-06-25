@@ -508,8 +508,8 @@ tests/analysis/conftest.py
 
 ### Related documents
 - [Analysis README](README.md) (this package)
-- [Analysis modules index](../../docs/analysis/modules/README.md)
-- [Experiment analysis](../../docs/experiment_analysis.md)
+- [Analysis modules index](../../docs/reference/analysis/modules/README.md)
+- [Experiment analysis](../../docs/guides/experiment-analysis.md)
 
 ### Design Principles
 - SOLID Principles

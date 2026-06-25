@@ -25,7 +25,7 @@ defaults:
     values:
       layout: default
   - scope:
-      path: "devlog"
+      path: "research/devlog"
     values:
       layout: post
 
@@ -59,11 +59,11 @@ nav_links:
   - title: Getting Started
     url: /getting-started/installation/
   - title: Guides
-    url: /guides/neural-recombination/
+    url: /guides/development-setup/
   - title: Reference
-    url: /api_reference/
+    url: /reference/api-reference/
   - title: Devlog
-    url: /devlog/
+    url: /research/devlog/
   - title: GitHub
     url: https://github.com/Dooders/AgentFarm
     external: true

@@ -2,7 +2,7 @@
 
 After distilling student Q-networks you can apply **8-bit post-training quantization (PTQ)** and, if accuracy is not good enough, **quantization-aware training (QAT)**. Implementation details and PyTorch version notes live in [`farm/core/decision/training/quantize_ptq.py`](../../farm/core/decision/training/quantize_ptq.py) and [`farm/core/decision/training/quantize_qat.py`](../../farm/core/decision/training/quantize_qat.py).
 
-For the full step-by-step pipeline, see the [Neural Recombination Runbook](../howto/neural_recombination_runbook.md).
+For the full step-by-step pipeline, see the [Neural Recombination Runbook](neural-recombination-runbook.md).
 
 ## Typical flow
 
