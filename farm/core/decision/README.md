@@ -164,7 +164,7 @@ The decision module integrates seamlessly with AgentFarm's agent system:
 - Supports curriculum learning
 - Compatible with existing DQN implementations
 
-For patterns and tutorials, see [docs/usage_examples.md](../../../docs/usage_examples.md) and [docs/deep_q_learning.md](../../../docs/deep_q_learning.md) from the repository root.
+For patterns and tutorials, see [docs/guides/usage-examples.md](../../../docs/guides/usage-examples.md) and [docs/concepts/deep-q-learning.md](../../../docs/concepts/deep-q-learning.md) from the repository root.
 
 ## Future Extensions
 - Additional RL algorithms (e.g., Rainbow DQN)

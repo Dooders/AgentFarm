@@ -1168,7 +1168,7 @@ class TianshouWrapper(RLAlgorithm):
         as the actor's preferred continuous action in ``[-1, 1]`` (post-tanh)
         and project it onto the discrete action space with a soft, distance-
         based logit profile. This is an approximation — see
-        ``docs/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness.md`` for
+        ``docs/research/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness.md`` for
         the rationale and known limitations: continuous-actor algorithms
         cannot natively express a full categorical distribution, so the
         ``policy_probs × action_weights × mask`` composition in

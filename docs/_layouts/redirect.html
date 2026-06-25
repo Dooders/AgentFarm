@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Redirecting…</title>
+  <link rel="canonical" href="{{ page.redirect_to | relative_url }}" />
+  <meta http-equiv="refresh" content="0; url={{ page.redirect_to | relative_url }}" />
+  <script>
+    window.location.replace("{{ page.redirect_to | relative_url }}");
+  </script>
+</head>
+<body>
+  <p>
+    This page moved.
+    <a href="{{ page.redirect_to | relative_url }}">Continue to the new location</a>.
+  </p>
+</body>
+</html>

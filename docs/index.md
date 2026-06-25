@@ -68,7 +68,7 @@ env = run_simulation(
           Compose adaptive agents, environments, and rules. Track interactions,
           resources, and emergent dynamics over time.
         </p>
-        <a class="feature__link" href="{{ '/features/agent_based_modeling_analysis/' | relative_url }}">Modeling</a>
+        <a class="feature__link" href="{{ '/concepts/architecture/' | relative_url }}">Architecture</a>
       </div>
 
       <div class="feature">
@@ -77,7 +77,7 @@ env = run_simulation(
           PyTorch + Tianshou-backed decision modules with prioritized experience
           replay and evolvable hyperparameters.
         </p>
-        <a class="feature__link" href="{{ '/deep_q_learning/' | relative_url }}">Deep Q-learning</a>
+        <a class="feature__link" href="{{ '/concepts/deep-q-learning/' | relative_url }}">Deep Q-learning</a>
       </div>
 
       <div class="feature">
@@ -95,7 +95,7 @@ env = run_simulation(
           KD-tree, Quadtree, and Spatial Hash Grid backends with dirty-region
           tracking — thousands of agents, fast.
         </p>
-        <a class="feature__link" href="{{ '/features/spatial_indexing_performance/' | relative_url }}">Performance</a>
+        <a class="feature__link" href="{{ '/concepts/spatial/spatial_indexing/' | relative_url }}">Spatial indexing</a>
       </div>
 
       <div class="feature">
@@ -104,8 +104,8 @@ env = run_simulation(
           Repository-backed databases, behavioral clustering, causal analysis,
           and experiment-level comparisons.
         </p>
-        <a class="feature__link" href="{{ '/features/data_system/' | relative_url }}">Data system</a>
-        <a class="feature__link" href="{{ '/genetics_analysis/' | relative_url }}">Genetics</a>
+        <a class="feature__link" href="{{ '/reference/data/data_api/' | relative_url }}">Data API</a>
+        <a class="feature__link" href="{{ '/guides/genetics-analysis/' | relative_url }}">Genetics</a>
       </div>
 
       <div class="feature">
@@ -114,7 +114,7 @@ env = run_simulation(
           <code>structlog</code>-powered, context-rich, machine-readable logs
           with sampling and sensitive-data censoring.
         </p>
-        <a class="feature__link" href="{{ '/LOGGING_QUICK_REFERENCE/' | relative_url }}">Logging</a>
+        <a class="feature__link" href="{{ '/reference/logging-quick-reference/' | relative_url }}">Logging</a>
       </div>
     </div>
   </div>
@@ -153,7 +153,7 @@ env = run_simulation(
         <li class="quickstart__step">
           <div>
             <h4>Open the docs</h4>
-            <p>Browse the <a href="{{ '/README/' | relative_url }}">documentation index</a> for guides, API, and case studies.</p>
+            <p>Browse <a href="{{ '/getting-started/installation/' | relative_url }}">getting started</a> and the <a href="{{ '/README/' | relative_url }}">documentation hub</a>.</p>
           </div>
         </li>
       </ol>
@@ -197,7 +197,7 @@ env = run_simulation(
 
     <ul class="posts">
       <li>
-        <a class="post-card" href="{{ '/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">
+        <a class="post-card" href="{{ '/research/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">
           <span class="post-card__date">2026-04-23</span>
           <h3 class="post-card__title">Evolving hyperparameter genomes in foraging and learning agents</h3>
           <p class="post-card__excerpt">
@@ -207,7 +207,7 @@ env = run_simulation(
         </a>
       </li>
       <li>
-        <a class="post-card" href="{{ '/devlog/2026-04-17-dna-hyperparameter-evolution/' | relative_url }}">
+        <a class="post-card" href="{{ '/research/devlog/2026-04-17-dna-hyperparameter-evolution/' | relative_url }}">
           <span class="post-card__date">2026-04-17</span>
           <h3 class="post-card__title">DNA-style hyperparameter evolution results</h3>
           <p class="post-card__excerpt">
@@ -218,7 +218,7 @@ env = run_simulation(
     </ul>
 
     <p class="section__more">
-      <a class="btn" href="{{ '/devlog/' | relative_url }}">All devlog posts</a>
+      <a class="btn" href="{{ '/research/devlog/' | relative_url }}">All devlog posts</a>
     </p>
   </div>
 </section>

@@ -64,7 +64,7 @@ Related
 -------
 - :mod:`farm.core.decision.training.recombination_eval` — aggregate fidelity metrics
 - ``scripts/analyze_recombination.py`` — CLI wrapping this module
-- ``docs/howto/neural_recombination_runbook.md`` — integration guide
+- ``docs/guides/neural-recombination-runbook.md`` — integration guide
 """
 
 from __future__ import annotations

@@ -731,9 +731,9 @@ Part of the farm simulation analysis framework.
 ## Related Documentation
 
 - [Analysis Architecture](../ARCHITECTURE.md)
-- [Database Schema](../../../docs/data/database_schema.md)
-- [Module Overview](../../../docs/analysis/modules/README.md)
-- [Experiment Analysis](../../../docs/experiment_analysis.md)
+- [Database Schema](../../../docs/reference/data/database_schema.md)
+- [Module Overview](../../../docs/reference/analysis/modules/README.md)
+- [Experiment Analysis](../../../docs/guides/experiment-analysis.md)
 
 ## Support
 

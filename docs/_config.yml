@@ -25,7 +25,7 @@ defaults:
     values:
       layout: default
   - scope:
-      path: "devlog"
+      path: "research/devlog"
     values:
       layout: post
 
@@ -56,14 +56,14 @@ collections:
 # Top navigation links shown in the site header. URLs use the trailing-slash
 # permalinks Jekyll generates from optional-front-matter pages.
 nav_links:
-  - title: Docs
-    url: /README/
+  - title: Getting Started
+    url: /getting-started/installation/
+  - title: Guides
+    url: /guides/development-setup/
+  - title: Reference
+    url: /reference/api-reference/
   - title: Devlog
-    url: /devlog/
-  - title: Experiments
-    url: /experiments/
-  - title: API
-    url: /api_reference/
+    url: /research/devlog/
   - title: GitHub
     url: https://github.com/Dooders/AgentFarm
     external: true

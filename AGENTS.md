@@ -6,7 +6,7 @@ This file is for **automated coding agents** working in this repository. Human c
 
 **AgentFarm** is a Python-first simulation and analysis platform for agent-based modeling, reinforcement learning experiments, and related research (see README for feature overview). The installable package lives under `farm/`. Tests live under `tests/`. There is a small JavaScript test suite for the editor under `farm/editor/`.
 
-**Note:** [docs/agents.md](docs/agents.md) describes a *research experiment* about system vs. individual agents in simulations. It is **not** this file and is unrelated to agent tooling.
+**Note:** [docs/concepts/agents-and-decisions.md](docs/concepts/agents-and-decisions.md) describes agent architecture in simulations. It is **not** this file and is unrelated to agent tooling.
 
 ## Environment setup
 
@@ -34,6 +34,8 @@ Run these from the repository root unless noted.
 | Tests with coverage (matches CI style) | `pytest -q --cov=farm --cov-report=term-missing` |
 | Include slow or integration tests | `pytest -m ""` or `pytest -m integration` / `-m slow` as needed |
 | Editor Jest tests | `cd farm/editor && npm test -- --runInBand` |
+| Docs internal link check | `python scripts/check_docs_links.py` |
+| Regenerate docs URL redirects | `python scripts/generate_doc_redirects.py` |
 | Regenerate verified spatial benchmark artifacts | `PYTHONHASHSEED=0 python benchmarks/implementations/spatial/comprehensive_spatial_benchmark.py --verified` |
 
 `pytest.ini` excludes `slow` and `integration` markers by default. Use `-m` to opt in when you need those suites.
