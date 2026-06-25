@@ -490,6 +490,10 @@ class TestSimulationComparison:
         result_file = output_path / "comparison_summary.txt"
         assert result_file.exists()
 
+        content = result_file.read_text()
+        assert "Comparative analysis" in content
+        assert "\\n" not in content
+
 
 class TestComparativeModule:
     """Test comparative module integration."""
