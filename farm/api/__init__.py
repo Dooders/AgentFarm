@@ -40,6 +40,8 @@ Usage:
     ```
 """
 
+from farm._version import __version__
+
 from .unified_controller import AgentFarmController
 from .models import (
     SessionInfo, SimulationStatus, SimulationResults, ExperimentStatus,
@@ -50,7 +52,6 @@ from .session_manager import SessionManager
 from .unified_adapter import UnifiedAdapter
 from .config_templates import ConfigTemplateManager
 
-__version__ = "1.0.0"
 __author__ = "AgentFarm Team"
 
 __all__ = [

@@ -14,6 +14,7 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 |------|------------|
 | **User / researcher** | [Experiments catalog](research/experiments-catalog.md) · [Devlog](research/devlog/index.md) · [Experiment quickstart](getting-started/experiments-quickstart.md) |
 | **Developer** | [Development setup](guides/development-setup.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [Architecture](concepts/architecture.md) |
+| **Maintainer** | [Release process](RELEASE.md) · [Milestone 0.2.0](milestones/0.2.0.md) |
 | **Operator** | [Deployment](guides/deployment.md) · [Logging](guides/logging.md) · [Monitoring](guides/monitoring.md) |
 
 ## Getting started
