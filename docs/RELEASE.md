@@ -55,7 +55,7 @@ Edit `farm/_version.py`:
 __version__ = "0.2.0"
 ```
 
-`pyproject.toml` and `setup.py` read this value automatically. Do not hard-code versions elsewhere.
+`pyproject.toml` reads this value automatically. Do not hard-code versions elsewhere.
 
 Verify locally:
 
