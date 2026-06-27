@@ -48,6 +48,8 @@ Core Components:
     - service: High-level API
 """
 
+from farm._version import __version__
+
 # Import modules to register them
 from farm.analysis import (
     actions,
@@ -126,7 +128,6 @@ from farm.analysis.validation import (
     validate_simulation_data,
 )
 
-from farm._version import __version__
 __author__ = "AgentFarm Team"
 __all__ = [
     # Protocols

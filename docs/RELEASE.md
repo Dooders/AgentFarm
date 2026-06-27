@@ -121,7 +121,7 @@ The workflow will:
 
 - Verify `farm/_version.py` matches the input version
 - Confirm the tag `vX.Y.Z` does not already exist
-- Run the default pytest suite
+- Run the fast pytest suite (`-m "not slow and not integration"`, excluding `tests/test_deterministic_pytest.py`)
 - Build sdist and wheel artifacts
 - Extract release notes from `CHANGELOG.md`
 - Create tag `vX.Y.Z` and a GitHub Release with attached artifacts
