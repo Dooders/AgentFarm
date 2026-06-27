@@ -15,8 +15,8 @@ exclude_path = [
 ]
 
 exclude = [
-  '^https://github.com/Dooders/AgentFarm/(issues|pull|discussions)/',
-  '^https://github.com/.*/(issues|pull)/',
+  '^https://github.com/Dooders/AgentFarm/(issues|pull|discussions|milestone)/',
+  '^https://github.com/.*/(issues|pull|milestone)/',
   '^mailto:',
   '^http://localhost',
   '^https://localhost',
