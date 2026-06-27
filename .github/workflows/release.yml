@@ -54,7 +54,8 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if git rev-parse "v${INPUT_VERSION}" >/dev/null 2>&1; then
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/v${INPUT_VERSION}" >/dev/null 2>&1; then
             echo "::error::Tag v${INPUT_VERSION} already exists."
             exit 1
           fi
