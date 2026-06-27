@@ -21,8 +21,8 @@ on:
         default: ""
 
 permissions:
+  contents: read
   issues: write
-
 jobs:
   create-milestone:
     runs-on: ubuntu-latest
