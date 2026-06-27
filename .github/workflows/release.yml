@@ -1,0 +1,103 @@
+name: Release
+
+# Maintainer-only: cut a GitHub Release from main after a release PR merges.
+# See docs/RELEASE.md for the full checklist.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without leading v (e.g. 0.2.0)"
+        required: true
+        type: string
+      publish_to_pypi:
+        description: "Publish wheel/sdist to PyPI (requires trusted publishing)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce main branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Release workflow must be run from the main branch (current: ${{ github.ref }})."
+          exit 1
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.10"
+
+      - name: Verify version matches source
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          SOURCE_VERSION=$(python -c "from farm._version import __version__; print(__version__)")
+          if [ "$SOURCE_VERSION" != "$INPUT_VERSION" ]; then
+            echo "::error::farm/_version.py is $SOURCE_VERSION but workflow input is $INPUT_VERSION"
+            exit 1
+          fi
+          echo "Version $SOURCE_VERSION confirmed."
+
+      - name: Check tag does not exist
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/v${INPUT_VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag v${INPUT_VERSION} already exists."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip build
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run pytest
+        run: |
+          pytest -q -m "not slow and not integration" --ignore=tests/test_deterministic_pytest.py
+
+      - name: Extract release notes
+        id: notes
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+          if ! python scripts/extract_release_notes.py "$INPUT_VERSION" > "$NOTES_FILE"; then
+            echo "::error::Could not extract changelog section for version $INPUT_VERSION"
+            exit 1
+          fi
+          echo "path=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          gh release create "v${INPUT_VERSION}" \
+            --title "v${INPUT_VERSION}" \
+            --notes-file "${{ steps.notes.outputs.path }}" \
+            dist/*
+
+      - name: Publish to PyPI
+        if: inputs.publish_to_pypi
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        with:
+          packages-dir: dist/

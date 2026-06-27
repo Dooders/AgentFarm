@@ -6,6 +6,14 @@ This repository uses an automated Copilot-assisted workflow to draft changelog u
 
 ## Format
 
+Release sections use a version header:
+
+```markdown
+## [0.2.0] - 2026-06-25
+```
+
+Between releases, maintainers and automation may add **dated** sub-entries under `## Entries` (see below). When cutting a release, roll those entries up into the version section.
+
 Each entry should include:
 
 - what changed
@@ -19,6 +27,10 @@ Suggested grouping:
 - Fixed
 - Docs
 - Performance
+
+## [0.1.0] - 2025-01-01
+
+Baseline packaged release at `0.1.0`. Detailed history is captured in the dated entries below.
 
 ## Entries
 

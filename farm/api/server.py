@@ -16,6 +16,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from farm._version import __version__
 from farm.analysis.service import AnalysisRequest, AnalysisService
 from farm.api.analysis_controller import AnalysisController
 from farm.config import SimulationConfig
@@ -34,7 +35,7 @@ configure_logging(
 )
 logger = get_logger(__name__)
 
-app = FastAPI(title="AgentFarm API", version="1.0.0")
+app = FastAPI(title="AgentFarm API", version=__version__)
 
 # CORS: wildcard + credentials is invalid for browsers; use explicit origins in production.
 _cors_raw = os.environ.get(

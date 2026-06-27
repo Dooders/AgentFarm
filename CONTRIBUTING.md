@@ -47,6 +47,15 @@ git checkout -b my-feature-branch
 6. Link any relevant issues in your pull request description
 7. Be responsive to feedback and be willing to make changes if requested
 
+## When will my PR ship?
+
+All contributor PRs merge into **`dev`**. Releases cut from `dev` into **`main`** on a milestone or time-based cadence tracked via [GitHub Milestones](https://github.com/Dooders/AgentFarm/milestones).
+
+- Your PR ships in the **next release** after it merges to `dev`, assuming that release's milestone is not already frozen.
+- See the current target scope in [`docs/milestones/`](docs/milestones/) (e.g. [`0.2.0.md`](docs/milestones/0.2.0.md)) and the [GitHub milestone](https://github.com/Dooders/AgentFarm/milestones).
+- Maintainers may label PRs `release-blocker` or `breaking-change` when triaging.
+- For the full maintainer release process, see [docs/RELEASE.md](docs/RELEASE.md).
+
 ## Coding Standards
 
 - Follow PEP 8 style guidelines for Python code (line length 120, as configured for Ruff/Pylint)
