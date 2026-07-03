@@ -350,10 +350,10 @@ def apply_p3_policy_warmstart(
     the parent's learning trajectory instead of restarting from scratch.
 
     ``replay_buffer_limit`` caps the number of transitions serialized and
-    transferred per offspring.  Keep it small (default :data:`P3_REPLAY_BUFFER_LIMIT`
-    = 64) for long-horizon sweeps or high-reproduction-churn regimes; larger
-    values increase wall-clock time proportionally because the transfer is
-    synchronous per birth event.
+    transferred per offspring. Keep it small (default :data:`P3_REPLAY_BUFFER_LIMIT`)
+    for long-horizon sweeps or high-reproduction-churn regimes; larger values
+    increase wall-clock time proportionally because the transfer is synchronous per
+    birth event.
 
     Returns ``None`` on success; returns a ``WARMSTART_REASON_*`` string on
     any skip.
