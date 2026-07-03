@@ -14,10 +14,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+for _thread_var in (
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+):
+    os.environ.setdefault(_thread_var, "1")
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
@@ -32,6 +41,7 @@ from scripts import run_stable_profile_seed_sweep as runner_mod  # noqa: E402
 from scripts.run_stable_profile_seed_sweep import (  # noqa: E402
     DEFAULT_PROFILES,
     DEFAULT_SEEDS,
+    _configure_torch_threads,
 )
 
 ARM_PRESETS: Dict[str, Dict[str, Any]] = {
@@ -42,6 +52,12 @@ ARM_PRESETS: Dict[str, Dict[str, Any]] = {
     "p4": {"inheritance_mode": "p4"},
 }
 DEFAULT_ARMS: List[str] = ["baldwinian", "lamarckian"]
+
+
+def _resolve_max_population(args: argparse.Namespace) -> Optional[int]:
+    if getattr(args, "low_churn", False) and args.population is not None:
+        return args.population
+    return args.max_population
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -90,6 +106,34 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-steps", type=int, default=1000)
     parser.add_argument("--warmup-steps", type=int, default=200)
     parser.add_argument("--snapshot-interval", type=int, default=50)
+    parser.add_argument(
+        "--population",
+        type=int,
+        default=None,
+        help=(
+            "Learning-positive regime: independent-only population of this size. "
+            "Forwarded to the seed sweep runner."
+        ),
+    )
+    parser.add_argument(
+        "--max-population",
+        type=int,
+        default=None,
+        help="Population cap when --population is set (default: population * 4).",
+    )
+    parser.add_argument(
+        "--low-churn",
+        action="store_true",
+        default=False,
+        help=(
+            "Low-churn ecology variant: set max_population = population so the "
+            "colony cannot grow beyond its starting size. Reproduction replaces "
+            "dead agents rather than expanding the colony, keeping ecology density "
+            "comparable to the gate regime (fixed-8, no-repro). "
+            "Ignored when --population is not set. "
+            "Takes precedence over --max-population when both are given."
+        ),
+    )
     parser.add_argument("--mutation-rate", type=float, default=0.15)
     parser.add_argument("--mutation-scale", type=float, default=0.10)
     parser.add_argument("--selection-pressure", type=str, default="low")
@@ -142,6 +186,8 @@ def _build_runner_args(
         num_steps=args.num_steps,
         warmup_steps=args.warmup_steps,
         snapshot_interval=args.snapshot_interval,
+        population=args.population,
+        max_population=_resolve_max_population(args),
         mutation_rate=args.mutation_rate,
         mutation_scale=args.mutation_scale,
         selection_pressure=args.selection_pressure,
@@ -230,6 +276,15 @@ def _print_dry_run(args: argparse.Namespace, output_dir: Path) -> None:
     print(f"  arms       : {args.arms}")
     print(f"  profiles   : {args.profiles}")
     print(f"  seeds      : {args.seeds}")
+    if args.population is not None:
+        low_churn = getattr(args, "low_churn", False)
+        if low_churn:
+            cap = _resolve_max_population(args)
+            ecology = "low-churn (max = start)"
+        else:
+            cap = args.max_population if args.max_population is not None else args.population * 4
+            ecology = "saturated"
+        print(f"  population : {args.population} independent-only (max {cap}, ecology={ecology})")
     print(f"  total runs : {total}")
     print()
     for arm in args.arms:
@@ -245,6 +300,7 @@ def main() -> int:
         _print_dry_run(args, output_dir)
         return 0
 
+    _configure_torch_threads()
     output_dir.mkdir(parents=True, exist_ok=True)
     runner_mod.configure_logging(
         environment=args.environment,
@@ -261,6 +317,11 @@ def main() -> int:
         "profiles": args.profiles,
         "seeds": args.seeds,
         "num_steps": args.num_steps,
+        "warmup_steps": args.warmup_steps,
+        "snapshot_interval": args.snapshot_interval,
+        "population": args.population,
+        "max_population": args.max_population,
+        "low_churn": getattr(args, "low_churn", False),
         "arm_manifests": {},
     }
 
@@ -312,6 +373,13 @@ def main() -> int:
         )
         compare_lines.append(f"    --output-dir {output_dir / 'aggregate'}")
         print("\n".join(compare_lines))
+        print(
+            "\nEarly-life verdict (primary #904 metric):\n"
+            f"  python scripts/analyze_early_life_fitness.py \\\n"
+            f"    --ab-dir {output_dir} \\\n"
+            f"    --baseline-arm {baseline_arm} \\\n"
+            f"    --treatment-arms {' '.join(treatment_arms)}"
+        )
 
     return 0 if total_fail == 0 else 1
 

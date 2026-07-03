@@ -45,11 +45,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import sys
 import time
 import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+# Long learning-positive runs train many tiny per-agent DQNs. Pin BLAS/OpenMP
+# pools before numpy/torch import (same fix as measure_transferable_signal.py).
+for _thread_var in (
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+):
+    os.environ.setdefault(_thread_var, "1")
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
@@ -62,6 +74,9 @@ from farm.core.hyperparameter_chromosome import (  # noqa: E402
     MutationMode,
 )
 from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode  # noqa: E402
+from scripts._learning_positive_regime import (  # noqa: E402
+    maybe_apply_learning_positive_population,
+)
 from scripts._warmstart_cli import (  # noqa: E402
     add_warmstart_tuning_arguments,
     warmstart_tuning_kwargs,
@@ -85,6 +100,55 @@ COPARENT_STRATEGIES: List[str] = [
     "random_alive_same_type",
 ]
 INHERITANCE_MODES: List[str] = ["baldwinian", "lamarckian", "p2", "p3", "p4"]
+
+
+def _configure_torch_threads() -> None:
+    """Pin Torch thread counts to 1 for tiny-network DQN training."""
+    try:
+        import torch
+
+        torch.set_num_threads(1)
+        try:
+            torch.set_num_interop_threads(1)
+        except RuntimeError:
+            # Best-effort tuning: this can fail when Torch's thread pools are
+            # already initialized; keep default inter-op threads in that case.
+            pass
+    except ImportError:
+        # Torch is optional in some environments; if unavailable, skip thread pinning.
+        return
+
+
+def _read_completed_steps(run_dir: Path) -> Optional[int]:
+    """Return ``num_steps_completed`` from metadata, or ``None`` if absent/invalid."""
+    meta_path = run_dir / "intrinsic_evolution_metadata.json"
+    if not meta_path.is_file():
+        return None
+    try:
+        with meta_path.open(encoding="utf-8") as fh:
+            meta = json.load(fh)
+        completed = meta.get("num_steps_completed")
+        if completed is None:
+            return None
+        return int(completed)
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return None
+
+
+def _prepare_run_dir_for_resume(run_dir: Path, num_steps: int, resume: bool) -> None:
+    """Drop partial artifacts from interrupted runs so ``--resume`` can restart cleanly."""
+    if not resume or not run_dir.is_dir():
+        return
+    completed = _read_completed_steps(run_dir)
+    if completed is not None and completed >= num_steps:
+        return
+    if any(run_dir.iterdir()):
+        print(
+            f"  Removing incomplete run dir {run_dir} "
+            f"(completed={completed}, target={num_steps})",
+            file=sys.stderr,
+        )
+        shutil.rmtree(run_dir)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -122,6 +186,22 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-steps", type=int, default=1000)
     parser.add_argument("--warmup-steps", type=int, default=200)
     parser.add_argument("--snapshot-interval", type=int, default=50)
+    parser.add_argument(
+        "--population",
+        type=int,
+        default=None,
+        help=(
+            "When set, override to an independent-only learning-positive "
+            "population of this size (0 system/control agents). Requires "
+            "--max-population or defaults to population * 4."
+        ),
+    )
+    parser.add_argument(
+        "--max-population",
+        type=int,
+        default=None,
+        help="Population cap when --population is set (default: population * 4).",
+    )
     parser.add_argument("--mutation-rate", type=float, default=0.15)
     parser.add_argument("--mutation-scale", type=float, default=0.10)
     parser.add_argument("--selection-pressure", type=str, default="low")
@@ -235,6 +315,11 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
     overrides = STABLE_SUB_PROFILES[profile]
 
     base_config = SimulationConfig.from_centralized_config(environment=args.environment)
+    maybe_apply_learning_positive_population(
+        base_config,
+        getattr(args, "population", None),
+        getattr(args, "max_population", None),
+    )
     if getattr(args, "disk_database", False):
         base_config.database.use_in_memory_db = False
         base_config.database.persist_db_on_completion = True
@@ -307,17 +392,14 @@ def _maybe_resume_skip(
     """
     if not getattr(args, "resume", False):
         return None
-    meta_path = run_dir / "intrinsic_evolution_metadata.json"
-    if not meta_path.is_file():
+    completed = _read_completed_steps(run_dir)
+    if completed is None:
+        return None
+    if completed < int(args.num_steps):
         return None
     try:
-        with meta_path.open(encoding="utf-8") as fh:
+        with (run_dir / "intrinsic_evolution_metadata.json").open(encoding="utf-8") as fh:
             meta = json.load(fh)
-        completed = meta.get("num_steps_completed")
-        if completed is None:
-            return None
-        if int(completed) < int(args.num_steps):
-            return None
         record.update(
             status="skipped_done",
             elapsed_seconds=0.0,
@@ -362,6 +444,7 @@ def _run_one(
         )
         return True, record
 
+    _prepare_run_dir_for_resume(run_dir, args.num_steps, getattr(args, "resume", False))
     run_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("seed_sweep_run_start", profile=profile, seed=seed, run_dir=str(run_dir))
@@ -425,6 +508,9 @@ def _print_dry_run_plan(args: argparse.Namespace, output_dir: Path) -> None:
     print(f"  seeds      : {args.seeds}")
     print(f"  num_steps  : {args.num_steps} (warmup {args.warmup_steps}, "
           f"snapshot/{args.snapshot_interval})")
+    if getattr(args, "population", None) is not None:
+        cap = args.max_population if args.max_population is not None else args.population * 4
+        print(f"  population : {args.population} independent-only (max {cap})")
     print(f"  disk_db    : {getattr(args, 'disk_database', False)}")
     print(f"  inheritance: {_inheritance_settings_dict(args)}")
     print(f"  crossover  : {_crossover_settings_dict(args)}")
@@ -469,6 +555,7 @@ def main() -> int:
         _print_dry_run_plan(args, output_dir)
         return 0
 
+    _configure_torch_threads()
     output_dir.mkdir(parents=True, exist_ok=True)
     configure_logging(
         environment=args.environment,
@@ -497,6 +584,8 @@ def main() -> int:
         "num_steps": args.num_steps,
         "warmup_steps": args.warmup_steps,
         "snapshot_interval": args.snapshot_interval,
+        "population": getattr(args, "population", None),
+        "max_population": getattr(args, "max_population", None),
         "mutation_rate": args.mutation_rate,
         "mutation_scale": args.mutation_scale,
         "selection_pressure": args.selection_pressure,

@@ -27,6 +27,7 @@ _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
+from scripts._learning_positive_regime import apply_stable_profile_ecology  # noqa: E402
 from scripts.measure_transferable_signal import (  # noqa: E402
     _PolicySnapshots,
     _entropy,
@@ -38,7 +39,6 @@ from scripts.measure_transferable_signal import (  # noqa: E402
     build_eval_config,
     build_regime_config,
     compute_drift,
-    _apply_profile_overrides,
 )
 from farm.config import SimulationConfig  # noqa: E402
 from farm.runners.intrinsic_evolution_experiment import STABLE_SUB_PROFILES  # noqa: E402
@@ -321,7 +321,7 @@ def test_eval_policy_weighted_falls_through_greedy_overrides():
 
 def test_apply_profile_overrides_sets_ecology():
     config = SimulationConfig.from_centralized_config(environment="testing")
-    _apply_profile_overrides(config, "buffered")
+    apply_stable_profile_ecology(config, "buffered")
     overrides = STABLE_SUB_PROFILES["buffered"]
     assert config.agent_behavior.initial_resource_level == overrides[
         "initial_agent_resource_level"
