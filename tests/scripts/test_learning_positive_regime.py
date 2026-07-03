@@ -20,7 +20,6 @@ from scripts._learning_positive_regime import (  # noqa: E402
     DEFAULT_LEARNING_POSITIVE_MAX_POPULATION,
     DEFAULT_LEARNING_POSITIVE_POPULATION,
     apply_independent_population,
-    apply_stable_profile_ecology,
     build_learning_positive_regime_config,
     maybe_apply_learning_positive_population,
 )
