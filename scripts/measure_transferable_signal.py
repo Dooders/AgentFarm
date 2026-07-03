@@ -82,6 +82,7 @@ from farm.config import SimulationConfig  # noqa: E402
 from farm.core.agent.core import AgentCore  # noqa: E402
 from farm.core.decision.decision import DecisionModule  # noqa: E402
 from farm.core.simulation import run_simulation  # noqa: E402
+from farm.runners.intrinsic_evolution_experiment import STABLE_SUB_PROFILES  # noqa: E402
 from scripts._learning_positive_regime import (  # noqa: E402
     apply_independent_population,
     apply_stable_profile_ecology,
