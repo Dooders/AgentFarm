@@ -307,10 +307,16 @@ class TestSummarizeEcology(unittest.TestCase):
 
     def test_aggregates_mean_final_population(self):
         eco_list = [
-            {"final_population": 30, "configured_max_population": 32,
-             "saturation_ratio": 30 / 32},
-            {"final_population": 32, "configured_max_population": 32,
-             "saturation_ratio": 1.0},
+            {
+                "final_population": 30,
+                "configured_max_population": 32,
+                "saturation_ratio": 30 / 32,
+            },
+            {
+                "final_population": 32,
+                "configured_max_population": 32,
+                "saturation_ratio": 1.0,
+            },
         ]
         summary = _summarize_ecology(eco_list)
         self.assertEqual(summary["n_runs"], 2)

@@ -394,6 +394,13 @@ def _discover_arm_runs(
 def _summarize_ecology(eco_list: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Aggregate per-run ecology context dicts into a profile-level summary.
 
+    Parameters
+    ----------
+    eco_list:
+        List of per-run ecology dicts, each with optional keys
+        ``final_population``, ``configured_max_population``, and
+        ``saturation_ratio`` (as returned by :func:`_read_ecology_context`).
+
     Keys in the summary:
     - ``n_runs``: number of runs with ecology data.
     - ``mean_final_population``: mean final population across runs.
@@ -406,8 +413,11 @@ def _summarize_ecology(eco_list: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not eco_list:
         return {}
     final_pops = [e["final_population"] for e in eco_list if "final_population" in e]
-    sat_ratios = [e["saturation_ratio"] for e in eco_list
-                  if "saturation_ratio" in e and math.isfinite(e["saturation_ratio"])]
+    sat_ratios = [
+        e["saturation_ratio"]
+        for e in eco_list
+        if "saturation_ratio" in e and math.isfinite(e["saturation_ratio"])
+    ]
     max_pop = next(
         (e["configured_max_population"] for e in eco_list
          if "configured_max_population" in e),
