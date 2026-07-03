@@ -122,11 +122,12 @@ def test_reproduce_with_policy_mutates_learning_rate_and_passes_child_config():
     assert offspring.hyperparameter_chromosome.get_value("learning_rate") == pytest.approx(0.012, abs=1e-9)
 
 
-def test_derive_child_chromosome_locks_dqn_hidden_size_in_warmstart_modes():
+@pytest.mark.parametrize("inheritance_mode", ("lamarckian", "p2", "p3", "p4"))
+def test_derive_child_chromosome_locks_dqn_hidden_size_in_warmstart_modes(inheritance_mode):
     """Warm-start modes keep topology genes fixed to avoid policy shape mismatches."""
     parent = _build_parent_agent_for_reproduction()
     parent.environment.intrinsic_evolution_policy = IntrinsicEvolutionPolicy(
-        inheritance_mode="lamarckian",
+        inheritance_mode=inheritance_mode,
         mutation_rate=1.0,
         mutation_scale=0.2,
     )
