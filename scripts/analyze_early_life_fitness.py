@@ -728,8 +728,7 @@ def _build_multi_arm_markdown(
     for age in ages:
         lines += [f"## Net RL reward at age {age} (primary gate)", ""]
         lines += [
-            "| Profile | Arm | Baseline mean | Treatment mean | Mean Δ | 95% CI | "
-            "Sign agr. | Verdict |",
+            "| Profile | Arm | Baseline mean | Treatment mean | Mean Δ | 95% CI | Sign agr. | Verdict |",
             "| --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
         for arm in treatment_arms:
