@@ -132,11 +132,15 @@ def test_derive_child_chromosome_locks_dqn_hidden_size_in_warmstart_modes():
     )
     parent_hidden = parent.hyperparameter_chromosome.get_value("dqn_hidden_size")
 
-    with patch("farm.core.hyperparameter_chromosome.random.random", return_value=0.0), patch(
+    with patch(
+        "farm.core.hyperparameter_chromosome.random.random", return_value=0.0
+    ) as patched_random, patch(
         "farm.core.hyperparameter_chromosome.random.gauss", return_value=1000.0
-    ):
+    ) as patched_gauss:
         child = AgentCore._derive_child_chromosome(parent, parent.hyperparameter_chromosome)
 
+    assert patched_random.called
+    assert patched_gauss.called
     assert child.get_value("dqn_hidden_size") == parent_hidden
 
 
@@ -150,11 +154,15 @@ def test_derive_child_chromosome_allows_dqn_hidden_size_mutation_in_baldwinian()
     )
     parent_hidden = parent.hyperparameter_chromosome.get_value("dqn_hidden_size")
 
-    with patch("farm.core.hyperparameter_chromosome.random.random", return_value=0.0), patch(
+    with patch(
+        "farm.core.hyperparameter_chromosome.random.random", return_value=0.0
+    ) as patched_random, patch(
         "farm.core.hyperparameter_chromosome.random.gauss", return_value=1000.0
-    ):
+    ) as patched_gauss:
         child = AgentCore._derive_child_chromosome(parent, parent.hyperparameter_chromosome)
 
+    assert patched_random.called
+    assert patched_gauss.called
     assert child.get_value("dqn_hidden_size") != parent_hidden
 
 
