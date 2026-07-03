@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 import sys
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 
 _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _repo_root not in sys.path:
@@ -29,6 +31,7 @@ from scripts.run_inheritance_mode_ab import (  # noqa: E402
     DEFAULT_ARMS,
     _build_parser,
     _build_runner_args,
+    _print_dry_run,
 )
 
 
@@ -117,6 +120,61 @@ class TestWarmstartTuningForwarding(unittest.TestCase):
         self.assertEqual(runner_args.warmstart_replay_buffer_limit, 64)
         self.assertEqual(runner_args.warmstart_blend_alpha, 0.75)
         self.assertEqual(runner_args.warmstart_fitness_gate_min_resources, 5.0)
+
+
+class TestLowChurnFlag(unittest.TestCase):
+    """Tests for the --low-churn ecology variant (Issue #963)."""
+
+    def test_low_churn_flag_accepted(self):
+        args = _build_parser().parse_args(["--low-churn"])
+        self.assertTrue(args.low_churn)
+
+    def test_low_churn_default_is_false(self):
+        args = _build_parser().parse_args([])
+        self.assertFalse(args.low_churn)
+
+    def test_low_churn_sets_max_population_to_population(self):
+        """With --low-churn, runner_args.max_population = population (no growth)."""
+        args = _build_parser().parse_args(
+            ["--population", "16", "--low-churn"]
+        )
+        runner_args = _build_runner_args(args, "baldwinian", Path("/tmp/out"))
+        self.assertEqual(runner_args.max_population, 16)
+        self.assertEqual(runner_args.population, 16)
+
+    def test_low_churn_no_population_does_not_override_max_population(self):
+        """--low-churn is ignored when --population is not set."""
+        args = _build_parser().parse_args(["--low-churn"])
+        runner_args = _build_runner_args(args, "baldwinian", Path("/tmp/out"))
+        # population is None => max_population remains None (not overridden).
+        self.assertIsNone(runner_args.population)
+        self.assertIsNone(runner_args.max_population)
+
+    def test_low_churn_overrides_explicit_max_population(self):
+        """--low-churn takes precedence over --max-population when population is set."""
+        args = _build_parser().parse_args(
+            ["--population", "12", "--max-population", "64", "--low-churn"]
+        )
+        runner_args = _build_runner_args(args, "baldwinian", Path("/tmp/out"))
+        self.assertEqual(runner_args.max_population, 12)
+
+    def test_saturated_default_preserves_explicit_max_population(self):
+        """Without --low-churn, an explicit --max-population is forwarded unchanged."""
+        args = _build_parser().parse_args(
+            ["--population", "8", "--max-population", "32"]
+        )
+        runner_args = _build_runner_args(args, "baldwinian", Path("/tmp/out"))
+        self.assertEqual(runner_args.max_population, 32)
+
+    def test_low_churn_dry_run_reports_population_as_cap(self):
+        args = _build_parser().parse_args(["--population", "16", "--low-churn"])
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            _print_dry_run(args, Path("/tmp/out"))
+        output = stdout.getvalue()
+        self.assertIn("population : 16 independent-only", output)
+        self.assertIn("max 16", output)
+        self.assertIn("ecology=low-churn (max = start)", output)
 
 
 if __name__ == "__main__":

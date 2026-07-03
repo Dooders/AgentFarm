@@ -29,6 +29,48 @@ Issue: [#849](https://github.com/Dooders/AgentFarm/issues/849)
 - Initial diversity: independent mutation (`rate=1.0`, `scale=0.25`)
 - Speciation: GMM, `max_k=4`
 
+## Ecology regime and divergence from the gate
+
+The inheritance A/B runs with **reproduction enabled** and a starting
+population of 8 independent agents. The two ecology variants differ in how
+much the colony can grow:
+
+### Saturated ecology (default, `--population 8 --max-population 32`)
+
+`max_population=32` gives 4× growth headroom. In pilot runs, every seed
+fills to the cap early (32/32) and runs as a **crowded, high-churn ecology**
+for most of the horizon (see [Issue #963]).
+
+This diverges from the precondition gate
+([transferable-signal-budget devlog]), which ran with **reproduction
+disabled** in a fixed-8 uncrowded setting. The gate measured a modest
+within-life decision-quality signal (~+15–30 net reward at age 10) in an
+*uncrowded, no-repro* environment; the A/B measures offspring early-life
+fitness in a *saturated colony* where resources and spatial competition
+differ.
+
+Practical implication: interpret early-life scores alongside the
+**ecology context** table in the analysis output (`ecology_by_arm` in the
+JSON, "Ecology context" section in the Markdown). A `saturation_ratio` of
+1.0 means every arm ran fully saturated; any comparison is then ecology-matched
+by construction, but the regime differs from the gate.
+
+### Low-churn ecology (`--population 8 --max-population 8 --low-churn`)
+
+Setting `max_population = population` (via `--low-churn`) prevents the colony
+from growing beyond its starting size. Reproduction can only replace dead
+agents, keeping ecology density comparable to the gate regime.
+
+Use this variant when the research question is: *"does the inherited payload
+help offspring survive in an uncrowded environment similar to the one where
+the parent learned?"*
+
+Use the saturated variant when the research question is: *"does inheritance
+help under realistic evolutionary pressure in a full colony?"*
+
+[Issue #963]: https://github.com/Dooders/AgentFarm/issues/963
+[transferable-signal-budget devlog]: ../../devlog/2026-06-20-transferable-signal-budget/
+
 ## Run commands
 
 **Note:** Results under `experiments/inheritance_ab_pre_fix/` were collected
@@ -36,11 +78,22 @@ before a decision-path fix (2026-05-22) that prevented policy weights from
 influencing actions. That aggregate is invalid; use a fresh output directory
 after the fix lands.
 
-### 1) Run both arms
+### 1a) Run both arms — saturated ecology (default)
 
 ```bash
 PYTHONHASHSEED=0 python scripts/run_inheritance_mode_ab.py \
   --output-dir experiments/inheritance_ab \
+  --disk-database \
+  --resume
+```
+
+### 1b) Run both arms — low-churn ecology variant
+
+```bash
+PYTHONHASHSEED=0 python scripts/run_inheritance_mode_ab.py \
+  --output-dir experiments/inheritance_ab_low_churn \
+  --population 8 \
+  --low-churn \
   --disk-database \
   --resume
 ```
