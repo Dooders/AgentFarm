@@ -1044,11 +1044,6 @@ class AgentCore:
             if lock_shapes
             else ()
         )
-        per_gene_rate_multipliers = (
-            {gene_name: 0.0 for gene_name in locked_genes}
-            if locked_genes
-            else None
-        )
         child_chromosome = mutate_chromosome(
             base,
             mutation_rate=policy.mutation_rate,
@@ -1056,17 +1051,12 @@ class AgentCore:
             mutation_mode=policy.mutation_mode,
             boundary_mode=policy.boundary_mode,
             interior_bias_fraction=policy.interior_bias_fraction,
-            per_gene_rate_multipliers=per_gene_rate_multipliers,
             rng=rng,
         )
-        if not locked_genes:
-            return child_chromosome
-        return child_chromosome.with_overrides(
-            {
-                gene_name: parent_chromosome.get_value(gene_name)
-                for gene_name in locked_genes
-            }
-        )
+        overrides = {
+            gene_name: parent_chromosome.get_value(gene_name) for gene_name in locked_genes
+        }
+        return child_chromosome.with_overrides(overrides) if overrides else child_chromosome
 
     def _select_coparent(self, policy, rng) -> Optional["AgentCore"]:
         """Pick a co-parent for crossover according to the policy.
