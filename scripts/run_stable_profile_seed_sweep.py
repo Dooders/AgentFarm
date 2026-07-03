@@ -115,7 +115,8 @@ def _configure_torch_threads() -> None:
             # already initialized; keep default inter-op threads in that case.
             pass
     except ImportError:
-        pass
+        # Torch is optional in some environments; if unavailable, skip thread pinning.
+        return
 
 
 def _read_completed_steps(run_dir: Path) -> Optional[int]:
