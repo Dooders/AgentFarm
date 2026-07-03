@@ -16,6 +16,7 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _repo_root not in sys.path:
@@ -287,6 +288,13 @@ class TestReadEcologyContext(unittest.TestCase):
             )
             self.assertEqual(_read_ecology_context(Path(tmp)), {})
 
+    def test_read_error_returns_empty(self):
+        with TemporaryDirectory() as tmp:
+            meta_path = Path(tmp) / "intrinsic_evolution_metadata.json"
+            meta_path.write_text("{}", encoding="utf-8")
+            with patch.object(Path, "read_text", side_effect=OSError("denied")):
+                self.assertEqual(_read_ecology_context(Path(tmp)), {})
+
     def test_partial_metadata_no_saturation_ratio(self):
         """If max_population is absent, saturation_ratio should not be set."""
         with TemporaryDirectory() as tmp:
@@ -296,6 +304,21 @@ class TestReadEcologyContext(unittest.TestCase):
             )
             ctx = _read_ecology_context(Path(tmp))
         self.assertEqual(ctx["final_population"], 12)
+        self.assertNotIn("saturation_ratio", ctx)
+
+    def test_invalid_nested_metadata_types_are_ignored(self):
+        with TemporaryDirectory() as tmp:
+            meta = {
+                "final_population": "not-an-int",
+                "resolved_initial_conditions": [],
+                "policy": {"max_population": "32"},
+            }
+            (Path(tmp) / "intrinsic_evolution_metadata.json").write_text(
+                json.dumps(meta), encoding="utf-8"
+            )
+            ctx = _read_ecology_context(Path(tmp))
+        self.assertEqual(ctx["configured_max_population"], 32)
+        self.assertNotIn("final_population", ctx)
         self.assertNotIn("saturation_ratio", ctx)
 
 

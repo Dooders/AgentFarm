@@ -180,21 +180,33 @@ def _read_ecology_context(run_dir: Path) -> Dict[str, Any]:
         return {}
     try:
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(meta, dict):
         return {}
     context: Dict[str, Any] = {}
     final_pop = meta.get("final_population")
     if final_pop is not None:
-        context["final_population"] = int(final_pop)
+        try:
+            context["final_population"] = int(final_pop)
+        except (TypeError, ValueError):
+            pass
     # max_population lives in resolved_initial_conditions (set by the runner).
-    resolved = meta.get("resolved_initial_conditions") or {}
+    resolved = meta.get("resolved_initial_conditions")
+    if not isinstance(resolved, dict):
+        resolved = {}
     max_pop = resolved.get("max_population")
     if max_pop is None:
         # Fallback: check the policy block.
-        policy = meta.get("policy") or {}
+        policy = meta.get("policy")
+        if not isinstance(policy, dict):
+            policy = {}
         max_pop = policy.get("max_population")
     if max_pop is not None:
-        context["configured_max_population"] = int(max_pop)
+        try:
+            context["configured_max_population"] = int(max_pop)
+        except (TypeError, ValueError):
+            pass
     if "final_population" in context and "configured_max_population" in context:
         denom = context["configured_max_population"]
         context["saturation_ratio"] = (
