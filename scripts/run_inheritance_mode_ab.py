@@ -18,7 +18,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 for _thread_var in (
     "OMP_NUM_THREADS",
@@ -54,7 +54,7 @@ ARM_PRESETS: Dict[str, Dict[str, Any]] = {
 DEFAULT_ARMS: List[str] = ["baldwinian", "lamarckian"]
 
 
-def _resolve_max_population(args: argparse.Namespace) -> int | None:
+def _resolve_max_population(args: argparse.Namespace) -> Optional[int]:
     if getattr(args, "low_churn", False) and args.population is not None:
         return args.population
     return args.max_population
