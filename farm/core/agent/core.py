@@ -1035,15 +1035,19 @@ class AgentCore:
 
         inheritance_mode = getattr(policy, "inheritance_mode", "baldwinian")
         lock_shapes = inheritance_mode in _WARMSTART_DISPATCH
+        parent_gene_names = {gene.name for gene in parent_chromosome.genes}
         locked_genes = (
             tuple(
                 gene_name
                 for gene_name in _WARMSTART_SHAPE_LOCKED_GENES
-                if parent_chromosome.get_gene(gene_name) is not None
+                if gene_name in parent_gene_names
             )
             if lock_shapes
             else ()
         )
+        overrides = {
+            gene_name: parent_chromosome.get_value(gene_name) for gene_name in locked_genes
+        }
         child_chromosome = mutate_chromosome(
             base,
             mutation_rate=policy.mutation_rate,
@@ -1053,9 +1057,6 @@ class AgentCore:
             interior_bias_fraction=policy.interior_bias_fraction,
             rng=rng,
         )
-        overrides = {
-            gene_name: parent_chromosome.get_value(gene_name) for gene_name in locked_genes
-        }
         return child_chromosome.with_overrides(overrides) if overrides else child_chromosome
 
     def _select_coparent(self, policy, rng) -> Optional["AgentCore"]:
