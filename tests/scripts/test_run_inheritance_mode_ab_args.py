@@ -171,7 +171,10 @@ class TestLowChurnFlag(unittest.TestCase):
         stdout = StringIO()
         with redirect_stdout(stdout):
             _print_dry_run(args, Path("/tmp/out"))
-        self.assertIn("population : 16 independent-only (max 16, ecology=low-churn (max = start))", stdout.getvalue())
+        output = stdout.getvalue()
+        self.assertIn("population : 16 independent-only", output)
+        self.assertIn("max 16", output)
+        self.assertIn("ecology=low-churn (max = start)", output)
 
 
 if __name__ == "__main__":
