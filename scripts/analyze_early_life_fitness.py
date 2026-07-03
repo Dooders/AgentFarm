@@ -164,6 +164,45 @@ def _read_warmstart_rate(run_dir: Path) -> Optional[float]:
     return float(applied) / total if total > 0 else float("nan")
 
 
+def _read_ecology_context(run_dir: Path) -> Dict[str, Any]:
+    """Read ecology density context from run metadata.
+
+    Returns a dict with keys:
+    - ``final_population``: population alive at the end of the run.
+    - ``configured_max_population``: max_population cap set in the run config.
+    - ``saturation_ratio``: final_population / configured_max_population
+      (1.0 = fully saturated; close to initial_population/max_population = sparse).
+
+    Returns an empty dict when metadata is absent or malformed.
+    """
+    meta_path = run_dir / "intrinsic_evolution_metadata.json"
+    if not meta_path.exists():
+        return {}
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    context: Dict[str, Any] = {}
+    final_pop = meta.get("final_population")
+    if final_pop is not None:
+        context["final_population"] = int(final_pop)
+    # max_population lives in resolved_initial_conditions (set by the runner).
+    resolved = meta.get("resolved_initial_conditions") or {}
+    max_pop = resolved.get("max_population")
+    if max_pop is None:
+        # Fallback: check the policy block.
+        policy = meta.get("policy") or {}
+        max_pop = policy.get("max_population")
+    if max_pop is not None:
+        context["configured_max_population"] = int(max_pop)
+    if "final_population" in context and "configured_max_population" in context:
+        denom = context["configured_max_population"]
+        context["saturation_ratio"] = (
+            context["final_population"] / denom if denom > 0 else float("nan")
+        )
+    return context
+
+
 def _parent_of(genome_id: Optional[str]) -> Optional[str]:
     """Return parent id only for single-parent genome IDs.
 
@@ -352,6 +391,36 @@ def _discover_arm_runs(
 
 # ── Paired deltas ────────────────────────────────────────────────────────────────
 
+def _summarize_ecology(eco_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Aggregate per-run ecology context dicts into a profile-level summary.
+
+    Keys in the summary:
+    - ``n_runs``: number of runs with ecology data.
+    - ``mean_final_population``: mean final population across runs.
+    - ``mean_saturation_ratio``: mean final_pop / max_pop (1.0 = saturated).
+    - ``configured_max_population``: configured cap (all runs should agree;
+      the first available value is used).
+
+    Returns an empty dict when ``eco_list`` is empty.
+    """
+    if not eco_list:
+        return {}
+    final_pops = [e["final_population"] for e in eco_list if "final_population" in e]
+    sat_ratios = [e["saturation_ratio"] for e in eco_list
+                  if "saturation_ratio" in e and math.isfinite(e["saturation_ratio"])]
+    max_pop = next(
+        (e["configured_max_population"] for e in eco_list
+         if "configured_max_population" in e),
+        None,
+    )
+    return {
+        "n_runs": len(eco_list),
+        "mean_final_population": _mean(final_pops) if final_pops else float("nan"),
+        "mean_saturation_ratio": _mean(sat_ratios) if sat_ratios else float("nan"),
+        "configured_max_population": max_pop,
+    }
+
+
 def _verdict(deltas: Sequence[float]) -> Dict[str, Any]:
     """Robustness verdict for a list of paired deltas (one per seed)."""
     vals = [d for d in deltas if not math.isnan(d)]
@@ -443,6 +512,8 @@ def _build_markdown(
     ages: Sequence[int],
     baseline_arm: str,
     treatment_arm: str,
+    *,
+    ecology_by_arm: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
 ) -> str:
     profiles = [p for p in PROFILE_ORDER if p in paired]
     lines: List[str] = [
@@ -453,6 +524,30 @@ def _build_markdown(
         "95% CI excludes zero AND within-profile sign agreement >= 0.75.",
         "",
     ]
+
+    if ecology_by_arm:
+        lines += ["## Ecology context", ""]
+        lines += [
+            "| Profile | Arm | Mean final pop | Max pop cap | Saturation ratio |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for profile in profiles:
+            for arm in (baseline_arm, treatment_arm):
+                eco = ecology_by_arm.get(arm, {}).get(profile, {})
+                lines.append(
+                    f"| {profile} | {arm} "
+                    f"| {_fmt(eco.get('mean_final_population'), 1)} "
+                    f"| {eco.get('configured_max_population', 'n/a')} "
+                    f"| {_fmt(eco.get('mean_saturation_ratio'), 2)} |"
+                )
+        lines += [
+            "",
+            "_Saturation ratio = final population / max_population cap. "
+            "1.0 = fully saturated (crowded ecology); "
+            "values near initial_population/max_population indicate a sparse ecology "
+            "closer to the gate regime (fixed-8, no-repro)._",
+            "",
+        ]
 
     if warmstart_rates:
         lines += ["## Warm-start coverage (treatment arm)", ""]
@@ -546,6 +641,8 @@ def _build_multi_arm_markdown(
     ages: Sequence[int],
     baseline_arm: str,
     treatment_arms: Sequence[str],
+    *,
+    ecology_by_arm: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
 ) -> str:
     lines: List[str] = [
         f"# Early-life offspring fitness: ladder vs {baseline_arm} (#904)",
@@ -555,6 +652,35 @@ def _build_multi_arm_markdown(
         "95% CI excludes zero AND within-profile sign agreement >= 0.75.",
         "",
     ]
+
+    all_arms = [baseline_arm] + list(treatment_arms)
+    if ecology_by_arm:
+        profiles_eco = [
+            p for p in PROFILE_ORDER
+            if any(p in ecology_by_arm.get(a, {}) for a in all_arms)
+        ]
+        if profiles_eco:
+            lines += ["## Ecology context", ""]
+            lines += [
+                "| Profile | Arm | Mean final pop | Max pop cap | Saturation ratio |",
+                "| --- | --- | --- | --- | --- |",
+            ]
+            for profile in profiles_eco:
+                for arm in all_arms:
+                    eco = ecology_by_arm.get(arm, {}).get(profile, {})
+                    lines.append(
+                        f"| {profile} | {arm} "
+                        f"| {_fmt(eco.get('mean_final_population'), 1)} "
+                        f"| {eco.get('configured_max_population', 'n/a')} "
+                        f"| {_fmt(eco.get('mean_saturation_ratio'), 2)} |"
+                    )
+            lines += [
+                "",
+                "_Saturation ratio = final population / max_population cap. "
+                "1.0 = fully saturated; values near initial/max indicate a sparse "
+                "ecology closer to the gate regime (fixed-8, no-repro)._",
+                "",
+            ]
 
     if warmstart_by_arm:
         lines += ["## Warm-start coverage (treatment arms)", ""]
@@ -612,10 +738,21 @@ def _load_arm(
     label: str,
     profiles: Sequence[str],
     ages: Sequence[int],
-) -> Tuple[Dict[str, Dict[int, Dict[str, Any]]], Dict[str, List[float]]]:
+) -> Tuple[Dict[str, Dict[int, Dict[str, Any]]], Dict[str, List[float]], Dict[str, List[Dict[str, Any]]]]:
+    """Load per-run early-life data for one arm.
+
+    Returns
+    -------
+    per_profile : mapping profile -> seed -> run data dict
+    warmstart   : mapping profile -> list of per-run warm-start rates
+    ecology     : mapping profile -> list of per-run ecology context dicts
+                  (keys: ``final_population``, ``configured_max_population``,
+                  ``saturation_ratio``).
+    """
     runs = _discover_arm_runs(arm_dir, profiles)
     per_profile: Dict[str, Dict[int, Dict[str, Any]]] = defaultdict(dict)
     warmstart: Dict[str, List[float]] = defaultdict(list)
+    ecology: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for profile, seed_dirs in runs.items():
         for seed, run_dir in seed_dirs:
             db = _find_db(run_dir)
@@ -631,11 +768,20 @@ def _load_arm(
             rate = _read_warmstart_rate(run_dir)
             if rate is not None and not math.isnan(rate):
                 warmstart[profile].append(rate)
+            eco = _read_ecology_context(run_dir)
+            if eco:
+                ecology[profile].append(eco)
             print(
                 f"  [{label}] {profile} seed={seed}: "
                 f"{data['n_offspring']} offspring, warmup={warmup}"
+                + (
+                    f", final_pop={eco.get('final_population', '?')}"
+                    f"/{eco.get('configured_max_population', '?')}"
+                    if eco
+                    else ""
+                )
             )
-    return dict(per_profile), dict(warmstart)
+    return dict(per_profile), dict(warmstart), dict(ecology)
 
 
 def _resolve_treatment_arms(args: argparse.Namespace) -> List[str]:
@@ -659,9 +805,11 @@ def _run_single_pair_analysis(
         return 1
 
     print(f"Loading baseline arm ({baseline_arm})...")
-    baseline, _ = _load_arm(baseline_dir, baseline_arm, profiles, ages)
+    baseline, _, baseline_ecology = _load_arm(baseline_dir, baseline_arm, profiles, ages)
     print(f"Loading treatment arm ({treatment_arm})...")
-    treatment, warmstart_raw = _load_arm(treatment_dir, treatment_arm, profiles, ages)
+    treatment, warmstart_raw, treatment_ecology = _load_arm(
+        treatment_dir, treatment_arm, profiles, ages
+    )
 
     warmstart_rates = {p: _mean(v) for p, v in warmstart_raw.items() if v}
 
@@ -677,12 +825,23 @@ def _run_single_pair_analysis(
         print("No paired profiles found; nothing to compare.", file=sys.stderr)
         return 1
 
+    ecology_by_arm = {
+        baseline_arm: {
+            p: _summarize_ecology(baseline_ecology.get(p, []))
+            for p in paired
+        },
+        treatment_arm: {
+            p: _summarize_ecology(treatment_ecology.get(p, []))
+            for p in paired
+        },
+    }
     summary = {
         "baseline_arm": baseline_arm,
         "treatment_arm": treatment_arm,
         "ages": list(ages),
         "profiles_analyzed": [p for p in PROFILE_ORDER if p in paired],
         "warmstart_rates": warmstart_rates,
+        "ecology_by_arm": ecology_by_arm,
         "paired": paired,
         "rl_reward_curves": {
             "baseline": {
@@ -713,7 +872,8 @@ def _run_single_pair_analysis(
     )
     md_path = output_dir / "early_life_summary.md"
     md_path.write_text(
-        _build_markdown(paired, warmstart_rates, ages, baseline_arm, treatment_arm),
+        _build_markdown(paired, warmstart_rates, ages, baseline_arm, treatment_arm,
+                        ecology_by_arm=ecology_by_arm),
         encoding="utf-8",
     )
     print(f"\nDone. Outputs in: {output_dir}")
@@ -740,16 +900,28 @@ def _run_multi_arm_analysis(
             return 1
 
     print(f"Loading baseline arm ({baseline_arm})...")
-    baseline, _ = _load_arm(baseline_dir, baseline_arm, profiles, ages)
+    baseline, _, baseline_ecology = _load_arm(baseline_dir, baseline_arm, profiles, ages)
 
     paired_by_arm: Dict[str, Dict[str, Dict[str, Any]]] = {}
     warmstart_by_arm: Dict[str, Dict[str, float]] = {}
+    ecology_by_arm: Dict[str, Dict[str, Dict[str, Any]]] = {
+        baseline_arm: {
+            p: _summarize_ecology(baseline_ecology.get(p, []))
+            for p in baseline
+        }
+    }
     profiles_analyzed: List[str] = []
 
     for arm in treatment_arms:
         print(f"Loading treatment arm ({arm})...")
-        treatment, warmstart_raw = _load_arm(ab_dir / arm, arm, profiles, ages)
+        treatment, warmstart_raw, treatment_ecology = _load_arm(
+            ab_dir / arm, arm, profiles, ages
+        )
         warmstart_by_arm[arm] = {p: _mean(v) for p, v in warmstart_raw.items() if v}
+        ecology_by_arm[arm] = {
+            p: _summarize_ecology(treatment_ecology.get(p, []))
+            for p in treatment
+        }
         paired: Dict[str, Dict[str, Any]] = {}
         for profile in profiles:
             b = baseline.get(profile, {})
@@ -773,6 +945,7 @@ def _run_multi_arm_analysis(
         "ages": list(ages),
         "profiles_analyzed": [p for p in PROFILE_ORDER if p in profiles_analyzed],
         "warmstart_by_arm": warmstart_by_arm,
+        "ecology_by_arm": ecology_by_arm,
         "paired_by_arm": paired_by_arm,
         "robust_hits": _collect_robust_hits(paired_by_arm, ages),
     }
@@ -785,7 +958,8 @@ def _run_multi_arm_analysis(
     md_path = output_dir / "early_life_ladder_summary.md"
     md_path.write_text(
         _build_multi_arm_markdown(
-            paired_by_arm, warmstart_by_arm, ages, baseline_arm, treatment_arms
+            paired_by_arm, warmstart_by_arm, ages, baseline_arm, treatment_arms,
+            ecology_by_arm=ecology_by_arm,
         ),
         encoding="utf-8",
     )

@@ -28,7 +28,9 @@ from scripts.analyze_early_life_fitness import (  # noqa: E402
     _json_safe,
     _pair_profile,
     _parent_of,
+    _read_ecology_context,
     _resolve_treatment_arms,
+    _summarize_ecology,
     _verdict,
 )
 
@@ -243,6 +245,95 @@ class TestMultiArmHelpers(unittest.TestCase):
         out = _pair_profile(baseline, treatment, ages=[10])
         delta = out["ages"][10]["per_seed_delta"][42]["rl_reward_at_age"]
         self.assertAlmostEqual(delta, 2.0)
+
+
+class TestReadEcologyContext(unittest.TestCase):
+    """Tests for _read_ecology_context — ecology density context from metadata."""
+
+    def test_missing_metadata_returns_empty(self):
+        with TemporaryDirectory() as tmp:
+            self.assertEqual(_read_ecology_context(Path(tmp)), {})
+
+    def test_reads_final_population_and_max_population(self):
+        with TemporaryDirectory() as tmp:
+            meta = {
+                "final_population": 30,
+                "resolved_initial_conditions": {"max_population": 32},
+            }
+            (Path(tmp) / "intrinsic_evolution_metadata.json").write_text(
+                json.dumps(meta), encoding="utf-8"
+            )
+            ctx = _read_ecology_context(Path(tmp))
+        self.assertEqual(ctx["final_population"], 30)
+        self.assertEqual(ctx["configured_max_population"], 32)
+        self.assertAlmostEqual(ctx["saturation_ratio"], 30 / 32)
+
+    def test_saturation_ratio_1_when_fully_saturated(self):
+        with TemporaryDirectory() as tmp:
+            meta = {
+                "final_population": 8,
+                "resolved_initial_conditions": {"max_population": 8},
+            }
+            (Path(tmp) / "intrinsic_evolution_metadata.json").write_text(
+                json.dumps(meta), encoding="utf-8"
+            )
+            ctx = _read_ecology_context(Path(tmp))
+        self.assertAlmostEqual(ctx["saturation_ratio"], 1.0)
+
+    def test_malformed_json_returns_empty(self):
+        with TemporaryDirectory() as tmp:
+            (Path(tmp) / "intrinsic_evolution_metadata.json").write_text(
+                "not json", encoding="utf-8"
+            )
+            self.assertEqual(_read_ecology_context(Path(tmp)), {})
+
+    def test_partial_metadata_no_saturation_ratio(self):
+        """If max_population is absent, saturation_ratio should not be set."""
+        with TemporaryDirectory() as tmp:
+            meta = {"final_population": 12}
+            (Path(tmp) / "intrinsic_evolution_metadata.json").write_text(
+                json.dumps(meta), encoding="utf-8"
+            )
+            ctx = _read_ecology_context(Path(tmp))
+        self.assertEqual(ctx["final_population"], 12)
+        self.assertNotIn("saturation_ratio", ctx)
+
+
+class TestSummarizeEcology(unittest.TestCase):
+    """Tests for _summarize_ecology — aggregate ecology context dicts."""
+
+    def test_empty_list_returns_empty(self):
+        self.assertEqual(_summarize_ecology([]), {})
+
+    def test_aggregates_mean_final_population(self):
+        eco_list = [
+            {"final_population": 30, "configured_max_population": 32,
+             "saturation_ratio": 30 / 32},
+            {"final_population": 32, "configured_max_population": 32,
+             "saturation_ratio": 1.0},
+        ]
+        summary = _summarize_ecology(eco_list)
+        self.assertEqual(summary["n_runs"], 2)
+        self.assertAlmostEqual(summary["mean_final_population"], 31.0)
+        self.assertAlmostEqual(summary["mean_saturation_ratio"], (30 / 32 + 1.0) / 2)
+        self.assertEqual(summary["configured_max_population"], 32)
+
+    def test_uses_first_configured_max_population(self):
+        eco_list = [
+            {"configured_max_population": 8},
+            {"configured_max_population": 8},
+        ]
+        summary = _summarize_ecology(eco_list)
+        self.assertEqual(summary["configured_max_population"], 8)
+
+    def test_missing_saturation_excluded_from_mean(self):
+        eco_list = [
+            {"final_population": 5},  # no saturation_ratio
+            {"final_population": 7, "saturation_ratio": 0.875},
+        ]
+        summary = _summarize_ecology(eco_list)
+        # mean_saturation_ratio computed from only the one run with it
+        self.assertAlmostEqual(summary["mean_saturation_ratio"], 0.875)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,9 @@ if _repo_root not in sys.path:
 from farm.config import SimulationConfig  # noqa: E402
 from farm.runners.intrinsic_evolution_experiment import STABLE_SUB_PROFILES  # noqa: E402
 from scripts._learning_positive_regime import (  # noqa: E402
+    DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION,
+    DEFAULT_LEARNING_POSITIVE_MAX_POPULATION,
+    DEFAULT_LEARNING_POSITIVE_POPULATION,
     apply_independent_population,
     apply_stable_profile_ecology,
     build_learning_positive_regime_config,
@@ -80,6 +83,35 @@ class TestPopulationCliForwarding(unittest.TestCase):
         self.assertEqual(args.max_population, 32)
 
 
+class TestLowChurnConstants(unittest.TestCase):
+    """Validate ecology-variant defaults are self-consistent (#963)."""
+
+    def test_low_churn_max_population_equals_default_population(self):
+        self.assertEqual(
+            DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION,
+            DEFAULT_LEARNING_POSITIVE_POPULATION,
+        )
+
+    def test_saturated_max_population_exceeds_population(self):
+        self.assertGreater(
+            DEFAULT_LEARNING_POSITIVE_MAX_POPULATION,
+            DEFAULT_LEARNING_POSITIVE_POPULATION,
+        )
+
+    def test_low_churn_via_apply_independent_population(self):
+        config = SimulationConfig.from_centralized_config(environment="testing")
+        apply_independent_population(
+            config,
+            population=DEFAULT_LEARNING_POSITIVE_POPULATION,
+            max_population=DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION,
+        )
+        # cap == start => no growth room
+        self.assertEqual(
+            config.population.max_population,
+            config.population.independent_agents,
+        )
+
+
 class TestResumeHelpers(unittest.TestCase):
     def test_read_completed_steps_missing(self):
         with TemporaryDirectory() as tmp:
@@ -107,3 +139,4 @@ class TestResumeHelpers(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

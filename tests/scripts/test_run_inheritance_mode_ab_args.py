@@ -119,5 +119,62 @@ class TestWarmstartTuningForwarding(unittest.TestCase):
         self.assertEqual(runner_args.warmstart_fitness_gate_min_resources, 5.0)
 
 
+class TestLowChurnFlag(unittest.TestCase):
+    """Tests for the --low-churn ecology variant (Issue #963)."""
+
+    def test_low_churn_flag_accepted(self):
+        args = _build_parser().parse_args(["--low-churn"])
+        self.assertTrue(args.low_churn)
+
+    def test_low_churn_default_is_false(self):
+        args = _build_parser().parse_args([])
+        self.assertFalse(args.low_churn)
+
+    def test_low_churn_sets_max_population_to_population(self):
+        """With --low-churn, runner_args.max_population = population (no growth)."""
+        from scripts._learning_positive_regime import (
+            DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION,
+        )
+        args = _build_parser().parse_args(
+            ["--population", "8", "--low-churn"]
+        )
+        runner_args = _build_runner_args(args, "baldwinian", Path("/tmp/out"))
+        self.assertEqual(
+            runner_args.max_population,
+            DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION,
+        )
+        self.assertEqual(runner_args.population, 8)
+
+    def test_low_churn_no_population_does_not_override_max_population(self):
+        """--low-churn is ignored when --population is not set."""
+        args = _build_parser().parse_args(["--low-churn"])
+        runner_args = _build_runner_args(args, "baldwinian", Path("/tmp/out"))
+        # population is None => max_population remains None (not overridden).
+        self.assertIsNone(runner_args.population)
+        self.assertIsNone(runner_args.max_population)
+
+    def test_low_churn_overrides_explicit_max_population(self):
+        """--low-churn takes precedence over --max-population when population is set."""
+        from scripts._learning_positive_regime import (
+            DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION,
+        )
+        args = _build_parser().parse_args(
+            ["--population", "8", "--max-population", "64", "--low-churn"]
+        )
+        runner_args = _build_runner_args(args, "baldwinian", Path("/tmp/out"))
+        self.assertEqual(
+            runner_args.max_population,
+            DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION,
+        )
+
+    def test_saturated_default_preserves_explicit_max_population(self):
+        """Without --low-churn, an explicit --max-population is forwarded unchanged."""
+        args = _build_parser().parse_args(
+            ["--population", "8", "--max-population", "32"]
+        )
+        runner_args = _build_runner_args(args, "baldwinian", Path("/tmp/out"))
+        self.assertEqual(runner_args.max_population, 32)
+
+
 if __name__ == "__main__":
     unittest.main()

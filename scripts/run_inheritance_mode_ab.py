@@ -36,6 +36,9 @@ from scripts._warmstart_cli import (  # noqa: E402
     add_warmstart_tuning_arguments,
     warmstart_tuning_kwargs,
 )
+from scripts._learning_positive_regime import (  # noqa: E402
+    DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION,
+)
 from scripts import analyze_stable_profile_seed_sweep as analyzer_mod  # noqa: E402
 from scripts import run_stable_profile_seed_sweep as runner_mod  # noqa: E402
 from scripts.run_stable_profile_seed_sweep import (  # noqa: E402
@@ -115,6 +118,19 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Population cap when --population is set (default: population * 4).",
     )
+    parser.add_argument(
+        "--low-churn",
+        action="store_true",
+        default=False,
+        help=(
+            "Low-churn ecology variant: set max_population = population so the "
+            "colony cannot grow beyond its starting size. Reproduction replaces "
+            "dead agents rather than expanding the colony, keeping ecology density "
+            "comparable to the gate regime (fixed-8, no-repro). "
+            "Ignored when --population is not set. "
+            "Takes precedence over --max-population when both are given."
+        ),
+    )
     parser.add_argument("--mutation-rate", type=float, default=0.15)
     parser.add_argument("--mutation-scale", type=float, default=0.10)
     parser.add_argument("--selection-pressure", type=str, default="low")
@@ -159,6 +175,11 @@ def _build_runner_args(
     args: argparse.Namespace, arm: str, arm_output_dir: Path
 ) -> argparse.Namespace:
     preset = ARM_PRESETS[arm]
+    # Resolve max_population: --low-churn takes precedence when --population is
+    # set, capping the colony at its starting size (replacement-only ecology).
+    resolved_max_population = args.max_population
+    if getattr(args, "low_churn", False) and args.population is not None:
+        resolved_max_population = DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION
     return argparse.Namespace(
         environment=args.environment,
         profiles=list(args.profiles),
@@ -168,7 +189,7 @@ def _build_runner_args(
         warmup_steps=args.warmup_steps,
         snapshot_interval=args.snapshot_interval,
         population=args.population,
-        max_population=args.max_population,
+        max_population=resolved_max_population,
         mutation_rate=args.mutation_rate,
         mutation_scale=args.mutation_scale,
         selection_pressure=args.selection_pressure,
@@ -258,8 +279,14 @@ def _print_dry_run(args: argparse.Namespace, output_dir: Path) -> None:
     print(f"  profiles   : {args.profiles}")
     print(f"  seeds      : {args.seeds}")
     if args.population is not None:
-        cap = args.max_population if args.max_population is not None else args.population * 4
-        print(f"  population : {args.population} independent-only (max {cap})")
+        low_churn = getattr(args, "low_churn", False)
+        if low_churn:
+            cap = DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION
+            ecology = "low-churn (max = start)"
+        else:
+            cap = args.max_population if args.max_population is not None else args.population * 4
+            ecology = "saturated"
+        print(f"  population : {args.population} independent-only (max {cap}, ecology={ecology})")
     print(f"  total runs : {total}")
     print()
     for arm in args.arms:
@@ -296,6 +323,7 @@ def main() -> int:
         "snapshot_interval": args.snapshot_interval,
         "population": args.population,
         "max_population": args.max_population,
+        "low_churn": getattr(args, "low_churn", False),
         "arm_manifests": {},
     }
 

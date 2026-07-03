@@ -23,7 +23,13 @@ _PROFILE_FIELD_MAP = {
 
 # Defaults used by the #904 learning-positive inheritance A/B (mirrors gate).
 DEFAULT_LEARNING_POSITIVE_POPULATION = 8
+# Saturated-ecology variant: 4× the starting population so the colony fills
+# quickly and runs as a crowded, high-churn ecology for most of the horizon.
 DEFAULT_LEARNING_POSITIVE_MAX_POPULATION = 32
+# Low-churn variant: cap equals the starting population so reproduction can
+# only replace dead agents — it cannot expand the colony.  Keeps ecology
+# density comparable to the gate regime (fixed-8, no-repro).
+DEFAULT_LEARNING_POSITIVE_LOW_CHURN_MAX_POPULATION = DEFAULT_LEARNING_POSITIVE_POPULATION
 
 
 def apply_independent_population(
