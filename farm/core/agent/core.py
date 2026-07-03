@@ -62,6 +62,10 @@ _WARMSTART_DISPATCH = {
     "p4": apply_p4_policy_warmstart,
 }
 
+# Shape-sensitive loci are pinned to the parent's value whenever a warm-start
+# inheritance mode is active, so policy tensors remain load-compatible.
+_WARMSTART_SHAPE_LOCKED_GENES = ("dqn_hidden_size",)
+
 
 def _warmstart_kwargs_for_mode(mode: str, policy: Any) -> Dict[str, Any]:
     """Build the per-mode tuning kwargs for a warm-start hook from ``policy``.
@@ -1029,14 +1033,39 @@ class AgentCore:
                     rng=rng,
                 )
 
-        return mutate_chromosome(
+        inheritance_mode = getattr(policy, "inheritance_mode", "baldwinian")
+        lock_shapes = inheritance_mode in _WARMSTART_DISPATCH
+        locked_genes = (
+            tuple(
+                gene_name
+                for gene_name in _WARMSTART_SHAPE_LOCKED_GENES
+                if parent_chromosome.get_gene(gene_name) is not None
+            )
+            if lock_shapes
+            else ()
+        )
+        per_gene_rate_multipliers = (
+            {gene_name: 0.0 for gene_name in locked_genes}
+            if locked_genes
+            else None
+        )
+        child_chromosome = mutate_chromosome(
             base,
             mutation_rate=policy.mutation_rate,
             mutation_scale=policy.mutation_scale,
             mutation_mode=policy.mutation_mode,
             boundary_mode=policy.boundary_mode,
             interior_bias_fraction=policy.interior_bias_fraction,
+            per_gene_rate_multipliers=per_gene_rate_multipliers,
             rng=rng,
+        )
+        if not locked_genes:
+            return child_chromosome
+        return child_chromosome.with_overrides(
+            {
+                gene_name: parent_chromosome.get_value(gene_name)
+                for gene_name in locked_genes
+            }
         )
 
     def _select_coparent(self, policy, rng) -> Optional["AgentCore"]:

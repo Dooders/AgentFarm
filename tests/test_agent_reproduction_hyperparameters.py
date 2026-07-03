@@ -122,6 +122,42 @@ def test_reproduce_with_policy_mutates_learning_rate_and_passes_child_config():
     assert offspring.hyperparameter_chromosome.get_value("learning_rate") == pytest.approx(0.012, abs=1e-9)
 
 
+def test_derive_child_chromosome_locks_dqn_hidden_size_in_warmstart_modes():
+    """Warm-start modes keep topology genes fixed to avoid policy shape mismatches."""
+    parent = _build_parent_agent_for_reproduction()
+    parent.environment.intrinsic_evolution_policy = IntrinsicEvolutionPolicy(
+        inheritance_mode="lamarckian",
+        mutation_rate=1.0,
+        mutation_scale=0.2,
+    )
+    parent_hidden = parent.hyperparameter_chromosome.get_value("dqn_hidden_size")
+
+    with patch("farm.core.hyperparameter_chromosome.random.random", return_value=0.0), patch(
+        "farm.core.hyperparameter_chromosome.random.gauss", return_value=1000.0
+    ):
+        child = AgentCore._derive_child_chromosome(parent, parent.hyperparameter_chromosome)
+
+    assert child.get_value("dqn_hidden_size") == parent_hidden
+
+
+def test_derive_child_chromosome_allows_dqn_hidden_size_mutation_in_baldwinian():
+    """Baldwinian mode keeps existing behavior and allows topology mutation."""
+    parent = _build_parent_agent_for_reproduction()
+    parent.environment.intrinsic_evolution_policy = IntrinsicEvolutionPolicy(
+        inheritance_mode="baldwinian",
+        mutation_rate=1.0,
+        mutation_scale=0.2,
+    )
+    parent_hidden = parent.hyperparameter_chromosome.get_value("dqn_hidden_size")
+
+    with patch("farm.core.hyperparameter_chromosome.random.random", return_value=0.0), patch(
+        "farm.core.hyperparameter_chromosome.random.gauss", return_value=1000.0
+    ):
+        child = AgentCore._derive_child_chromosome(parent, parent.hyperparameter_chromosome)
+
+    assert child.get_value("dqn_hidden_size") != parent_hidden
+
+
 def test_reproduce_lamarckian_policy_applies_warmstart_and_tracks_counter():
     """Lamarckian mode should invoke warm-start and increment applied counter."""
     parent = _build_parent_agent_for_reproduction()
