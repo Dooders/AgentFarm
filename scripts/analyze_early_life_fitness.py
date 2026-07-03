@@ -190,6 +190,8 @@ def _read_ecology_context(run_dir: Path) -> Dict[str, Any]:
         try:
             context["final_population"] = int(final_pop)
         except (TypeError, ValueError):
+            # Metadata can be malformed across runs; ignore this field and
+            # leave final_population unset so downstream logic can proceed.
             pass
     # max_population lives in resolved_initial_conditions (set by the runner).
     resolved = meta.get("resolved_initial_conditions")
