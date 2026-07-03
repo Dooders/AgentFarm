@@ -671,9 +671,7 @@ def _build_multi_arm_markdown(
     lines: List[str] = [
         f"# Early-life offspring fitness: ladder vs {baseline_arm} (#904)",
         "",
-        "Each treatment arm is paired against the baseline per (profile, seed). "
-        "Primary gate metric: **net RL reward at age N**. Robustness rule: "
-        "95% CI excludes zero AND within-profile sign agreement >= 0.75.",
+        "Each treatment arm is paired against the baseline per (profile, seed). Primary gate metric: **net RL reward at age N**. Robustness rule: 95% CI excludes zero AND within-profile sign agreement >= 0.75.",
         "",
     ]
 
