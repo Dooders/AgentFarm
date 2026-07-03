@@ -111,6 +111,8 @@ def _configure_torch_threads() -> None:
         try:
             torch.set_num_interop_threads(1)
         except RuntimeError:
+            # Best-effort tuning: this can fail when Torch's thread pools are
+            # already initialized; keep default inter-op threads in that case.
             pass
     except ImportError:
         pass
