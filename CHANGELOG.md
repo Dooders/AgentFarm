@@ -34,6 +34,14 @@ Baseline packaged release at `0.1.0`. Detailed history is captured in the dated 
 
 ## Entries
 
+### 2026-07-03
+
+#### Performance
+
+- **Reduced default P3 replay-buffer transfer limit** — `P3_REPLAY_BUFFER_LIMIT` lowered from 256 → 64 in `farm/core/policy_inheritance.py`. At `max_population=32` with active reproduction churn the original 256-transition cap caused P3 to run ~3× slower than P2 because each birth event triggers a synchronous replay-slice serialize + deserialize; the new default cuts that overhead ~4× while still seeding the child's buffer with enough recent experience. Larger slices remain available via `IntrinsicEvolutionPolicy(warmstart_replay_buffer_limit=N)` or `--warmstart-replay-buffer-limit N`. Closes [#962](https://github.com/Dooders/AgentFarm/issues/962).
+
+---
+
 ### 2026-06-17
 
 #### Added
