@@ -54,12 +54,19 @@ two-parent offspring are excluded from that metric.
 
 Usage
 -----
-::
+Single treatment (legacy)::
 
     python scripts/analyze_early_life_fitness.py \\
         --ab-dir experiments/inheritance_ab \\
         --baseline-arm baldwinian \\
         --treatment-arm lamarckian
+
+Multi-arm ladder (#904) — each treatment paired against baseline::
+
+    python scripts/analyze_early_life_fitness.py \\
+        --ab-dir experiments/inheritance_ab_learning_positive \\
+        --baseline-arm baldwinian \\
+        --treatment-arms lamarckian p2 p3 p4
 """
 
 from __future__ import annotations
@@ -508,87 +515,158 @@ def _build_markdown(
     return "\n".join(lines)
 
 
-# ── Driver ─────────────────────────────────────────────────────────────────────
-
-def _json_safe(obj: Any) -> Any:
-    """Recursively replace non-finite floats with ``None`` for portable JSON.
-
-    ``json.dumps`` emits bare ``NaN``/``Infinity`` tokens by default, which are
-    invalid in strict JSON (and break JS / non-Python consumers). Mapping them
-    to ``null`` keeps the file parseable everywhere.
-    """
-    if isinstance(obj, float):
-        return obj if math.isfinite(obj) else None
-    if isinstance(obj, dict):
-        return {k: _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_json_safe(v) for v in obj]
-    return obj
+# Primary #904 gate metric: net RL reward at fixed offspring ages.
+PRIMARY_GATE_METRIC = "rl_reward_at_age"
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Measure early-life offspring fitness across A/B inheritance arms.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument("--ab-dir", type=str, required=True,
-                        help="Root dir containing the two arm sub-directories.")
-    parser.add_argument("--baseline-arm", type=str, default="baldwinian")
-    parser.add_argument("--treatment-arm", type=str, default="lamarckian")
-    parser.add_argument("--output-dir", type=str, default=None,
-                        help="Defaults to <ab-dir>/early_life.")
-    parser.add_argument("--profiles", nargs="+", default=list(PROFILE_ORDER),
-                        choices=list(PROFILE_ORDER), metavar="PROFILE")
-    parser.add_argument("--ages", nargs="+", type=int, default=list(DEFAULT_AGES))
-    args = parser.parse_args()
+def _collect_robust_hits(
+    paired_by_arm: Dict[str, Dict[str, Dict[str, Any]]],
+    ages: Sequence[int],
+    *,
+    metric: str = PRIMARY_GATE_METRIC,
+) -> List[str]:
+    hits: List[str] = []
+    for arm, paired in paired_by_arm.items():
+        profiles = [p for p in PROFILE_ORDER if p in paired]
+        for profile in profiles:
+            for age in ages:
+                verdicts = paired[profile]["ages"].get(age, {}).get("verdicts", {})
+                v = verdicts.get(metric, {})
+                if v.get("robust"):
+                    hits.append(
+                        f"{arm} / {profile} / N={age} "
+                        f"(Δ {_fmt(v.get('mean_delta'), 3)})"
+                    )
+    return hits
 
-    ab_dir = Path(args.ab_dir)
-    baseline_dir = ab_dir / args.baseline_arm
-    treatment_dir = ab_dir / args.treatment_arm
+
+def _build_multi_arm_markdown(
+    paired_by_arm: Dict[str, Dict[str, Dict[str, Any]]],
+    warmstart_by_arm: Dict[str, Dict[str, float]],
+    ages: Sequence[int],
+    baseline_arm: str,
+    treatment_arms: Sequence[str],
+) -> str:
+    lines: List[str] = [
+        f"# Early-life offspring fitness: ladder vs {baseline_arm} (#904)",
+        "",
+        "Each treatment arm is paired against the baseline per (profile, seed). "
+        "Primary gate metric: **net RL reward at age N**. Robustness rule: "
+        "95% CI excludes zero AND within-profile sign agreement >= 0.75.",
+        "",
+    ]
+
+    if warmstart_by_arm:
+        lines += ["## Warm-start coverage (treatment arms)", ""]
+        header = "| Profile | " + " | ".join(treatment_arms) + " |"
+        lines += [header, "| --- | " + " | ".join("---" for _ in treatment_arms) + " |"]
+        profiles = [p for p in PROFILE_ORDER if any(p in paired_by_arm[a] for a in treatment_arms)]
+        for profile in profiles:
+            cells = [
+                _fmt(warmstart_by_arm.get(arm, {}).get(profile, float("nan")), 3)
+                for arm in treatment_arms
+            ]
+            lines.append(f"| {profile} | " + " | ".join(cells) + " |")
+        lines.append("")
+
+    for age in ages:
+        lines += [f"## Net RL reward at age {age} (primary gate)", ""]
+        lines += [
+            "| Profile | Arm | Baseline mean | Treatment mean | Mean Δ | 95% CI | "
+            "Sign agr. | Verdict |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for arm in treatment_arms:
+            paired = paired_by_arm.get(arm, {})
+            for profile in [p for p in PROFILE_ORDER if p in paired]:
+                age_block = paired[profile]["ages"].get(age, {})
+                v = age_block.get("verdicts", {}).get(PRIMARY_GATE_METRIC, {})
+                verdict = "robust" if v.get("robust") else "no robust effect"
+                lines.append(
+                    f"| {profile} | {arm} "
+                    f"| {_fmt(age_block.get('baseline_means', {}).get(PRIMARY_GATE_METRIC), 3)} "
+                    f"| {_fmt(age_block.get('treatment_means', {}).get(PRIMARY_GATE_METRIC), 3)} "
+                    f"| {_fmt(v.get('mean_delta'), 3)} "
+                    f"| {_fmt(v.get('ci95'), 3)} "
+                    f"| {_fmt(v.get('sign_agreement'), 2)} "
+                    f"| {verdict} |"
+                )
+        lines.append("")
+
+    lines += ["## Headline", ""]
+    robust_hits = _collect_robust_hits(paired_by_arm, ages)
+    if robust_hits:
+        lines.append("Robust early-life RL-reward gains vs baseline:")
+        lines += [f"- {hit}" for hit in robust_hits]
+    else:
+        lines.append(
+            "**No robust early-life RL-reward gain** for any treatment arm vs "
+            f"{baseline_arm}. Richer payloads do not clear the #904 gate on this metric."
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _load_arm(
+    arm_dir: Path,
+    label: str,
+    profiles: Sequence[str],
+    ages: Sequence[int],
+) -> Tuple[Dict[str, Dict[int, Dict[str, Any]]], Dict[str, List[float]]]:
+    runs = _discover_arm_runs(arm_dir, profiles)
+    per_profile: Dict[str, Dict[int, Dict[str, Any]]] = defaultdict(dict)
+    warmstart: Dict[str, List[float]] = defaultdict(list)
+    for profile, seed_dirs in runs.items():
+        for seed, run_dir in seed_dirs:
+            db = _find_db(run_dir)
+            if db is None:
+                print(f"  [{label}] {run_dir}: no .db, skipping", file=sys.stderr)
+                continue
+            warmup = _read_warmup(run_dir)
+            data = _extract_run_early_life(db, warmup, ages)
+            if data is None:
+                print(f"  [{label}] {run_dir}: no offspring, skipping", file=sys.stderr)
+                continue
+            per_profile[profile][seed] = data
+            rate = _read_warmstart_rate(run_dir)
+            if rate is not None and not math.isnan(rate):
+                warmstart[profile].append(rate)
+            print(
+                f"  [{label}] {profile} seed={seed}: "
+                f"{data['n_offspring']} offspring, warmup={warmup}"
+            )
+    return dict(per_profile), dict(warmstart)
+
+
+def _resolve_treatment_arms(args: argparse.Namespace) -> List[str]:
+    if getattr(args, "treatment_arms", None):
+        return list(args.treatment_arms)
+    return [args.treatment_arm]
+
+
+def _run_single_pair_analysis(
+    ab_dir: Path,
+    baseline_arm: str,
+    treatment_arm: str,
+    profiles: Sequence[str],
+    ages: Sequence[int],
+    output_dir: Path,
+) -> int:
+    baseline_dir = ab_dir / baseline_arm
+    treatment_dir = ab_dir / treatment_arm
     if not baseline_dir.is_dir() or not treatment_dir.is_dir():
         print(f"Expected arm dirs {baseline_dir} and {treatment_dir}", file=sys.stderr)
         return 1
 
-    output_dir = Path(args.output_dir) if args.output_dir else ab_dir / "early_life"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    ages = sorted(set(int(a) for a in args.ages))
-
-    def _load_arm(arm_dir: Path, label: str) -> Tuple[
-        Dict[str, Dict[int, Dict[str, Any]]], Dict[str, List[float]]
-    ]:
-        runs = _discover_arm_runs(arm_dir, args.profiles)
-        per_profile: Dict[str, Dict[int, Dict[str, Any]]] = defaultdict(dict)
-        warmstart: Dict[str, List[float]] = defaultdict(list)
-        for profile, seed_dirs in runs.items():
-            for seed, run_dir in seed_dirs:
-                db = _find_db(run_dir)
-                if db is None:
-                    print(f"  [{label}] {run_dir}: no .db, skipping", file=sys.stderr)
-                    continue
-                warmup = _read_warmup(run_dir)
-                data = _extract_run_early_life(db, warmup, ages)
-                if data is None:
-                    print(f"  [{label}] {run_dir}: no offspring, skipping",
-                          file=sys.stderr)
-                    continue
-                per_profile[profile][seed] = data
-                rate = _read_warmstart_rate(run_dir)
-                if rate is not None and not math.isnan(rate):
-                    warmstart[profile].append(rate)
-                print(f"  [{label}] {profile} seed={seed}: "
-                      f"{data['n_offspring']} offspring, warmup={warmup}")
-        return dict(per_profile), dict(warmstart)
-
-    print(f"Loading baseline arm ({args.baseline_arm})...")
-    baseline, _ = _load_arm(baseline_dir, args.baseline_arm)
-    print(f"Loading treatment arm ({args.treatment_arm})...")
-    treatment, warmstart_raw = _load_arm(treatment_dir, args.treatment_arm)
+    print(f"Loading baseline arm ({baseline_arm})...")
+    baseline, _ = _load_arm(baseline_dir, baseline_arm, profiles, ages)
+    print(f"Loading treatment arm ({treatment_arm})...")
+    treatment, warmstart_raw = _load_arm(treatment_dir, treatment_arm, profiles, ages)
 
     warmstart_rates = {p: _mean(v) for p, v in warmstart_raw.items() if v}
 
     paired: Dict[str, Dict[str, Any]] = {}
-    for profile in args.profiles:
+    for profile in profiles:
         b = baseline.get(profile, {})
         t = treatment.get(profile, {})
         if not b or not t:
@@ -600,9 +678,9 @@ def main() -> int:
         return 1
 
     summary = {
-        "baseline_arm": args.baseline_arm,
-        "treatment_arm": args.treatment_arm,
-        "ages": ages,
+        "baseline_arm": baseline_arm,
+        "treatment_arm": treatment_arm,
+        "ages": list(ages),
         "profiles_analyzed": [p for p in PROFILE_ORDER if p in paired],
         "warmstart_rates": warmstart_rates,
         "paired": paired,
@@ -627,21 +705,179 @@ def main() -> int:
             },
         },
     }
+    output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "early_life_summary.json"
     summary_path.write_text(
         json.dumps(_json_safe(summary), indent=2, allow_nan=False, default=str),
         encoding="utf-8",
     )
-
-    md = _build_markdown(paired, warmstart_rates, ages, args.baseline_arm,
-                         args.treatment_arm)
     md_path = output_dir / "early_life_summary.md"
-    md_path.write_text(md, encoding="utf-8")
-
+    md_path.write_text(
+        _build_markdown(paired, warmstart_rates, ages, baseline_arm, treatment_arm),
+        encoding="utf-8",
+    )
     print(f"\nDone. Outputs in: {output_dir}")
     print(f"  summary JSON : {summary_path}")
     print(f"  summary MD   : {md_path}")
     return 0
+
+
+def _run_multi_arm_analysis(
+    ab_dir: Path,
+    baseline_arm: str,
+    treatment_arms: Sequence[str],
+    profiles: Sequence[str],
+    ages: Sequence[int],
+    output_dir: Path,
+) -> int:
+    baseline_dir = ab_dir / baseline_arm
+    if not baseline_dir.is_dir():
+        print(f"Expected baseline dir {baseline_dir}", file=sys.stderr)
+        return 1
+    for arm in treatment_arms:
+        if not (ab_dir / arm).is_dir():
+            print(f"Expected treatment dir {ab_dir / arm}", file=sys.stderr)
+            return 1
+
+    print(f"Loading baseline arm ({baseline_arm})...")
+    baseline, _ = _load_arm(baseline_dir, baseline_arm, profiles, ages)
+
+    paired_by_arm: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    warmstart_by_arm: Dict[str, Dict[str, float]] = {}
+    profiles_analyzed: List[str] = []
+
+    for arm in treatment_arms:
+        print(f"Loading treatment arm ({arm})...")
+        treatment, warmstart_raw = _load_arm(ab_dir / arm, arm, profiles, ages)
+        warmstart_by_arm[arm] = {p: _mean(v) for p, v in warmstart_raw.items() if v}
+        paired: Dict[str, Dict[str, Any]] = {}
+        for profile in profiles:
+            b = baseline.get(profile, {})
+            t = treatment.get(profile, {})
+            if not b or not t:
+                continue
+            paired[profile] = _pair_profile(b, t, ages)
+        if paired:
+            paired_by_arm[arm] = paired
+            for profile in paired:
+                if profile not in profiles_analyzed:
+                    profiles_analyzed.append(profile)
+
+    if not paired_by_arm:
+        print("No paired profiles found across treatment arms.", file=sys.stderr)
+        return 1
+
+    summary = {
+        "baseline_arm": baseline_arm,
+        "treatment_arms": list(treatment_arms),
+        "ages": list(ages),
+        "profiles_analyzed": [p for p in PROFILE_ORDER if p in profiles_analyzed],
+        "warmstart_by_arm": warmstart_by_arm,
+        "paired_by_arm": paired_by_arm,
+        "robust_hits": _collect_robust_hits(paired_by_arm, ages),
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = output_dir / "early_life_ladder_summary.json"
+    summary_path.write_text(
+        json.dumps(_json_safe(summary), indent=2, allow_nan=False, default=str),
+        encoding="utf-8",
+    )
+    md_path = output_dir / "early_life_ladder_summary.md"
+    md_path.write_text(
+        _build_multi_arm_markdown(
+            paired_by_arm, warmstart_by_arm, ages, baseline_arm, treatment_arms
+        ),
+        encoding="utf-8",
+    )
+    print(f"\nDone. Outputs in: {output_dir}")
+    print(f"  ladder JSON : {summary_path}")
+    print(f"  ladder MD   : {md_path}")
+    return 0
+
+def _json_safe(obj: Any) -> Any:
+    """Recursively replace non-finite floats with ``None`` for portable JSON.
+
+    ``json.dumps`` emits bare ``NaN``/``Infinity`` tokens by default, which are
+    invalid in strict JSON (and break JS / non-Python consumers). Mapping them
+    to ``null`` keeps the file parseable everywhere.
+    """
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
+# ── Driver ─────────────────────────────────────────────────────────────────────
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Measure early-life offspring fitness across A/B inheritance arms.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--ab-dir",
+        type=str,
+        required=True,
+        help="Root dir containing arm sub-directories.",
+    )
+    parser.add_argument("--baseline-arm", type=str, default="baldwinian")
+    parser.add_argument(
+        "--treatment-arm",
+        type=str,
+        default="lamarckian",
+        help="Single treatment arm (legacy two-arm mode).",
+    )
+    parser.add_argument(
+        "--treatment-arms",
+        nargs="+",
+        default=None,
+        metavar="ARM",
+        help=(
+            "Multiple treatment arms, each paired against baseline (#904 ladder). "
+            "When set, overrides --treatment-arm."
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Defaults to <ab-dir>/early_life.",
+    )
+    parser.add_argument(
+        "--profiles",
+        nargs="+",
+        default=list(PROFILE_ORDER),
+        choices=list(PROFILE_ORDER),
+        metavar="PROFILE",
+    )
+    parser.add_argument("--ages", nargs="+", type=int, default=list(DEFAULT_AGES))
+    args = parser.parse_args()
+
+    ab_dir = Path(args.ab_dir)
+    output_dir = Path(args.output_dir) if args.output_dir else ab_dir / "early_life"
+    ages = sorted(set(int(a) for a in args.ages))
+    treatment_arms = _resolve_treatment_arms(args)
+
+    if len(treatment_arms) == 1:
+        return _run_single_pair_analysis(
+            ab_dir,
+            args.baseline_arm,
+            treatment_arms[0],
+            args.profiles,
+            ages,
+            output_dir,
+        )
+    return _run_multi_arm_analysis(
+        ab_dir,
+        args.baseline_arm,
+        treatment_arms,
+        args.profiles,
+        ages,
+        output_dir,
+    )
 
 
 if __name__ == "__main__":

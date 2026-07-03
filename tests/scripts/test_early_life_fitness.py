@@ -8,6 +8,7 @@ vs. action cohorts, and parent-anchored reward gap).
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sqlite3
@@ -21,9 +22,13 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 from scripts.analyze_early_life_fitness import (  # noqa: E402
+    PRIMARY_GATE_METRIC,
+    _collect_robust_hits,
     _extract_run_early_life,
     _json_safe,
+    _pair_profile,
     _parent_of,
+    _resolve_treatment_arms,
     _verdict,
 )
 
@@ -195,6 +200,49 @@ class TestExtractRunEarlyLife(unittest.TestCase):
     def test_no_offspring_returns_none(self):
         # With a warmup past every birth, there are no offspring.
         self.assertIsNone(_extract_run_early_life(self.db_path, warmup=100, ages=[3]))
+
+
+class TestMultiArmHelpers(unittest.TestCase):
+    def test_resolve_treatment_arms_prefers_list(self):
+        args = argparse.Namespace(treatment_arm="lamarckian", treatment_arms=["p2", "p3"])
+        self.assertEqual(_resolve_treatment_arms(args), ["p2", "p3"])
+
+    def test_resolve_treatment_arms_single_fallback(self):
+        args = argparse.Namespace(treatment_arm="lamarckian", treatment_arms=None)
+        self.assertEqual(_resolve_treatment_arms(args), ["lamarckian"])
+
+    def test_collect_robust_hits(self):
+        paired_by_arm = {
+            "p2": {
+                "balanced": {
+                    "ages": {
+                        10: {
+                            "verdicts": {
+                                PRIMARY_GATE_METRIC: {
+                                    "robust": True,
+                                    "mean_delta": 1.5,
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        hits = _collect_robust_hits(paired_by_arm, ages=[10])
+        self.assertEqual(len(hits), 1)
+        self.assertIn("p2", hits[0])
+        self.assertIn("balanced", hits[0])
+
+    def test_pair_profile_delta_shape(self):
+        baseline = {
+            42: {"per_age": {10: {"rl_reward_at_age": 5.0, "survival_rate": 1.0}}},
+        }
+        treatment = {
+            42: {"per_age": {10: {"rl_reward_at_age": 7.0, "survival_rate": 1.0}}},
+        }
+        out = _pair_profile(baseline, treatment, ages=[10])
+        delta = out["ages"][10]["per_seed_delta"][42]["rl_reward_at_age"]
+        self.assertAlmostEqual(delta, 2.0)
 
 
 if __name__ == "__main__":
