@@ -698,9 +698,11 @@ def _build_multi_arm_markdown(
                     )
             lines += [
                 "",
-                "_Saturation ratio = final population / max_population cap. "
-                "1.0 = fully saturated; values near initial/max indicate a sparse "
-                "ecology closer to the gate regime (fixed-8, no-repro)._",
+                (
+                    "_Saturation ratio = final population / max_population cap. "
+                    "1.0 = fully saturated; values near initial/max indicate a sparse "
+                    "ecology closer to the gate regime (fixed-8, no-repro)._"
+                ),
                 "",
             ]
 
