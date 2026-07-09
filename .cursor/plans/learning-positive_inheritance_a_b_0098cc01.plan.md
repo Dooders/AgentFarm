@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: pilot
     content: "Run pilot: balanced profile x 2 seeds x 5 arms at 3000 steps; verify telemetry, offspring counts, wall time"
-    status: in_progress
+    status: completed
   - id: full-sweep
     content: Run full 90-run sweep (5 arms x 3 profiles x 6 seeds) with resume + disk DB
     status: pending
