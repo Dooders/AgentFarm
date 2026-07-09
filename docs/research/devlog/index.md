@@ -6,6 +6,27 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/research/devlog/2026-07-09-lowchurn-inheritance-still-loses/' | relative_url }}">
+      <span class="post-card__date">2026-07-09</span>
+      <h3 class="post-card__title">Sparse ecology doesn't save the ladder: warm-start still loses</h3>
+      <p class="post-card__excerpt">
+        The decisive follow-up to the saturated #904 A/B: re-run the identical
+        90-cell ladder with --low-churn (max_population=8) so density matches
+        the precondition gate. Warm-start still loses — zero robust positives,
+        zero positive mean deltas across 36 cells. Absolute reward jumps in the
+        sparse regime, but cold-start captures it; every payload still earns
+        roughly half. Saturation was a confound for levels, not ranking. The
+        barrier is real for this design.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/research/devlog/2026-07-08-inheritance-ladder-warm-start-clamps-offspring/' | relative_url }}">The saturated A/B this settles</a>,
+      <a href="https://github.com/Dooders/AgentFarm/issues/904">Inheritance-ladder experiment (#904)</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/research/devlog/2026-07-08-inheritance-ladder-warm-start-clamps-offspring/' | relative_url }}">
       <span class="post-card__date">2026-07-08</span>
       <h3 class="post-card__title">The inheritance ladder doesn't climb: warm-start clamps offspring reward</h3>
@@ -15,15 +36,15 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
         all 16 robust effects are losses, and the richer the payload the bigger
         the loss (P4 worst). The tell is that warm-start clamps offspring to a
         low, ecology-blind reward trajectory while cold-start offspring track
-        the resource profile — a real barrier for this design, though the
-        fully-saturated regime confounds a fundamental verdict.
+        the resource profile. Density confound settled in the 07-09 follow-up.
       </p>
       <span class="post-card__more">Read the post</span>
     </a>
     <p class="post-card__excerpt">
       Related docs:
       <a href="https://github.com/Dooders/AgentFarm/issues/904">Inheritance-ladder experiment (#904)</a>,
-      <a href="{{ '/research/devlog/2026-06-20-transferable-signal-budget/' | relative_url }}">The precondition gate this follows up</a>.
+      <a href="{{ '/research/devlog/2026-06-20-transferable-signal-budget/' | relative_url }}">The precondition gate this follows up</a>,
+      <a href="{{ '/research/devlog/2026-07-09-lowchurn-inheritance-still-loses/' | relative_url }}">Low-churn follow-up</a>.
     </p>
   </li>
   <li>
