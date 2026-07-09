@@ -705,11 +705,11 @@ def _build_multi_arm_markdown(
             ]
 
     if warmstart_by_arm:
-        lines += ["## Warm-start coverage (treatment arms)", ""]
-        header = "| Profile | " + " | ".join(treatment_arms) + " |"
-        lines += [header, "| --- | " + " | ".join("---" for _ in treatment_arms) + " |"]
-        profiles = [p for p in PROFILE_ORDER if any(p in paired_by_arm[a] for a in treatment_arms)]
-        for profile in profiles:
+        profiles = [
+            p
+            for p in PROFILE_ORDER
+            if any(p in paired_by_arm.get(a, {}) for a in treatment_arms)
+        ]
             cells = [
                 _fmt(warmstart_by_arm.get(arm, {}).get(profile, float("nan")), 3)
                 for arm in treatment_arms
