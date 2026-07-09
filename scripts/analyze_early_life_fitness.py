@@ -210,6 +210,9 @@ def _read_ecology_context(run_dir: Path) -> Dict[str, Any]:
         except (TypeError, ValueError):
             # Best-effort metadata parsing: ignore malformed max_population.
             pass
+    if "final_population" in context and "configured_max_population" in context:
+        cap = context["configured_max_population"]
+        context["saturation_ratio"] = context["final_population"] / cap if cap > 0 else float("nan")
     return context
 
 
