@@ -82,8 +82,12 @@ from farm.config import SimulationConfig  # noqa: E402
 from farm.core.agent.core import AgentCore  # noqa: E402
 from farm.core.decision.decision import DecisionModule  # noqa: E402
 from farm.core.simulation import run_simulation  # noqa: E402
-from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
-    STABLE_SUB_PROFILES,
+from farm.runners.intrinsic_evolution_experiment import STABLE_SUB_PROFILES  # noqa: E402
+from scripts._learning_positive_regime import (  # noqa: E402
+    apply_independent_population,
+    apply_stable_profile_ecology,
+    build_learning_positive_regime_config,
+    use_disk_database,
 )
 from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
     PROFILE_ORDER,
@@ -96,17 +100,6 @@ from scripts.analyze_stable_profile_seed_sweep import (  # noqa: E402
 
 DEFAULT_SEEDS: List[int] = [42, 7, 19, 101, 137, 256]
 DEFAULT_PROFILES: List[str] = ["conservative", "balanced", "buffered"]
-
-# Mapping from STABLE_SUB_PROFILES override keys to SimulationConfig fields.
-# Mirrors InitialConditionsConfig application in
-# farm/runners/intrinsic_evolution_experiment.py so the gate runs in the same
-# ecology the #848 experiment will use.
-_PROFILE_FIELD_MAP = {
-    "initial_agent_resource_level": ("agent_behavior", "initial_resource_level"),
-    "initial_resource_count": ("resources", "initial_resources"),
-    "resource_regen_rate": ("resources", "resource_regen_rate"),
-    "resource_regen_amount": ("resources", "resource_regen_amount"),
-}
 
 
 def _configure_torch_threads() -> None:
@@ -466,39 +459,6 @@ def install_instrumentation() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _apply_profile_overrides(config: SimulationConfig, profile: str) -> Dict[str, Any]:
-    """Apply STABLE_SUB_PROFILES[profile] ecology to a SimulationConfig."""
-    overrides = STABLE_SUB_PROFILES[profile]
-    for key, value in overrides.items():
-        mapping = _PROFILE_FIELD_MAP.get(key)
-        if mapping is None:
-            # Unknown key — forward-compat: skip rather than crash.  Log so
-            # callers notice when STABLE_SUB_PROFILES gains keys not yet in
-            # _PROFILE_FIELD_MAP.
-            print(
-                f"_apply_profile_overrides: ignoring unknown profile key {key!r}",
-                file=sys.stderr,
-            )
-            continue
-        section_name, field_name = mapping
-        section = getattr(config, section_name, None)
-        if section is not None and hasattr(section, field_name):
-            setattr(section, field_name, value)
-    return dict(overrides)
-
-
-def _use_disk_database(config: SimulationConfig) -> None:
-    """Force disk-backed, persisted SQLite (never in-memory).
-
-    In-memory SQLite schema is per-connection and proved fragile over long
-    runs (lost ``agent_actions`` table mid-flush), so all simulation data is
-    persisted to disk.
-    """
-    config.database.use_in_memory_db = False
-    if hasattr(config.database, "persist_db_on_completion"):
-        config.database.persist_db_on_completion = True
-
-
 def build_regime_config(
     profile: str,
     *,
@@ -516,18 +476,13 @@ def build_regime_config(
     and exhausts RAM. The gate measures within-life learning, which is
     independent of reproduction.
     """
-    config = SimulationConfig.from_centralized_config(environment=environment)
-    pop = config.population
-    pop.system_agents = 0
-    pop.independent_agents = int(population)
-    pop.control_agents = 0
-    for attr in ("order_agents", "chaos_agents"):
-        if hasattr(pop, attr):
-            setattr(pop, attr, 0)
-    pop.max_population = int(max_population)
-    _use_disk_database(config)
-    _apply_profile_overrides(config, profile)
-    return config
+    return build_learning_positive_regime_config(
+        profile,
+        environment=environment,
+        population=population,
+        max_population=max_population,
+        force_disk_database=True,
+    )
 
 
 def build_eval_config(
@@ -540,16 +495,9 @@ def build_eval_config(
     cannot spawn a colony during a rollout.
     """
     config = SimulationConfig.from_centralized_config(environment=environment)
-    pop = config.population
-    pop.system_agents = 0
-    pop.independent_agents = 1
-    pop.control_agents = 0
-    for attr in ("order_agents", "chaos_agents"):
-        if hasattr(pop, attr):
-            setattr(pop, attr, 0)
-    pop.max_population = 1
-    _use_disk_database(config)
-    _apply_profile_overrides(config, profile)
+    apply_independent_population(config, population=1, max_population=1)
+    use_disk_database(config)
+    apply_stable_profile_ecology(config, profile)
     # Frozen-policy rollouts: disable deferred gradient steps so injected
     # snapshot weights stay fixed for the full held-out episode.
     config.performance.max_learning_updates_per_step = -1

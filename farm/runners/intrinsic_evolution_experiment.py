@@ -943,6 +943,7 @@ class IntrinsicEvolutionExperiment:
             final_gene_statistics=latest_gene_statistics,
             startup_transient_metrics=startup_transient_metrics,
         )
+        resolved_ic["max_population"] = int(run_config.population.max_population)
         self._persist(
             result,
             initial_diversity_config=run_config.initial_diversity,

@@ -54,12 +54,19 @@ two-parent offspring are excluded from that metric.
 
 Usage
 -----
-::
+Single treatment (legacy)::
 
     python scripts/analyze_early_life_fitness.py \\
         --ab-dir experiments/inheritance_ab \\
         --baseline-arm baldwinian \\
         --treatment-arm lamarckian
+
+Multi-arm ladder (#904) — each treatment paired against baseline::
+
+    python scripts/analyze_early_life_fitness.py \\
+        --ab-dir experiments/inheritance_ab_learning_positive \\
+        --baseline-arm baldwinian \\
+        --treatment-arms lamarckian p2 p3 p4
 """
 
 from __future__ import annotations
@@ -155,6 +162,58 @@ def _read_warmstart_rate(run_dir: Path) -> Optional[float]:
         return None
     total = float(applied) + float(skipped)
     return float(applied) / total if total > 0 else float("nan")
+
+
+def _read_ecology_context(run_dir: Path) -> Dict[str, Any]:
+    """Read ecology density context from run metadata.
+
+    Returns a dict with keys:
+    - ``final_population``: population alive at the end of the run.
+    - ``configured_max_population``: max_population cap set in the run config.
+    - ``saturation_ratio``: final_population / configured_max_population
+      (1.0 = fully saturated; close to initial_population/max_population = sparse).
+
+    Returns an empty dict when metadata is absent or malformed.
+    """
+    meta_path = run_dir / "intrinsic_evolution_metadata.json"
+    if not meta_path.exists():
+        return {}
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(meta, dict):
+        return {}
+    context: Dict[str, Any] = {}
+    final_pop = meta.get("final_population")
+    if final_pop is not None:
+        try:
+            context["final_population"] = int(final_pop)
+        except (TypeError, ValueError):
+            # Metadata can be malformed across runs; ignore this field and
+            # leave final_population unset so downstream logic can proceed.
+            pass
+    # max_population lives in resolved_initial_conditions (set by the runner).
+    resolved = meta.get("resolved_initial_conditions")
+    if not isinstance(resolved, dict):
+        resolved = {}
+    max_pop = resolved.get("max_population")
+    if max_pop is None:
+        # Fallback: check the policy block.
+        policy = meta.get("policy")
+        if not isinstance(policy, dict):
+            policy = {}
+        max_pop = policy.get("max_population")
+    if max_pop is not None:
+        try:
+            context["configured_max_population"] = int(max_pop)
+        except (TypeError, ValueError):
+            # Best-effort metadata parsing: ignore malformed max_population.
+            pass
+    if "final_population" in context and "configured_max_population" in context:
+        cap = context["configured_max_population"]
+        context["saturation_ratio"] = context["final_population"] / cap if cap > 0 else float("nan")
+    return context
 
 
 def _parent_of(genome_id: Optional[str]) -> Optional[str]:
@@ -345,6 +404,46 @@ def _discover_arm_runs(
 
 # ── Paired deltas ────────────────────────────────────────────────────────────────
 
+def _summarize_ecology(eco_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Aggregate per-run ecology context dicts into a profile-level summary.
+
+    Parameters
+    ----------
+    eco_list:
+        List of per-run ecology dicts, each with optional keys
+        ``final_population``, ``configured_max_population``, and
+        ``saturation_ratio`` (as returned by :func:`_read_ecology_context`).
+
+    Keys in the summary:
+    - ``n_runs``: number of runs with ecology data.
+    - ``mean_final_population``: mean final population across runs.
+    - ``mean_saturation_ratio``: mean final_pop / max_pop (1.0 = saturated).
+    - ``configured_max_population``: configured cap (all runs should agree;
+      the first available value is used).
+
+    Returns an empty dict when ``eco_list`` is empty.
+    """
+    if not eco_list:
+        return {}
+    final_pops = [e["final_population"] for e in eco_list if "final_population" in e]
+    sat_ratios = [
+        e["saturation_ratio"]
+        for e in eco_list
+        if "saturation_ratio" in e and math.isfinite(e["saturation_ratio"])
+    ]
+    max_pop = next(
+        (e["configured_max_population"] for e in eco_list
+         if "configured_max_population" in e),
+        None,
+    )
+    return {
+        "n_runs": len(eco_list),
+        "mean_final_population": _mean(final_pops) if final_pops else float("nan"),
+        "mean_saturation_ratio": _mean(sat_ratios) if sat_ratios else float("nan"),
+        "configured_max_population": max_pop,
+    }
+
+
 def _verdict(deltas: Sequence[float]) -> Dict[str, Any]:
     """Robustness verdict for a list of paired deltas (one per seed)."""
     vals = [d for d in deltas if not math.isnan(d)]
@@ -436,6 +535,8 @@ def _build_markdown(
     ages: Sequence[int],
     baseline_arm: str,
     treatment_arm: str,
+    *,
+    ecology_by_arm: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
 ) -> str:
     profiles = [p for p in PROFILE_ORDER if p in paired]
     lines: List[str] = [
@@ -446,6 +547,32 @@ def _build_markdown(
         "95% CI excludes zero AND within-profile sign agreement >= 0.75.",
         "",
     ]
+
+    if ecology_by_arm:
+        lines += ["## Ecology context", ""]
+        lines += [
+            "| Profile | Arm | Mean final pop | Max pop cap | Saturation ratio |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for profile in profiles:
+            for arm in (baseline_arm, treatment_arm):
+                eco = ecology_by_arm.get(arm, {}).get(profile, {})
+                lines.append(
+                    f"| {profile} | {arm} "
+                    f"| {_fmt(eco.get('mean_final_population'), 1)} "
+                    f"| {eco.get('configured_max_population', 'n/a')} "
+                    f"| {_fmt(eco.get('mean_saturation_ratio'), 2)} |"
+                )
+        lines += [
+            "",
+            (
+                "_Saturation ratio = final population / max_population cap. "
+                + "1.0 = fully saturated (crowded ecology); "
+                + "values near initial_population/max_population indicate a sparse ecology "
+                + "closer to the gate regime (fixed-8, no-repro)._"
+            ),
+            "",
+        ]
 
     if warmstart_rates:
         lines += ["## Warm-start coverage (treatment arm)", ""]
@@ -508,87 +635,217 @@ def _build_markdown(
     return "\n".join(lines)
 
 
-# ── Driver ─────────────────────────────────────────────────────────────────────
+# Primary #904 gate metric: net RL reward at fixed offspring ages.
+PRIMARY_GATE_METRIC = "rl_reward_at_age"
 
-def _json_safe(obj: Any) -> Any:
-    """Recursively replace non-finite floats with ``None`` for portable JSON.
 
-    ``json.dumps`` emits bare ``NaN``/``Infinity`` tokens by default, which are
-    invalid in strict JSON (and break JS / non-Python consumers). Mapping them
-    to ``null`` keeps the file parseable everywhere.
+def _collect_robust_hits(
+    paired_by_arm: Dict[str, Dict[str, Dict[str, Any]]],
+    ages: Sequence[int],
+    *,
+    metric: str = PRIMARY_GATE_METRIC,
+) -> List[str]:
+    hits: List[str] = []
+    for arm, paired in paired_by_arm.items():
+        profiles = [p for p in PROFILE_ORDER if p in paired]
+        for profile in profiles:
+            for age in ages:
+                verdicts = paired[profile]["ages"].get(age, {}).get("verdicts", {})
+                v = verdicts.get(metric, {})
+                if v.get("robust"):
+                    hits.append(
+                        f"{arm} / {profile} / N={age} "
+                        f"(Δ {_fmt(v.get('mean_delta'), 3)})"
+                    )
+    return hits
+
+
+def _build_multi_arm_markdown(
+    paired_by_arm: Dict[str, Dict[str, Dict[str, Any]]],
+    warmstart_by_arm: Dict[str, Dict[str, float]],
+    ages: Sequence[int],
+    baseline_arm: str,
+    treatment_arms: Sequence[str],
+    *,
+    ecology_by_arm: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
+) -> str:
+    lines: List[str] = [
+        f"# Early-life offspring fitness: ladder vs {baseline_arm} (#904)",
+        "",
+        "Each treatment arm is paired against the baseline per (profile, seed). Primary gate metric: **net RL reward at age N**. Robustness rule: 95% CI excludes zero AND within-profile sign agreement >= 0.75.",
+        "",
+    ]
+
+    all_arms = [baseline_arm] + list(treatment_arms)
+    if ecology_by_arm:
+        profiles_eco = [
+            p for p in PROFILE_ORDER
+            if any(p in ecology_by_arm.get(a, {}) for a in all_arms)
+        ]
+        if profiles_eco:
+            lines += ["## Ecology context", ""]
+            lines += [
+                "| Profile | Arm | Mean final pop | Max pop cap | Saturation ratio |",
+                "| --- | --- | --- | --- | --- |",
+            ]
+            for profile in profiles_eco:
+                for arm in all_arms:
+                    eco = ecology_by_arm.get(arm, {}).get(profile, {})
+                    lines.append(
+                        f"| {profile} | {arm} "
+                        f"| {_fmt(eco.get('mean_final_population'), 1)} "
+                        f"| {eco.get('configured_max_population', 'n/a')} "
+                        f"| {_fmt(eco.get('mean_saturation_ratio'), 2)} |"
+                    )
+            lines += [
+                "",
+                (
+                    "_Saturation ratio = final population / max_population cap. "
+                    "1.0 = fully saturated; values near initial/max indicate a sparse "
+                    "ecology closer to the gate regime (fixed-8, no-repro)._"
+                ),
+                "",
+            ]
+
+    if warmstart_by_arm:
+        profiles = [
+            p
+            for p in PROFILE_ORDER
+            if any(p in paired_by_arm.get(a, {}) for a in treatment_arms)
+        ]
+        if profiles:
+            lines += ["## Warm-start rates", ""]
+            lines += [
+                "| Profile | " + " | ".join(treatment_arms) + " |",
+                "| --- | " + " | ".join(["---"] * len(treatment_arms)) + " |",
+            ]
+            for profile in profiles:
+                cells = [
+                    _fmt(warmstart_by_arm.get(arm, {}).get(profile, float("nan")), 3)
+                    for arm in treatment_arms
+                ]
+                lines.append(f"| {profile} | " + " | ".join(cells) + " |")
+        lines.append("")
+
+    for age in ages:
+        lines += [f"## Net RL reward at age {age} (primary gate)", ""]
+        lines += [
+            "| Profile | Arm | Baseline mean | Treatment mean | Mean Δ | 95% CI | Sign agr. | Verdict |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for arm in treatment_arms:
+            paired = paired_by_arm.get(arm, {})
+            for profile in [p for p in PROFILE_ORDER if p in paired]:
+                age_block = paired[profile]["ages"].get(age, {})
+                v = age_block.get("verdicts", {}).get(PRIMARY_GATE_METRIC, {})
+                verdict = "robust" if v.get("robust") else "no robust effect"
+                lines.append(
+                    f"| {profile} | {arm} "
+                    f"| {_fmt(age_block.get('baseline_means', {}).get(PRIMARY_GATE_METRIC), 3)} "
+                    f"| {_fmt(age_block.get('treatment_means', {}).get(PRIMARY_GATE_METRIC), 3)} "
+                    f"| {_fmt(v.get('mean_delta'), 3)} "
+                    f"| {_fmt(v.get('ci95'), 3)} "
+                    f"| {_fmt(v.get('sign_agreement'), 2)} "
+                    f"| {verdict} |"
+                )
+        lines.append("")
+
+    lines += ["## Headline", ""]
+    robust_hits = _collect_robust_hits(paired_by_arm, ages)
+    if robust_hits:
+        lines.append("Robust early-life RL-reward gains vs baseline:")
+        lines += [f"- {hit}" for hit in robust_hits]
+    else:
+        lines.append(
+            "**No robust early-life RL-reward gain** for any treatment arm vs "
+            f"{baseline_arm}. Richer payloads do not clear the #904 gate on this metric."
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _load_arm(
+    arm_dir: Path,
+    label: str,
+    profiles: Sequence[str],
+    ages: Sequence[int],
+) -> Tuple[Dict[str, Dict[int, Dict[str, Any]]], Dict[str, List[float]], Dict[str, List[Dict[str, Any]]]]:
+    """Load per-run early-life data for one arm.
+
+    Returns
+    -------
+    per_profile : mapping profile -> seed -> run data dict
+    warmstart   : mapping profile -> list of per-run warm-start rates
+    ecology     : mapping profile -> list of per-run ecology context dicts
+                  (keys: ``final_population``, ``configured_max_population``,
+                  ``saturation_ratio``).
     """
-    if isinstance(obj, float):
-        return obj if math.isfinite(obj) else None
-    if isinstance(obj, dict):
-        return {k: _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_json_safe(v) for v in obj]
-    return obj
+    runs = _discover_arm_runs(arm_dir, profiles)
+    per_profile: Dict[str, Dict[int, Dict[str, Any]]] = defaultdict(dict)
+    warmstart: Dict[str, List[float]] = defaultdict(list)
+    ecology: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for profile, seed_dirs in runs.items():
+        for seed, run_dir in seed_dirs:
+            db = _find_db(run_dir)
+            if db is None:
+                print(f"  [{label}] {run_dir}: no .db, skipping", file=sys.stderr)
+                continue
+            warmup = _read_warmup(run_dir)
+            data = _extract_run_early_life(db, warmup, ages)
+            if data is None:
+                print(f"  [{label}] {run_dir}: no offspring, skipping", file=sys.stderr)
+                continue
+            per_profile[profile][seed] = data
+            rate = _read_warmstart_rate(run_dir)
+            if rate is not None and not math.isnan(rate):
+                warmstart[profile].append(rate)
+            eco = _read_ecology_context(run_dir)
+            if eco:
+                ecology[profile].append(eco)
+            print(
+                f"  [{label}] {profile} seed={seed}: "
+                f"{data['n_offspring']} offspring, warmup={warmup}"
+                + (
+                    f", final_pop={eco.get('final_population', '?')}"
+                    f"/{eco.get('configured_max_population', '?')}"
+                    if eco
+                    else ""
+                )
+            )
+    return dict(per_profile), dict(warmstart), dict(ecology)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Measure early-life offspring fitness across A/B inheritance arms.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument("--ab-dir", type=str, required=True,
-                        help="Root dir containing the two arm sub-directories.")
-    parser.add_argument("--baseline-arm", type=str, default="baldwinian")
-    parser.add_argument("--treatment-arm", type=str, default="lamarckian")
-    parser.add_argument("--output-dir", type=str, default=None,
-                        help="Defaults to <ab-dir>/early_life.")
-    parser.add_argument("--profiles", nargs="+", default=list(PROFILE_ORDER),
-                        choices=list(PROFILE_ORDER), metavar="PROFILE")
-    parser.add_argument("--ages", nargs="+", type=int, default=list(DEFAULT_AGES))
-    args = parser.parse_args()
+def _resolve_treatment_arms(args: argparse.Namespace) -> List[str]:
+    if getattr(args, "treatment_arms", None):
+        return list(args.treatment_arms)
+    return [args.treatment_arm]
 
-    ab_dir = Path(args.ab_dir)
-    baseline_dir = ab_dir / args.baseline_arm
-    treatment_dir = ab_dir / args.treatment_arm
+
+def _run_single_pair_analysis(
+    ab_dir: Path,
+    baseline_arm: str,
+    treatment_arm: str,
+    profiles: Sequence[str],
+    ages: Sequence[int],
+    output_dir: Path,
+) -> int:
+    baseline_dir = ab_dir / baseline_arm
+    treatment_dir = ab_dir / treatment_arm
     if not baseline_dir.is_dir() or not treatment_dir.is_dir():
         print(f"Expected arm dirs {baseline_dir} and {treatment_dir}", file=sys.stderr)
         return 1
 
-    output_dir = Path(args.output_dir) if args.output_dir else ab_dir / "early_life"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    ages = sorted(set(int(a) for a in args.ages))
-
-    def _load_arm(arm_dir: Path, label: str) -> Tuple[
-        Dict[str, Dict[int, Dict[str, Any]]], Dict[str, List[float]]
-    ]:
-        runs = _discover_arm_runs(arm_dir, args.profiles)
-        per_profile: Dict[str, Dict[int, Dict[str, Any]]] = defaultdict(dict)
-        warmstart: Dict[str, List[float]] = defaultdict(list)
-        for profile, seed_dirs in runs.items():
-            for seed, run_dir in seed_dirs:
-                db = _find_db(run_dir)
-                if db is None:
-                    print(f"  [{label}] {run_dir}: no .db, skipping", file=sys.stderr)
-                    continue
-                warmup = _read_warmup(run_dir)
-                data = _extract_run_early_life(db, warmup, ages)
-                if data is None:
-                    print(f"  [{label}] {run_dir}: no offspring, skipping",
-                          file=sys.stderr)
-                    continue
-                per_profile[profile][seed] = data
-                rate = _read_warmstart_rate(run_dir)
-                if rate is not None and not math.isnan(rate):
-                    warmstart[profile].append(rate)
-                print(f"  [{label}] {profile} seed={seed}: "
-                      f"{data['n_offspring']} offspring, warmup={warmup}")
-        return dict(per_profile), dict(warmstart)
-
-    print(f"Loading baseline arm ({args.baseline_arm})...")
-    baseline, _ = _load_arm(baseline_dir, args.baseline_arm)
-    print(f"Loading treatment arm ({args.treatment_arm})...")
-    treatment, warmstart_raw = _load_arm(treatment_dir, args.treatment_arm)
+    print(f"Loading baseline arm ({baseline_arm})...")
+    baseline, _, baseline_ecology = _load_arm(baseline_dir, baseline_arm, profiles, ages)
+    print(f"Loading treatment arm ({treatment_arm})...")
+    treatment, warmstart_raw, treatment_ecology = _load_arm(
+        treatment_dir, treatment_arm, profiles, ages
+    )
 
     warmstart_rates = {p: _mean(v) for p, v in warmstart_raw.items() if v}
 
     paired: Dict[str, Dict[str, Any]] = {}
-    for profile in args.profiles:
+    for profile in profiles:
         b = baseline.get(profile, {})
         t = treatment.get(profile, {})
         if not b or not t:
@@ -599,12 +856,23 @@ def main() -> int:
         print("No paired profiles found; nothing to compare.", file=sys.stderr)
         return 1
 
+    ecology_by_arm = {
+        baseline_arm: {
+            p: _summarize_ecology(baseline_ecology.get(p, []))
+            for p in paired
+        },
+        treatment_arm: {
+            p: _summarize_ecology(treatment_ecology.get(p, []))
+            for p in paired
+        },
+    }
     summary = {
-        "baseline_arm": args.baseline_arm,
-        "treatment_arm": args.treatment_arm,
-        "ages": ages,
+        "baseline_arm": baseline_arm,
+        "treatment_arm": treatment_arm,
+        "ages": list(ages),
         "profiles_analyzed": [p for p in PROFILE_ORDER if p in paired],
         "warmstart_rates": warmstart_rates,
+        "ecology_by_arm": ecology_by_arm,
         "paired": paired,
         "rl_reward_curves": {
             "baseline": {
@@ -627,21 +895,194 @@ def main() -> int:
             },
         },
     }
+    output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "early_life_summary.json"
     summary_path.write_text(
         json.dumps(_json_safe(summary), indent=2, allow_nan=False, default=str),
         encoding="utf-8",
     )
-
-    md = _build_markdown(paired, warmstart_rates, ages, args.baseline_arm,
-                         args.treatment_arm)
     md_path = output_dir / "early_life_summary.md"
-    md_path.write_text(md, encoding="utf-8")
-
+    md_path.write_text(
+        _build_markdown(paired, warmstart_rates, ages, baseline_arm, treatment_arm,
+                        ecology_by_arm=ecology_by_arm),
+        encoding="utf-8",
+    )
     print(f"\nDone. Outputs in: {output_dir}")
     print(f"  summary JSON : {summary_path}")
     print(f"  summary MD   : {md_path}")
     return 0
+
+
+def _run_multi_arm_analysis(
+    ab_dir: Path,
+    baseline_arm: str,
+    treatment_arms: Sequence[str],
+    profiles: Sequence[str],
+    ages: Sequence[int],
+    output_dir: Path,
+) -> int:
+    baseline_dir = ab_dir / baseline_arm
+    if not baseline_dir.is_dir():
+        print(f"Expected baseline dir {baseline_dir}", file=sys.stderr)
+        return 1
+    for arm in treatment_arms:
+        if not (ab_dir / arm).is_dir():
+            print(f"Expected treatment dir {ab_dir / arm}", file=sys.stderr)
+            return 1
+
+    print(f"Loading baseline arm ({baseline_arm})...")
+    baseline, _, baseline_ecology = _load_arm(baseline_dir, baseline_arm, profiles, ages)
+
+    paired_by_arm: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    warmstart_by_arm: Dict[str, Dict[str, float]] = {}
+    ecology_by_arm: Dict[str, Dict[str, Dict[str, Any]]] = {
+        baseline_arm: {
+            p: _summarize_ecology(baseline_ecology.get(p, []))
+            for p in baseline
+        }
+    }
+    profiles_analyzed: List[str] = []
+
+    for arm in treatment_arms:
+        print(f"Loading treatment arm ({arm})...")
+        treatment, warmstart_raw, treatment_ecology = _load_arm(
+            ab_dir / arm, arm, profiles, ages
+        )
+        warmstart_by_arm[arm] = {p: _mean(v) for p, v in warmstart_raw.items() if v}
+        ecology_by_arm[arm] = {
+            p: _summarize_ecology(treatment_ecology.get(p, []))
+            for p in treatment
+        }
+        paired: Dict[str, Dict[str, Any]] = {}
+        for profile in profiles:
+            b = baseline.get(profile, {})
+            t = treatment.get(profile, {})
+            if not b or not t:
+                continue
+            paired[profile] = _pair_profile(b, t, ages)
+        if paired:
+            paired_by_arm[arm] = paired
+            for profile in paired:
+                if profile not in profiles_analyzed:
+                    profiles_analyzed.append(profile)
+
+    if not paired_by_arm:
+        print("No paired profiles found across treatment arms.", file=sys.stderr)
+        return 1
+
+    summary = {
+        "baseline_arm": baseline_arm,
+        "treatment_arms": list(treatment_arms),
+        "ages": list(ages),
+        "profiles_analyzed": [p for p in PROFILE_ORDER if p in profiles_analyzed],
+        "warmstart_by_arm": warmstart_by_arm,
+        "ecology_by_arm": ecology_by_arm,
+        "paired_by_arm": paired_by_arm,
+        "robust_hits": _collect_robust_hits(paired_by_arm, ages),
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = output_dir / "early_life_ladder_summary.json"
+    summary_path.write_text(
+        json.dumps(_json_safe(summary), indent=2, allow_nan=False, default=str),
+        encoding="utf-8",
+    )
+    md_path = output_dir / "early_life_ladder_summary.md"
+    md_path.write_text(
+        _build_multi_arm_markdown(
+            paired_by_arm, warmstart_by_arm, ages, baseline_arm, treatment_arms,
+            ecology_by_arm=ecology_by_arm,
+        ),
+        encoding="utf-8",
+    )
+    print(f"\nDone. Outputs in: {output_dir}")
+    print(f"  ladder JSON : {summary_path}")
+    print(f"  ladder MD   : {md_path}")
+    return 0
+
+def _json_safe(obj: Any) -> Any:
+    """Recursively replace non-finite floats with ``None`` for portable JSON.
+
+    ``json.dumps`` emits bare ``NaN``/``Infinity`` tokens by default, which are
+    invalid in strict JSON (and break JS / non-Python consumers). Mapping them
+    to ``null`` keeps the file parseable everywhere.
+    """
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
+# ── Driver ─────────────────────────────────────────────────────────────────────
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Measure early-life offspring fitness across A/B inheritance arms.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--ab-dir",
+        type=str,
+        required=True,
+        help="Root dir containing arm sub-directories.",
+    )
+    parser.add_argument("--baseline-arm", type=str, default="baldwinian")
+    parser.add_argument(
+        "--treatment-arm",
+        type=str,
+        default="lamarckian",
+        help="Single treatment arm (legacy two-arm mode).",
+    )
+    parser.add_argument(
+        "--treatment-arms",
+        nargs="+",
+        default=None,
+        metavar="ARM",
+        help=(
+            "Multiple treatment arms, each paired against baseline (#904 ladder). "
+            "When set, overrides --treatment-arm."
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Defaults to <ab-dir>/early_life.",
+    )
+    parser.add_argument(
+        "--profiles",
+        nargs="+",
+        default=list(PROFILE_ORDER),
+        choices=list(PROFILE_ORDER),
+        metavar="PROFILE",
+    )
+    parser.add_argument("--ages", nargs="+", type=int, default=list(DEFAULT_AGES))
+    args = parser.parse_args()
+
+    ab_dir = Path(args.ab_dir)
+    output_dir = Path(args.output_dir) if args.output_dir else ab_dir / "early_life"
+    ages = sorted(set(int(a) for a in args.ages))
+    treatment_arms = _resolve_treatment_arms(args)
+
+    if len(treatment_arms) == 1:
+        return _run_single_pair_analysis(
+            ab_dir,
+            args.baseline_arm,
+            treatment_arms[0],
+            args.profiles,
+            ages,
+            output_dir,
+        )
+    return _run_multi_arm_analysis(
+        ab_dir,
+        args.baseline_arm,
+        treatment_arms,
+        args.profiles,
+        ages,
+        output_dir,
+    )
 
 
 if __name__ == "__main__":

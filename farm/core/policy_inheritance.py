@@ -69,7 +69,16 @@ WARMSTART_REASON_EXTENDED_STATE_UNSUPPORTED = "extended_state_unsupported"
 P2_PLASTICITY_DAMPING = 0.5
 
 # Replay-buffer slice size cap used by the P3 variant.
-P3_REPLAY_BUFFER_LIMIT = 256
+# Kept at 64 (down from the original 256) to bound per-offspring serialization
+# overhead at population-cap churn rates.  At max_population=32 with active
+# reproduction, each birth triggers a synchronous replay-slice serialize +
+# deserialize; 256 transitions proved ~3× slower than P2 in the learning-
+# positive pilot (#962).  64 preserves enough recent experience to seed the
+# child's replay buffer while capping the transfer cost to roughly the same
+# wall-clock band as P2.  Override via IntrinsicEvolutionPolicy
+# (warmstart_replay_buffer_limit) or the --warmstart-replay-buffer-limit CLI
+# flag when a larger slice is justified by the experiment's horizon.
+P3_REPLAY_BUFFER_LIMIT = 64
 
 # Blend coefficient used by the P4 variant:
 #   θ_child = P4_BLEND_ALPHA * θ_parent + (1 - P4_BLEND_ALPHA) * θ_init
@@ -339,6 +348,12 @@ def apply_p3_policy_warmstart(
     Copies the parent's policy weights, optimizer state (Adam moments), and
     a bounded slice of the parent's replay buffer so the offspring continues
     the parent's learning trajectory instead of restarting from scratch.
+
+    ``replay_buffer_limit`` caps the number of transitions serialized and
+    transferred per offspring. Keep it small (default :data:`P3_REPLAY_BUFFER_LIMIT`)
+    for long-horizon sweeps or high-reproduction-churn regimes; larger values
+    increase wall-clock time proportionally because the transfer is synchronous per
+    birth event.
 
     Returns ``None`` on success; returns a ``WARMSTART_REASON_*`` string on
     any skip.
