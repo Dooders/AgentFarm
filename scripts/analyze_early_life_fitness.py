@@ -710,11 +710,18 @@ def _build_multi_arm_markdown(
             for p in PROFILE_ORDER
             if any(p in paired_by_arm.get(a, {}) for a in treatment_arms)
         ]
-            cells = [
-                _fmt(warmstart_by_arm.get(arm, {}).get(profile, float("nan")), 3)
-                for arm in treatment_arms
+        if profiles:
+            lines += ["## Warm-start rates", ""]
+            lines += [
+                "| Profile | " + " | ".join(treatment_arms) + " |",
+                "| --- | " + " | ".join(["---"] * len(treatment_arms)) + " |",
             ]
-            lines.append(f"| {profile} | " + " | ".join(cells) + " |")
+            for profile in profiles:
+                cells = [
+                    _fmt(warmstart_by_arm.get(arm, {}).get(profile, float("nan")), 3)
+                    for arm in treatment_arms
+                ]
+                lines.append(f"| {profile} | " + " | ".join(cells) + " |")
         lines.append("")
 
     for age in ages:
