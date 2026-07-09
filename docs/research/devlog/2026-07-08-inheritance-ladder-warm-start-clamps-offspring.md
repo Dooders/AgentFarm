@@ -101,7 +101,7 @@ maladaptive in this regime.
 
 ## Is this a design issue or a hard barrier?
 
-Both, and they are separable.
+Both, and they are separable — and the separation is now closed.
 
 **It is a real barrier for this design.** Across 90 runs / 3 profiles / 6 seeds,
 with warm-start firing on 96-100% of reproduction events (P4 gate hit-rate
@@ -110,15 +110,19 @@ needed tuning would usually win *somewhere*. The complete absence of upside,
 plus the dose-response, says that transplanting a parent policy into offspring
 is net-harmful here and you cannot tune your way out by enriching the payload.
 
-**But the regime is confounded, so this is not yet evidence of a fundamental
-Baldwinian-beats-Lamarckian law.** Every arm ran at full saturation (final
-population 32/32 in essentially every cell). The +15-30 "honest budget" the
-whole program is graded against was measured by the gate in a *sparse, fixed-8,
-no-reproduction* regime. So warm-start was never actually tested in the density
-where its benefit was established. Offspring here are born into maximal crowding,
-where a parent policy tuned to different conditions is most likely to be wrong —
-which is exactly the clamping we see. The saturation is a plausible cause of the
-harm, not a law of nature.
+**The regime was confounded, so this post alone was not yet a fundamental
+verdict.** Every arm ran at full saturation (final population 32/32 in
+essentially every cell). The +15-30 "honest budget" the whole program is graded
+against was measured by the gate in a *sparse, fixed-8, no-reproduction*
+regime. Offspring here are born into maximal crowding, where a parent policy
+tuned to different conditions is most likely to be wrong — which is exactly the
+clamping we see.
+
+That confound is settled in the
+[07-09 low-churn follow-up](2026-07-09-lowchurn-inheritance-still-loses.md):
+the identical A/B with `--low-churn` (`max_population = 8`) still loses on
+every cell. Saturation inflated absolute reward gaps; it did not create the
+ranking. The barrier holds in both regimes.
 
 ## What it means for #904
 
@@ -127,12 +131,10 @@ early-life net reward without degrading stability — **none of P1-P4 advance.**
 Baldwinian cold-start stays the default. Richer payloads don't help and usually
 hurt, worst of all in resource-rich ecologies.
 
-The honest scope of the claim: *Lamarckian-style policy inheritance does not beat
-Baldwinian cold-start on early-life reward in the saturated learning-positive
-regime, and richer payloads make it worse.* What we cannot yet claim is the
-stronger "inheritance is fundamentally worse than cold-start," because the
-density mismatch means the mechanism was tested outside the conditions where its
-benefit was measured.
+Together with the [low-churn follow-up](2026-07-09-lowchurn-inheritance-still-loses.md),
+the honest claim is: *Lamarckian-style policy inheritance does not beat
+Baldwinian cold-start on early-life reward in either the saturated or the sparse
+learning-positive regime, and richer payloads make it worse.*
 
 ## Reproduce
 
@@ -171,11 +173,8 @@ Outputs land in `experiments/inheritance_ab_learning_positive/early_life/`
 
 ## Open questions
 
-- **Is saturation the killer? (the decisive test.)** Re-run the identical A/B in
-  the sparse regime the gate used — `--low-churn`, so `max_population =
-  population` and reproduction *replaces* rather than expands the colony. If
-  warm-start still loses, it is a hard barrier. If it goes neutral or positive,
-  the saturation was doing the damage and this sweep measured the confound.
+- **Is saturation the killer?** Settled — no. See
+  [Sparse ecology doesn't save the ladder](2026-07-09-lowchurn-inheritance-still-loses.md).
 - **Does the clamp relax with a weaker blend?** P4 at blend 0.5 imposes half the
   parent policy; sweeping the blend toward 0 should interpolate back to P0. If
   even a small blend hurts in `buffered`, the imposition itself is the problem.
@@ -183,9 +182,13 @@ Outputs land in `experiments/inheritance_ab_learning_positive/early_life/`
   comparison can't separate "warm-started" from "born via the treatment path."
   Per-offspring applied/skipped telemetry would let us compare warm-started and
   cold offspring *within* the same run (see the `incompatible_state` skip issue).
+- **Different transfer designs.** Distilled priors, delayed fitness-gated
+  transfer, or partial-layer warm-start are untested; the barrier is for *this*
+  warm-start-on-reproduction ladder.
 
 ## Related docs
 
+- [Sparse ecology doesn't save the ladder: warm-start still loses](2026-07-09-lowchurn-inheritance-still-loses.md)
 - [Implement inherited-payload ladder (P2-P4) and run the #848 experiment (#904)](https://github.com/Dooders/AgentFarm/issues/904)
 - [Pilot early-life results: no RL-reward gain vs P0 (#964)](https://github.com/Dooders/AgentFarm/issues/964)
 - [The transferable-signal gate: do learned policies beat their own init?](2026-06-20-transferable-signal-budget.md)
