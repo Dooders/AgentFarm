@@ -6,6 +6,27 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/research/devlog/2026-07-08-inheritance-ladder-warm-start-clamps-offspring/' | relative_url }}">
+      <span class="post-card__date">2026-07-08</span>
+      <h3 class="post-card__title">The inheritance ladder doesn't climb: warm-start clamps offspring reward</h3>
+      <p class="post-card__excerpt">
+        The full 90-run #904 A/B across all five inheritance arms, graded on
+        net early-life offspring reward. No payload beats Baldwinian cold-start:
+        all 16 robust effects are losses, and the richer the payload the bigger
+        the loss (P4 worst). The tell is that warm-start clamps offspring to a
+        low, ecology-blind reward trajectory while cold-start offspring track
+        the resource profile — a real barrier for this design, though the
+        fully-saturated regime confounds a fundamental verdict.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="https://github.com/Dooders/AgentFarm/issues/904">Inheritance-ladder experiment (#904)</a>,
+      <a href="{{ '/research/devlog/2026-06-20-transferable-signal-budget/' | relative_url }}">The precondition gate this follows up</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/research/devlog/2026-06-20-transferable-signal-budget/' | relative_url }}">
       <span class="post-card__date">2026-06-20</span>
       <h3 class="post-card__title">The transferable-signal gate: do learned policies beat their own init?</h3>
