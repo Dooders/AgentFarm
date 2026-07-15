@@ -374,6 +374,86 @@ Legend: 🌅 morning slot · ☀️ midday slot · 🌆 evening slot.
 
 ---
 
+## Automating the posts
+
+The schedule is duplicated in machine-readable form at
+[`tweet_schedule.json`](tweet_schedule.json), and
+[`scripts/post_scheduled_tweet.py`](../../scripts/post_scheduled_tweet.py)
+posts whichever tweet is due at the current UTC time. The intended trigger is
+a **Cursor Automation** with a cron schedule.
+
+### 1. Get X API access
+
+As of 2026 there is **no free tier** for new X developers — the API is
+pay-per-use (roughly $0.015 per plain post, $0.20 per post containing a URL;
+legacy Basic/Pro tiers are closed to new signups). For this campaign
+(63 tweets, ~24 with links) expect on the order of **$5–6 total**.
+
+1. Sign up at [developer.x.com](https://developer.x.com) with the
+   `@AgentFarm…` account and add a small credit balance.
+2. Create a Project + App. Under **User authentication settings**, enable
+   **Read and Write** permissions (OAuth 1.0a).
+3. From the app's **Keys and tokens** page, collect four values:
+   API Key, API Key Secret, Access Token, Access Token Secret
+   (the access token must be generated *after* enabling write permissions,
+   and must belong to the AgentFarm account).
+
+### 2. Store the credentials as Cursor secrets
+
+In [cursor.com/dashboard/cloud-agents](https://cursor.com/dashboard/cloud-agents)
+→ **Secrets**, add four **Runtime Secrets** (runtime secrets are injected as
+environment variables but redacted from transcripts and tool results):
+
+| Secret name | Value |
+|-------------|-------|
+| `X_API_KEY` | API Key |
+| `X_API_SECRET` | API Key Secret |
+| `X_ACCESS_TOKEN` | Access Token |
+| `X_ACCESS_TOKEN_SECRET` | Access Token Secret |
+
+Scope them to this repository so only AgentFarm agents receive them.
+
+### 3. Create the Cursor Automation
+
+At [cursor.com/automations/new](https://cursor.com/automations/new)
+(or via the `/automate` skill in a local agent session):
+
+- **Trigger:** Scheduled, cron `0 9,13,18 * * *` (UTC) — one firing per slot.
+- **Repository:** `Dooders/AgentFarm`, branch `main` (a repository must be
+  selected; cron automations default to "no repository", which would hide
+  the script and secrets scoped to this repo).
+- **Prompt:**
+
+  > Run `python scripts/post_scheduled_tweet.py` from the repository root.
+  > If it prints "No tweet due", stop — that is expected outside campaign
+  > slots. If it exits non-zero for any other reason, report the full error
+  > output. Do not edit any files, do not open a PR, and do not retry a
+  > successful post.
+
+- **Tools:** disable *Pull request creation* — this automation only posts.
+
+The script is stateless by design: each cron firing posts exactly the tweet
+whose slot covers the current time (a 2-hour lateness window per slot, and
+slots are ≥4 hours apart, so a run can never double-post). If a firing is
+missed entirely, that slot's tweet is skipped rather than posted late.
+
+### Verifying before launch
+
+```bash
+# Show the whole expanded schedule
+python scripts/post_scheduled_tweet.py --list
+
+# Preview what a given slot would post, without credentials
+python scripts/post_scheduled_tweet.py --dry-run --at 2026-07-20T09:00:00
+
+# One real end-to-end post (uses the four X_* env vars)
+python scripts/post_scheduled_tweet.py --at 2026-07-20T09:00:00
+```
+
+To shift the campaign, edit `campaign.start_date` (and `slot_hours` for
+different posting times) in `tweet_schedule.json` — the script derives every
+slot from those values.
+
 ## After week 3
 
 Sustainable cadence once the launch backlog is exhausted:

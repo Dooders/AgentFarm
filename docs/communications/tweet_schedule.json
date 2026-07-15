@@ -1,0 +1,329 @@
+{
+  "campaign": {
+    "name": "AgentFarm launch",
+    "start_date": "2026-07-20",
+    "timezone": "UTC",
+    "slot_hours": {
+      "morning": 9,
+      "midday": 13,
+      "evening": 18
+    }
+  },
+  "tweets": [
+    {
+      "day": 1,
+      "slot": "morning",
+      "text": "Introducing AgentFarm 🌱 an open-source platform for growing digital ecologies: multi-agent simulations where agents perceive, learn, reproduce, and pass on heritable genomes. Built in Python, measured in SQLite, published honestly. https://github.com/Dooders/AgentFarm"
+    },
+    {
+      "day": 1,
+      "slot": "midday",
+      "text": "Why \"farm\"? Because we don't script behaviors — we plant agents in a resource-constrained world and see what grows. Selection pressure comes from the ecology itself: finite food, costly reproduction, real death."
+    },
+    {
+      "day": 1,
+      "slot": "evening",
+      "text": "What you'll get here: build notes, design principles, experiment results (including the failures), and ways to run it all yourself. Everything is Apache-2.0. https://github.com/Dooders/AgentFarm"
+    },
+    {
+      "day": 2,
+      "slot": "morning",
+      "text": "From zero to a living world in four commands: clone → venv → pip install → python run_simulation.py --environment development --steps 1000. Your first ecosystem lands in simulations/*.db. https://dooders.github.io/AgentFarm/"
+    },
+    {
+      "day": 2,
+      "slot": "midday",
+      "text": "Every AgentFarm step runs the same pipeline: refresh perception → agents act → world resolves combat, sharing, reproduction → observations update → everything persists to SQLite → the dead are cleaned up. Simple loop, complex outcomes."
+    },
+    {
+      "day": 2,
+      "slot": "evening",
+      "text": "A simulation you can't interrogate afterwards is just a screensaver. Every run writes agent states, actions, reproduction events, and learning telemetry to a queryable database. The sim is the experiment; the DB is the lab notebook."
+    },
+    {
+      "day": 3,
+      "slot": "morning",
+      "text": "An AgentFarm agent is not a monolith. It's an AgentCore plus pluggable components — movement, perception, combat, learning — and a swappable behavior policy. Want a new species? Compose one; don't fork the engine."
+    },
+    {
+      "day": 3,
+      "slot": "midday",
+      "text": "Agents see through egocentric multi-channel tensors: allies, enemies, resources, visibility, trails, damage heat — each a layer in a (channels × H × W) window centered on the agent. A tiny convolutional retina."
+    },
+    {
+      "day": 3,
+      "slot": "evening",
+      "text": "Actions are a registry, not an enum: move, gather, attack, share, reproduce — and yours. Register a new action at import time and every agent's action space grows to fit. No core edits required."
+    },
+    {
+      "day": 4,
+      "slot": "morning",
+      "text": "The world is a 2D grid with regenerating resources and a spatial index underneath — KD-tree, quadtree, or spatial hash. Proximity queries use dirty-region tracking, so only changed cells get reindexed."
+    },
+    {
+      "day": 4,
+      "slot": "midday",
+      "text": "Determinism is a feature, not an accident. Seeds are explicit, PYTHONHASHSEED is pinned, and identical configs replay identical worlds. If you can't reproduce it, you can't study it."
+    },
+    {
+      "day": 4,
+      "slot": "evening",
+      "text": "Ecology is the fitness function. No hand-written score tells agents how to live — energy budgets, resource scarcity, and reproduction costs do the selecting. What survives is what worked."
+    },
+    {
+      "day": 5,
+      "slot": "morning",
+      "text": "Each agent can carry a DQN decision stack — and its hyperparameters (learning rate, epsilon, network width…) live on a typed chromosome that offspring inherit, cross over, and mutate. Learning parameters become heritable traits."
+    },
+    {
+      "day": 5,
+      "slot": "midday",
+      "text": "Two timescales of adaptation in one sim: within a lifetime, agents learn by RL; across generations, genomes evolve by selection. Watching them interact is the whole research program."
+    },
+    {
+      "day": 5,
+      "slot": "evening",
+      "text": "We call it intrinsic evolution: no external fitness function, no generational reset, no evaluation phase. Agents that eat, survive, and reproduce pass on their genes mid-simulation. Selection just happens. https://dooders.github.io/AgentFarm/research/experiments-catalog/"
+    },
+    {
+      "day": 6,
+      "slot": "morning",
+      "text": "The analysis stack mirrors a real lab: SimulationDatabase → repositories → analyzers → reports and plots. Population, spatial, combat, and learning modules ship in the box."
+    },
+    {
+      "day": 6,
+      "slot": "midday",
+      "text": "Charts we stare at daily: population curves, resource-vs-agent phase plots, per-generation gene distributions, reward trajectories by age. All generated from the run DB, all reproducible from the seed."
+    },
+    {
+      "day": 6,
+      "slot": "evening",
+      "text": "Weekend idea: run 1,000 steps, open the .db in any SQLite browser, and ask your own questions. The schema covers agent states, actions, and reproduction events. Your queries are as first-class as ours."
+    },
+    {
+      "day": 7,
+      "slot": "morning",
+      "text": "Week 1 recap: AgentFarm = composable agents + ecological selection + learning under pressure + everything persisted for analysis. Open-source, Python-first, Apache-2.0. https://github.com/Dooders/AgentFarm"
+    },
+    {
+      "day": 7,
+      "slot": "midday",
+      "text": "The docs have role-based entry points: researchers start at the experiments catalog, developers at architecture, operators at deployment. https://dooders.github.io/AgentFarm/"
+    },
+    {
+      "day": 7,
+      "slot": "evening",
+      "text": "Question for the timeline: what emergent behavior would convince YOU a simulated ecology is doing something real? We collect answers — some become experiments."
+    },
+    {
+      "day": 8,
+      "slot": "morning",
+      "text": "Intention #1: AgentFarm is an instrument, not a demo. Instruments must be calibrated, reproducible, and honest about their noise floor. That drives every design decision — from pinned seeds to typed configs."
+    },
+    {
+      "day": 8,
+      "slot": "midday",
+      "text": "Intention #2: negative results are results. Our devlog publishes the experiments that failed, the effects that turned out to be single-seed artifacts, and the nulls that held up. https://dooders.github.io/AgentFarm/research/devlog/"
+    },
+    {
+      "day": 8,
+      "slot": "evening",
+      "text": "Intention #3: extensible by strangers. If adding a new observation channel, action, or behavior requires editing engine internals, we've failed. Registries and interfaces exist so your fork stays small."
+    },
+    {
+      "day": 9,
+      "slot": "morning",
+      "text": "Design principle: composition over inheritance. Agents gain abilities by adding components (movement, perception, combat, learning), not by descending from a god-class. Deep hierarchies fossilize; components stay swappable."
+    },
+    {
+      "day": 9,
+      "slot": "midday",
+      "text": "Concrete payoff: a memory-augmented agent is AgentCore + a memory component + the same behavior interface. No parallel class tree, no diamond problem, no re-testing the whole ancestry."
+    },
+    {
+      "day": 9,
+      "slot": "evening",
+      "text": "Single Responsibility in practice: the environment orchestrates, the resource manager owns resources, the spatial index owns proximity, the metrics tracker observes. When one thing changes, one module changes."
+    },
+    {
+      "day": 10,
+      "slot": "morning",
+      "text": "Open–Closed Principle, applied: new actions and observation channels register themselves at import time. The engine never learns their names. Adding a pheromone channel touches zero core files."
+    },
+    {
+      "day": 10,
+      "slot": "midday",
+      "text": "Dependency Inversion, applied: the core depends on DatabaseProtocol and RepositoryProtocol, not SQLite. Tests inject in-memory fakes; production wires the real thing. Swappable persistence for free."
+    },
+    {
+      "day": 10,
+      "slot": "evening",
+      "text": "The test suite is ~6,500 tests and counting. Protocol-based seams are why that's tractable — most tests never touch a real database, filesystem, or network."
+    },
+    {
+      "day": 11,
+      "slot": "morning",
+      "text": "KISS survives contact with research code only if you defend it. Our rule: the simulation loop reads like six lines of pseudocode. All cleverness lives behind interfaces where it can be replaced."
+    },
+    {
+      "day": 11,
+      "slot": "midday",
+      "text": "Every run is a SimulationConfig: typed, nested, YAML-loaded, validated before step one. Population, resources, learning, observation — all declared, all diffable, all reproducible. Configs are experiments."
+    },
+    {
+      "day": 11,
+      "slot": "evening",
+      "text": "DRY, but not prematurely: sweeps don't copy configs, they declare variations. The ExperimentRunner takes a base config + a list of overrides and fans out the runs."
+    },
+    {
+      "day": 12,
+      "slot": "morning",
+      "text": "Hard-won lesson: one seed is an anecdote. Our CohortRunner wraps any experiment in N independent seeded runs and aggregates mean, deviation, and convergence stats. Single-run discoveries rarely survive it."
+    },
+    {
+      "day": 12,
+      "slot": "midday",
+      "text": "True story: an early result showed learning-rate flips between resource regimes. Exciting! A 6-seed sweep later: single-seed artifact. Gone. The devlog post stays up because that's the point. https://dooders.github.io/AgentFarm/research/devlog/2026-05-12-seed-sweep-reality-check/"
+    },
+    {
+      "day": 12,
+      "slot": "evening",
+      "text": "Reproducibility stack: pinned PYTHONHASHSEED → explicit RNG seeds → deterministic spatial updates → versioned configs → archived run DBs. Any figure in our devlog can be regenerated from a command line."
+    },
+    {
+      "day": 13,
+      "slot": "morning",
+      "text": "Simulation perf principle: never recompute what didn't change. Dirty-region tracking on the spatial index means a mostly-idle world reindexes almost nothing per step."
+    },
+    {
+      "day": 13,
+      "slot": "midday",
+      "text": "Observations can be sparse or dense, CPU or GPU, at your chosen dtype — because a thousand agents each holding a multi-channel float tensor adds up fast. ObservationConfig makes the trade-off explicit."
+    },
+    {
+      "day": 13,
+      "slot": "evening",
+      "text": "We benchmark the spatial backends against each other (KD-tree vs quadtree vs hash) with committed, verified benchmark artifacts — so perf claims in the docs are checkable, like everything else."
+    },
+    {
+      "day": 14,
+      "slot": "morning",
+      "text": "Week 2 recap — the principles: composition over inheritance · open–closed registries · protocol-based DI · typed config as experiment · multi-seed or it didn't happen · benchmarked perf claims."
+    },
+    {
+      "day": 14,
+      "slot": "midday",
+      "text": "Structured logging everywhere (structlog): every event carries context — step, agent, values — machine-parseable and human-readable. When a sim misbehaves at step 8,412, grep is a research tool."
+    },
+    {
+      "day": 14,
+      "slot": "evening",
+      "text": "None of this is exotic. It's boring discipline applied to research code, where discipline is rarest and pays most. Steal any of it for your own projects — that's what the license is for."
+    },
+    {
+      "day": 15,
+      "slot": "morning",
+      "text": "Research week 🧵 We gave every agent its own heritable hyperparameter genome and removed the fitness function entirely. Survival and reproduction in a shared resource world do all the selecting. https://dooders.github.io/AgentFarm/research/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/"
+    },
+    {
+      "day": 15,
+      "slot": "midday",
+      "text": "Result: gene distributions drift, split, and stabilize across a 10,000-step run — no evaluator, no generations, no reset. The ecology alone produces evolutionary dynamics."
+    },
+    {
+      "day": 15,
+      "slot": "evening",
+      "text": "The question behind it: how much adaptive behavior can emerge from ecology alone — finite resources, costly reproduction, inherited priors — without a human writing \"fitness\"? That's AgentFarm's north star."
+    },
+    {
+      "day": 16,
+      "slot": "morning",
+      "text": "Experiment: three identical populations, one knob changed — stability of the resource supply. Most behavioral genes drift the same way regardless. But learning rate and ensemble size split cleanly along the buffer. https://dooders.github.io/AgentFarm/research/devlog/2026-05-04-resource-buffer-shapes-intrinsic-evolution/"
+    },
+    {
+      "day": 16,
+      "slot": "midday",
+      "text": "Interpretation: the environment doesn't just select behaviors — it selects learning styles. Stable worlds and volatile worlds favor measurably different learners."
+    },
+    {
+      "day": 16,
+      "slot": "evening",
+      "text": "Then we ran the humility check: 6 seeds per profile. The headline gene flips didn't replicate; the divergence patterns did, as magnitude trends. Both facts are in the devlog. https://dooders.github.io/AgentFarm/research/devlog/2026-05-12-seed-sweep-reality-check/"
+    },
+    {
+      "day": 17,
+      "slot": "morning",
+      "text": "A user asked: are your agents actually learning, or just wandering? Fair. Instrumenting the decision stack surfaced FOUR real bugs — a training throttle, a dead epsilon schedule, a config that dropped knobs, a hidden-size that did nothing. https://dooders.github.io/AgentFarm/research/devlog/2026-05-16-is-the-dqn-actually-learning/"
+    },
+    {
+      "day": 17,
+      "slot": "midday",
+      "text": "After the fixes: ~9× more training updates, +23% agent lifespan. But the late-life vs early-life decision-quality gap stayed small. The bottleneck moved from our code to the environment's signal-to-noise. Bugs fixed ≠ question answered."
+    },
+    {
+      "day": 17,
+      "slot": "evening",
+      "text": "The meta-lesson: in RL + simulation, \"it runs\" and \"it learns\" are separated by instrumentation. Log the training volume. Plot decision quality by age. Assume nothing."
+    },
+    {
+      "day": 18,
+      "slot": "morning",
+      "text": "Should offspring inherit their parents' learned neural weights (Lamarckian) or just the genome, learning from scratch (Baldwinian)? We built a paired A/B harness — 36 matched runs, 3 resource regimes. https://dooders.github.io/AgentFarm/research/devlog/2026-05-21-baldwinian-vs-lamarckian-ab-harness/"
+    },
+    {
+      "day": 18,
+      "slot": "midday",
+      "text": "Result: Lamarckian warm-start applied ~85% of the time, runs genuinely diverged… and no regime cleared our robustness gate. Baldwinian stays the default. A publishable null, published."
+    },
+    {
+      "day": 18,
+      "slot": "evening",
+      "text": "We re-scored the same runs at the newborn level to check we weren't measuring at the wrong altitude. Two small behavioral shifts, no fitness gain. The null held. https://dooders.github.io/AgentFarm/research/devlog/2026-06-04-are-we-measuring-at-the-wrong-level/"
+    },
+    {
+      "day": 19,
+      "slot": "morning",
+      "text": "What if the reward function itself were a heritable, per-agent trait? We ran 20 paired seeds where each agent optimizes its own randomly-drawn objective vs a hand-tuned control. https://dooders.github.io/AgentFarm/research/devlog/2026-06-09-every-agent-a-different-goal/"
+    },
+    {
+      "day": 19,
+      "slot": "midday",
+      "text": "Result: goal-diverse populations carried ~40% fewer agents and collapsed behavior toward gathering (+17pp). Objective diversity persisted all run — and un-curated diversity lowered collective fitness."
+    },
+    {
+      "day": 19,
+      "slot": "evening",
+      "text": "Why it matters beyond ALife: multi-agent systems where each unit optimizes a private objective are everywhere — markets, swarms, orgs. Here's a controlled world where you can watch that go wrong."
+    },
+    {
+      "day": 20,
+      "slot": "morning",
+      "text": "The big one: a 90-run ladder testing five inheritance payloads, from bare genome to full learned-policy transfer, graded on offspring early-life reward. Hypothesis: richer inheritance → better start. https://dooders.github.io/AgentFarm/research/devlog/2026-07-08-inheritance-ladder-warm-start-clamps-offspring/"
+    },
+    {
+      "day": 20,
+      "slot": "midday",
+      "text": "Result: every robust effect was a LOSS. The richer the inherited payload, the worse the offspring did — warm-started agents clamp to low, ecology-blind trajectories while cold-start offspring track the world."
+    },
+    {
+      "day": 20,
+      "slot": "evening",
+      "text": "We re-ran the identical ladder at low density to kill the confound. It held: zero robust positives. ~200 runs, one honest conclusion: for this design, inherited policies hurt. Now we ask why, with data. https://dooders.github.io/AgentFarm/research/devlog/2026-07-09-lowchurn-inheritance-still-loses/"
+    },
+    {
+      "day": 21,
+      "slot": "morning",
+      "text": "Week 3 recap: ecology-only evolution works · environments select learning styles · four DQN bugs found & fixed · inheritance nulls that held · goal diversity that backfired. All reproducible from the repo. https://dooders.github.io/AgentFarm/research/devlog/"
+    },
+    {
+      "day": 21,
+      "slot": "midday",
+      "text": "Where AgentFarm goes next: richer inherited payloads, memory-augmented agents, better decision-quality metrics, and more multi-seed rigor. The experiments catalog is the living roadmap. https://dooders.github.io/AgentFarm/research/experiments-catalog/"
+    },
+    {
+      "day": 21,
+      "slot": "evening",
+      "text": "Want in? Run a sim, open an issue, replicate a devlog result, or pick up a starter task. Research code that strangers can extend is the whole point — come extend it 🌱 https://github.com/Dooders/AgentFarm"
+    }
+  ]
+}
