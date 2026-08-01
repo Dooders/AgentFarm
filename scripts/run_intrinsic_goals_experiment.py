@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """CLI entrypoint for the intrinsic-goals experiment.
 
-Runs two simulations with identical seeds and configuration that differ only in
-the agents' reinforcement-learning goals:
+Runs three simulations with identical seeds and configuration that differ only
+in the agents' reinforcement-learning goals:
 
 - ``uniform`` — every agent shares the default reward function (control).
+- ``shared``  — one reward function is sampled and given to *every* agent, so
+  the population objective is homogeneous but shifted off the tuned default.
 - ``unique``  — every initial agent is given an independently sampled reward
   function (Chromosome C genes), so each one optimizes for a different goal;
   offspring inherit and mutate their parent's goal.
+
+Comparing ``shared`` to ``uniform`` isolates the mean-shift off the tuned
+default; comparing ``unique`` to ``shared`` isolates pure goal heterogeneity.
 
 It writes ``intrinsic_goals_summary.json`` and (when matplotlib is available)
 ``intrinsic_goals_comparison.png`` to the output directory, plus the usual
@@ -47,9 +52,10 @@ from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run an intrinsic-goals experiment: compare a population where every "
-            "agent shares the default reward function (uniform) against one where "
-            "every agent has an independently sampled reward function (unique)."
+            "Run an intrinsic-goals experiment comparing three arms: every agent "
+            "shares the default reward function (uniform), every agent shares one "
+            "sampled reward function (shared), and every agent has an independently "
+            "sampled reward function (unique)."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -105,6 +111,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Number of resource nodes at simulation start (stability knob).",
     )
     parser.add_argument(
+        "--max-population",
+        type=int,
+        default=None,
+        help=(
+            "Override the hard population cap (population.max_population). The "
+            "development environment caps at 50, which pins both arms against "
+            "the ceiling; raise it (e.g. 3000) to restore the boom/bust regime."
+        ),
+    )
+    parser.add_argument(
         "--log-level",
         type=str,
         default="INFO",
@@ -156,6 +172,7 @@ def main() -> int:
         selection_pressure=_parse_selection_pressure(args.selection_pressure),
         initial_agent_resource_level=args.initial_agent_resource_level,
         initial_resource_count=args.initial_resource_count,
+        max_population=args.max_population,
     )
 
     manifest = {
@@ -187,7 +204,7 @@ def main() -> int:
                 "num_replicates": args.num_replicates,
                 "summary_path": result.summary_path,
                 "figure_path": result.figure_path,
-                "comparison": result.comparison,
+                "comparisons": result.comparisons,
                 "aggregate": result.aggregate,
             },
             indent=2,

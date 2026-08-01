@@ -57,16 +57,27 @@ Because these are ordinary genes, they:
 
 ## The experiment
 
-`farm/runners/intrinsic_goals_experiment.py` runs two arms with **identical
+`farm/runners/intrinsic_goals_experiment.py` runs three arms with **identical
 seeds and configuration** so the *only* difference is the agents' objectives:
 
 - **`uniform`** (control) — every agent shares the default reward function.
-- **`unique`** (treatment) — every initial agent is given an independently
+- **`shared`** (homogeneous, off-default) — one reward function is sampled per
+  replicate and given to *every* agent, so the population objective is uniform
+  but shifted off the tuned default.
+- **`unique`** (heterogeneous) — every initial agent is given an independently
   sampled reward function (each `reward_*` gene drawn uniformly within its
   bounds). Offspring inherit and mutate their parent's goal.
 
+The three arms decompose the effect of random goals into two components:
+`shared − uniform` is the **mean shift** off the tuned default, and
+`unique − shared` is **pure goal heterogeneity**; `unique − uniform` is their
+sum (the total effect). This matters because the default goal sits near the
+low end of most gene ranges, so a uniform draw is systematically "hotter" than
+the default — without the `shared` arm, that mean shift would be confounded
+with diversity itself.
+
 To isolate the manipulated variable, platform-wide initial diversity is turned
-**off** in both arms (so learning hyperparameters and action priors stay at
+**off** in every arm (so learning hyperparameters and action priors stay at
 their defaults); only the goal genes differ.
 
 For each arm the runner records, per step:
@@ -80,8 +91,10 @@ For each arm the runner records, per step:
 
 It then writes:
 
-- `intrinsic_goals_summary.json` — per-arm summaries plus a `comparison` block
-  (population deltas, action-mix deltas, start/end goal diversity); and
+- `intrinsic_goals_summary.json` — per-arm summaries plus a `comparisons`
+  block keyed by contrast (`unique_minus_uniform`, `shared_minus_uniform`,
+  `unique_minus_shared`), each with population deltas, action-mix deltas, and
+  start/end goal diversity; and
 - `intrinsic_goals_comparison.png` — population trajectories, mean action mix,
   goal-gene drift, and goal-diversity (std) start-vs-end (when matplotlib is
   available).
@@ -105,6 +118,37 @@ Useful flags:
   mutation of all genes (including goals).
 - `--initial-agent-resource-level`, `--initial-resource-count` — startup
   stability knobs (the default dev config is intentionally boom/bust).
+
+## Selection-pressure sweep (#892)
+
+To test whether the strength of selection modulates the population-suppression
+effect — and whether stronger selection *purges* the diverse objectives — run
+the experiment across the three pressure presets with everything else fixed:
+
+```bash
+source venv/bin/activate
+python scripts/run_intrinsic_goals_pressure_sweep.py \
+    --pressures low medium high \
+    --num-steps 600 --seed 42 --num-replicates 20 \
+    --output-dir experiments
+```
+
+Each pressure writes to `experiments/intrinsic_goals_sweep_<pressure>/`. Then
+combine the three summaries into one cross-pressure comparison (table + figure):
+
+```bash
+python scripts/analyze_intrinsic_goals_pressure_sweep.py --sweep-dir experiments
+```
+
+This writes `combined_comparison.json`, `combined_comparison.md`, and
+`intrinsic_goals_pressure_sweep.png`. The markdown has one paired-delta table
+per contrast (total, mean-shift, heterogeneity) plus goal-diversity tables in
+two forms: the raw summed population std (dominated by `reward_death_penalty`,
+whose [0, 50] range is an order of magnitude wider than the other genes') and a
+**span-normalized** version (each gene's std divided by its range, then
+averaged) where a fresh uniform draw sits near `1/√12 ≈ 0.29` and per-gene
+purging is visible. See the devlog write-up:
+[Selection pressure and intrinsic goals](../../devlog/2026-07-29-selection-pressure-and-intrinsic-goals.md).
 
 ## What to look for
 

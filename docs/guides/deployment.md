@@ -10,6 +10,8 @@ Deploy the Python package and API according to your environment (venv, container
 
 There is no single Dockerfile or cloud manifest maintained in this repository; treat deployment as environment-specific.
 
+For one-off batch experiment sweeps on a throwaway GCP Spot VM (startup, run, pull results, and teardown), see [Running a sweep on a GCP Spot VM](gcp-spot-vm-sweep.md).
+
 ### Configuration Explorer (web / Electron)
 
 **Not applicable in-tree today:** the full Vite/Electron Configuration Explorer app is not present under `farm/editor/` (only Jest tests exist). When a deployable UI is added, expect something like:

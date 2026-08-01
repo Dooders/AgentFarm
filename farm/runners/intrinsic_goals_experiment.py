@@ -71,6 +71,47 @@ TRACKED_ACTIONS: Tuple[str, ...] = (
     "pass",
 )
 
+# The three goal-assignment arms.
+#
+# - ``uniform`` (control): every agent keeps the default reward function.
+# - ``shared``: one goal is sampled once and given to *every* agent, so the
+#   population objective is homogeneous but shifted off the tuned default.
+# - ``unique``: every agent gets an independently sampled goal (heterogeneous).
+#
+# Comparing ``shared`` to ``uniform`` isolates the effect of moving the
+# population-mean objective off the tuned default (the "mean shift"); comparing
+# ``unique`` to ``shared`` isolates pure goal heterogeneity.
+BASELINE_ARM: str = "uniform"
+ARM_NAMES: Tuple[str, ...] = ("uniform", "shared", "unique")
+
+# Paired contrasts computed during aggregation, mapping a contrast name to its
+# ``(baseline, treatment)`` arm pair.  Each delta is ``treatment - baseline``.
+ARM_CONTRASTS: Dict[str, Tuple[str, str]] = {
+    "unique_minus_uniform": ("uniform", "unique"),
+    "shared_minus_uniform": ("uniform", "shared"),
+    "unique_minus_shared": ("shared", "unique"),
+}
+
+
+def sample_goal_overrides(
+    base_chromosome: HyperparameterChromosome,
+    rng: random.Random,
+    gene_names: Sequence[str] = INTRINSIC_REWARD_GENE_NAMES,
+) -> Dict[str, float]:
+    """Draw one randomized value per goal gene, uniformly within its bounds.
+
+    Returns a ``{gene_name: value}`` override mapping suitable for
+    :meth:`HyperparameterChromosome.with_overrides`.  Genes absent from
+    *base_chromosome* are skipped.
+    """
+    overrides: Dict[str, float] = {}
+    for name in gene_names:
+        gene = base_chromosome.get_gene(name)
+        if gene is None:
+            continue
+        overrides[name] = rng.uniform(gene.min_value, gene.max_value)
+    return overrides
+
 
 def sample_goal_chromosome(
     base_chromosome: HyperparameterChromosome,
@@ -84,12 +125,7 @@ def sample_goal_chromosome(
     leaving every non-goal gene (learning hyperparameters, action priors)
     untouched.
     """
-    overrides: Dict[str, float] = {}
-    for name in gene_names:
-        gene = base_chromosome.get_gene(name)
-        if gene is None:
-            continue
-        overrides[name] = rng.uniform(gene.min_value, gene.max_value)
+    overrides = sample_goal_overrides(base_chromosome, rng, gene_names)
     if not overrides:
         return base_chromosome
     return base_chromosome.with_overrides(overrides)
@@ -116,6 +152,36 @@ def assign_unique_goals(
         agent.hyperparameter_chromosome = sample_goal_chromosome(
             chromosome, rng, gene_names
         )
+        count += 1
+    return count
+
+
+def assign_shared_goal(
+    environment: Any,
+    rng: random.Random,
+    gene_names: Sequence[str] = INTRINSIC_REWARD_GENE_NAMES,
+) -> int:
+    """Give every alive agent in *environment* the *same* sampled goal.
+
+    A single goal-gene override mapping is drawn once and applied to every
+    agent, producing a homogeneous but off-default population objective.  This
+    is the control that separates the mean-shift-off-default effect from the
+    goal-heterogeneity effect measured by :func:`assign_unique_goals`.
+
+    Returns the number of agents whose goal was reassigned.
+    """
+    agents = list(environment.alive_agent_objects)
+    overrides: Optional[Dict[str, float]] = None
+    count = 0
+    for agent in agents:
+        chromosome = getattr(agent, "hyperparameter_chromosome", None)
+        if chromosome is None:
+            continue
+        if overrides is None:
+            overrides = sample_goal_overrides(chromosome, rng, gene_names)
+        if not overrides:
+            continue
+        agent.hyperparameter_chromosome = chromosome.with_overrides(overrides)
         count += 1
     return count
 
@@ -155,6 +221,12 @@ class IntrinsicGoalsExperimentConfig:
     # observe goal-driven divergence (the default dev config is boom/bust).
     initial_agent_resource_level: Optional[float] = 12.0
     initial_resource_count: Optional[int] = 60
+
+    # Optional override for the hard population cap (population.max_population).
+    # The development environment caps at 50, which pins both arms against the
+    # ceiling and masks the population-suppression effect; raising it restores
+    # the boom/bust regime in which that effect was originally characterized.
+    max_population: Optional[int] = None
 
     def __post_init__(self) -> None:
         if self.num_steps <= 0:
@@ -216,32 +288,46 @@ class ArmResult:
 
 @dataclass
 class ReplicateResult:
-    """Both arms of a single paired replicate (one shared seed)."""
+    """All arms of a single paired replicate (one shared seed).
+
+    ``arms`` maps each arm name in :data:`ARM_NAMES` to its result;
+    ``comparisons`` maps each contrast name in :data:`ARM_CONTRASTS` to the
+    ``treatment - baseline`` delta block for that pair.
+    """
 
     index: int
     seed: int
-    uniform: ArmResult
-    unique: ArmResult
-    comparison: Dict[str, Any]
+    arms: Dict[str, ArmResult]
+    comparisons: Dict[str, Dict[str, Any]]
 
 
 @dataclass
 class IntrinsicGoalsResult:
     """Combined result of the experiment.
 
-    ``uniform``/``unique``/``comparison`` mirror the first replicate so a
-    single-replicate run behaves exactly as before.  ``replicates`` holds every
-    paired run and ``aggregate`` holds the cross-replicate statistics (present
-    only when ``num_replicates > 1``).
+    ``arms``/``comparisons`` mirror the first replicate for convenience.
+    ``replicates`` holds every paired run and ``aggregate`` holds the
+    cross-replicate statistics (present only when ``num_replicates > 1``).
     """
 
-    uniform: ArmResult
-    unique: ArmResult
-    comparison: Dict[str, Any]
+    arms: Dict[str, ArmResult]
+    comparisons: Dict[str, Dict[str, Any]]
     replicates: List[ReplicateResult] = field(default_factory=list)
     aggregate: Optional[Dict[str, Any]] = None
     summary_path: Optional[str] = None
     figure_path: Optional[str] = None
+
+    @property
+    def uniform(self) -> ArmResult:
+        return self.arms["uniform"]
+
+    @property
+    def shared(self) -> ArmResult:
+        return self.arms["shared"]
+
+    @property
+    def unique(self) -> ArmResult:
+        return self.arms["unique"]
 
 
 class IntrinsicGoalsExperiment:
@@ -280,9 +366,8 @@ class IntrinsicGoalsExperiment:
         )
 
         result = IntrinsicGoalsResult(
-            uniform=first.uniform,
-            unique=first.unique,
-            comparison=first.comparison,
+            arms=first.arms,
+            comparisons=first.comparisons,
             replicates=replicates,
             aggregate=aggregate,
         )
@@ -292,26 +377,26 @@ class IntrinsicGoalsExperiment:
                 "num_steps": self.config.num_steps,
                 "seed": self.config.seed,
                 "num_replicates": self.config.num_replicates,
+                "arms": list(ARM_NAMES),
                 "goal_genes": list(self.config.goal_genes),
                 "mutation_rate": self.config.mutation_rate,
                 "mutation_scale": self.config.mutation_scale,
                 "selection_pressure": self.config.selection_pressure,
+                "max_population": self.config.max_population,
             },
             "replicates": [
                 {
                     "index": rep.index,
                     "seed": rep.seed,
-                    "uniform": rep.uniform.summary(),
-                    "unique": rep.unique.summary(),
-                    "comparison": rep.comparison,
+                    **{arm: rep.arms[arm].summary() for arm in ARM_NAMES},
+                    "comparisons": rep.comparisons,
                 }
                 for rep in replicates
             ],
             "aggregate": aggregate,
             # Top-level convenience mirror of the first replicate.
-            "uniform": first.uniform.summary(),
-            "unique": first.unique.summary(),
-            "comparison": first.comparison,
+            **{arm: first.arms[arm].summary() for arm in ARM_NAMES},
+            "comparisons": first.comparisons,
         }
         result.summary_path = os.path.join(
             self.config.output_dir, "intrinsic_goals_summary.json"
@@ -322,7 +407,7 @@ class IntrinsicGoalsExperiment:
         if self.config.num_replicates > 1:
             result.figure_path = self._maybe_plot_aggregate(replicates, aggregate)
         else:
-            result.figure_path = self._maybe_plot(first.uniform, first.unique)
+            result.figure_path = self._maybe_plot(first.arms)
 
         logger.info(
             "intrinsic_goals_experiment_complete",
@@ -333,22 +418,26 @@ class IntrinsicGoalsExperiment:
         return result
 
     def _run_replicate(self, index: int, seed: int) -> ReplicateResult:
-        """Run both arms with a single shared seed and pair their results."""
+        """Run every arm with a single shared seed and pair their results."""
         if self.config.num_replicates > 1:
             rep_dir = os.path.join(self.config.output_dir, f"rep_{index:02d}")
         else:
             rep_dir = self.config.output_dir
         os.makedirs(rep_dir, exist_ok=True)
 
-        uniform = self._run_arm("uniform", False, seed, rep_dir)
-        unique = self._run_arm("unique", True, seed, rep_dir)
-        comparison = self._build_comparison(uniform, unique)
+        arms = {
+            arm_name: self._run_arm(arm_name, arm_name, seed, rep_dir)
+            for arm_name in ARM_NAMES
+        }
+        comparisons = {
+            contrast: self._build_comparison(arms[baseline], arms[treatment])
+            for contrast, (baseline, treatment) in ARM_CONTRASTS.items()
+        }
         return ReplicateResult(
             index=index,
             seed=seed,
-            uniform=uniform,
-            unique=unique,
-            comparison=comparison,
+            arms=arms,
+            comparisons=comparisons,
         )
 
     # ------------------------------------------------------------------
@@ -370,6 +459,8 @@ class IntrinsicGoalsExperiment:
             run_config.resources.initial_resources = int(
                 self.config.initial_resource_count
             )
+        if self.config.max_population is not None:
+            run_config.population.max_population = int(self.config.max_population)
         return run_config
 
     def _make_policy(self, seed: int) -> IntrinsicEvolutionPolicy:
@@ -384,12 +475,12 @@ class IntrinsicGoalsExperiment:
         )
 
     def _run_arm(
-        self, arm_name: str, diversify_goals: bool, seed: int, out_dir: str
+        self, arm_name: str, goal_mode: str, seed: int, out_dir: str
     ) -> ArmResult:
         logger.info(
             "intrinsic_goals_arm_start",
             arm=arm_name,
-            diversify=diversify_goals,
+            goal_mode=goal_mode,
             seed=seed,
         )
         run_config = self._build_run_config()
@@ -410,9 +501,16 @@ class IntrinsicGoalsExperiment:
             nonlocal prev_ids
             environment.intrinsic_evolution_policy = policy
             environment.intrinsic_evolution_rng = random.Random(seed)
-            if diversify_goals:
+            if goal_mode == "unique":
                 n = assign_unique_goals(environment, goal_rng, self.config.goal_genes)
-                logger.info("intrinsic_goals_assigned", arm=arm_name, agents=n)
+                logger.info(
+                    "intrinsic_goals_assigned", arm=arm_name, agents=n, mode=goal_mode
+                )
+            elif goal_mode == "shared":
+                n = assign_shared_goal(environment, goal_rng, self.config.goal_genes)
+                logger.info(
+                    "intrinsic_goals_assigned", arm=arm_name, agents=n, mode=goal_mode
+                )
             prev_ids = {a.agent_id for a in environment.alive_agent_objects}
             arm.goal_diversity_start = self._goal_diversity(environment)
 
@@ -493,28 +591,32 @@ class IntrinsicGoalsExperiment:
             for gene, values in per_gene.items()
         }
 
-    def _build_comparison(self, uniform: ArmResult, unique: ArmResult) -> Dict[str, Any]:
-        u_sum = uniform.summary()
-        q_sum = unique.summary()
+    def _build_comparison(
+        self, baseline: ArmResult, treatment: ArmResult
+    ) -> Dict[str, Any]:
+        b_sum = baseline.summary()
+        t_sum = treatment.summary()
         action_share_delta = {
-            action: q_sum["mean_action_share"].get(action, 0.0)
-            - u_sum["mean_action_share"].get(action, 0.0)
-            for action in uniform.action_mix
+            action: t_sum["mean_action_share"].get(action, 0.0)
+            - b_sum["mean_action_share"].get(action, 0.0)
+            for action in baseline.action_mix
         }
         return {
-            "final_population_delta": q_sum["final_population"]
-            - u_sum["final_population"],
-            "mean_population_delta": q_sum["mean_population"] - u_sum["mean_population"],
-            "total_births_delta": q_sum["total_births"] - u_sum["total_births"],
-            "total_deaths_delta": q_sum["total_deaths"] - u_sum["total_deaths"],
-            "action_share_delta_unique_minus_uniform": action_share_delta,
+            "baseline": baseline.arm,
+            "treatment": treatment.arm,
+            "final_population_delta": t_sum["final_population"]
+            - b_sum["final_population"],
+            "mean_population_delta": t_sum["mean_population"] - b_sum["mean_population"],
+            "total_births_delta": t_sum["total_births"] - b_sum["total_births"],
+            "total_deaths_delta": t_sum["total_deaths"] - b_sum["total_deaths"],
+            "action_share_delta_treatment_minus_baseline": action_share_delta,
             "start_goal_diversity": {
-                "uniform": u_sum["goal_diversity_start"],
-                "unique": q_sum["goal_diversity_start"],
+                baseline.arm: b_sum["goal_diversity_start"],
+                treatment.arm: t_sum["goal_diversity_start"],
             },
             "end_goal_diversity": {
-                "uniform": u_sum["goal_diversity_end"],
-                "unique": q_sum["goal_diversity_end"],
+                baseline.arm: b_sum["goal_diversity_end"],
+                treatment.arm: t_sum["goal_diversity_end"],
             },
         }
 
@@ -539,23 +641,59 @@ class IntrinsicGoalsExperiment:
         )
         return metrics
 
+    @staticmethod
+    def _paired_record(
+        baseline_vals: np.ndarray, treatment_vals: np.ndarray, n: int
+    ) -> Dict[str, Any]:
+        """Paired ``treatment - baseline`` stats for one metric across replicates."""
+        deltas = treatment_vals - baseline_vals
+        d_mean = float(np.mean(deltas))
+        d_std = float(np.std(deltas, ddof=1)) if n > 1 else 0.0
+        d_sem = d_std / np.sqrt(n) if n > 1 else 0.0
+        if n > 1 and d_sem > 0.0:
+            t_crit = float(scipy_stats.t.ppf(0.975, df=n - 1))
+            ci = [d_mean - t_crit * d_sem, d_mean + t_crit * d_sem]
+            t_res = scipy_stats.ttest_rel(treatment_vals, baseline_vals)
+            t_stat = float(t_res.statistic)
+            p_value = float(t_res.pvalue)
+            # Cohen's dz for paired samples.
+            cohen_dz = d_mean / d_std if d_std > 0 else 0.0
+        else:
+            ci = [d_mean, d_mean]
+            t_stat = float("nan")
+            p_value = float("nan")
+            cohen_dz = 0.0
+        return {
+            "delta_mean": d_mean,
+            "delta_std": d_std,
+            "delta_sem": float(d_sem),
+            "ci95": ci,
+            "t_stat": t_stat,
+            "p_value": p_value,
+            "cohen_dz": cohen_dz,
+            "significant_p05": bool(p_value < 0.05) if not np.isnan(p_value) else False,
+            "n": n,
+        }
+
     def _aggregate(self, replicates: Sequence[ReplicateResult]) -> Dict[str, Any]:
-        """Compute per-arm descriptive stats and paired unique-vs-uniform tests.
+        """Compute per-arm descriptive stats and paired contrast tests.
 
         For every scalar metric we report each arm's mean/std/sem across
-        replicates, and a *paired* analysis of the per-seed delta
-        (unique - uniform): mean, std, sem, a 95% CI, and a two-sided paired
-        t-test (``scipy.stats.ttest_rel``).  Pairing removes shared
-        seed-level variance, which is the whole reason the two arms share a
-        seed.
+        replicates, and — for each contrast in :data:`ARM_CONTRASTS` — a
+        *paired* analysis of the per-seed delta (``treatment - baseline``):
+        mean, std, sem, a 95% CI, and a two-sided paired t-test
+        (``scipy.stats.ttest_rel``).  Pairing removes shared seed-level
+        variance, which is the whole reason the arms share a seed.
+
+        ``paired_deltas`` is keyed by contrast name, e.g. ``unique_minus_uniform``
+        (total effect), ``shared_minus_uniform`` (mean-shift off the tuned
+        default), and ``unique_minus_shared`` (pure goal heterogeneity).
         """
-        uniform_metrics = [
-            self._scalar_metrics(rep.uniform.summary()) for rep in replicates
-        ]
-        unique_metrics = [
-            self._scalar_metrics(rep.unique.summary()) for rep in replicates
-        ]
-        metric_names = list(uniform_metrics[0].keys())
+        arm_metrics: Dict[str, List[Dict[str, float]]] = {
+            arm: [self._scalar_metrics(rep.arms[arm].summary()) for rep in replicates]
+            for arm in ARM_NAMES
+        }
+        metric_names = list(next(iter(arm_metrics.values()))[0].keys())
         n = len(replicates)
 
         def _describe(values: np.ndarray) -> Dict[str, float]:
@@ -569,51 +707,38 @@ class IntrinsicGoalsExperiment:
                 "max": float(np.max(values)),
             }
 
-        per_arm: Dict[str, Dict[str, Any]] = {"uniform": {}, "unique": {}}
-        paired: Dict[str, Any] = {}
-        for name in metric_names:
-            u_vals = np.array([m[name] for m in uniform_metrics], dtype=float)
-            q_vals = np.array([m[name] for m in unique_metrics], dtype=float)
-            per_arm["uniform"][name] = _describe(u_vals)
-            per_arm["unique"][name] = _describe(q_vals)
+        arm_vals: Dict[str, Dict[str, np.ndarray]] = {
+            arm: {
+                name: np.array([m[name] for m in arm_metrics[arm]], dtype=float)
+                for name in metric_names
+            }
+            for arm in ARM_NAMES
+        }
 
-            deltas = q_vals - u_vals
-            d_mean = float(np.mean(deltas))
-            d_std = float(np.std(deltas, ddof=1)) if n > 1 else 0.0
-            d_sem = d_std / np.sqrt(n) if n > 1 else 0.0
-            if n > 1 and d_sem > 0.0:
-                t_crit = float(scipy_stats.t.ppf(0.975, df=n - 1))
-                ci = [d_mean - t_crit * d_sem, d_mean + t_crit * d_sem]
-                t_res = scipy_stats.ttest_rel(q_vals, u_vals)
-                t_stat = float(t_res.statistic)
-                p_value = float(t_res.pvalue)
-                # Cohen's dz for paired samples.
-                cohen_dz = d_mean / d_std if d_std > 0 else 0.0
-            else:
-                ci = [d_mean, d_mean]
-                t_stat = float("nan")
-                p_value = float("nan")
-                cohen_dz = 0.0
-            paired[name] = {
-                "delta_mean": d_mean,
-                "delta_std": d_std,
-                "delta_sem": float(d_sem),
-                "ci95": ci,
-                "t_stat": t_stat,
-                "p_value": p_value,
-                "cohen_dz": cohen_dz,
-                "significant_p05": bool(p_value < 0.05) if not np.isnan(p_value) else False,
-                "n": n,
+        per_arm: Dict[str, Dict[str, Any]] = {
+            arm: {name: _describe(arm_vals[arm][name]) for name in metric_names}
+            for arm in ARM_NAMES
+        }
+
+        paired: Dict[str, Dict[str, Any]] = {}
+        for contrast, (baseline, treatment) in ARM_CONTRASTS.items():
+            paired[contrast] = {
+                name: self._paired_record(
+                    arm_vals[baseline][name], arm_vals[treatment][name], n
+                )
+                for name in metric_names
             }
 
         return {
             "num_replicates": n,
             "seeds": [rep.seed for rep in replicates],
+            "arms": list(ARM_NAMES),
+            "contrasts": {c: list(pair) for c, pair in ARM_CONTRASTS.items()},
             "per_arm": per_arm,
             "paired_deltas": paired,
         }
 
-    def _maybe_plot(self, uniform: ArmResult, unique: ArmResult) -> Optional[str]:
+    def _maybe_plot(self, arms: Dict[str, ArmResult]) -> Optional[str]:
         try:
             import matplotlib
 
@@ -623,30 +748,43 @@ class IntrinsicGoalsExperiment:
             logger.warning("intrinsic_goals_plot_skipped", reason=str(exc))
             return None
 
+        arm_colors = {"uniform": "#1f77b4", "shared": "#ff7f0e", "unique": "#d62728"}
+        unique = arms["unique"]
+
         fig, axes = plt.subplots(2, 2, figsize=(13, 9))
 
         ax = axes[0][0]
-        ax.plot(uniform.steps, uniform.population, label="uniform goals", color="#1f77b4")
-        ax.plot(unique.steps, unique.population, label="unique goals", color="#d62728")
+        for arm_name in ARM_NAMES:
+            arm = arms[arm_name]
+            ax.plot(
+                arm.steps,
+                arm.population,
+                label=f"{arm_name} goals",
+                color=arm_colors[arm_name],
+            )
         ax.set_title("Population over time")
         ax.set_xlabel("step")
         ax.set_ylabel("alive agents")
         ax.legend()
 
-        # Mean action share per arm (bar comparison).
+        # Mean action share per arm (grouped bar comparison).
         ax = axes[0][1]
         actions = list(TRACKED_ACTIONS)
-        u_share = [
-            statistics.mean(uniform.action_mix[a]) if uniform.action_mix[a] else 0.0
-            for a in actions
-        ]
-        q_share = [
-            statistics.mean(unique.action_mix[a]) if unique.action_mix[a] else 0.0
-            for a in actions
-        ]
         x = range(len(actions))
-        ax.bar([i - 0.2 for i in x], u_share, width=0.4, label="uniform", color="#1f77b4")
-        ax.bar([i + 0.2 for i in x], q_share, width=0.4, label="unique", color="#d62728")
+        offsets = {"uniform": -0.25, "shared": 0.0, "unique": 0.25}
+        for arm_name in ARM_NAMES:
+            arm = arms[arm_name]
+            share = [
+                statistics.mean(arm.action_mix[a]) if arm.action_mix.get(a) else 0.0
+                for a in actions
+            ]
+            ax.bar(
+                [i + offsets[arm_name] for i in x],
+                share,
+                width=0.25,
+                label=arm_name,
+                color=arm_colors[arm_name],
+            )
         ax.set_xticks(list(x))
         ax.set_xticklabels(actions, rotation=45, ha="right")
         ax.set_title("Mean action mix")
@@ -679,7 +817,7 @@ class IntrinsicGoalsExperiment:
         ax.set_xlabel("population std of gene")
         ax.legend()
 
-        fig.suptitle("Intrinsic goals: uniform vs unique reward functions", fontsize=14)
+        fig.suptitle("Intrinsic goals: uniform vs shared vs unique reward functions", fontsize=14)
         fig.tight_layout(rect=(0, 0, 1, 0.97))
         figure_path = os.path.join(
             self.config.output_dir, "intrinsic_goals_comparison.png"
@@ -700,36 +838,39 @@ class IntrinsicGoalsExperiment:
             logger.warning("intrinsic_goals_plot_skipped", reason=str(exc))
             return None
 
+        arm_colors = {"uniform": "#1f77b4", "shared": "#ff7f0e", "unique": "#d62728"}
+        contrast_colors = {
+            "unique_minus_uniform": "#d62728",
+            "shared_minus_uniform": "#ff7f0e",
+            "unique_minus_shared": "#9467bd",
+        }
+
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
-        # 1) Population over time: mean +/- std band across replicates.
+        # 1) Population over time: mean +/- std band across replicates, per arm.
         ax = axes[0][0]
         max_len = max(
-            len(pop)
-            for r in replicates
-            for pop in (r.uniform.population, r.unique.population)
+            len(r.arms[arm].population) for r in replicates for arm in ARM_NAMES
         )
         steps = None
         for r in replicates:
-            for arm in (r.uniform, r.unique):
-                if len(arm.population) == max_len:
-                    steps = arm.steps
+            for arm in ARM_NAMES:
+                if len(r.arms[arm].population) == max_len:
+                    steps = r.arms[arm].steps
                     break
             if steps is not None:
                 break
-        u_stack = np.zeros((len(replicates), max_len), dtype=float)
-        q_stack = np.zeros((len(replicates), max_len), dtype=float)
-        for i, r in enumerate(replicates):
-            u_stack[i, : len(r.uniform.population)] = r.uniform.population
-            q_stack[i, : len(r.unique.population)] = r.unique.population
-        for stack, label, color in (
-            (u_stack, "uniform", "#1f77b4"),
-            (q_stack, "unique", "#d62728"),
-        ):
+        for arm_name in ARM_NAMES:
+            stack = np.zeros((len(replicates), max_len), dtype=float)
+            for i, r in enumerate(replicates):
+                pop = r.arms[arm_name].population
+                stack[i, : len(pop)] = pop
             mean = stack.mean(axis=0)
             std = stack.std(axis=0, ddof=1) if stack.shape[0] > 1 else np.zeros_like(mean)
-            ax.plot(steps, mean, label=f"{label} (mean)", color=color)
-            ax.fill_between(steps, mean - std, mean + std, color=color, alpha=0.2)
+            ax.plot(steps, mean, label=f"{arm_name} (mean)", color=arm_colors[arm_name])
+            ax.fill_between(
+                steps, mean - std, mean + std, color=arm_colors[arm_name], alpha=0.2
+            )
         ax.set_title(f"Population over time (n={len(replicates)} seeds, mean ± std)")
         ax.set_xlabel("step")
         ax.set_ylabel("alive agents")
@@ -739,22 +880,27 @@ class IntrinsicGoalsExperiment:
         ax = axes[0][1]
         actions = list(TRACKED_ACTIONS)
         per_arm = aggregate["per_arm"]
-        u_mean = [per_arm["uniform"][f"action_share[{a}]"]["mean"] for a in actions]
-        u_std = [per_arm["uniform"][f"action_share[{a}]"]["std"] for a in actions]
-        q_mean = [per_arm["unique"][f"action_share[{a}]"]["mean"] for a in actions]
-        q_std = [per_arm["unique"][f"action_share[{a}]"]["std"] for a in actions]
         x = np.arange(len(actions))
-        ax.bar(x - 0.2, u_mean, yerr=u_std, width=0.4, label="uniform",
-               color="#1f77b4", capsize=3)
-        ax.bar(x + 0.2, q_mean, yerr=q_std, width=0.4, label="unique",
-               color="#d62728", capsize=3)
+        offsets = {"uniform": -0.25, "shared": 0.0, "unique": 0.25}
+        for arm_name in ARM_NAMES:
+            means = [per_arm[arm_name][f"action_share[{a}]"]["mean"] for a in actions]
+            stds = [per_arm[arm_name][f"action_share[{a}]"]["std"] for a in actions]
+            ax.bar(
+                x + offsets[arm_name],
+                means,
+                yerr=stds,
+                width=0.25,
+                label=arm_name,
+                color=arm_colors[arm_name],
+                capsize=3,
+            )
         ax.set_xticks(list(x))
         ax.set_xticklabels(actions, rotation=45, ha="right")
         ax.set_title("Mean action mix (± std across seeds)")
         ax.set_ylabel("fraction of agents")
         ax.legend()
 
-        # 3) Paired deltas (unique - uniform) with 95% CI for key metrics.
+        # 3) Population deltas decomposed by contrast (mean-shift vs heterogeneity).
         ax = axes[1][0]
         key_metrics = [
             "mean_population",
@@ -764,35 +910,46 @@ class IntrinsicGoalsExperiment:
             "total_deaths",
         ]
         paired = aggregate["paired_deltas"]
-        means = [paired[m]["delta_mean"] for m in key_metrics]
-        errs = [
-            (paired[m]["ci95"][1] - paired[m]["ci95"][0]) / 2.0 for m in key_metrics
-        ]
         y = np.arange(len(key_metrics))
-        colors = [
-            "#2ca02c" if paired[m]["significant_p05"] else "#7f7f7f"
-            for m in key_metrics
-        ]
-        ax.barh(y, means, xerr=errs, color=colors, capsize=4)
+        contrasts = list(ARM_CONTRASTS)
+        bar_h = 0.8 / len(contrasts)
+        for j, contrast in enumerate(contrasts):
+            block = paired[contrast]
+            means = [block[m]["delta_mean"] for m in key_metrics]
+            errs = [
+                (block[m]["ci95"][1] - block[m]["ci95"][0]) / 2.0 for m in key_metrics
+            ]
+            offset = (j - (len(contrasts) - 1) / 2.0) * bar_h
+            ax.barh(
+                y + offset,
+                means,
+                xerr=errs,
+                height=bar_h,
+                color=contrast_colors[contrast],
+                capsize=3,
+                label=contrast.replace("_", " "),
+            )
         ax.axvline(0.0, color="black", linewidth=0.8)
         ax.set_yticks(list(y))
         ax.set_yticklabels(key_metrics)
-        ax.set_title("Paired delta (unique − uniform), 95% CI\ngreen = p<0.05")
-        ax.set_xlabel("Δ (unique − uniform)")
+        ax.set_title("Paired population Δ by contrast, 95% CI")
+        ax.set_xlabel("Δ (treatment − baseline)")
+        ax.legend(fontsize=7)
 
-        # 4) Per-action-share paired deltas with 95% CI.
+        # 4) Per-action-share paired deltas (unique − uniform) with 95% CI.
         ax = axes[1][1]
-        means = [paired[f"action_share[{a}]"]["delta_mean"] for a in actions]
+        headline = paired["unique_minus_uniform"]
+        means = [headline[f"action_share[{a}]"]["delta_mean"] for a in actions]
         errs = [
             (
-                paired[f"action_share[{a}]"]["ci95"][1]
-                - paired[f"action_share[{a}]"]["ci95"][0]
+                headline[f"action_share[{a}]"]["ci95"][1]
+                - headline[f"action_share[{a}]"]["ci95"][0]
             )
             / 2.0
             for a in actions
         ]
         colors = [
-            "#2ca02c" if paired[f"action_share[{a}]"]["significant_p05"] else "#7f7f7f"
+            "#2ca02c" if headline[f"action_share[{a}]"]["significant_p05"] else "#7f7f7f"
             for a in actions
         ]
         y = np.arange(len(actions))
@@ -804,7 +961,7 @@ class IntrinsicGoalsExperiment:
         ax.set_xlabel("Δ fraction of agents")
 
         fig.suptitle(
-            f"Intrinsic goals: uniform vs unique ({len(replicates)} paired seeds)",
+            f"Intrinsic goals: uniform vs shared vs unique ({len(replicates)} paired seeds)",
             fontsize=14,
         )
         fig.tight_layout(rect=(0, 0, 1, 0.96))
