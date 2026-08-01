@@ -20,23 +20,14 @@ ends near its starting value even under a per-gene, span-normalized metric, and
 the gather shift is flat at ~+17 pp. The `unique − uniform` gap *does* shrink
 from `low` to `high`, but read the mechanism carefully: the gap narrows because
 the **denser control arm** loses more under a density-dependent cost, not
-because the random-goal population recovers (see below). And a third `shared`
+because the random-goal population recovers (see below). Moreover, the `shared`
 arm shows the suppression is **mostly not about diversity at all**: ~85% of it
 is reproduced by giving every agent the *same* random goal, so the cost is
 being *off the tuned default*, while goal heterogeneity per se costs only ~4–6
-agents of mean population and is not statistically significant. So pressure changes how heavily
-the population *pays* for un-curated objectives, not *which* objectives
-persist — and most of that payment is the mean shift, not the diversity.
-
-> **Methodology update.** The first version of this experiment compared only
-> `uniform` (default goal) against `unique` (a different random goal per
-> agent), which conflates two things: goals being *heterogeneous* and the
-> population-mean objective being *shifted off* the hand-tuned default (the
-> default sits near the low end of most gene ranges, so a uniform draw weights
-> resources ~10× more on average). A third `shared` arm — one random goal given
-> to *every* agent — now separates the two. The sweep was re-run with all
-> three arms; the runs are deterministic per seed, so the `uniform`/`unique`
-> numbers are identical to the first version and the `shared` arm is new.
+agents of mean population and is not statistically significant. So pressure
+changes how heavily the population *pays* for un-curated objectives, not
+*which* objectives persist — and most of that payment is the mean shift, not
+the diversity.
 
 ## The manipulation
 
@@ -53,9 +44,14 @@ is the agents' objectives:
   sampled reward function (each `reward_*` gene drawn uniformly within its
   bounds); offspring inherit and mutate their parent's goal.
 
-The three arms decompose the effect: `shared − uniform` is the **mean shift**
-off the tuned default, `unique − shared` is **pure goal heterogeneity**, and
-`unique − uniform` is the **total** (the original headline). Platform-wide
+The `shared` arm is what makes the design a decomposition rather than a single
+comparison. "Random goals" bundles two things: goals being *heterogeneous* and
+the population-mean objective being *shifted off* the hand-tuned default — the
+default sits near the low end of most gene ranges, so a uniform draw weights
+resources ~10× more on average. The three arms pull those apart:
+`shared − uniform` is the **mean shift** off the tuned default,
+`unique − shared` is **pure goal heterogeneity**, and `unique − uniform` is the
+**total**. Platform-wide
 initial diversity is turned off in every arm, so learning hyperparameters and
 action priors stay at their defaults and only the goal genes differ. Selection
 pressure is a density-dependent reproduction cost: `low` barely penalizes
@@ -172,12 +168,12 @@ individual draws range from nearly harmless to catastrophic.
 
 ## Do diverse goals get purged?
 
-The first read used the *summed* population std across all `reward_*` genes.
-That metric is misleading: `reward_death_penalty` spans [0, 50], so its std
-alone (~14 of ~18) is ~80% of the sum, and the number is blind to purging in
-the other eight genes. The fix is to normalize each gene's std by its range
-before combining, so a fresh uniform draw sits near `1/√12 ≈ 0.29` for *every*
-gene and per-gene collapse becomes visible.
+The obvious metric — the *summed* population std across all `reward_*` genes —
+is misleading here: `reward_death_penalty` spans [0, 50], so its std alone
+(~14 of ~18) is ~80% of the sum, and the number is blind to purging in the
+other eight genes. Instead, each gene's std is normalized by its range before
+combining, so a fresh uniform draw sits near `1/√12 ≈ 0.29` for *every* gene
+and per-gene collapse becomes visible.
 
 Span-normalized diversity (mean std / gene span), unique arm, start vs end:
 
