@@ -18,11 +18,14 @@ from farm.core.hyperparameter_chromosome import (
     default_hyperparameter_chromosome,
 )
 from farm.runners.intrinsic_goals_experiment import (
+    ARM_CONTRASTS,
+    ARM_NAMES,
     ArmResult,
     IntrinsicGoalsExperiment,
     IntrinsicGoalsExperimentConfig,
     ReplicateResult,
     TRACKED_ACTIONS,
+    assign_shared_goal,
     assign_unique_goals,
     sample_goal_chromosome,
 )
@@ -74,6 +77,31 @@ def test_assign_unique_goals_gives_each_agent_a_distinct_goal():
         a.hyperparameter_chromosome.get_value("reward_share_bonus") for a in agents
     }
     assert len(share_values) > 1
+
+
+def test_assign_shared_goal_gives_every_agent_the_same_nondefault_goal():
+    base = default_hyperparameter_chromosome()
+    agents = [
+        SimpleNamespace(agent_id=f"a{i}", hyperparameter_chromosome=base)
+        for i in range(6)
+    ]
+    env = SimpleNamespace(alive_agent_objects=agents)
+
+    n = assign_shared_goal(env, random.Random(7))
+    assert n == 6
+
+    # Every agent shares one identical goal across all goal genes...
+    for name in INTRINSIC_REWARD_GENE_NAMES:
+        values = {a.hyperparameter_chromosome.get_value(name) for a in agents}
+        assert len(values) == 1
+
+    # ...and that shared goal is shifted off the default (with very high
+    # probability for a uniform draw across the full gene ranges).
+    changed = any(
+        agents[0].hyperparameter_chromosome.get_value(name) != base.get_value(name)
+        for name in INTRINSIC_REWARD_GENE_NAMES
+    )
+    assert changed
 
 
 class _FakeAgent:
@@ -173,10 +201,12 @@ class TestIntrinsicGoalsRunnerHelpers(unittest.TestCase):
         comparison = IntrinsicGoalsExperiment(SimulationConfig())._build_comparison(
             uniform, unique
         )
+        self.assertEqual(comparison["baseline"], "uniform")
+        self.assertEqual(comparison["treatment"], "unique")
         self.assertEqual(comparison["final_population_delta"], 3)
         self.assertAlmostEqual(comparison["mean_population_delta"], 1.5)
         self.assertAlmostEqual(
-            comparison["action_share_delta_unique_minus_uniform"]["move"], -0.5
+            comparison["action_share_delta_treatment_minus_baseline"]["move"], -0.5
         )
         self.assertEqual(
             comparison["start_goal_diversity"]["unique"]["reward_share_bonus"], 0.4
@@ -215,13 +245,15 @@ class TestIntrinsicGoalsRunnerOrchestration(unittest.TestCase):
             )
             result = IntrinsicGoalsExperiment(SimulationConfig(), cfg).run()
 
-            self.assertEqual(run_mock.call_count, 2)
+            self.assertEqual(run_mock.call_count, len(ARM_NAMES))
             self.assertTrue(os.path.exists(result.summary_path))
             with open(result.summary_path, encoding="utf-8") as handle:
                 payload = json.load(handle)
-            self.assertIn("uniform", payload)
-            self.assertIn("unique", payload)
-            self.assertIn("comparison", payload)
+            for arm in ARM_NAMES:
+                self.assertIn(arm, payload)
+            self.assertIn("comparisons", payload)
+            self.assertIn("unique_minus_uniform", payload["comparisons"])
+            self.assertIn("shared_minus_uniform", payload["comparisons"])
             self.assertIsNone(result.aggregate)
             self.assertEqual(len(result.replicates), 1)
             self.assertTrue(result.figure_path and os.path.exists(result.figure_path))
@@ -297,7 +329,12 @@ class TestIntrinsicGoalsRunnerOrchestration(unittest.TestCase):
             assert result.aggregate is not None
             self.assertEqual(result.aggregate["num_replicates"], 3)
             self.assertIn("paired_deltas", result.aggregate)
-            self.assertIn("mean_population", result.aggregate["paired_deltas"])
+            paired = result.aggregate["paired_deltas"]
+            for contrast in ARM_CONTRASTS:
+                self.assertIn(contrast, paired)
+                self.assertIn("mean_population", paired[contrast])
+            for arm in ARM_NAMES:
+                self.assertIn(arm, result.aggregate["per_arm"])
             self.assertTrue(
                 result.figure_path
                 and result.figure_path.endswith("intrinsic_goals_aggregate.png")
@@ -330,8 +367,8 @@ def test_short_experiment_runs_and_writes_artifacts(tmp_path):
     assert os.path.exists(result.summary_path)
     with open(result.summary_path, encoding="utf-8") as handle:
         payload = json.load(handle)
-    assert "uniform" in payload and "unique" in payload
-    assert "comparison" in payload
+    assert "uniform" in payload and "shared" in payload and "unique" in payload
+    assert "comparisons" in payload
 
     # The unique arm should start with strictly more goal diversity than the
     # uniform arm (which starts as a goal monoculture).
