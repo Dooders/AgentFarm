@@ -162,6 +162,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--environment", type=str, default="development")
     parser.add_argument(
+        "--profile",
+        type=str,
+        default=None,
+        choices=["benchmark", "simulation", "research"],
+        help="Optional centralized config profile (grid size, max_population, etc.).",
+    )
+    parser.add_argument(
         "--profiles",
         nargs="+",
         default=DEFAULT_PROFILES,
@@ -314,7 +321,10 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
     """Construct (but do not execute) a single (profile, seed) experiment."""
     overrides = STABLE_SUB_PROFILES[profile]
 
-    base_config = SimulationConfig.from_centralized_config(environment=args.environment)
+    base_config = SimulationConfig.from_centralized_config(
+        environment=args.environment,
+        profile=args.profile,
+    )
     maybe_apply_learning_positive_population(
         base_config,
         getattr(args, "population", None),
@@ -522,6 +532,37 @@ def _print_dry_run_plan(args: argparse.Namespace, output_dir: Path) -> None:
         print(f"  stable_{profile}: {overrides}")
 
 
+def _load_existing_manifest_runs(manifest_path: Path) -> List[Dict[str, Any]]:
+    """Return prior ``runs`` entries from an existing sweep manifest, if any."""
+    if not manifest_path.is_file():
+        return []
+    try:
+        with manifest_path.open(encoding="utf-8") as fh:
+            existing = json.load(fh)
+        runs = existing.get("runs", [])
+        if isinstance(runs, list):
+            return runs
+    except (json.JSONDecodeError, OSError, TypeError):
+        pass
+    return []
+
+
+def _merge_sweep_records(
+    existing_runs: List[Dict[str, Any]],
+    new_records: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Merge per-run records keyed by (profile, seed), preferring newer entries."""
+    by_key: Dict[Tuple[Any, Any], Dict[str, Any]] = {}
+    for record in existing_runs:
+        by_key[(record.get("profile"), record.get("seed"))] = record
+    for record in new_records:
+        by_key[(record.get("profile"), record.get("seed"))] = record
+    return sorted(
+        by_key.values(),
+        key=lambda record: (str(record.get("profile")), int(record.get("seed", 0))),
+    )
+
+
 def _execute_sweep(
     args: argparse.Namespace, output_dir: Path, logger: Any
 ) -> Tuple[List[Dict[str, Any]], int, int]:
@@ -576,10 +617,25 @@ def main() -> int:
 
     sweep_records, n_ok, n_fail = _execute_sweep(args, output_dir, logger)
 
+    manifest_path = output_dir / "sweep_manifest.json"
+    merged_runs = _merge_sweep_records(
+        _load_existing_manifest_runs(manifest_path),
+        sweep_records,
+    )
+    merged_seeds = sorted(
+        {int(record["seed"]) for record in merged_runs if record.get("seed") is not None}
+    )
+    merged_n_ok = sum(
+        1 for record in merged_runs if record.get("status") in ("ok", "skipped_done")
+    )
+    merged_n_fail = sum(1 for record in merged_runs if record.get("status") == "error")
+
     manifest = {
         "sweep_type": "stable_profile_seed_sweep",
+        "environment": args.environment,
+        "profile": args.profile,
         "profiles": args.profiles,
-        "seeds": args.seeds,
+        "seeds": merged_seeds,
         "disk_database": getattr(args, "disk_database", False),
         "num_steps": args.num_steps,
         "warmup_steps": args.warmup_steps,
@@ -592,11 +648,10 @@ def main() -> int:
         "inheritance": _inheritance_settings_dict(args),
         "crossover": _crossover_settings_dict(args),
         "sub_profile_overrides": {p: STABLE_SUB_PROFILES[p] for p in args.profiles},
-        "runs": sweep_records,
-        "n_ok": n_ok,
-        "n_fail": n_fail,
+        "runs": merged_runs,
+        "n_ok": merged_n_ok,
+        "n_fail": merged_n_fail,
     }
-    manifest_path = output_dir / "sweep_manifest.json"
     with manifest_path.open("w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=2, default=str)
 

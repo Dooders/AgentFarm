@@ -86,15 +86,15 @@ _THREAD_VARS = (
     "NUMEXPR_NUM_THREADS",
 )
 
-# Named population levels. Each maps to a (environment profile, approximate
-# max_population) pair. The max_population figure is only used to produce an
-# upper-bound cost estimate in --dry-run; the true standing population is set
-# by the simulation and is typically well below the cap.
-POPULATION_LEVELS: dict[str, tuple[str, int]] = {
-    "dev": ("development", 50),
-    "sim": ("simulation", 300),
-    "research": ("research", 500),
-    "production": ("production", 1000),
+# Named population levels. Each maps to (environment, optional profile overlay,
+# approximate max_population). Grid size and max_population come from the profile
+# when set (see farm/config/profiles/). The max_population figure is only used
+# to produce an upper-bound cost estimate in --dry-run.
+POPULATION_LEVELS: dict[str, tuple[str, str | None, int]] = {
+    "dev": ("development", None, 50),
+    "sim": ("development", "simulation", 300),
+    "research": ("development", "research", 500),
+    "production": ("production", None, 1000),
 }
 
 PRESSURES: tuple[str, ...] = ("none", "low", "high")
@@ -147,12 +147,17 @@ def build_matrix(
 
 def build_command(job: Job, args: argparse.Namespace, cell_dir: Path) -> list[str]:
     """Resolve the seed-sweep subprocess command for a single job."""
-    environment, _ = POPULATION_LEVELS[job.population]
+    environment, profile, _ = POPULATION_LEVELS[job.population]
     command: list[str] = [
         sys.executable,
         str(_SEED_SWEEP_SCRIPT),
         "--environment",
         environment,
+    ]
+    if profile is not None:
+        command.extend(["--profile", profile])
+    command.extend(
+        [
         "--profiles",
         "balanced",
         "--seeds",
@@ -169,7 +174,8 @@ def build_command(job: Job, args: argparse.Namespace, cell_dir: Path) -> list[st
         str(cell_dir),
         "--log-level",
         args.log_level,
-    ]
+        ]
+    )
     if job.gene_flow == "crossover":
         command.append("--crossover-enabled")
     if args.disk_database:
@@ -187,7 +193,7 @@ def estimate_core_hours(job: Job, args: argparse.Namespace) -> float:
     this is deliberately conservative. Re-measure with a Phase-1 pilot before
     trusting the total for scheduling.
     """
-    _, approx_max_pop = POPULATION_LEVELS[job.population]
+    _, _, approx_max_pop = POPULATION_LEVELS[job.population]
     total_steps = args.num_steps + args.warmup_steps
     seconds = args.sec_per_agent_step * approx_max_pop * total_steps
     return seconds / 3600.0
