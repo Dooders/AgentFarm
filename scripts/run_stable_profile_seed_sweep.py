@@ -542,8 +542,12 @@ def _load_existing_manifest_runs(manifest_path: Path) -> List[Dict[str, Any]]:
         runs = existing.get("runs", [])
         if isinstance(runs, list):
             return runs
-    except (json.JSONDecodeError, OSError, TypeError):
-        pass
+    except (json.JSONDecodeError, OSError, TypeError) as exc:
+        # Best-effort manifest reuse: if unreadable/invalid, continue with a fresh run list.
+        print(
+            f"Warning: unable to load existing sweep manifest at {manifest_path}: {exc}",
+            file=sys.stderr,
+        )
     return []
 
 
