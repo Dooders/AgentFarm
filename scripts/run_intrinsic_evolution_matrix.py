@@ -70,12 +70,24 @@ import os
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from threading import Event, Lock, Thread
+
+from farm.runners.matrix_live_status import publish_live_status
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SEED_SWEEP_SCRIPT = _REPO_ROOT / "scripts" / "run_stable_profile_seed_sweep.py"
+
+# SIGKILL / SIGTERM — usually operator stop, Spot reset, or OOM — not a sim bug.
+_RETRYABLE_RETURNCODES = frozenset({-9, -15})
+_MAX_SIGNAL_RETRIES = 2
+
+
+def _default_jobs() -> int:
+    """Leave one core free so sshd/metadata stay responsive under load."""
+    return max(1, (os.cpu_count() or 1) - 1)
 
 # Thread-pool env vars pinned to 1 for every child: these are many tiny
 # per-agent DQNs, so oversubscribed BLAS pools slow the whole matrix down.
@@ -127,6 +139,20 @@ class JobResult:
     status: str
     returncode: int | None
     elapsed_seconds: float | None
+    log_tail: str | None = None
+
+
+def _log_tail(log_path: Path, *, max_bytes: int = 4096) -> str:
+    """Last chunk of a seed log for failure diagnosis without SSH."""
+    try:
+        size = log_path.stat().st_size
+        with log_path.open("rb") as handle:
+            if size > max_bytes:
+                handle.seek(-max_bytes, os.SEEK_END)
+            text = handle.read().decode("utf-8", errors="replace")
+        return text.replace("\r", "\n").strip()[-1500:]
+    except OSError:
+        return ""
 
 
 def build_matrix(
@@ -176,6 +202,8 @@ def build_command(job: Job, args: argparse.Namespace, cell_dir: Path) -> list[st
         args.log_level,
         ]
     )
+    if getattr(args, "checkpoint_interval", None) is not None:
+        command.extend(["--checkpoint-interval", str(args.checkpoint_interval)])
     if job.gene_flow == "crossover":
         command.append("--crossover-enabled")
     if args.disk_database:
@@ -207,6 +235,14 @@ def _child_env() -> dict[str, str]:
     return env
 
 
+def _nice_worker() -> None:
+    """Lower worker priority so sshd / guest-agent keep CPU under load."""
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+
+
 def run_job(job: Job, args: argparse.Namespace) -> JobResult:
     """Execute one (cell, seed) job as a subprocess and capture its outcome."""
     cell_dir = Path(args.output_dir) / job.cell_name
@@ -223,6 +259,7 @@ def run_job(job: Job, args: argparse.Namespace) -> JobResult:
             stdout=log_handle,
             stderr=subprocess.STDOUT,
             check=False,
+            preexec_fn=_nice_worker if os.name == "posix" else None,
         )
     elapsed = time.time() - t0
     status = "ok" if completed.returncode == 0 else "error"
@@ -233,6 +270,7 @@ def run_job(job: Job, args: argparse.Namespace) -> JobResult:
         status=status,
         returncode=completed.returncode,
         elapsed_seconds=round(elapsed, 3),
+        log_tail=_log_tail(log_path) if status != "ok" else None,
     )
 
 
@@ -315,10 +353,33 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup-steps", type=int, default=200)
     parser.add_argument("--snapshot-interval", type=int, default=200)
     parser.add_argument(
+        "--checkpoint-interval",
+        type=int,
+        default=50,
+        help=(
+            "Mid-run checkpoint cadence passed to each seed job "
+            "(default: 50 so Spot/stop interruptions retain progress)."
+        ),
+    )
+    parser.add_argument(
         "--jobs",
         type=int,
-        default=os.cpu_count() or 1,
-        help="Number of concurrent subprocesses (default: CPU count).",
+        default=_default_jobs(),
+        help=(
+            "Number of concurrent subprocesses "
+            "(default: CPU count minus 1, leaving headroom for SSH/metadata)."
+        ),
+    )
+    parser.add_argument(
+        "--status-interval",
+        type=float,
+        default=60.0,
+        help="Seconds between live-status heartbeats (file + GCE guest attributes).",
+    )
+    parser.add_argument(
+        "--no-guest-attributes",
+        action="store_true",
+        help="Write matrix_live_status.json only; do not publish GCE guest attributes.",
     )
     parser.add_argument(
         "--disk-database",
@@ -384,23 +445,113 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     results: list[JobResult] = []
+    recent: list[dict] = []
     n_ok = 0
     n_fail = 0
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        future_to_job = {pool.submit(run_job, job, args): job for job in jobs}
-        for future in as_completed(future_to_job):
-            result = future.result()
-            results.append(result)
-            if result.status == "ok":
-                n_ok += 1
-            else:
-                n_fail += 1
-            print(
-                f"  [{n_ok + n_fail}/{len(jobs)}] {result.status:5s} "
-                f"rc={result.returncode} {result.elapsed_seconds}s "
-                f"{result.cell_dir} seed={result.job['seed']}",
-                file=sys.stderr,
+    status_lock = Lock()
+    stop_heartbeat = Event()
+    use_guest_attrs = not args.no_guest_attributes
+
+    def _emit_status(note: str = "") -> None:
+        # Snapshot under the lock; publish outside so guest-attribute I/O cannot
+        # stall job accounting or the heartbeat thread.
+        with status_lock:
+            snapshot_ok = n_ok
+            snapshot_fail = n_fail
+            snapshot_recent = list(recent)
+        try:
+            publish_live_status(
+                output_dir,
+                total_jobs=len(jobs),
+                n_ok=snapshot_ok,
+                n_fail=snapshot_fail,
+                workers=workers,
+                recent=snapshot_recent,
+                note=note,
+                guest_attributes=use_guest_attrs,
             )
+        except Exception as exc:  # noqa: BLE001 — status must never kill the matrix
+            print(f"warning: live status publish failed: {exc}", file=sys.stderr)
+
+    def _heartbeat_loop() -> None:
+        interval = max(5.0, float(args.status_interval))
+        while not stop_heartbeat.wait(interval):
+            _emit_status(note="heartbeat")
+
+    _emit_status(note="started")
+    heartbeat = Thread(target=_heartbeat_loop, name="matrix-status-heartbeat", daemon=True)
+    heartbeat.start()
+
+    signal_attempts: dict[Job, int] = {job: 0 for job in jobs}
+
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            pending = {pool.submit(run_job, job, args): job for job in jobs}
+            while pending:
+                done, _ = wait(pending.keys(), return_when=FIRST_COMPLETED)
+                for future in done:
+                    job = pending.pop(future)
+                    result = future.result()
+                    rc = result.returncode
+                    if (
+                        rc in _RETRYABLE_RETURNCODES
+                        and signal_attempts[job] < _MAX_SIGNAL_RETRIES
+                    ):
+                        signal_attempts[job] += 1
+                        print(
+                            f"  retry {signal_attempts[job]}/{_MAX_SIGNAL_RETRIES} "
+                            f"after rc={rc} {result.elapsed_seconds}s "
+                            f"{result.cell_dir} seed={result.job['seed']}",
+                            file=sys.stderr,
+                        )
+                        pending[pool.submit(run_job, job, args)] = job
+                        _emit_status(note="retry_after_signal")
+                        continue
+
+                    results.append(result)
+                    with status_lock:
+                        if result.status == "ok":
+                            n_ok += 1
+                        else:
+                            n_fail += 1
+                        entry = {
+                            "status": result.status,
+                            "returncode": result.returncode,
+                            "elapsed_seconds": result.elapsed_seconds,
+                            "population": result.job.get("population"),
+                            "pressure": result.job.get("pressure"),
+                            "gene_flow": result.job.get("gene_flow"),
+                            "seed": result.job.get("seed"),
+                            "cell_dir": result.cell_dir,
+                        }
+                        if result.log_tail:
+                            entry["log_tail"] = result.log_tail[-400:]
+                        if rc in _RETRYABLE_RETURNCODES:
+                            entry["log_tail"] = (
+                                f"killed by signal rc={rc} "
+                                f"(operator stop / Spot reset / OOM); "
+                                f"not a simulation error"
+                            )
+                        recent.append(entry)
+                        done_count = n_ok + n_fail
+                        result_status = result.status
+                        result_rc = result.returncode
+                        result_elapsed = result.elapsed_seconds
+                        result_seed = result.job["seed"]
+                        result_cell = result.cell_dir
+                    print(
+                        f"  [{done_count}/{len(jobs)}] {result_status:5s} "
+                        f"rc={result_rc} {result_elapsed}s "
+                        f"{result_cell} seed={result_seed}",
+                        file=sys.stderr,
+                    )
+                    _emit_status(note="job_complete")
+    finally:
+        stop_heartbeat.set()
+        heartbeat.join(timeout=2.0)
+        with status_lock:
+            all_done = (n_ok + n_fail) >= len(jobs)
+        _emit_status(note="finished" if all_done else "stopped")
 
     manifest = {
         "output_dir": str(output_dir),
