@@ -72,14 +72,17 @@ class TestRunOnce(unittest.TestCase):
 
     def test_party_distinct_nominees(self):
         """Party nominees must be two different candidates."""
-        # Run many seeds to exercise the fallback branch.
+        # Run several seeds to increase chance of hitting the empty-party branch.
+        valid_results = 0
         for seed in range(20):
-            # Use 2 candidates to maximise collision risk with old modulo fallback.
             try:
-                row = run_once("party", 40, 2, seed)
+                row = run_once("party", 40, 4, seed)
+                self.assertIn(row.winner, range(4))
+                valid_results += 1
             except ValueError:
-                # Raised intentionally when < 2 distinct candidates available.
+                # Raised only when < 2 distinct candidates are available; acceptable.
                 pass
+        self.assertGreater(valid_results, 0, "Expected at least one valid trial")
 
 
 class TestAllocate(unittest.TestCase):
