@@ -1,51 +1,58 @@
 # Voiceover script — consensus_overview.mp4 (~70s)
 
-Timed to the rendered segment boundaries. Target pace ~150–160 wpm.
-Pronunciation: say "lambda" for λ; "point-five" for 0.5.
+The narration mirrors the on-screen text: every spoken line is a line the
+viewer can read at that moment — no added commentary. Start each cue when its
+text lands on screen. Target pace ~160 wpm.
+Pronunciation: say "lambda" for λ; "point five" for 0.5.
 
-## [0:00–0:06] Title card
+## [0:00–0:06] Title card (subtitle ~0:03)
 
-After an election — who actually gets helped?
+After the election — who gets helped? Four ways to pick a leader — and what
+each does to the losers.
 
 ## [0:06–0:14] The question (line two ~0:09, line three ~0:12)
 
-Every election creates winners — and losers. Our question: does the way we
-pick the winner change how the losing side is treated? We built a simulation
-to find out.
+Every election creates winners — and losers. Does how we pick the winner
+change how the losers are treated? We built a simulation to find out.
 
-## [0:14–0:25] World setup (dots ~0:15, stars ~0:18, project boxes ~0:22)
+## [0:14–0:25] The setup (voters ~0:15, candidates ~0:18, budget ~0:21)
 
-Four hundred voters, in two rival blocs. Eight candidates — each with a public
+Four hundred voters, split into rival blocs. Eight candidates — each with a
 platform, and a hidden loyalty trait: lambda. The winner splits one fixed
-budget across five public projects.
+budget across five projects.
 
-## [0:25–0:35] The spending rule (formula ~0:27, warning line ~0:32)
+## [0:25–0:35] The rule (formula ~0:27, ballot line ~0:31)
 
-The winner spends by a simple rule: lambda goes to their own supporters — the
-rest goes to everyone. And here's the catch: voters never see lambda on the
+The winner's spending rule: allocation equals lambda, help my supporters —
+plus one minus lambda, help everyone. And voters never see lambda on the
 ballot.
 
-## [0:35–0:43] Four paradigm cards (cards land ~0:36–0:39)
+(The "λ = 1 / λ = 0" legend stays on screen unvoiced — the formula line
+already says it.)
 
-Four ways to pick the winner. Two parties. No parties. Score every candidate.
-Or elect the best match to the average voter.
+## [0:35–0:43] The contenders (cards land 0:36–0:39)
 
-## [0:43–1:01] Results (bars ~0:45–0:48, lambda line ~0:53, twist ~0:58)
+Four ways to pick the winner: party. Individual. Score. Or latent match — the
+closest match to the average voter.
 
-So — how do the losers do? Party selection leaves them worst off. Every
-individual-centered rule treats them better; score and latent match, most of
-all. (beat) But the winners' loyalty averaged point-five under every single
-rule. No rule picked kinder people. (beat) Unless loyalty shows in the
-platforms — then those same rules elect the least loyal winners.
+## [0:43–1:01] The result (bars 0:45–0:48, chip ~0:48, loyalty ~0:52, twist ~0:56)
 
-## [1:01–1:10] Takeaway
+Result: how well do non-supporters do? Average benefit to voters who did not
+back the winner — two hundred fifty elections each. Latent match: thirty-eight
+percent ahead of party. (beat) Winners' loyalty: point five, under every
+rule — no rule picked kinder people. (beat) The twist: if platforms hint at
+lambda, score and latent match elect point-two winners.
 
-Selection rules didn't pick kinder winners. They changed who the winner owes.
-Fully seeded, fully reproducible — in AgentFarm.
+## [1:01–1:10] Takeaway (line two ~1:03, credit ~1:05)
+
+Selection rules didn't pick kinder winners — they changed who the winner
+owes. AgentFarm — consensus experiment. Seeded, and reproducible.
 
 ---
 
-Direction: even, curious tone through the setup; let the two (beat) pauses in
-the results segment breathe — they align with the lambda line and the twist
-line fading in. If the read runs slower than ~150 wpm, stretch the `self.wait`
-values in `farm/experiments/consensus/overview_video.py` rather than rushing.
+Direction: even, curious tone; each block starts when its first text lands.
+Hold the two (beat) pauses in the result block until the loyalty line and the
+twist line fade in — the animation leaves three seconds after each. The bar
+values (0.158–0.219) are left unvoiced; the "+38% vs party" chip carries the
+comparison aloud. If a read runs long, stretch the `self.wait` calls in
+`farm/experiments/consensus/overview_video.py` rather than rushing.
