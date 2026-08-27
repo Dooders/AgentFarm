@@ -15,6 +15,12 @@ Render a social-media MP4 of one trial's dynamic (requires ffmpeg):
 
     python run_experiment.py animate --seed 0 --trial 0 \
         --out results/consensus_media/consensus_dynamics.mp4
+
+Render the produced audience explainer from run outputs (requires manim):
+
+    python run_experiment.py overview --results results/consensus \
+        --correlated-results results/consensus_lambda_correlated \
+        --out results/consensus_media/consensus_overview.mp4
 """
 
 import argparse
@@ -104,6 +110,39 @@ def _build_animate_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_overview_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog=f"{Path(sys.argv[0]).name} overview",
+        description="Render the produced audience-explainer MP4 from experiment outputs (requires manim).",
+    )
+    parser.add_argument(
+        "--results",
+        type=Path,
+        default=Path("results/consensus"),
+        help="Run directory whose summary.csv provides the headline numbers",
+    )
+    parser.add_argument(
+        "--correlated-results",
+        type=Path,
+        default=Path("results/consensus_lambda_correlated"),
+        help="Run directory of the --lambda-correlated condition (for the twist segment)",
+    )
+    parser.add_argument("--fps", type=int, default=30, help="Frames per second")
+    parser.add_argument(
+        "--quality",
+        choices=("high", "preview"),
+        default="high",
+        help="high = 1280x720, preview = 854x480 for fast iteration",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("results/consensus_media/consensus_overview.mp4"),
+        help="Output MP4 path",
+    )
+    return parser
+
+
 def _base_config(args: argparse.Namespace, candidates: int, population: str) -> ExperimentConfig:
     return ExperimentConfig(
         trials=args.trials,
@@ -143,6 +182,25 @@ def main(argv=None) -> int:
             fps=args.fps,
         )
         print(f"Animation written to {path}")
+        return 0
+
+    if argv and argv[0] == "overview":
+        args = _build_overview_parser().parse_args(argv[1:])
+        try:
+            from farm.experiments.consensus.overview_video import render_overview
+        except ImportError as exc:
+            raise SystemExit(
+                "The overview renderer needs the optional 'manim' dependency: pip install manim "
+                f"(import failed: {exc})"
+            ) from exc
+        path = render_overview(
+            out_path=args.out,
+            default_results=args.results,
+            correlated_results=args.correlated_results,
+            fps=args.fps,
+            quality=args.quality,
+        )
+        print(f"Overview video written to {path}")
         return 0
 
     if argv and argv[0] == "sweep":

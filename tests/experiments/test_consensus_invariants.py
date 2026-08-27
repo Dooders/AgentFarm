@@ -1,5 +1,7 @@
 """Invariant tests for the political consensus experiment."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -81,6 +83,18 @@ def test_animation_renders_mp4(tmp_path) -> None:
 
     out = render_animation(tmp_path / "anim.mp4", voters=60, n_candidates=4, seed=1, fps=2)
     assert out.exists() and out.stat().st_size > 0
+
+
+def test_overview_numbers_load_from_committed_results() -> None:
+    pytest.importorskip("manim")
+    from farm.experiments.consensus.overview_video import load_numbers
+
+    default_dir, correlated_dir = Path("results/consensus"), Path("results/consensus_lambda_correlated")
+    if not (default_dir / "summary.csv").exists() or not (correlated_dir / "summary.csv").exists():
+        pytest.skip("committed result artifacts not present")
+    numbers = load_numbers(default_dir, correlated_dir)
+    assert set(numbers.loser_welfare) >= {"party", "individual", "score", "latent_match"}
+    assert all(np.isfinite(v) for v in numbers.loser_welfare.values())
 
 
 def test_benefits_are_normalized_rows() -> None:

@@ -48,7 +48,22 @@ python run_experiment.py --trials 250 --voters 400 --candidates 8 \
 # sweep across populations and candidate counts
 python run_experiment.py sweep --trials 100 \
     --populations two_cluster,three_cluster,rural_town --candidates 6,8,12
+
+# social-media MP4 of one trial's dynamic, rendered from live simulation data (needs ffmpeg)
+python run_experiment.py animate --seed 0 --trial 0 \
+    --out results/consensus_media/consensus_dynamics.mp4
+
+# produced audience explainer, numbers loaded from run outputs (needs `pip install manim`)
+python run_experiment.py overview --results results/consensus \
+    --correlated-results results/consensus_lambda_correlated \
+    --out results/consensus_media/consensus_overview.mp4
 ```
+
+The two video commands serve different purposes: `animate` (matplotlib) renders the raw
+dynamic of an actual seeded trial, while `overview` (manim, optional dependency) builds a
+presentation-style explainer of the experiment and its headline results, reading every
+displayed number from the given runs' `summary.csv` files. Use `--quality preview` with
+`overview` for fast iteration.
 
 Population types: `one_cluster`, `two_cluster` (default), `three_cluster`,
 `rural_town` (70/30 cluster sizes). Extra flags: `--include-constrained`,
@@ -88,3 +103,5 @@ pytest tests/experiments/test_consensus_invariants.py
 | `experiment.py` | Trial orchestration, summaries, artifact writing |
 | `plots.py` | Matplotlib figures (Agg) |
 | `report.py` | Auto-generated `REPORT.md` |
+| `animate.py` | MP4 of one trial's dynamic (matplotlib + ffmpeg) |
+| `overview_video.py` | Produced audience explainer (manim, optional dep) |
