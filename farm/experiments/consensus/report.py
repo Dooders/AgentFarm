@@ -139,14 +139,13 @@ def _hypothesis_lines(cell: pd.DataFrame) -> list[str]:
     return lines
 
 
-def write_report(
+def render_report(
     trials: pd.DataFrame,
     summary: pd.DataFrame,
     allocations: pd.DataFrame,
-    manifest: dict,
-    path: Path,
-) -> None:
-    config = manifest["config"]
+    run_config: dict,
+) -> str:
+    config = run_config["config"]
     populations = list(trials["population"].unique())
     cells = _cell_means(trials)
     paradigms = list(trials["paradigm"].unique())
@@ -214,10 +213,20 @@ def write_report(
     )
 
     parts.append("## Reproduce\n")
-    parts.append("```\n" + manifest["command"] + "\n```\n")
+    parts.append("```\n" + run_config["command"] + "\n```\n")
     parts.append(
         "Deterministic given identical parameters and seed (per-trial streams are derived from "
         "`numpy.random.default_rng([seed, population, candidates, trial])`).\n"
     )
 
-    path.write_text("\n".join(parts))
+    return "\n".join(parts)
+
+
+def write_report(
+    trials: pd.DataFrame,
+    summary: pd.DataFrame,
+    allocations: pd.DataFrame,
+    run_config: dict,
+    path: Path,
+) -> None:
+    path.write_text(render_report(trials, summary, allocations, run_config))

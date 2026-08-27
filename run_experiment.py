@@ -16,6 +16,11 @@ Render a social-media MP4 of one trial's dynamic (requires ffmpeg):
     python run_experiment.py animate --seed 0 --trial 0 \
         --out results/consensus_media/consensus_dynamics.mp4
 
+Verify that the derived artifacts (summary.csv, allocation_means.csv, REPORT.md)
+recompute byte-identically from trials.csv:
+
+    python run_experiment.py verify-report --results results/consensus
+
 Render the produced audience explainer from run outputs (requires manim):
 
     python run_experiment.py overview --results results/consensus \
@@ -33,6 +38,7 @@ from farm.experiments.consensus.experiment import (
     DEFAULT_LAMBDA_CAP,
     ExperimentConfig,
     SweepConfig,
+    allocation_means,
     config_manifest,
     run_sweep,
     run_trials,
@@ -164,9 +170,77 @@ def _print_summary(trials: pd.DataFrame, out_dir: Path) -> None:
     print(f"\nArtifacts written to {out_dir}/ (trials.csv, summary.csv, allocation_means.csv, figures/, REPORT.md)")
 
 
+def _portable_command(argv: list) -> str:
+    """The recorded command with the output directory replaced by {run_dir}.
+
+    Keeps REPORT.md byte-identical across re-runs into different directories
+    and makes the record directly usable by `farm-notary reproduce`.
+    """
+    parts: list = []
+    saw_out = False
+    skip = False
+    for tok in argv:
+        if skip:
+            parts.append("{run_dir}")
+            skip = False
+        elif tok == "--out":
+            parts.append(tok)
+            saw_out = skip = True
+        elif tok.startswith("--out="):
+            parts.append("--out={run_dir}")
+            saw_out = True
+        else:
+            parts.append(tok)
+    if not saw_out:
+        parts += ["--out", "{run_dir}"]
+    return "python run_experiment.py " + " ".join(parts)
+
+
+def _verify_report(results: Path) -> int:
+    """Recompute summary.csv, allocation_means.csv, and REPORT.md from trials.csv.
+
+    Byte-compares the recomputation against the files on disk, so the derived
+    artifacts are verified to follow from the raw trial data.
+    """
+    import json
+
+    from farm.experiments.consensus.report import render_report
+
+    # round_trip parsing recovers the exact float64 values that were written;
+    # the default fast parser can be off by one ulp, which breaks byte equality.
+    trials = pd.read_csv(results / "trials.csv", float_precision="round_trip")
+    run_config = json.loads((results / "run_config.json").read_text())
+    summary = summarize(trials)
+    allocations = allocation_means(trials)
+
+    expected = {
+        "summary.csv": summary.to_csv(index=False),
+        "allocation_means.csv": allocations.to_csv(index=False),
+        "REPORT.md": render_report(trials, summary, allocations, run_config),
+    }
+    failures = []
+    for name, text in expected.items():
+        actual = (results / name).read_text()
+        if actual == text:
+            print(f"OK {name} recomputed from trials.csv is byte-identical")
+        else:
+            failures.append(name)
+            print(f"FAIL {name} does not match its recomputation from trials.csv")
+    return 1 if failures else 0
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    command = "python run_experiment.py " + " ".join(argv)
+    command = _portable_command(argv)
+
+    if argv and argv[0] == "verify-report":
+        parser = argparse.ArgumentParser(
+            prog="run_experiment.py verify-report",
+            description="Verify that derived artifacts follow from trials.csv",
+        )
+        parser.add_argument("--results", type=Path, default=Path("results/consensus"))
+        args = parser.parse_args(argv[1:])
+        return _verify_report(args.results)
 
     if argv and argv[0] == "animate":
         from farm.experiments.consensus.animate import render_animation
