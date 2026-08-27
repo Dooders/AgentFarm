@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 
 from farm.experiments.consensus.metrics import ALLOCATION_COLUMNS
-from farm.experiments.consensus.paradigms import PARADIGMS
 from farm.experiments.consensus.population import PROJECTS
 
 BASELINE = "party"
