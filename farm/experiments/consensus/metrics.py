@@ -6,8 +6,6 @@ and voter-level utilities never leave this module.
 
 from __future__ import annotations
 
-import numpy as np
-
 from farm.experiments.consensus.allocation import allocate
 from farm.experiments.consensus.paradigms import ElectionResult
 from farm.experiments.consensus.population import PROJECTS, Candidates, Population
