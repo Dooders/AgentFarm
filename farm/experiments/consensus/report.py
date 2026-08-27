@@ -7,7 +7,6 @@ that produced it; nothing is hard-coded.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import pandas as pd
