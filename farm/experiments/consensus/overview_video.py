@@ -22,18 +22,24 @@ from manim import (
     LEFT,
     RIGHT,
     UP,
+    AnimationGroup,
+    Create,
     Dot,
     FadeIn,
     FadeOut,
     GrowFromEdge,
     LaggedStart,
+    Line,
     Rectangle,
     RoundedRectangle,
     Scene,
     Star,
+    SurroundingRectangle,
     Text,
+    ValueTracker,
     VGroup,
     Write,
+    always_redraw,
     tempconfig,
 )
 from numpy.random import default_rng
@@ -46,6 +52,7 @@ PARADIGM_COLORS = {
 }
 ACCENT = "#f1c40f"
 MUTED = "#aab2bd"
+BACKGROUND = "#12161d"
 
 PARADIGM_ONE_LINERS = {
     "party": "Two parties nominate.\nVoters pick a side.",
@@ -105,15 +112,22 @@ class ConsensusOverview(Scene):
         if self.mobjects:
             self.play(*[FadeOut(m) for m in self.mobjects])
 
+    def _kicker(self, label: str) -> Text:
+        """Small uppercase chapter marker pinned to the top-left corner."""
+        return Text(label.upper(), font_size=20, color=ACCENT, weight=BOLD).to_corner(UP + LEFT, buff=0.45)
+
     def _title_card(self):
         title = Text("After the election, who gets helped?", font_size=46, weight=BOLD)
+        underline = Line(title.get_corner(DOWN + LEFT), title.get_corner(DOWN + RIGHT), color=ACCENT, stroke_width=5)
+        underline.shift(DOWN * 0.25)
         sub = Text(
             "A simulation of four ways to pick a leader \u2014 and what each does to the losers",
             font_size=26,
             color=MUTED,
-        ).next_to(title, DOWN, buff=0.5)
-        self.play(Write(title), run_time=2)
-        self.play(FadeIn(sub))
+        ).next_to(underline, DOWN, buff=0.45)
+        self.play(Write(title), run_time=1.4)
+        self.play(Create(underline), run_time=0.6)
+        self.play(FadeIn(sub), run_time=1)
         self.wait(2.2)
         self._clear()
 
@@ -132,7 +146,13 @@ class ConsensusOverview(Scene):
             ]
         )
         caption = Text("400 voters, split into rival blocs", font_size=30).to_edge(RIGHT, buff=0.8).shift(UP * 1.6)
-        self.play(FadeIn(bloc_a, lag_ratio=0.01), FadeIn(bloc_b, lag_ratio=0.01), FadeIn(caption), run_time=2)
+        self.play(
+            FadeIn(self._kicker("The setup")),
+            FadeIn(bloc_a, lag_ratio=0.01),
+            FadeIn(bloc_b, lag_ratio=0.01),
+            FadeIn(caption),
+            run_time=2,
+        )
         self.wait(1.2)
 
         stars = VGroup(
@@ -162,7 +182,14 @@ class ConsensusOverview(Scene):
         caption3 = Text("The winner splits one fixed budget across 5 projects", font_size=28).next_to(
             boxes, UP, buff=0.5
         )
-        self.play(FadeIn(caption3), LaggedStart(*[FadeIn(b, shift=UP * 0.3) for b in boxes], lag_ratio=0.15))
+        # Dim the setup scatter so the caption stays readable over the blue cluster.
+        self.play(
+            bloc_a.animate.set_opacity(0.15),
+            bloc_b.animate.set_opacity(0.15),
+            stars.animate.set_opacity(0.2),
+            FadeIn(caption3),
+            LaggedStart(*[FadeIn(b, shift=UP * 0.3) for b in boxes], lag_ratio=0.15),
+        )
         self.wait(2.4)
         self._clear()
 
@@ -173,19 +200,21 @@ class ConsensusOverview(Scene):
             font_size=32,
             t2c={"\u03bb": ACCENT},
         )
+        formula_box = SurroundingRectangle(formula, corner_radius=0.15, buff=0.35, color=ACCENT, stroke_width=2)
         legend = Text(
             "\u03bb = 1  \u2192  serve only your own voters        \u03bb = 0  \u2192  serve the whole town",
             font_size=26,
             color=MUTED,
             t2c={"\u03bb": ACCENT},
-        ).next_to(formula, DOWN, buff=0.8)
+        ).next_to(formula_box, DOWN, buff=0.7)
         warning = Text("Voters never see \u03bb on the ballot.", font_size=26, t2c={"\u03bb": ACCENT}).next_to(
-            legend, DOWN, buff=0.8
+            legend, DOWN, buff=0.7
         )
-        self.play(FadeIn(header))
+        self.play(FadeIn(self._kicker("The rule")), FadeIn(header))
         self.play(Write(formula), run_time=2.2)
-        self.play(FadeIn(legend))
-        self.wait(1.4)
+        self.play(Create(formula_box), run_time=0.6)
+        self.play(FadeIn(legend), run_time=0.8)
+        self.wait(1.0)
         self.play(FadeIn(warning))
         self.wait(2.2)
         self._clear()
@@ -196,12 +225,14 @@ class ConsensusOverview(Scene):
         for name, color in PARADIGM_COLORS.items():
             title = Text(name.replace("_", " "), font_size=28, weight=BOLD, color=color)
             body = Text(PARADIGM_ONE_LINERS[name], font_size=22, color=MUTED, line_spacing=0.9)
-            box = RoundedRectangle(corner_radius=0.15, width=5.6, height=2.2, color=color)
+            box = RoundedRectangle(
+                corner_radius=0.15, width=5.6, height=2.2, color=color, fill_color=color, fill_opacity=0.08
+            )
             title.move_to(box.get_top() + DOWN * 0.5)
             body.move_to(box.get_center() + DOWN * 0.35)
             cards.add(VGroup(box, title, body))
         cards.arrange_in_grid(rows=2, cols=2, buff=0.45).next_to(header, DOWN, buff=0.55)
-        self.play(FadeIn(header))
+        self.play(FadeIn(self._kicker("The contenders")), FadeIn(header))
         self.play(LaggedStart(*[FadeIn(c, shift=UP * 0.3) for c in cards], lag_ratio=0.3), run_time=3)
         self.wait(3)
         self._clear()
@@ -210,13 +241,15 @@ class ConsensusOverview(Scene):
         header = Text(
             "Result: how well do non-supporters do?", font_size=36, weight=BOLD
         ).to_edge(UP, buff=0.7)
-        self.play(FadeIn(header))
+        self.play(FadeIn(self._kicker("The result")), FadeIn(header))
 
         rows = VGroup()
-        max_value = max(self.numbers.loser_welfare.values())
+        trackers = []
+        values = self.numbers.loser_welfare
+        max_value = max(values.values())
         bar_left, max_bar_width, top_y, row_step = -3.6, 5.8, 1.9, 1.05
         for i, (name, color) in enumerate(PARADIGM_COLORS.items()):
-            value = self.numbers.loser_welfare[name]
+            value = values[name]
             y = top_y - i * row_step
             bar = Rectangle(
                 width=max_bar_width * value / max_value,
@@ -228,22 +261,59 @@ class ConsensusOverview(Scene):
             ).move_to([bar_left, y, 0], aligned_edge=LEFT)
             label = Text(name.replace("_", " "), font_size=26, color=color, weight=BOLD)
             label.next_to(bar.get_left(), LEFT, buff=0.4)
-            number = Text(f"{value:.3f}", font_size=24).next_to(bar, RIGHT, buff=0.3)
+            # Pango-based count-up (DecimalNumber would require LaTeX); the number
+            # rides the tip of its bar while both animate.
+            tracker = ValueTracker(0.0)
+            number = always_redraw(
+                lambda b=bar, t=tracker: Text(f"{t.get_value():.3f}", font_size=24).next_to(b, RIGHT, buff=0.3)
+            )
+            trackers.append(tracker)
             rows.add(VGroup(label, bar, number))
 
-        self.play(LaggedStart(*[FadeIn(r[0]) for r in rows], lag_ratio=0.15))
+        baseline = Line(
+            [bar_left, top_y + 0.45, 0],
+            [bar_left, top_y - (len(rows) - 1) * row_step - 0.45, 0],
+            color=MUTED,
+            stroke_width=2,
+        )
+        self.play(LaggedStart(*[FadeIn(r[0]) for r in rows], lag_ratio=0.15), Create(baseline))
+        self.add(*[r[2] for r in rows])
         self.play(
-            LaggedStart(*[GrowFromEdge(r[1], LEFT) for r in rows], lag_ratio=0.2),
-            LaggedStart(*[FadeIn(r[2]) for r in rows], lag_ratio=0.2),
+            LaggedStart(
+                *[
+                    AnimationGroup(GrowFromEdge(r[1], LEFT), t.animate.set_value(values[name]))
+                    for r, t, name in zip(rows, trackers, PARADIGM_COLORS)
+                ],
+                lag_ratio=0.2,
+            ),
             run_time=2.4,
         )
+        for r in rows:
+            r[2].clear_updaters()
+
+        # Data-driven headline stat: how much better electoral losers do under the
+        # best consensus rule than under party selection.
+        pct_gain = (values["latent_match"] - values["party"]) / values["party"]
+        chip_text = Text(f"+{pct_gain:.0%} vs party", font_size=20, weight=BOLD, color=BACKGROUND)
+        chip_box = RoundedRectangle(
+            corner_radius=0.12,
+            width=chip_text.width + 0.45,
+            height=chip_text.height + 0.32,
+            color=ACCENT,
+            fill_color=ACCENT,
+            fill_opacity=1,
+            stroke_width=0,
+        )
+        chip = VGroup(chip_box, chip_text.move_to(chip_box)).next_to(rows[-1][2], RIGHT, buff=0.35)
+        self.play(FadeIn(chip, shift=LEFT * 0.25), run_time=0.8)
+
         footnote = Text(
             "mean utility of voters who did NOT back the winner (250 seeded trials)",
             font_size=22,
             color=MUTED,
         ).to_edge(DOWN, buff=0.9)
         self.play(FadeIn(footnote))
-        self.wait(2.8)
+        self.wait(2.0)
         self.play(FadeOut(footnote))
 
         lam_line = Text(
@@ -297,6 +367,7 @@ def render_overview(
             "pixel_width": width,
             "pixel_height": height,
             "frame_rate": fps,
+            "background_color": BACKGROUND,
             "media_dir": media_dir,
             "output_file": "consensus_overview",
             "disable_caching": True,
