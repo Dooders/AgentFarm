@@ -53,6 +53,23 @@ ACCENT = "#f1c40f"
 MUTED = "#aab2bd"
 BACKGROUND = "#12161d"
 
+# Type scale: one size per text role, with clearly separated steps so nothing
+# reads as "almost the same size". Every Text in the scene uses one of these.
+FONT_TITLE = 46  # main title only
+FONT_HEADER = 38  # section headers
+FONT_STATEMENT = 34  # full-screen statement lines (question, takeaway)
+FONT_BODY = 30  # primary content (captions, formula)
+FONT_SECONDARY = 26  # supporting lines (subtitle, legends, bar labels)
+FONT_LABEL = 24  # data labels and result sentences
+FONT_CAPTION = 22  # footnotes and credits
+FONT_SMALL = 20  # kickers and chips
+FONT_BOX_LABEL = 18  # project-box labels (constrained by the 2.4-unit boxes)
+
+# Vertical rhythm.
+LINE_BUFF = 0.55  # gap between stacked text lines within a block
+HEADER_BUFF = 0.7  # gap from the frame top to section headers
+EDGE_BUFF = 0.8  # gap from the frame bottom to footnotes/credits
+
 PARADIGM_ONE_LINERS = {
     "party": "Two parties nominate.\nVoters pick a side.",
     "individual": "No parties.\nVote your nearest candidate.",
@@ -93,7 +110,7 @@ def _format_range(values) -> str:
 
 
 class ConsensusOverview(Scene):
-    """~80 second audience explainer of the experiment and its results."""
+    """~70 second audience explainer of the experiment and its results."""
 
     def __init__(self, numbers: OverviewNumbers, **kwargs):
         super().__init__(**kwargs)
@@ -114,17 +131,17 @@ class ConsensusOverview(Scene):
 
     def _kicker(self, label: str) -> Text:
         """Small uppercase chapter marker pinned to the top-left corner."""
-        return Text(label.upper(), font_size=20, color=ACCENT, weight=BOLD).to_corner(UP + LEFT, buff=0.45)
+        return Text(label.upper(), font_size=FONT_SMALL, color=ACCENT, weight=BOLD).to_corner(UP + LEFT, buff=0.45)
 
     def _title_card(self):
-        title = Text("After the election, who gets helped?", font_size=46, weight=BOLD)
+        title = Text("After the election, who gets helped?", font_size=FONT_TITLE, weight=BOLD)
         underline = Line(title.get_corner(DOWN + LEFT), title.get_corner(DOWN + RIGHT), color=ACCENT, stroke_width=5)
         underline.shift(DOWN * 0.25)
         sub = Text(
             "A simulation of four ways to pick a leader \u2014 and what each does to the losers",
-            font_size=26,
+            font_size=FONT_SECONDARY,
             color=MUTED,
-        ).next_to(underline, DOWN, buff=0.45)
+        ).next_to(underline, DOWN, buff=LINE_BUFF)
         # FadeIn instead of Write throughout: Write's partially-stroked Pango
         # glyphs read as rendering glitches after social-media compression.
         self.play(FadeIn(title, shift=UP * 0.25), run_time=1)
@@ -135,13 +152,15 @@ class ConsensusOverview(Scene):
         self._clear()
 
     def _question(self):
-        line1 = Text("Every election creates winners \u2014 and losers.", font_size=34, weight=BOLD)
+        line1 = Text("Every election creates winners \u2014 and losers.", font_size=FONT_STATEMENT, weight=BOLD)
         line2 = Text(
             "Does how we pick the winner change how the losers are treated?",
-            font_size=30,
+            font_size=FONT_BODY,
             t2c={"how we pick": ACCENT},
-        ).next_to(line1, DOWN, buff=0.55)
-        line3 = Text("We built a simulation to find out.", font_size=24, color=MUTED).next_to(line2, DOWN, buff=0.7)
+        ).next_to(line1, DOWN, buff=LINE_BUFF)
+        line3 = Text("We built a simulation to find out.", font_size=FONT_SECONDARY, color=MUTED).next_to(
+            line2, DOWN, buff=LINE_BUFF
+        )
         VGroup(line1, line2, line3).move_to([0, 0.2, 0])
         self.play(FadeIn(self._kicker("The question")), FadeIn(line1), run_time=1)
         self.wait(1.2)
@@ -165,7 +184,7 @@ class ConsensusOverview(Scene):
                 for x, y in rng.normal([-1.4, -1.2], 0.75, size=(70, 2))
             ]
         )
-        caption = Text("400 voters, split into rival blocs", font_size=30).to_edge(RIGHT, buff=0.8).shift(UP * 1.6)
+        caption = Text("400 voters, split into rival blocs", font_size=FONT_BODY).to_edge(RIGHT, buff=0.8).shift(UP * 1.6)
         self.play(
             FadeIn(self._kicker("The setup")),
             FadeIn(bloc_a, lag_ratio=0.01),
@@ -183,24 +202,23 @@ class ConsensusOverview(Scene):
         )
         caption2 = Text(
             "8 candidates \u2014 each with a platform\nand a hidden loyalty trait \u03bb",
-            font_size=30,
+            font_size=FONT_BODY,
+            line_spacing=0.9,
             t2c={"\u03bb": ACCENT},
-        ).next_to(caption, DOWN, buff=0.7)
+        ).next_to(caption, DOWN, buff=LINE_BUFF)
         self.play(FadeIn(stars, lag_ratio=0.1), FadeIn(caption2), run_time=1.6)
         self.wait(2)
 
+        # One shared label size for all five boxes: mixed sizes within the same
+        # row read as a typography mistake.
         boxes = VGroup()
         for name in PROJECT_NAMES:
             box = RoundedRectangle(corner_radius=0.12, width=2.4, height=0.8, color=MUTED)
-            # Re-create long labels at a smaller font size (scaling collapses word gaps).
-            label = Text(name, font_size=20)
-            if label.width > box.width - 0.3:
-                label = Text(name, font_size=15)
-            label.move_to(box)
+            label = Text(name, font_size=FONT_BOX_LABEL).move_to(box)
             boxes.add(VGroup(box, label))
         boxes.arrange(RIGHT, buff=0.25).to_edge(DOWN, buff=0.6)
-        caption3 = Text("The winner splits one fixed budget across 5 projects", font_size=28).next_to(
-            boxes, UP, buff=0.5
+        caption3 = Text("The winner splits one fixed budget across 5 projects", font_size=FONT_BODY).next_to(
+            boxes, UP, buff=LINE_BUFF
         )
         # Dim the setup scatter so the caption stays readable over the blue cluster.
         self.play(
@@ -214,21 +232,21 @@ class ConsensusOverview(Scene):
         self._clear()
 
     def _rule(self):
-        header = Text("The winner's spending rule", font_size=38, weight=BOLD).to_edge(UP, buff=0.9)
+        header = Text("The winner's spending rule", font_size=FONT_HEADER, weight=BOLD).to_edge(UP, buff=HEADER_BUFF)
         formula = Text(
             "allocation  =  \u03bb \u00b7 help my supporters  +  (1\u2212\u03bb) \u00b7 help everyone",
-            font_size=32,
+            font_size=FONT_BODY,
             t2c={"\u03bb": ACCENT},
         )
         formula_box = SurroundingRectangle(formula, corner_radius=0.15, buff=0.35, color=ACCENT, stroke_width=2)
         legend = Text(
             "\u03bb = 1  \u2192  serve only your own voters        \u03bb = 0  \u2192  serve the whole town",
-            font_size=26,
+            font_size=FONT_SECONDARY,
             color=MUTED,
             t2c={"\u03bb": ACCENT},
-        ).next_to(formula_box, DOWN, buff=0.7)
-        warning = Text("Voters never see \u03bb on the ballot.", font_size=26, t2c={"\u03bb": ACCENT}).next_to(
-            legend, DOWN, buff=0.7
+        ).next_to(formula_box, DOWN, buff=LINE_BUFF)
+        warning = Text("Voters never see \u03bb on the ballot.", font_size=FONT_SECONDARY, t2c={"\u03bb": ACCENT}).next_to(
+            legend, DOWN, buff=LINE_BUFF
         )
         self.play(FadeIn(self._kicker("The rule")), FadeIn(header))
         self.play(FadeIn(formula, shift=UP * 0.2), run_time=1)
@@ -241,18 +259,18 @@ class ConsensusOverview(Scene):
         self._clear()
 
     def _paradigms(self):
-        header = Text("Four ways to pick the winner", font_size=38, weight=BOLD).to_edge(UP, buff=0.7)
+        header = Text("Four ways to pick the winner", font_size=FONT_HEADER, weight=BOLD).to_edge(UP, buff=HEADER_BUFF)
         cards = VGroup()
         for name, color in PARADIGM_COLORS.items():
-            title = Text(name.replace("_", " "), font_size=28, weight=BOLD, color=color)
-            body = Text(PARADIGM_ONE_LINERS[name], font_size=22, color=MUTED, line_spacing=0.9)
+            title = Text(name.replace("_", " "), font_size=FONT_SECONDARY, weight=BOLD, color=color)
+            body = Text(PARADIGM_ONE_LINERS[name], font_size=FONT_LABEL, color=MUTED, line_spacing=0.9)
             box = RoundedRectangle(
                 corner_radius=0.15, width=5.6, height=2.2, color=color, fill_color=color, fill_opacity=0.08
             )
             title.move_to(box.get_top() + DOWN * 0.5)
             body.move_to(box.get_center() + DOWN * 0.35)
             cards.add(VGroup(box, title, body))
-        cards.arrange_in_grid(rows=2, cols=2, buff=0.45).next_to(header, DOWN, buff=0.55)
+        cards.arrange_in_grid(rows=2, cols=2, buff=0.45).next_to(header, DOWN, buff=LINE_BUFF)
         self.play(FadeIn(self._kicker("The contenders")), FadeIn(header))
         self.play(LaggedStart(*[FadeIn(c, shift=UP * 0.3) for c in cards], lag_ratio=0.3), run_time=3)
         self.wait(3)
@@ -260,8 +278,8 @@ class ConsensusOverview(Scene):
 
     def _results(self):
         header = Text(
-            "Result: how well do non-supporters do?", font_size=36, weight=BOLD
-        ).to_edge(UP, buff=0.7)
+            "Result: how well do non-supporters do?", font_size=FONT_HEADER, weight=BOLD
+        ).to_edge(UP, buff=HEADER_BUFF)
         self.play(FadeIn(self._kicker("The result")), FadeIn(header))
 
         rows = VGroup()
@@ -280,13 +298,15 @@ class ConsensusOverview(Scene):
                 fill_opacity=0.85,
                 stroke_width=0,
             ).move_to([bar_left, y, 0], aligned_edge=LEFT)
-            label = Text(name.replace("_", " "), font_size=26, color=color, weight=BOLD)
+            label = Text(name.replace("_", " "), font_size=FONT_SECONDARY, color=color, weight=BOLD)
             label.next_to(bar.get_left(), LEFT, buff=0.4)
             # Pango-based count-up (DecimalNumber would require LaTeX); the number
             # rides the tip of its bar while both animate.
             tracker = ValueTracker(0.0)
             number = always_redraw(
-                lambda b=bar, t=tracker: Text(f"{t.get_value():.3f}", font_size=24).next_to(b, RIGHT, buff=0.3)
+                lambda b=bar, t=tracker: Text(f"{t.get_value():.3f}", font_size=FONT_LABEL).next_to(
+                    b, RIGHT, buff=0.3
+                )
             )
             trackers.append(tracker)
             rows.add(VGroup(label, bar, number))
@@ -315,7 +335,7 @@ class ConsensusOverview(Scene):
         # Data-driven headline stat: how much better electoral losers do under the
         # best consensus rule than under party selection.
         pct_gain = (values["latent_match"] - values["party"]) / values["party"]
-        chip_text = Text(f"+{pct_gain:.0%} vs party", font_size=20, weight=BOLD, color=BACKGROUND)
+        chip_text = Text(f"+{pct_gain:.0%} vs party", font_size=FONT_SMALL, weight=BOLD, color=BACKGROUND)
         chip_box = RoundedRectangle(
             corner_radius=0.12,
             width=chip_text.width + 0.45,
@@ -330,9 +350,9 @@ class ConsensusOverview(Scene):
 
         footnote = Text(
             "average benefit to voters who did NOT back the winner (250 simulated elections per rule)",
-            font_size=22,
+            font_size=FONT_CAPTION,
             color=MUTED,
-        ).to_edge(DOWN, buff=0.9)
+        ).to_edge(DOWN, buff=EDGE_BUFF)
         self.play(FadeIn(footnote))
         self.wait(2.0)
         self.play(FadeOut(footnote))
@@ -340,7 +360,7 @@ class ConsensusOverview(Scene):
         lam_line = Text(
             f"Winners' loyalty: \u03bb \u2248 {_format_range(self.numbers.lambda_winner.values())} "
             "under every rule \u2014 no rule picked kinder people.",
-            font_size=24,
+            font_size=FONT_LABEL,
             t2c={"\u03bb": ACCENT},
         ).to_edge(DOWN, buff=1.2)
         self.play(FadeIn(lam_line))
@@ -348,8 +368,8 @@ class ConsensusOverview(Scene):
 
         correlated = (self.numbers.lambda_correlated[name] for name in ("score", "latent_match"))
         twist = Text(
-            f"Twist: if platforms reveal loyalty, score & latent match elect \u03bb \u2248 {_format_range(correlated)} winners.",
-            font_size=23,
+            f"Twist: if platforms hint at \u03bb, score & latent match elect \u03bb \u2248 {_format_range(correlated)} winners.",
+            font_size=FONT_LABEL,
             t2c={"\u03bb": ACCENT},
         ).to_edge(DOWN, buff=0.55)
         self.play(FadeIn(twist))
@@ -357,14 +377,14 @@ class ConsensusOverview(Scene):
         self._clear()
 
     def _takeaway(self):
-        line1 = Text("Selection rules didn't pick kinder winners \u2014", font_size=36, weight=BOLD)
-        line2 = Text("they changed who the winner owes.", font_size=36, weight=BOLD, color=ACCENT)
-        line2.next_to(line1, DOWN, buff=0.4)
+        line1 = Text("Selection rules didn't pick kinder winners \u2014", font_size=FONT_STATEMENT, weight=BOLD)
+        line2 = Text("they changed who the winner owes.", font_size=FONT_STATEMENT, weight=BOLD, color=ACCENT)
+        line2.next_to(line1, DOWN, buff=LINE_BUFF)
         credit = Text(
             "AgentFarm \u00b7 consensus experiment \u00b7 seeded & reproducible",
-            font_size=22,
+            font_size=FONT_CAPTION,
             color=MUTED,
-        ).to_edge(DOWN, buff=0.8)
+        ).to_edge(DOWN, buff=EDGE_BUFF)
         self.play(FadeIn(line1, shift=UP * 0.2), run_time=0.9)
         self.wait(0.7)
         self.play(FadeIn(line2, shift=UP * 0.2), run_time=0.9)
