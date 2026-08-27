@@ -14,6 +14,7 @@ RFC-style design notes for AgentFarm subsystems. These describe intent and evolu
 | [Crossover search space](crossover_search_space.md) | **Accepted** | Neural crossover + fine-tune search dimensions |
 | [Crossover strategies](crossover_strategies.md) | **Accepted** | Parent blending semantics and PTQ loading |
 | [Distill / quantize / crossover / fine-tune](distill_quantize_crossover_finetune.md) | **Accepted** | End-to-end neural recombination pipeline |
+| [On-chain run provenance](onchain_run_provenance.md) | **Proposed** | FarmNotary adapter: hash official artifacts, optional CID + chain stamp |
 | [Architectural recommendations](architectural-recommendations.md) | **Reference** | Historical architecture review notes |
 
 ## Status key
@@ -26,4 +27,5 @@ RFC-style design notes for AgentFarm subsystems. These describe intent and evolu
 
 - [Architecture overview](../concepts/architecture.md)
 - [Neural recombination guide](../guides/neural-recombination.md)
+- [FarmNotary guide](../guides/farm-notary.md)
 - [Research devlog](../research/devlog/index.md)
