@@ -72,6 +72,17 @@ def test_zero_supporters_falls_back_to_everyone_direction() -> None:
     )
 
 
+def test_animation_renders_mp4(tmp_path) -> None:
+    from matplotlib.animation import FFMpegWriter
+
+    if not FFMpegWriter.isAvailable():
+        pytest.skip("ffmpeg not available")
+    from farm.experiments.consensus.animate import render_animation
+
+    out = render_animation(tmp_path / "anim.mp4", voters=60, n_candidates=4, seed=1, fps=2)
+    assert out.exists() and out.stat().st_size > 0
+
+
 def test_benefits_are_normalized_rows() -> None:
     rng = np.random.default_rng(3)
     for population_type in ("one_cluster", "two_cluster", "three_cluster", "rural_town"):

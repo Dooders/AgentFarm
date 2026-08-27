@@ -10,6 +10,11 @@ Sweep across populations and candidate counts:
 
     python run_experiment.py sweep --trials 100 \
         --populations two_cluster,three_cluster,rural_town --candidates 6,8,12
+
+Render a social-media MP4 of one trial's dynamic (requires ffmpeg):
+
+    python run_experiment.py animate --seed 0 --trial 0 \
+        --out results/consensus_media/consensus_dynamics.mp4
 """
 
 import argparse
@@ -79,6 +84,26 @@ def _build_sweep_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_animate_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog=f"{Path(sys.argv[0]).name} animate",
+        description="Render an MP4 animation of one trial under every paradigm (for social media).",
+    )
+    parser.add_argument("--voters", type=int, default=400, help="Voters in the animated trial")
+    parser.add_argument("--candidates", type=int, default=8, help="Candidates in the animated trial")
+    parser.add_argument("--population", choices=POPULATION_TYPES, default="two_cluster")
+    parser.add_argument("--seed", type=int, default=0, help="Base seed (same stream as the experiment)")
+    parser.add_argument("--trial", type=int, default=0, help="Trial index to animate")
+    parser.add_argument("--fps", type=int, default=30, help="Frames per second")
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("results/consensus_media/consensus_dynamics.mp4"),
+        help="Output MP4 path",
+    )
+    return parser
+
+
 def _base_config(args: argparse.Namespace, candidates: int, population: str) -> ExperimentConfig:
     return ExperimentConfig(
         trials=args.trials,
@@ -103,6 +128,22 @@ def _print_summary(trials: pd.DataFrame, out_dir: Path) -> None:
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     command = "python run_experiment.py " + " ".join(argv)
+
+    if argv and argv[0] == "animate":
+        from farm.experiments.consensus.animate import render_animation
+
+        args = _build_animate_parser().parse_args(argv[1:])
+        path = render_animation(
+            out_path=args.out,
+            voters=args.voters,
+            n_candidates=args.candidates,
+            population_type=args.population,
+            seed=args.seed,
+            trial=args.trial,
+            fps=args.fps,
+        )
+        print(f"Animation written to {path}")
+        return 0
 
     if argv and argv[0] == "sweep":
         args = _build_sweep_parser().parse_args(argv[1:])
