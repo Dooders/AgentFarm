@@ -38,7 +38,6 @@ from manim import (
     Text,
     ValueTracker,
     VGroup,
-    Write,
     always_redraw,
     tempconfig,
 )
@@ -102,6 +101,7 @@ class ConsensusOverview(Scene):
 
     def construct(self):
         self._title_card()
+        self._question()
         self._world()
         self._rule()
         self._paradigms()
@@ -125,10 +125,30 @@ class ConsensusOverview(Scene):
             font_size=26,
             color=MUTED,
         ).next_to(underline, DOWN, buff=0.45)
-        self.play(Write(title), run_time=1.4)
+        # FadeIn instead of Write throughout: Write's partially-stroked Pango
+        # glyphs read as rendering glitches after social-media compression.
+        self.play(FadeIn(title, shift=UP * 0.25), run_time=1)
+        self.wait(0.4)
         self.play(Create(underline), run_time=0.6)
         self.play(FadeIn(sub), run_time=1)
         self.wait(2.2)
+        self._clear()
+
+    def _question(self):
+        line1 = Text("Every election creates winners \u2014 and losers.", font_size=34, weight=BOLD)
+        line2 = Text(
+            "Does how we pick the winner change how the losers are treated?",
+            font_size=30,
+            t2c={"how we pick": ACCENT},
+        ).next_to(line1, DOWN, buff=0.55)
+        line3 = Text("We built a simulation to find out.", font_size=24, color=MUTED).next_to(line2, DOWN, buff=0.7)
+        VGroup(line1, line2, line3).move_to([0, 0.2, 0])
+        self.play(FadeIn(self._kicker("The question")), FadeIn(line1), run_time=1)
+        self.wait(1.2)
+        self.play(FadeIn(line2), run_time=1)
+        self.wait(1.6)
+        self.play(FadeIn(line3), run_time=0.8)
+        self.wait(1.2)
         self._clear()
 
     def _world(self):
@@ -211,7 +231,8 @@ class ConsensusOverview(Scene):
             legend, DOWN, buff=0.7
         )
         self.play(FadeIn(self._kicker("The rule")), FadeIn(header))
-        self.play(Write(formula), run_time=2.2)
+        self.play(FadeIn(formula, shift=UP * 0.2), run_time=1)
+        self.wait(1.2)
         self.play(Create(formula_box), run_time=0.6)
         self.play(FadeIn(legend), run_time=0.8)
         self.wait(1.0)
@@ -308,7 +329,7 @@ class ConsensusOverview(Scene):
         self.play(FadeIn(chip, shift=LEFT * 0.25), run_time=0.8)
 
         footnote = Text(
-            "mean utility of voters who did NOT back the winner (250 seeded trials)",
+            "average benefit to voters who did NOT back the winner (250 simulated elections per rule)",
             font_size=22,
             color=MUTED,
         ).to_edge(DOWN, buff=0.9)
@@ -327,7 +348,7 @@ class ConsensusOverview(Scene):
 
         correlated = (self.numbers.lambda_correlated[name] for name in ("score", "latent_match"))
         twist = Text(
-            f"Twist: if platforms reveal loyalty, consensus rules elect \u03bb \u2248 {_format_range(correlated)} winners.",
+            f"Twist: if platforms reveal loyalty, score & latent match elect \u03bb \u2248 {_format_range(correlated)} winners.",
             font_size=23,
             t2c={"\u03bb": ACCENT},
         ).to_edge(DOWN, buff=0.55)
@@ -344,8 +365,10 @@ class ConsensusOverview(Scene):
             font_size=22,
             color=MUTED,
         ).to_edge(DOWN, buff=0.8)
-        self.play(Write(line1), run_time=1.6)
-        self.play(Write(line2), run_time=1.6)
+        self.play(FadeIn(line1, shift=UP * 0.2), run_time=0.9)
+        self.wait(0.7)
+        self.play(FadeIn(line2, shift=UP * 0.2), run_time=0.9)
+        self.wait(0.7)
         self.play(FadeIn(credit))
         self.wait(3)
 
