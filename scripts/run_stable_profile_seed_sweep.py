@@ -89,7 +89,7 @@ from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
     IntrinsicEvolutionPolicy,
     SpeciationConfig,
 )
-from farm.runners.intrinsic_evolution_checkpoint import has_resumable_checkpoint
+from farm.runners.intrinsic_evolution_checkpoint import has_resumable_checkpoint  # noqa: E402
 from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
 DEFAULT_SEEDS: List[int] = [42, 7, 19, 101, 137, 256]
