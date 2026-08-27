@@ -16,9 +16,14 @@ def farm_notary_available() -> bool:
 
 
 def _git_sha() -> Optional[str]:
+    """Return the HEAD SHA of the AgentFarm checkout, or None."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    if not (repo_root / ".git").exists():
+        return None
     try:
         out = subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
             stderr=subprocess.DEVNULL,
             text=True,
         )
@@ -47,7 +52,8 @@ def notarize_run_dir(
     from farm_notary.manifest import build_manifest, write_manifest
 
     run_dir = Path(run_dir)
-    run_dir.mkdir(parents=True, exist_ok=True)
+    if not run_dir.is_dir():
+        raise FileNotFoundError(f"run_dir does not exist: {run_dir}")
     manifest = build_manifest(
         run_dir,
         config=config,

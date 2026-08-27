@@ -74,13 +74,19 @@ def run_once(paradigm: str, n_voters: int, n_cand: int, seed: int, lambda_cap: f
     if paradigm == "party":
         vote_party = _nearest(prefs, pplat)
         nominees = []
+        taken: set[int] = set()
         for p in (0, 1):
             members = np.where(party_id == p)[0]
             if len(members) == 0:
-                members = np.array([p % n_cand])
-            nominees.append(
-                int(members[np.argmin(np.linalg.norm(cplat[members] - pplat[p], axis=1))])
-            )
+                available = [i for i in range(n_cand) if i not in taken]
+                if not available:
+                    raise ValueError("Not enough distinct candidates to nominate one per party.")
+                dists = np.linalg.norm(cplat[available] - pplat[p], axis=1)
+                nom = available[int(np.argmin(dists))]
+            else:
+                nom = int(members[np.argmin(np.linalg.norm(cplat[members] - pplat[p], axis=1))])
+            nominees.append(nom)
+            taken.add(nom)
         tally = np.bincount(vote_party, minlength=2)
         win_party = int(tally.argmax())
         winner = nominees[win_party]

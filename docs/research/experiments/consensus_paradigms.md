@@ -34,7 +34,7 @@ Prototype orientation (two clusters, 250 trials): total welfare and `λ_winner` 
 
 ## Official record
 
-Notarize `summary.csv`, `trials.csv`, and allocations. Do not notarize per-voter choices.
+Notarize `summary.csv` and `trials.csv`. Do not notarize per-voter choices or per-winner allocations.
 
 ## Quick start
 
