@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import List, Sequence
+from typing import Sequence
 
 import numpy as np
 import pandas as pd
