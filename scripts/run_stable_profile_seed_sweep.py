@@ -89,6 +89,7 @@ from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
     IntrinsicEvolutionPolicy,
     SpeciationConfig,
 )
+from farm.runners.intrinsic_evolution_checkpoint import has_resumable_checkpoint  # noqa: E402
 from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
 DEFAULT_SEEDS: List[int] = [42, 7, 19, 101, 137, 256]
@@ -136,11 +137,22 @@ def _read_completed_steps(run_dir: Path) -> Optional[int]:
 
 
 def _prepare_run_dir_for_resume(run_dir: Path, num_steps: int, resume: bool) -> None:
-    """Drop partial artifacts from interrupted runs so ``--resume`` can restart cleanly."""
+    """Drop partial artifacts from interrupted runs so ``--resume`` can restart cleanly.
+
+    Incomplete dirs that contain a valid mid-run checkpoint are kept so the
+    intrinsic-evolution runner can continue from the last durable step.
+    """
     if not resume or not run_dir.is_dir():
         return
     completed = _read_completed_steps(run_dir)
     if completed is not None and completed >= num_steps:
+        return
+    if has_resumable_checkpoint(str(run_dir), num_steps):
+        print(
+            f"  Keeping incomplete run dir {run_dir} for checkpoint resume "
+            f"(completed={completed}, target={num_steps})",
+            file=sys.stderr,
+        )
         return
     if any(run_dir.iterdir()):
         print(
@@ -193,6 +205,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-steps", type=int, default=1000)
     parser.add_argument("--warmup-steps", type=int, default=200)
     parser.add_argument("--snapshot-interval", type=int, default=50)
+    parser.add_argument(
+        "--checkpoint-interval",
+        type=int,
+        default=None,
+        help=(
+            "Mid-run checkpoint cadence in steps (default: same as "
+            "--snapshot-interval). Use a small value on Spot VMs."
+        ),
+    )
     parser.add_argument(
         "--population",
         type=int,
@@ -306,7 +327,9 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Skip per-(profile, seed) runs whose output directory already contains "
-            "a completed metadata file with num_steps_completed >= --num-steps."
+            "a completed metadata file with num_steps_completed >= --num-steps. "
+            "Incomplete dirs with a mid-run checkpoint are kept and continued; "
+            "other incomplete dirs are removed and restarted."
         ),
     )
     parser.add_argument(
@@ -381,12 +404,14 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
     exp_config = IntrinsicEvolutionExperimentConfig(
         num_steps=args.num_steps,
         snapshot_interval=args.snapshot_interval,
+        checkpoint_interval=getattr(args, "checkpoint_interval", None),
         install_default_initial_diversity=True,
         initial_conditions=initial_conditions,
         policy=policy,
         speciation=speciation,
         output_dir=str(run_dir),
         seed=seed,
+        resume=bool(getattr(args, "resume", False)),
     )
     return IntrinsicEvolutionExperiment(base_config, exp_config)
 

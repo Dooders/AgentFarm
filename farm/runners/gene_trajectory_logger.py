@@ -132,6 +132,7 @@ class GeneTrajectoryLogger:
         output_dir: Optional[str],
         snapshot_interval: int,
         *,
+        append: bool = False,
         enable_speciation: bool = False,
         clustering_interval: Optional[int] = None,
         speciation_algorithm: str = "gmm",
@@ -244,20 +245,21 @@ class GeneTrajectoryLogger:
 
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
+            file_mode = "a" if append else "w"
             self._trajectory_handle = open(
                 os.path.join(output_dir, self.TRAJECTORY_FILENAME),
-                "w",
+                file_mode,
                 encoding="utf-8",
             )
             self._snapshot_handle = open(
                 os.path.join(output_dir, self.SNAPSHOT_FILENAME),
-                "w",
+                file_mode,
                 encoding="utf-8",
             )
             if enable_speciation:
                 self._cluster_lineage_handle = open(
                     os.path.join(output_dir, self.CLUSTER_LINEAGE_FILENAME),
-                    "w",
+                    file_mode,
                     encoding="utf-8",
                 )
 
@@ -493,6 +495,35 @@ class GeneTrajectoryLogger:
                 RuntimeWarning,
                 stacklevel=4,
             )
+
+    def flush(self) -> None:
+        """Flush open JSONL handles so a checkpoint sees durable telemetry."""
+        for attr in ("_trajectory_handle", "_snapshot_handle", "_cluster_lineage_handle"):
+            handle = getattr(self, attr)
+            if handle is not None:
+                try:
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                except Exception:
+                    pass
+
+    def export_state(self) -> Dict[str, Any]:
+        """Return speciation bookkeeping needed to resume append-mode logging."""
+        return {
+            "cached_speciation_index": float(self._cached_speciation_index),
+            "cached_speciation_quality": self._cached_speciation_quality,
+            "prev_cluster_records": list(self._prev_cluster_records),
+            "cluster_id_counter": int(self._cluster_id_counter),
+        }
+
+    def import_state(self, state: Optional[Dict[str, Any]]) -> None:
+        """Restore speciation bookkeeping from :meth:`export_state`."""
+        if not state:
+            return
+        self._cached_speciation_index = float(state.get("cached_speciation_index", 0.0) or 0.0)
+        self._cached_speciation_quality = state.get("cached_speciation_quality")
+        self._prev_cluster_records = list(state.get("prev_cluster_records") or [])
+        self._cluster_id_counter = int(state.get("cluster_id_counter", 0) or 0)
 
     def close(self) -> None:
         """Flush and close all file handles; safe to call multiple times."""

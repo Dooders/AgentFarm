@@ -16,7 +16,9 @@ import json
 import math
 import os
 import random
+import signal
 from dataclasses import asdict, dataclass, field
+from types import FrameType
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from farm.config import SimulationConfig
@@ -42,6 +44,14 @@ from farm.core.policy_inheritance import (
 )
 from farm.core.simulation import run_simulation
 from farm.runners.gene_trajectory_logger import GeneTrajectoryLogger, VALID_SCALERS
+from farm.runners.intrinsic_evolution_checkpoint import (
+    build_checkpoint_payload,
+    clear_checkpoint,
+    has_resumable_checkpoint,
+    load_checkpoint_payload,
+    restore_environment_from_checkpoint,
+    save_checkpoint,
+)
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -627,6 +637,7 @@ class IntrinsicEvolutionExperimentConfig:
 
     num_steps: int = 2000
     snapshot_interval: int = 100
+    checkpoint_interval: Optional[int] = None
     install_default_initial_diversity: bool = True
     initial_conditions: InitialConditionsConfig = field(
         default_factory=InitialConditionsConfig
@@ -635,12 +646,21 @@ class IntrinsicEvolutionExperimentConfig:
     speciation: SpeciationConfig = field(default_factory=SpeciationConfig)
     output_dir: Optional[str] = None
     seed: Optional[int] = None
+    resume: bool = False
 
     def __post_init__(self) -> None:
         if self.num_steps < 1:
             raise ValueError("num_steps must be at least 1.")
         if self.snapshot_interval < 1:
             raise ValueError("snapshot_interval must be at least 1.")
+        if self.checkpoint_interval is not None and self.checkpoint_interval < 1:
+            raise ValueError("checkpoint_interval must be at least 1 when set.")
+
+    def resolved_checkpoint_interval(self) -> int:
+        """Checkpoint cadence; defaults to ``snapshot_interval`` when unset."""
+        if self.checkpoint_interval is None:
+            return int(self.snapshot_interval)
+        return int(self.checkpoint_interval)
 
 
 @dataclass
@@ -681,18 +701,34 @@ class IntrinsicEvolutionExperiment:
         if self.config.output_dir:
             os.makedirs(self.config.output_dir, exist_ok=True)
 
+        policy = self.config.policy
+        resume_payload = None
+        resume_start_step = 0
+        if self.config.resume and self.config.output_dir and has_resumable_checkpoint(
+            self.config.output_dir, self.config.num_steps
+        ):
+            resume_payload = load_checkpoint_payload(self.config.output_dir)
+            if resume_payload is not None:
+                resume_start_step = int(resume_payload["logical_step"])
+                logger.info(
+                    "intrinsic_evolution_resuming_from_checkpoint",
+                    output_dir=self.config.output_dir,
+                    logical_step=resume_start_step,
+                )
+
         speciation = self.config.speciation
         gene_logger = GeneTrajectoryLogger(
             output_dir=self.config.output_dir,
             snapshot_interval=self.config.snapshot_interval,
+            append=resume_payload is not None,
             enable_speciation=speciation.enabled,
             speciation_algorithm=speciation.algorithm,
             speciation_max_k=speciation.max_k,
             speciation_seed=speciation.seed,
             speciation_scaler=speciation.scaler,
         )
-
-        policy = self.config.policy
+        if resume_payload is not None:
+            gene_logger.import_state(resume_payload.get("gene_logger_state"))
 
         # ── Apply initial-conditions overrides ───────────────────────────────
         # Resolve the effective initial-condition settings by merging the
@@ -739,15 +775,18 @@ class IntrinsicEvolutionExperiment:
         effective_warmup: int = int(resolved_ic.get("warmup_steps", 0))
         transient_window: int = int(resolved_ic.get("transient_window", 50))
         total_sim_steps = self.config.num_steps + effective_warmup
+        checkpoint_interval = self.config.resolved_checkpoint_interval()
 
         # The intrinsic-evolution runner relies on a non-monoculture starting
         # population.  When the caller has not customized the platform-wide
         # initial-diversity config, install the runner's defaults so seeding
         # happens inside run_simulation.  Boundary handling mirrors the
         # per-reproduction policy so seeded values respect the same invariants
-        # the policy enforces during the loop.
+        # the policy enforces during the loop.  Skip when resuming — the
+        # checkpoint already carries the live population.
         if (
-            self.config.install_default_initial_diversity
+            resume_payload is None
+            and self.config.install_default_initial_diversity
             and run_config.initial_diversity.mode is SeedingMode.NONE
         ):
             run_config.initial_diversity = InitialDiversityConfig(
@@ -760,7 +799,7 @@ class IntrinsicEvolutionExperiment:
                 seed=seed,
             )
 
-        latest_step = 0
+        latest_step = resume_start_step
         latest_population = 0
         latest_gene_statistics: Dict[str, Dict[str, float]] = {}
         latest_diversity_metrics: Optional[Any] = None
@@ -771,13 +810,65 @@ class IntrinsicEvolutionExperiment:
         _transient_birth_rates: List[float] = []
         _transient_death_rates: List[float] = []
         _transient_populations: List[int] = []
+        if resume_payload is not None:
+            transient = resume_payload.get("transient_state") or {}
+            _transient_birth_rates = list(transient.get("birth_rates") or [])
+            _transient_death_rates = list(transient.get("death_rates") or [])
+            _transient_populations = list(transient.get("populations") or [])
 
         # Track agent IDs from the previous step to compute birth/death rates.
         prev_agent_ids: set = set()
+        stop_requested = {"value": False}
 
         def _agent_telemetry_key(agent: Any) -> tuple:
             """Stable per-agent key: string id when set, else object identity."""
             return (getattr(agent, "agent_id", None), id(agent))
+
+        resume_environment = None
+        if resume_payload is not None:
+            resume_environment = restore_environment_from_checkpoint(
+                resume_payload,
+                config=run_config,
+                path=self.config.output_dir,
+                policy=policy,
+                policy_rng=rng,
+            )
+            prev_agent_ids = {
+                _agent_telemetry_key(a) for a in resume_environment.alive_agent_objects
+            }
+            latest_population = len(resume_environment.alive_agent_objects)
+
+        def _write_checkpoint(environment: Any, logical_step: int) -> None:
+            if not self.config.output_dir or logical_step <= 0:
+                return
+            if logical_step % checkpoint_interval != 0 and not stop_requested["value"]:
+                return
+            try:
+                gene_logger.flush()
+                payload = build_checkpoint_payload(
+                    environment=environment,
+                    logical_step=logical_step,
+                    num_steps_configured=self.config.num_steps,
+                    total_sim_steps=total_sim_steps,
+                    effective_warmup=effective_warmup,
+                    simulation_id=str(
+                        getattr(environment, "simulation_id", "intrinsic-evolution")
+                    ),
+                    policy_rng=rng,
+                    gene_logger_state=gene_logger.export_state(),
+                    transient_state={
+                        "birth_rates": list(_transient_birth_rates),
+                        "death_rates": list(_transient_death_rates),
+                        "populations": list(_transient_populations),
+                    },
+                )
+                save_checkpoint(self.config.output_dir, payload)
+            except Exception as exc:
+                logger.warning(
+                    "intrinsic_evolution_checkpoint_failed",
+                    logical_step=logical_step,
+                    error=str(exc),
+                )
 
         def _capture_current_state(environment: Any, step: int) -> None:
             """Capture the same state we emit to the trajectory logger.
@@ -803,6 +894,9 @@ class IntrinsicEvolutionExperiment:
             telemetry = getattr(environment, "inheritance_telemetry", None)
             if isinstance(telemetry, InheritanceTelemetry):
                 latest_inheritance_metrics = telemetry.to_dict()
+            _write_checkpoint(environment, step)
+            if stop_requested["value"]:
+                raise KeyboardInterrupt("checkpoint-and-stop requested")
 
         def _compute_step_telemetry(
             environment: Any, prev_ids: set
@@ -915,17 +1009,36 @@ class IntrinsicEvolutionExperiment:
 
             _capture_current_state(environment, step=logical_step)
 
+        previous_sigterm = signal.getsignal(signal.SIGTERM)
+        previous_sigint = signal.getsignal(signal.SIGINT)
+
+        def _request_stop(signum: int, frame: Optional[FrameType]) -> None:
+            stop_requested["value"] = True
+            logger.warning("intrinsic_evolution_stop_signal", signum=signum)
+
         try:
+            signal.signal(signal.SIGTERM, _request_stop)
+            signal.signal(signal.SIGINT, _request_stop)
             run_simulation(
                 num_steps=total_sim_steps,
                 config=run_config,
                 path=self.config.output_dir,
                 save_config=False,
                 seed=self.config.seed,
-                on_environment_ready=_on_environment_ready,
+                on_environment_ready=(
+                    None if resume_environment is not None else _on_environment_ready
+                ),
                 on_step_end=_on_step_end,
+                environment=resume_environment,
+                start_step=resume_start_step,
             )
+        except KeyboardInterrupt:
+            # Checkpoint already written in _capture_current_state when stop was
+            # requested; re-raise so the process exits without claiming completion.
+            raise
         finally:
+            signal.signal(signal.SIGTERM, previous_sigterm)
+            signal.signal(signal.SIGINT, previous_sigint)
             gene_logger.close()
 
         startup_transient_metrics = _compute_startup_transient_metrics(
@@ -951,6 +1064,8 @@ class IntrinsicEvolutionExperiment:
             resolved_initial_conditions=resolved_ic,
             inheritance_metrics=latest_inheritance_metrics,
         )
+        if self.config.output_dir:
+            clear_checkpoint(self.config.output_dir)
         logger.info(
             "intrinsic_evolution_completed",
             output_dir=self.config.output_dir,

@@ -8,6 +8,9 @@ artifacts, and (where available) results.
 
 > Looking for the generic multi-iteration runner instead of a specific
 > experiment? See [ExperimentRunner — Running Multi-Iteration Simulations](../guides/experiment-runner.md).
+>
+> Finished runs can be stamped with [FarmNotary](https://github.com/Dooders/FarmNotary)
+> (optional extra). See [Notarizing an AgentFarm run](../guides/farm-notary.md).
 
 ## Evolutionary dynamics
 
@@ -24,8 +27,8 @@ runs.
 
 - **Status:** Implemented and reproducible end-to-end.
 - **Runner:** `IntrinsicEvolutionExperiment`
-  ([`farm/runners/intrinsic_evolution_experiment.py`](../farm/runners/intrinsic_evolution_experiment.py))
-- **CLI:** [`scripts/run_intrinsic_evolution_experiment.py`](../scripts/run_intrinsic_evolution_experiment.py)
+  ([`farm/runners/intrinsic_evolution_experiment.py`](../../farm/runners/intrinsic_evolution_experiment.py))
+- **CLI:** [`scripts/run_intrinsic_evolution_experiment.py`](../../scripts/run_intrinsic_evolution_experiment.py)
 - **Docs:**
   - [Design and reference](experiments/intrinsic_evolution/intrinsic_evolution.md)
   - [10,000-step results](experiments/intrinsic_evolution/RESULTS.md)
@@ -41,8 +44,8 @@ that prevents lower-bound collapse, and the adaptive-mutation controller.
 
 - **Status:** Implemented and reproducible end-to-end.
 - **Runner:** `EvolutionExperiment`
-  ([`farm/runners/evolution_experiment.py`](../farm/runners/evolution_experiment.py))
-- **CLI:** [`scripts/run_evolution_experiment.py`](../scripts/run_evolution_experiment.py)
+  ([`farm/runners/evolution_experiment.py`](../../farm/runners/evolution_experiment.py))
+- **CLI:** [`scripts/run_evolution_experiment.py`](../../scripts/run_evolution_experiment.py)
 - **Docs:** [Hyperparameter Evolution Convergence](experiments/hyperparameter_evolution_convergence.md)
 
 ### Multi-Seed Cohort
@@ -54,8 +57,8 @@ single-run seed variance from configuration comparisons.
 
 - **Status:** Implemented and reproducible end-to-end.
 - **Runner:** `CohortRunner`
-  ([`farm/runners/cohort_runner.py`](../farm/runners/cohort_runner.py))
-- **CLI:** [`scripts/run_cohort_experiment.py`](../scripts/run_cohort_experiment.py)
+  ([`farm/runners/cohort_runner.py`](../../farm/runners/cohort_runner.py))
+- **CLI:** [`scripts/run_cohort_experiment.py`](../../scripts/run_cohort_experiment.py)
 - **Docs:** [Multi-Seed Cohort Runner](experiments/multi_seed_cohort.md)
 
 ## Agent cognition & architecture
@@ -115,6 +118,25 @@ dominant strategy.
   specified ahead of implementation.
 - **Docs:** [Design](experiments/rabbits_foot/Design.md)
 
+## Collective choice
+
+Experiments that vary how a population selects a steward and how that
+steward treats people who did not support them.
+
+### Consensus paradigms
+
+Compares party, individual, score, and latent-match selection on one
+budget-allocation task. Tests whether dropping party brands produces
+winners who serve non-supporters better. Official artifacts can be
+stamped with FarmNotary; individual choices stay off the record.
+
+- **Status:** Scaffold on `feat/onchain-run-provenance`.
+- **Runner:** `ConsensusParadigmsExperiment`
+  ([`farm/runners/consensus_paradigms_experiment.py`](../../farm/runners/consensus_paradigms_experiment.py))
+- **CLI:** [`scripts/run_consensus_paradigms_experiment.py`](../../scripts/run_consensus_paradigms_experiment.py)
+- **Docs:** [Consensus paradigms](experiments/consensus_paradigms.md)
+- **Notary:** [FarmNotary guide](../guides/farm-notary.md)
+
 ## Adding a new experiment
 
 When introducing a new experiment, follow the structure used by the
@@ -122,8 +144,8 @@ existing entries:
 
 1. **Create a runner** under `farm/runners/` (or extend an existing
    one). Mirror the patterns in
-   [`intrinsic_evolution_experiment.py`](../farm/runners/intrinsic_evolution_experiment.py)
-   or [`evolution_experiment.py`](../farm/runners/evolution_experiment.py).
+   [`intrinsic_evolution_experiment.py`](../../farm/runners/intrinsic_evolution_experiment.py)
+   or [`evolution_experiment.py`](../../farm/runners/evolution_experiment.py).
 2. **Add a CLI driver** under `scripts/run_<experiment>.py` so the
    experiment is reproducible from the command line.
 3. **Write documentation** under `docs/research/experiments/<experiment_name>/`
@@ -135,3 +157,5 @@ existing entries:
    references, and a link to the detailed documentation.
 5. **Add tests** under `tests/runners/` and/or `tests/analysis/` for any
    new runner, analysis function, or artifact schema.
+6. **Optional:** stamp official outputs with FarmNotary
+   (`scripts/notarize_run.py`). Do not include private choice files.

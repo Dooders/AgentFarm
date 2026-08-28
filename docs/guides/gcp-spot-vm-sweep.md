@@ -44,8 +44,12 @@ gcloud compute instances create agentfarm-sweep \
   --image-family=ubuntu-2404-lts-amd64 \
   --image-project=ubuntu-os-cloud \
   --boot-disk-size=20GB \
-  --boot-disk-type=pd-balanced
+  --boot-disk-type=pd-balanced \
+  --metadata=enable-guest-attributes=TRUE
 ```
+
+`enable-guest-attributes=TRUE` is required so the matrix orchestrator can publish
+live progress to guest attributes (readable **without SSH**).
 
 Verify it is up:
 
@@ -148,19 +152,62 @@ Each pressure level now runs 3 arms (`uniform`, `shared`, `unique`) x 20
 replicates x 600 steps. Budget roughly **3-5 hours** wall time for the full job;
 `analyze_...` runs automatically at the end.
 
-### 5. Monitor progress
+### 5. Monitor progress (prefer no SSH)
+
+**Why SSH keeps dying:** packing the VM with one worker per vCPU starves
+`sshd` / the guest agent. Under load, IAP can hang at the SSH banner even while
+the instance stays `RUNNING` and CPU looks only partially used. Status checks
+must not depend on an interactive shell.
+
+**Preferred — guest attributes (no SSH):**
 
 ```bash
-gcloud compute ssh agentfarm-sweep --zone=us-central1-a --tunnel-through-iap --command='
+# One-shot / watch loop from your laptop
+python scripts/check_gcp_matrix_status.py
+python scripts/check_gcp_matrix_status.py --watch 60
+```
+
+Or raw `gcloud`:
+
+```bash
+gcloud compute instances get-guest-attributes agentfarm-sweep \
+  --zone=us-central1-a \
+  --query-path=status/matrix \
+  --format=get(value)
+```
+
+The matrix orchestrator (`scripts/run_intrinsic_evolution_matrix.py`) writes
+`matrix_live_status.json` under the output dir and mirrors a compact copy to
+guest attribute `status/matrix` on a heartbeat (default 60s) and after each
+job completes.
+
+**SSH headroom when launching the matrix:** leave a core free and nice workers
+(defaults already do this: `--jobs` = `nproc - 1`, children `nice +10`):
+
+```bash
+# On the VM (example)
+python scripts/run_intrinsic_evolution_matrix.py \
+  --jobs $(( $(nproc) - 1 )) \
+  --disk-database --resume \
+  --output-dir experiments/intrinsic_matrix
+```
+
+**Legacy SSH peek** (may time out under load — use only as fallback):
+
+```bash
+gcloud compute ssh agentfarm-sweep --zone=us-central1-a --tunnel-through-iap \
+  --ssh-flag='-o ConnectTimeout=15' --command='
 tail -3 ~/AgentFarm/experiments/sweep_master.log
 pgrep -c -f run_intrinsic_goals_experiment.py
 ls ~/AgentFarm/experiments/intrinsic_goals_sweep_*/intrinsic_goals_summary.json 2>/dev/null || echo summaries_not_ready
 '
 ```
 
-The job is finished when `DONE` appears in `sweep_master.log` and
-`combined_comparison.md` / `intrinsic_goals_pressure_sweep.png` exist under
-`experiments/`.
+For older intrinsic-goals sweeps, the job is finished when `DONE` appears in
+`sweep_master.log` and `combined_comparison.md` /
+`intrinsic_goals_pressure_sweep.png` exist under `experiments/`. For the
+population matrix, finish when `check_gcp_matrix_status.py` shows
+`n_pending: 0` and `note: finished`.
 
 ### 6. Pull results back to your local machine
 
@@ -186,6 +233,12 @@ gcloud compute disks list
 
 ### Gotchas
 
+- **SSH under load is unreliable:** do not use SSH as the primary status channel.
+  Enable guest attributes at create time, leave one vCPU free (`--jobs nproc-1`),
+  and poll with `scripts/check_gcp_matrix_status.py`. If you forgot guest
+  attributes on an existing VM:
+  `gcloud compute instances add-metadata agentfarm-sweep --metadata=enable-guest-attributes=TRUE`
+  (then restart the matrix process so it can publish).
 - **IAP tunnel:** if `ssh`/`scp` hangs, use `--tunnel-through-iap` on every
   command (see step 1). Add connect timeouts so a flaky tunnel fails fast
   instead of hanging: `--ssh-flag='-o ConnectTimeout=15'` for `ssh`, and

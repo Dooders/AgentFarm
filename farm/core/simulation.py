@@ -338,6 +338,8 @@ def run_simulation(
     disable_console_logging: bool = False,
     on_environment_ready: Optional[Callable[[Environment], None]] = None,
     on_step_end: Optional[Callable[[Environment, int], None]] = None,
+    environment: Optional[Environment] = None,
+    start_step: int = 0,
 ) -> Environment:
     """
     Run the main simulation loop.
@@ -369,19 +371,34 @@ def run_simulation(
         Hook invoked after ``environment.update()`` at the end of each step,
         receiving the environment and the 0-based step index just completed.
         Exceptions raised by the hook propagate.
+    environment : Optional[Environment], optional
+        Pre-built environment to continue from. When provided, agent creation,
+        diversity seeding, and ``on_environment_ready`` are skipped and the
+        main loop starts at ``start_step``.
+    start_step : int, optional
+        0-based step index to begin the main loop at (inclusive). Used with a
+        restored ``environment`` for mid-run resume. Must be in ``[0, num_steps]``.
 
     Returns
     -------
     Environment
         The simulation environment after completion
     """
+    if start_step < 0:
+        raise ValueError("start_step must be non-negative.")
+    if start_step > num_steps:
+        raise ValueError("start_step cannot exceed num_steps.")
+
     # Generate simulation_id if not provided
     if simulation_id is None:
-        identity_service = identity if identity is not None else _shared_identity
-        simulation_id = str(identity_service.simulation_id())
+        if environment is not None and getattr(environment, "simulation_id", None):
+            simulation_id = str(environment.simulation_id)
+        else:
+            identity_service = identity if identity is not None else _shared_identity
+            simulation_id = str(identity_service.simulation_id())
 
-    # Set seed for reproducibility if provided
-    if seed is not None:
+    # Set seed for reproducibility if provided (skip on resume — RNG restored separately)
+    if seed is not None and environment is None:
         # Store seed in config for future reference
         config.seed = seed
 
@@ -398,6 +415,8 @@ def run_simulation(
         simulation_id=simulation_id,
         seed=seed,
         num_steps=num_steps,
+        start_step=start_step,
+        resume=environment is not None,
         environment_size=(config.environment.width, config.environment.height),
     )
 
@@ -405,6 +424,86 @@ def run_simulation(
     start_time = datetime.now(timezone.utc)
 
     try:
+        if environment is not None:
+            # Mid-run resume: environment already holds agents/resources/policy.
+            perf_cfg = getattr(config, "performance", None)
+            defer_learning_training = bool(getattr(perf_cfg, "defer_learning_training", True))
+            raw_max_learning_updates = getattr(perf_cfg, "max_learning_updates_per_step", 0)
+            try:
+                parsed_max_learning_updates = int(raw_max_learning_updates)
+            except (TypeError, ValueError):
+                parsed_max_learning_updates = 0
+            max_learning_updates_per_step = parsed_max_learning_updates
+            environment.defer_learning_training = defer_learning_training
+            round_robin_cursor = 0
+
+            disable_tqdm = (
+                os.environ.get("CI", "").lower() in ("true", "1")
+                or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
+            )
+
+            for step in tqdm(
+                range(start_step, num_steps),
+                desc="Simulation progress",
+                unit="step",
+                disable=disable_tqdm,
+                initial=start_step,
+                total=num_steps,
+            ):
+                logger.debug("step_starting", step=step, total_steps=num_steps)
+                step_start_time = time.time()
+                alive_agents = environment.alive_agent_objects
+                if len(alive_agents) < 1:
+                    logger.info(
+                        "simulation_stopped_early",
+                        step=step,
+                        total_steps=num_steps,
+                        reason="no_agents_remaining",
+                    )
+                    break
+
+                batch_size = getattr(perf_cfg, "agent_processing_batch_size", 32)
+                for i in range(0, len(alive_agents), batch_size):
+                    batch = alive_agents[i : i + batch_size]
+                    for agent in batch:
+                        agent.act()
+
+                if defer_learning_training:
+                    updates_run = _run_deferred_learning_updates(
+                        environment=environment,
+                        max_updates=max_learning_updates_per_step,
+                        rr_cursor=round_robin_cursor,
+                    )
+                    round_robin_cursor += updates_run
+
+                if environment.db is not None:
+                    data_logger = environment.db.logger
+                    flush = getattr(data_logger, "flush_if_needed", None)
+                    if callable(flush):
+                        flush()
+                    else:
+                        data_logger.flush_all_buffers()
+
+                environment.update()
+                if on_step_end is not None:
+                    on_step_end(environment, step)
+
+                step_duration = time.time() - step_start_time
+                if step_duration > 1.0:
+                    logger.warning(
+                        "slow_step_detected",
+                        step=step,
+                        duration_seconds=round(step_duration, 3),
+                        agents_count=len(environment.agents),
+                        resources_count=len(environment.resources),
+                        threshold_seconds=1.0,
+                    )
+
+            environment.update()
+            if environment.db:
+                environment.db.logger.flush_all_buffers()
+            return environment
+
         # Set up database path (None if path is None)
         # Include simulation_id in filename to prevent conflicts between multiple simulations
         db_path = f"{path}/simulation_{simulation_id}.db" if path is not None else None
