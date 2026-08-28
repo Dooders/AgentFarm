@@ -156,7 +156,7 @@ def _paradigm_segment(fig, ax_scatter, ax_bars, caption, metrics, population, ca
 
     _draw_scatter(ax_scatter, population, candidates, outcome, revealed=False)
     _draw_bars(ax_bars, outcome, growth=0.0)
-    caption.set_text("400 voters (dots), 8 candidates (stars) — the same for every rule")
+    caption.set_text(f"{len(population)} voters (dots), {len(candidates)} candidates (stars) — the same for every rule")
     for _ in range(frames(INTRO_S)):
         writer.grab_frame()
 

@@ -87,19 +87,27 @@ class OverviewNumbers:
     loser_welfare: dict
     lambda_winner: dict
     lambda_correlated: dict
+    voters: int
+    n_candidates: int
+    trials: int
 
 
 def load_numbers(default_results: Path, correlated_results: Path) -> OverviewNumbers:
     """Read the displayed aggregates from two runs' summary.csv files."""
+    import json
 
     def by_paradigm(path: Path, column: str) -> dict:
         summary = pd.read_csv(path / "summary.csv")
         return dict(zip(summary["paradigm"], summary[column]))
 
+    run_config = json.loads((default_results / "run_config.json").read_text())
     return OverviewNumbers(
         loser_welfare=by_paradigm(default_results, "loser_welfare_mean"),
         lambda_winner=by_paradigm(default_results, "lambda_winner_mean"),
         lambda_correlated=by_paradigm(correlated_results, "lambda_winner_mean"),
+        voters=run_config["voters"],
+        n_candidates=run_config["candidates"],
+        trials=run_config["trials"],
     )
 
 
@@ -184,7 +192,7 @@ class ConsensusOverview(Scene):
                 for x, y in rng.normal([-1.4, -1.2], 0.75, size=(70, 2))
             ]
         )
-        caption = Text("400 voters, split into rival blocs", font_size=FONT_BODY).to_edge(RIGHT, buff=0.8).shift(UP * 1.6)
+        caption = Text(f"{self.numbers.voters} voters, split into rival blocs", font_size=FONT_BODY).to_edge(RIGHT, buff=0.8).shift(UP * 1.6)
         self.play(
             FadeIn(self._kicker("The setup")),
             FadeIn(bloc_a, lag_ratio=0.01),
@@ -201,7 +209,7 @@ class ConsensusOverview(Scene):
             ]
         )
         caption2 = Text(
-            "8 candidates \u2014 each with a platform\nand a hidden loyalty trait \u03bb",
+            f"{self.numbers.n_candidates} candidates \u2014 each with a platform\nand a hidden loyalty trait \u03bb",
             font_size=FONT_BODY,
             line_spacing=0.9,
             t2c={"\u03bb": ACCENT},
@@ -234,16 +242,16 @@ class ConsensusOverview(Scene):
     def _rule(self):
         header = Text("The winner's spending rule", font_size=FONT_HEADER, weight=BOLD).to_edge(UP, buff=HEADER_BUFF)
         formula = Text(
-            "allocation  =  \u03bb \u00b7 help my supporters  +  (1\u2212\u03bb) \u00b7 help everyone",
+            "allocation  =  0.72 · (λ · help my supporters  +  (1−λ) · help everyone)  +  0.28 · platform",
             font_size=FONT_BODY,
-            t2c={"\u03bb": ACCENT},
+            t2c={"λ": ACCENT},
         )
         formula_box = SurroundingRectangle(formula, corner_radius=0.15, buff=0.35, color=ACCENT, stroke_width=2)
         legend = Text(
-            "\u03bb = 1  \u2192  serve only your own voters        \u03bb = 0  \u2192  serve the whole town",
+            "λ = 1  →  directed share goes to supporters only        λ = 0  →  directed share goes to everyone",
             font_size=FONT_SECONDARY,
             color=MUTED,
-            t2c={"\u03bb": ACCENT},
+            t2c={"λ": ACCENT},
         ).next_to(formula_box, DOWN, buff=LINE_BUFF)
         warning = Text("Voters never see \u03bb on the ballot.", font_size=FONT_SECONDARY, t2c={"\u03bb": ACCENT}).next_to(
             legend, DOWN, buff=LINE_BUFF
@@ -349,7 +357,7 @@ class ConsensusOverview(Scene):
         self.play(FadeIn(chip, shift=LEFT * 0.25), run_time=0.8)
 
         footnote = Text(
-            "average benefit to voters who did NOT back the winner (250 simulated elections per rule)",
+            f"average benefit to voters who did NOT back the winner ({self.numbers.trials} simulated elections per rule)",
             font_size=FONT_CAPTION,
             color=MUTED,
         ).to_edge(DOWN, buff=EDGE_BUFF)

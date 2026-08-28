@@ -20,7 +20,7 @@ mechanics, or budget-allocation models.
 - Voter `i` has latent `prefs[i] ∈ R^5` and nonnegative `benefits[i]` summing to 1;
   utility of allocation `a` is `benefits[i] · a`.
 - Candidate `j` has platform `cplat[j] ∈ R^5` and loyalty `λ[j] ∈ [0, 1]`
-  (`λ = 1`: maximize supporter welfare only; `λ = 0`: maximize everyone's welfare).
+  (`λ = 1`: directed component steers toward supporters' mean benefit direction; `λ = 0`: directed component steers toward everyone's mean benefit direction).
 - Winner's allocation: `raw = λ·mean(benefits[supporters]) + (1−λ)·mean(benefits[all])`,
   then `raw = 0.72·raw + 0.28·clip(platform, 0, ∞)`, normalized. Zero supporters ⇒
   all-voter direction only.

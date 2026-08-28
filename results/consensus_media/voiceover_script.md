@@ -23,8 +23,7 @@ is which.
 
 ## [0:25–0:35] The rule (formula ~0:27, ballot line ~0:31)
 
-Lambda is loyalty. A loyal winner funnels the budget to the projects their
-voters love; a fair one spreads it evenly. Voters are choosing blind.
+Lambda is loyalty. A loyal winner funnels the directed 72% of the budget toward the projects their voters love; a fair one points that share at everyone. Either way, the platform captures 28%. Voters are choosing blind.
 
 ## [0:35–0:43] The contenders (cards land 0:36–0:39)
 

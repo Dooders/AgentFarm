@@ -20,6 +20,8 @@ def allocate(
     normalized to sum to 1. A winner with zero supporters uses the
     everyone-direction only.
     """
+    if not (np.isfinite(lam) and 0.0 <= lam <= 1.0):
+        raise ValueError(f"lam must be a finite value in [0, 1], got {lam!r}")
     dir_all = benefits.mean(axis=0)
     if supporters.any():
         dir_supporters = benefits[supporters].mean(axis=0)
