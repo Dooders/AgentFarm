@@ -101,8 +101,39 @@ def parse_seed_log_progress(log_path: Path) -> Optional[tuple[int, int, int]]:
     return int(match.group("pct")), int(match.group("cur")), int(match.group("total"))
 
 
-def scan_active_runs(output_dir: Path, *, limit: int = 16) -> list[ActiveRunProgress]:
-    """Scan recent seed logs under ``output_dir`` for tqdm progress."""
+def count_completed_seed_runs(output_dir: Path, num_steps: int) -> int:
+    """Count finished ``stable_*/seed_*`` runs under a matrix output directory.
+
+    A run counts as complete when ``intrinsic_evolution_metadata.json`` exists
+    and ``num_steps_completed >= num_steps``. This is the durable source of truth
+    for ``--resume`` progress (independent of master-log parsing).
+    """
+    if not output_dir.is_dir():
+        return 0
+    completed = 0
+    for meta_path in output_dir.glob("*/stable_*/seed_*/intrinsic_evolution_metadata.json"):
+        try:
+            with meta_path.open(encoding="utf-8") as handle:
+                meta = json.load(handle)
+            steps = meta.get("num_steps_completed")
+            if steps is not None and int(steps) >= int(num_steps):
+                completed += 1
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            continue
+    return completed
+
+
+def scan_active_runs(
+    output_dir: Path,
+    *,
+    limit: int = 16,
+    max_age_seconds: float = 600.0,
+) -> list[ActiveRunProgress]:
+    """Scan recent seed logs under ``output_dir`` for tqdm progress.
+
+    Only logs touched within ``max_age_seconds`` are treated as running, so
+    leftover tqdm lines from earlier interrupted attempts do not clutter status.
+    """
     found: list[ActiveRunProgress] = []
     if not output_dir.is_dir():
         return found
@@ -119,9 +150,11 @@ def scan_active_runs(output_dir: Path, *, limit: int = 16) -> list[ActiveRunProg
             seed = int(log_path.stem.split("_", 1)[1])
         except (IndexError, ValueError):
             continue
+        mtime_age = time.time() - log_path.stat().st_mtime
+        if mtime_age > max_age_seconds:
+            continue
         parsed = parse_seed_log_progress(log_path)
         # Skip stale finished logs with 100% unless mtime is very recent.
-        mtime_age = time.time() - log_path.stat().st_mtime
         if parsed is not None and parsed[0] >= 100 and mtime_age > 120:
             continue
         if parsed is None and mtime_age > 300:

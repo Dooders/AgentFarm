@@ -154,6 +154,17 @@ def _prepare_run_dir_for_resume(run_dir: Path, num_steps: int, resume: bool) -> 
             file=sys.stderr,
         )
         return
+    # Never wipe a dir that still has checkpoint files: even if the meta fails
+    # the resumable check, deleting is worse than a failed load + clean retry.
+    checkpoint_meta = run_dir / "intrinsic_evolution_checkpoint.json"
+    checkpoint_payload = run_dir / "intrinsic_evolution_checkpoint.pkl"
+    if checkpoint_meta.is_file() or checkpoint_payload.is_file():
+        print(
+            f"  Keeping incomplete run dir {run_dir} "
+            f"(checkpoint present but not auto-resumable; completed={completed})",
+            file=sys.stderr,
+        )
+        return
     if any(run_dir.iterdir()):
         print(
             f"  Removing incomplete run dir {run_dir} "
