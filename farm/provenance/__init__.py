@@ -1,5 +1,17 @@
-"""Optional FarmNotary adapter. Simulation stays in AgentFarm."""
+"""Optional run notarization via FarmNotary (pip install farm-notary)."""
 
-from farm.provenance.notary import farm_notary_available, notarize_run_dir
+from farm.provenance.notary import (
+    farm_notary_available,
+    notarize,
+    notarize_run_dir,
+    reproduce,
+    verify,
+)
 
-__all__ = ["farm_notary_available", "notarize_run_dir"]
+__all__ = [
+    "farm_notary_available",
+    "notarize",
+    "notarize_run_dir",
+    "reproduce",
+    "verify",
+]

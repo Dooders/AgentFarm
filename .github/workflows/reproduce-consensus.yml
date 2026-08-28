@@ -1,0 +1,76 @@
+name: Reproduce consensus experiment
+
+# Machine reproduction: run the experiment, notarize it, re-run the recorded
+# command into a fresh directory, and fail unless every artifact is
+# byte-identical. Also recomputes the derived artifacts (summary, report)
+# from the raw trial data. Green here backs the claim "bitwise reproducible
+# from the committed seed in a pinned environment, verified on every change".
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "farm/experiments/consensus/**"
+      - "farm/provenance/**"
+      - "run_experiment.py"
+      - ".github/workflows/reproduce-consensus.yml"
+  pull_request:
+    paths:
+      - "farm/experiments/consensus/**"
+      - "farm/provenance/**"
+      - "run_experiment.py"
+      - ".github/workflows/reproduce-consensus.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy pandas matplotlib
+          pip install -e . --no-deps
+          # TODO: switch to a released farm-notary once FarmNotary PR #1 ships.
+          pip install "git+https://github.com/Dooders/FarmNotary@cursor/farmnotary-mvp-2e2d" \
+            || pip install "git+https://github.com/Dooders/FarmNotary@main"
+
+      - name: Run experiment
+        run: python run_experiment.py --trials 60 --voters 200 --candidates 8 --population two_cluster --seed 0 --out /tmp/consensus-run
+
+      - name: Verify derived artifacts follow from trials.csv
+        run: python run_experiment.py verify-report --results /tmp/consensus-run
+
+      - name: Notarize
+        run: |
+          python - <<'EOF'
+          import json
+          from pathlib import Path
+          from farm_notary import build_manifest, write_manifest
+
+          run_dir = Path("/tmp/consensus-run")
+          run_config = json.loads((run_dir / "run_config.json").read_text())
+          manifest = build_manifest(
+              run_dir,
+              config=run_config["config"],
+              command=run_config["command"],
+              runner="agentfarm-ci",
+          )
+          write_manifest(manifest, run_dir)
+          print("content_hash", manifest.content_hash())
+          EOF
+
+      - name: Reproduce (byte-compare every artifact)
+        run: farm-notary reproduce --run-dir /tmp/consensus-run
+
+      - name: Verify manifest integrity
+        run: farm-notary verify --run-dir /tmp/consensus-run

@@ -1,0 +1,23 @@
+{
+  "command": "python run_experiment.py sweep --trials 100 --populations two_cluster,three_cluster,rural_town --candidates 6,8,12",
+  "config": {
+    "trials": 100,
+    "voters": 400,
+    "candidates": 6,
+    "population": "two_cluster",
+    "seed": 0,
+    "include_constrained": false,
+    "lambda_cap": 0.25,
+    "lambda_correlated": false
+  },
+  "populations": [
+    "two_cluster",
+    "three_cluster",
+    "rural_town"
+  ],
+  "candidate_counts": [
+    6,
+    8,
+    12
+  ]
+}

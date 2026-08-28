@@ -1,0 +1,13 @@
+{
+  "command": "python run_experiment.py --trials 250 --voters 400 --candidates 8 --population two_cluster --seed 0 --out results/consensus",
+  "config": {
+    "trials": 250,
+    "voters": 400,
+    "candidates": 8,
+    "population": "two_cluster",
+    "seed": 0,
+    "include_constrained": false,
+    "lambda_cap": 0.25,
+    "lambda_correlated": false
+  }
+}
