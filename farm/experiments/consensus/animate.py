@@ -45,7 +45,7 @@ TAGLINES = {
     "latent_match": "Elect whoever best matches the average voter.",
 }
 
-PROJECT_LABELS = ("Core\nservices", "Coalition\nclub", "Outgroup\nrepair", "Prestige", "Buffer")
+PROJECT_LABELS = ("Public\ngood", "Majority\npork", "Minority\npork", "Prestige", "Periphery")
 
 LOSER_COLOR = "#b8b8b8"
 CANDIDATE_COLOR = "#222222"
@@ -54,8 +54,8 @@ EVERYONE_ELSE_COLOR = "#e67e22"
 # Segment lengths in seconds (per paradigm), then the final comparison hold.
 INTRO_S, REVEAL_S, GROW_S, HOLD_S, FINAL_S = 1.2, 1.8, 1.6, 1.9, 5.0
 
-X_DIM = PROJECTS.index("coalition_club")
-Y_DIM = PROJECTS.index("outgroup_repair")
+X_DIM = PROJECTS.index("majority_pork")
+Y_DIM = PROJECTS.index("minority_pork")
 
 
 @dataclass(frozen=True)
@@ -118,8 +118,8 @@ def _draw_scatter(ax, population: Population, candidates: Candidates, outcome: P
             linewidths=1.4,
             zorder=5,
         )
-    ax.set_xlabel("preference: coalition club →", fontsize=13)
-    ax.set_ylabel("preference: outgroup repair →", fontsize=13)
+    ax.set_xlabel("preference: majority pork →", fontsize=13)
+    ax.set_ylabel("preference: minority pork →", fontsize=13)
     ax.set_xticks([])
     ax.set_yticks([])
     for spine in ax.spines.values():
@@ -156,7 +156,9 @@ def _paradigm_segment(fig, ax_scatter, ax_bars, caption, metrics, population, ca
 
     _draw_scatter(ax_scatter, population, candidates, outcome, revealed=False)
     _draw_bars(ax_bars, outcome, growth=0.0)
-    caption.set_text(f"{len(population)} voters (dots), {len(candidates)} candidates (stars) — the same for every rule")
+    caption.set_text(
+        f"{population.n_voters} voters (dots), {candidates.n_candidates} candidates (stars) — the same for every rule"
+    )
     for _ in range(frames(INTRO_S)):
         writer.grab_frame()
 
@@ -211,8 +213,8 @@ def _final_segment(fig, outcomes: list[ParadigmOutcome], fps: int, writer) -> No
     fig.text(
         0.5,
         0.045,
-        "Party selection rewards its bloc; individual-centered rules treat non-supporters better.\n"
-        "One representative trial — 250-trial averages in the repo's REPORT.md",
+        "Same people, same candidates: compare minority-cluster welfare in REPORT.md.\n"
+        "Election-endogenous 'losers' are a different set under every rule.",
         ha="center",
         fontsize=13,
         color="#444444",

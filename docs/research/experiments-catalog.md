@@ -126,15 +126,18 @@ steward treats people who did not support them.
 ### Consensus paradigms
 
 Compares party, individual, score, and latent-match selection on one
-budget-allocation task. Tests whether dropping party brands produces
-winners who serve non-supporters better. Official artifacts can be
-stamped with FarmNotary; individual choices stay off the record.
+budget-allocation task. The default cell asks whether ballot format
+moves minority-cluster (fixed-partition) welfare relative to party,
+holding λ's marginal fixed. Official artifacts can be stamped with
+FarmNotary; synthetic ballots stay under `private/` off the record.
 
-- **Status:** Scaffold on `feat/onchain-run-provenance`.
-- **Runner:** `ConsensusParadigmsExperiment`
+- **Status:** Implemented (`farm.experiments.consensus`).
+- **CLI:** [`run_experiment.py`](../../run_experiment.py)
+- **Wrapper:** `ConsensusParadigmsExperiment`
   ([`farm/runners/consensus_paradigms_experiment.py`](../../farm/runners/consensus_paradigms_experiment.py))
-- **CLI:** [`scripts/run_consensus_paradigms_experiment.py`](../../scripts/run_consensus_paradigms_experiment.py)
-- **Docs:** [Consensus paradigms](experiments/consensus_paradigms.md)
+  calls `farm.experiments.consensus.experiment.run_trials`.
+- **Docs:** [Consensus paradigms](experiments/consensus_paradigms.md),
+  [package README](../../farm/experiments/consensus/README.md)
 - **Notary:** [FarmNotary guide](../guides/farm-notary.md)
 
 ## Adding a new experiment

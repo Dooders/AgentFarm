@@ -7,7 +7,9 @@ from farm.runners.consensus_paradigms_experiment import ConsensusParadigmsExperi
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Compare consensus paradigms; optional FarmNotary stamp")
+    p = argparse.ArgumentParser(
+        description="Thin wrapper around farm.experiments.consensus (same code as run_experiment.py)"
+    )
     p.add_argument("--trials", type=int, default=50)
     p.add_argument("--voters", type=int, default=200)
     p.add_argument("--candidates", type=int, default=8)

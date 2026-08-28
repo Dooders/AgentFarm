@@ -1,44 +1,59 @@
 # Consensus paradigms
 
-**Status:** Scaffold  
-**Runner:** `ConsensusParadigmsExperiment` (`farm/runners/consensus_paradigms_experiment.py`)  
-**CLI:** `scripts/run_consensus_paradigms_experiment.py`  
+**Status:** Implemented  
+**Package:** `farm.experiments.consensus`  
+**CLI:** `python run_experiment.py`  
+**Wrapper:** `ConsensusParadigmsExperiment` (`farm/runners/consensus_paradigms_experiment.py`) calls `run_trials`  
 **Notary:** [FarmNotary](https://github.com/Dooders/FarmNotary) via `farm.provenance.notary`
 
 ## Question
 
-Does selecting a *person* instead of a *party* produce stewards who treat electoral non-supporters better?
+The **default** cell asks whether ballot format changes the winner's allocation
+in a way that raises **minority-cluster** (fixed-partition) welfare and/or
+total welfare relative to party, holding λ's marginal fixed. It is a
+selection-rule comparison with exogenous types, not a test of loyalty
+formation.
 
-After selection, one steward allocates a fixed budget across five projects. Loyalty `λ ∈ [0,1]` mixes “serve supporters” vs “serve everyone.” Ballot format is the treatment. `λ` of the winner is an outcome, not an input to the voting rule.
+Voters never see λ in the default generator, so `E[λ_winner]` is the Beta mean
+under every rule by construction. Do not treat a flat λ profile as a finding.
+
+`--lambda-correlated` is a robustness appendix. `--mechanism reelection` is
+the incentive cell in which winners choose λ. See
+[`farm/experiments/consensus/README.md`](../../experiments/consensus/README.md).
 
 ## Paradigms
 
-| Key | Rule | Supporters are |
+| Key | Role | Supporters are |
 |-----|------|----------------|
 | `party` | Vote nearest of two party brands; nominee of winning brand | Voters for that brand |
 | `individual` | Vote nearest candidate | Voters who picked the winner |
 | `score` | Rate all candidates; highest mean wins | Voters whose top score is the winner |
 | `latent_match` | Candidate closest to mean preference vector | Voters whose nearest candidate is the winner |
-| `constrained_individual` | Same as individual, winner `λ` capped | Same as individual |
+| `constrained_individual` | Same election as individual; winner `λ` capped | Same as individual — **not a voting rule**; excluded from hypothesis contrasts |
 
 ## Metrics
 
-- total / supporter / loser welfare
-- gap = supporter − loser
-- `lambda_winner`
-- `loser_share`
+Primary (paired vs party, Holm-corrected): minority-cluster welfare, total welfare.
 
-Hypothesis to test (do not assume): individual / score / latent_match select lower `λ` and raise loser welfare without merely inflating `loser_share`.
-
-Prototype orientation (two clusters, 250 trials): total welfare and `λ_winner` were nearly flat across rules; party had ~50% losers and a larger gap; non-party rules had ~70–75% loser share and a smaller gap.
+Also reported: election-endogenous supporter / loser welfare and gap (different
+estimand per rule); min / p10 / Gini; random-winner and utilitarian / egalitarian
+brackets; `lambda_winner` (exploratory in the default cell).
 
 ## Official record
 
-Notarize `summary.csv` and `trials.csv`. Do not notarize per-voter choices or per-winner allocations.
+Notarize `summary.csv`, `trials.csv` aggregates, and `contrasts.csv`. Do not
+notarize `private/` (synthetic ballots / supporter masks). Discarding those
+locally is an official-record split, not a privacy claim about synthetic voters.
 
 ## Quick start
 
 ```bash
+python run_experiment.py --trials 20 --voters 80 --candidates 6 --out results/consensus
+python scripts/notarize_run.py --run-dir results/consensus --runner consensus
+```
+
+The wrapper CLI still works and calls the same `run_trials`:
+
+```bash
 python scripts/run_consensus_paradigms_experiment.py --trials 20 --voters 80 --candidates 6
-python scripts/notarize_run.py --run-dir experiments/consensus_paradigms/results --runner consensus_paradigms
 ```

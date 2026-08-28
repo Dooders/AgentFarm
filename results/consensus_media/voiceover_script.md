@@ -32,11 +32,12 @@ each one builds the winner a different coalition.
 
 ## [0:43–1:01] The result (bars 0:45–0:48, chip ~0:48, loyalty ~0:52, twist ~0:56)
 
-Watch the losing side. Party selection leaves them worst off — broader rules
-lift them by over a third. (beat) And yet no rule found kinder people —
-winners were equally loyal everywhere. What changed is who they owed.
-(beat) Unless loyalty shows through — then these rules elect genuinely
-fairer winners.
+Watch the minority bloc — the same people under every rule. Election
+"losers" are a different set each time, so they are not the contrast.
+(beat) Default cell: voters never see lambda, so a flat loyalty profile
+is construction, not a finding.
+(beat) Appendix: if platforms hint at loyalty, some rules do pick
+lower-lambda winners.
 
 ## [1:01–1:10] Takeaway (line two ~1:03, credit ~1:05)
 
