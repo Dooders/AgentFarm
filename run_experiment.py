@@ -193,7 +193,9 @@ def _portable_command(argv: list) -> str:
             parts.append(tok)
     if not saw_out:
         parts += ["--out", "{run_dir}"]
-    return "python run_experiment.py " + " ".join(parts)
+    import shlex
+
+    return "python run_experiment.py " + shlex.join(parts)
 
 
 def _verify_report(results: Path) -> int:

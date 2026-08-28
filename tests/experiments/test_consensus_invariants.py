@@ -110,13 +110,13 @@ def test_portable_command_replaces_out_dir() -> None:
 
     assert (
         _portable_command(["--seed", "0", "--out", "/tmp/x"])
-        == "python run_experiment.py --seed 0 --out {run_dir}"
+        == "python run_experiment.py --seed 0 --out '{run_dir}'"
     )
     assert (
         _portable_command(["--out=/tmp/x", "--seed", "0"])
-        == "python run_experiment.py --out={run_dir} --seed 0"
+        == "python run_experiment.py '--out={run_dir}' --seed 0"
     )
-    assert _portable_command(["--seed", "0"]).endswith("--seed 0 --out {run_dir}")
+    assert _portable_command(["--seed", "0"]).endswith("--seed 0 --out '{run_dir}'")
 
 
 def test_outputs_are_bitwise_reproducible_and_derivations_verify(tmp_path) -> None:

@@ -35,6 +35,12 @@ class ExperimentConfig:
     lambda_cap: float = DEFAULT_LAMBDA_CAP
     lambda_correlated: bool = False
 
+    def __post_init__(self) -> None:
+        if self.trials < 1:
+            raise ValueError(f"trials must be >= 1, got {self.trials}")
+        if self.candidates < 1:
+            raise ValueError(f"candidates must be >= 1, got {self.candidates}")
+
     def paradigms(self) -> Sequence[str]:
         names = list(PARADIGMS)
         if self.include_constrained:

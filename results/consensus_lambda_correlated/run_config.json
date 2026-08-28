@@ -1,5 +1,5 @@
 {
-  "command": "python run_experiment.py --trials 250 --voters 400 --candidates 8 --population two_cluster --seed 0 --lambda-correlated --include-constrained --out results/consensus_lambda_correlated",
+  "command": "python run_experiment.py --trials 250 --voters 400 --candidates 8 --population two_cluster --seed 0 --lambda-correlated --include-constrained --out '{run_dir}'",
   "config": {
     "trials": 250,
     "voters": 400,
