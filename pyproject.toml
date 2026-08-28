@@ -10,6 +10,11 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 
+[project.optional-dependencies]
+notary = [
+    "farm-notary @ git+https://github.com/Dooders/FarmNotary.git@v0.1.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 

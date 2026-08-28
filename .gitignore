@@ -172,10 +172,13 @@ playground.ipynb
 
 # Simulation data
 simulations/
-/experiments/
+/experiments/**
+!/experiments/consensus_paradigms/
+!/experiments/consensus_paradigms/results/
+!/experiments/consensus_paradigms/results/**
 
 # Generated experiment outputs (regenerate via run_experiment.py / runners)
-results/
+/results/
 
 # Generated distillation/quantization artifacts
 checkpoints/distillation*/

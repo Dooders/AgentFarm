@@ -7,7 +7,6 @@ hit the same code as ``run_experiment.py``.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -15,7 +14,7 @@ from typing import Iterable
 import numpy as np
 
 from farm.experiments.consensus.allocation import allocate
-from farm.experiments.consensus.experiment import ExperimentConfig, run_trials
+from farm.experiments.consensus.experiment import ExperimentConfig, config_manifest, run_trials, write_outputs
 from farm.experiments.consensus.paradigms import CONSTRAINED_PARADIGM, PARADIGMS, run_election
 from farm.experiments.consensus.population import generate_candidates, generate_population
 from farm.provenance.notary import notarize_run_dir
@@ -75,8 +74,8 @@ class ConsensusParadigmsExperiment:
 
     def run(
         self,
-        trials: int = 50,
-        voters: int = 200,
+        trials: int = 250,
+        voters: int = 400,
         candidates: int = 8,
         paradigms: Iterable[str] | None = None,
         notarize: bool = True,
@@ -97,29 +96,23 @@ class ConsensusParadigmsExperiment:
         if paradigms is not None:
             frame = frame[frame["paradigm"].isin(requested)]
 
-        trials_path = self.results_dir / "trials.csv"
-        frame.to_csv(trials_path, index=False)
+        command = (
+            "python run_experiment.py "
+            f"--trials {trials} --voters {voters} --candidates {candidates} "
+            "--population two_cluster --seed 0 --no-persist-ballots --out {run_dir}"
+        )
+        run_config = config_manifest(config, command)
+        write_outputs(frame, self.results_dir, run_config, persist_ballots=False)
 
-        metric_cols = [c for c in ("total_welfare", "supporter_welfare", "loser_welfare", "gap", "lambda_winner", "loser_share") if c in frame.columns]
-        summary = frame.groupby("paradigm", sort=False)[metric_cols].mean().reset_index()
         summary_path = self.results_dir / "summary.csv"
-        summary.to_csv(summary_path, index=False)
-
-        meta = {
-            "trials": trials,
-            "voters": voters,
-            "candidates": candidates,
-            "paradigms": list(requested),
-            "implementation": "farm.experiments.consensus.experiment.run_trials",
-        }
-        (self.results_dir / "config.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
-
         if notarize:
-            official = summary.to_dict(orient="records")
+            official = frame.groupby("paradigm", sort=False)[
+                [c for c in ("total_welfare", "supporter_welfare", "loser_welfare", "gap", "lambda_winner", "loser_share") if c in frame.columns]
+            ].mean().reset_index()
             notarize_run_dir(
                 self.results_dir,
                 runner="consensus_paradigms",
-                config=meta,
-                official_record={"summary": official},
+                config=run_config["config"],
+                official_record={"summary": official.to_dict(orient="records")},
             )
         return summary_path

@@ -40,9 +40,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-ci-lock.txt
           pip install -e . --no-deps
-          # Pinned to a specific commit; update the SHA when
-          # the FarmNotary release ships and switch to a tagged version then.
-          pip install "git+https://github.com/Dooders/FarmNotary@1d5e8667ea6f37f7715995abe0f863873cf67ddb"
+          # Same pin as the agentfarm[notary] extra in pyproject.toml.
+          pip install "farm-notary @ git+https://github.com/Dooders/FarmNotary.git@v0.1.0"
 
       - name: Run experiment
         run: python run_experiment.py --trials 60 --voters 200 --candidates 8 --population two_cluster --seed 0 --out /tmp/consensus-run
@@ -53,19 +52,11 @@ jobs:
       - name: Notarize
         run: |
           python - <<'EOF'
-          import json
           from pathlib import Path
-          from farm_notary import build_manifest, write_manifest
+          from farm.provenance.notary import notarize
 
           run_dir = Path("/tmp/consensus-run")
-          run_config = json.loads((run_dir / "run_config.json").read_text())
-          manifest = build_manifest(
-              run_dir,
-              config=run_config["config"],
-              command=run_config["command"],
-              runner="agentfarm-ci",
-          )
-          write_manifest(manifest, run_dir)
+          manifest, _receipt = notarize(run_dir, runner="agentfarm-ci")
           print("content_hash", manifest.content_hash())
           EOF
 

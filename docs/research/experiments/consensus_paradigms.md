@@ -48,12 +48,14 @@ locally is an official-record split, not a privacy claim about synthetic voters.
 ## Quick start
 
 ```bash
-python run_experiment.py --trials 20 --voters 80 --candidates 6 --out results/consensus
-python scripts/notarize_run.py --run-dir results/consensus --runner consensus
+python run_experiment.py --trials 250 --voters 400 --candidates 8 \
+    --population two_cluster --seed 0 --no-persist-ballots \
+    --out experiments/consensus_paradigms/results
+python scripts/notarize_run.py --run-dir experiments/consensus_paradigms/results --runner consensus_paradigms
 ```
 
-The wrapper CLI still works and calls the same `run_trials`:
+The wrapper CLI still works and calls the same `run_trials` (defaults 250×400×8, no ballots):
 
 ```bash
-python scripts/run_consensus_paradigms_experiment.py --trials 20 --voters 80 --candidates 6
+python scripts/run_consensus_paradigms_experiment.py
 ```

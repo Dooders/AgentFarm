@@ -10,8 +10,8 @@ def main() -> int:
     p = argparse.ArgumentParser(
         description="Thin wrapper around farm.experiments.consensus (same code as run_experiment.py)"
     )
-    p.add_argument("--trials", type=int, default=50)
-    p.add_argument("--voters", type=int, default=200)
+    p.add_argument("--trials", type=int, default=250)
+    p.add_argument("--voters", type=int, default=400)
     p.add_argument("--candidates", type=int, default=8)
     p.add_argument("--out", default="experiments/consensus_paradigms")
     p.add_argument("--no-notarize", action="store_true")

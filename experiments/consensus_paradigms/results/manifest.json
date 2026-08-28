@@ -1,0 +1,131 @@
+{
+  "schema": "farmnotary.manifest.v1",
+  "farm_notary_version": "0.1.0",
+  "created_utc": "2026-08-28T22:03:19Z",
+  "git_sha": "a49b0aa843fa05436a40c2bb29ba78ffde7b848f",
+  "git_dirty": null,
+  "runner": "consensus_paradigms",
+  "command": null,
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-7.0.0-30-generic-x86_64-with-glibc2.39",
+    "packages_hash": "e160af3170db0fdb0c31f61596384dbc1574fe86f0f12d3292a29fe8f7f8c029",
+    "package_count": 162
+  },
+  "config": {
+    "trials": 250,
+    "voters": 400,
+    "candidates": 8,
+    "population": "two_cluster",
+    "seed": 0,
+    "include_constrained": false,
+    "lambda_cap": 0.25,
+    "lambda_correlated": false,
+    "persist_ballots": false,
+    "mechanism": "oneshot",
+    "voting": "sincere",
+    "primary_question": "ballot_format_fixed_partition",
+    "lambda_primary": false
+  },
+  "artifacts": [
+    "REPORT.md",
+    "allocation_means.csv",
+    "contrasts.csv",
+    "figures/gap_vs_loser_share.png",
+    "figures/lambda_by_paradigm.png",
+    "figures/minority_welfare.png",
+    "figures/welfare_by_paradigm.png",
+    "run_config.json",
+    "summary.csv",
+    "trials.csv"
+  ],
+  "artifact_hashes": {
+    "REPORT.md": "ab49a1af2406367738533eb61560f89669686f7bd8b0358d3b9cd1dc4b05d49b",
+    "allocation_means.csv": "4f57f078762bcb114475e887941cc229d18919fa9dcb73cbb84cf2303ecd50c5",
+    "contrasts.csv": "fba1d6e4b51558e8688f0af6e3089a80db34cc794775fb62010dfbc1bbf4bb99",
+    "figures/gap_vs_loser_share.png": "5bf1332e018daf9104d6c2a5326792d2601ab52a6e8fef346fb45ed06460f4bb",
+    "figures/lambda_by_paradigm.png": "a8693351baf89d7794a3a677583c42173a7b7526b6e7861826314d9779db6252",
+    "figures/minority_welfare.png": "842b647e6169afcb39dd59f1157bb1705799dbd444eaecdc164ccad46280e726",
+    "figures/welfare_by_paradigm.png": "b605b7092f4698b73d39dd8e571c382c46f47c471e3c454c826b8b0d08a91ae7",
+    "run_config.json": "dc0cc11811155920e3629ea54466eea54bd8eedb94f2823c6fcbe59bb5517218",
+    "summary.csv": "9cf6beb54a309096792844d4513821d9069802574449207f142c16681878bea8",
+    "trials.csv": "03974bc39763f96f368bad59f1a1418cf814a3d7d70fe8a3f64e5de0edf1d112"
+  },
+  "publish_patterns": [
+    "trials.csv",
+    "summary.csv",
+    "allocation_means.csv",
+    "contrasts.csv",
+    "run_config.json",
+    "REPORT.md",
+    "figures/*.png"
+  ],
+  "unmatched_count": 0,
+  "official_record": {
+    "summary": [
+      {
+        "paradigm": "party",
+        "total_welfare": 0.23125726284974216,
+        "supporter_welfare": 0.2975200593120293,
+        "loser_welfare": 0.16442427732932083,
+        "gap": 0.13309578198270844,
+        "lambda_winner": 0.5144768853227775,
+        "loser_share": 0.4978
+      },
+      {
+        "paradigm": "individual",
+        "total_welfare": 0.23082352818899263,
+        "supporter_welfare": 0.3023695515965475,
+        "loser_welfare": 0.1992731625654479,
+        "gap": 0.1030963890310996,
+        "lambda_winner": 0.5110857287808289,
+        "loser_share": 0.70078
+      },
+      {
+        "paradigm": "score",
+        "total_welfare": 0.2287231877784061,
+        "supporter_welfare": 0.2708182914755456,
+        "loser_welfare": 0.21741880738759367,
+        "gap": 0.053399484087951934,
+        "lambda_winner": 0.5079643305749261,
+        "loser_share": 0.81985
+      },
+      {
+        "paradigm": "latent_match",
+        "total_welfare": 0.22785935094407697,
+        "supporter_welfare": 0.26605980421438546,
+        "loser_welfare": 0.21887560757264113,
+        "gap": 0.047184196641744336,
+        "lambda_winner": 0.5097881955037292,
+        "loser_share": 0.83947
+      },
+      {
+        "paradigm": "random_winner",
+        "total_welfare": 0.2309435000218649,
+        "supporter_welfare": 0.3127150190369988,
+        "loser_welfare": 0.21887979340467947,
+        "gap": 0.09405702249453077,
+        "lambda_winner": 0.5266230523798334,
+        "loser_share": 0.87473
+      },
+      {
+        "paradigm": "utilitarian",
+        "total_welfare": 0.2678467614011802,
+        "supporter_welfare": NaN,
+        "loser_welfare": NaN,
+        "gap": NaN,
+        "lambda_winner": NaN,
+        "loser_share": NaN
+      },
+      {
+        "paradigm": "egalitarian",
+        "total_welfare": 0.2,
+        "supporter_welfare": NaN,
+        "loser_welfare": NaN,
+        "gap": NaN,
+        "lambda_winner": NaN,
+        "loser_share": NaN
+      }
+    ]
+  }
+}

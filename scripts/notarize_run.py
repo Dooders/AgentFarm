@@ -20,7 +20,7 @@ def main() -> int:
 
     if not farm_notary_available():
         print(
-            "farm_notary is not installed. Clone Dooders/FarmNotary and pip install -e ../FarmNotary",
+            "farm_notary is not installed. Install the extra: pip install -e '.[notary]'",
             file=sys.stderr,
         )
         return 1

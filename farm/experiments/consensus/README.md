@@ -93,7 +93,8 @@ Written to `contrasts.csv` and quoted in `REPORT.md`.
 ```bash
 # default experiment (primary cell)
 python run_experiment.py --trials 250 --voters 400 --candidates 8 \
-    --population two_cluster --seed 0 --out results/consensus
+    --population two_cluster --seed 0 --no-persist-ballots \
+    --out experiments/consensus_paradigms/results
 
 # robustness appendix: λ rank-coupled to platform extremity
 python run_experiment.py --lambda-correlated --include-constrained \
