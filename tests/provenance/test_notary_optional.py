@@ -106,8 +106,17 @@ def test_notarize_run_dir_with_anchor(tmp_path, monkeypatch):
 def test_notarize_run_dir_missing_dir(tmp_path, monkeypatch):
     """notarize_run_dir raises FileNotFoundError when run_dir does not exist."""
     fake_fn = types.ModuleType("farm_notary")
+    fake_manifest_mod = types.ModuleType("farm_notary.manifest")
+    fake_anchor_mod = types.ModuleType("farm_notary.anchor")
+    fake_manifest_mod.build_manifest = MagicMock()
+    fake_manifest_mod.write_manifest = MagicMock()
+    fake_anchor_mod.anchor_run = MagicMock()
+
     monkeypatch.setitem(sys.modules, "farm_notary", fake_fn)
+    monkeypatch.setitem(sys.modules, "farm_notary.manifest", fake_manifest_mod)
+    monkeypatch.setitem(sys.modules, "farm_notary.anchor", fake_anchor_mod)
 
     import pytest
+
     with pytest.raises(FileNotFoundError):
         notarize_run_dir(tmp_path / "nonexistent", runner="test")
