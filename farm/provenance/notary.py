@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Mapping, Sequence
 
 RUN_CONFIG_NAME = "run_config.json"
 
@@ -38,7 +38,7 @@ def _read_run_config(run_dir: Path) -> dict:
     return {}
 
 
-def _git_sha() -> Optional[str]:
+def _git_sha() -> str | None:
     """Return the HEAD SHA of the AgentFarm checkout, or None."""
     repo_root = Path(__file__).resolve().parent.parent.parent
     if not (repo_root / ".git").exists():
@@ -127,12 +127,12 @@ def reproduce(run_dir: Path, *, ignore: Sequence[str] = (), anchor: bool = False
 def notarize_run_dir(
     run_dir: str | Path,
     *,
-    runner: Optional[str] = None,
-    config: Optional[Mapping[str, Any]] = None,
-    official_record: Optional[Mapping[str, Any]] = None,
-    git_sha: Optional[str] = None,
+    runner: str | None = None,
+    config: Mapping[str, Any] | None = None,
+    official_record: Mapping[str, Any] | None = None,
+    git_sha: str | None = None,
     anchor: bool = False,
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Write manifest.json if FarmNotary is installed.
 
     Returns a small receipt dict, or None if the extra is missing.
