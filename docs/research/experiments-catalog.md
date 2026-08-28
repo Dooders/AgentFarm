@@ -134,7 +134,8 @@ stamped with FarmNotary; individual choices stay off the record.
 - **Runner:** `ConsensusParadigmsExperiment`
   ([`farm/runners/consensus_paradigms_experiment.py`](../../farm/runners/consensus_paradigms_experiment.py))
 - **CLI:** [`scripts/run_consensus_paradigms_experiment.py`](../../scripts/run_consensus_paradigms_experiment.py)
-- **Docs:** [Consensus paradigms](experiments/consensus_paradigms.md)
+- **Docs:** [Consensus paradigms](experiments/consensus_paradigms.md),
+  [open design issues](experiments/consensus_issues/README.md)
 - **Notary:** [FarmNotary guide](../guides/farm-notary.md)
 
 ## Adding a new experiment

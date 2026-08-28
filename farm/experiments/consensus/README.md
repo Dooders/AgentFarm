@@ -98,6 +98,13 @@ identical summary, and `constrained_individual` never allocates with λ above th
 pytest tests/experiments/test_consensus_invariants.py
 ```
 
+## Open design issues
+
+Ready-to-file drafts for remaining design flaws (λ invisible to voters,
+incomparable supporter estimands, unnormalized platform blend, and related
+process problems) live in
+[`docs/research/experiments/consensus_issues/`](../../../docs/research/experiments/consensus_issues/README.md).
+
 ## Module layout
 
 | Module | Role |

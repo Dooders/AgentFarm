@@ -32,6 +32,12 @@ Hypothesis to test (do not assume): individual / score / latent_match select low
 
 Prototype orientation (two clusters, 250 trials): total welfare and `λ_winner` were nearly flat across rules; party had ~50% losers and a larger gap; non-party rules had ~70–75% loser share and a smaller gap.
 
+## Open design issues
+
+Drafts for remaining design flaws (headline λ hypothesis, welfare estimands,
+scaffold vs package split) are in
+[consensus_issues/](consensus_issues/README.md).
+
 ## Official record
 
 Notarize `summary.csv` and `trials.csv`. Do not notarize per-voter choices or per-winner allocations.
