@@ -70,10 +70,16 @@ Population types: `one_cluster`, `two_cluster` (default), `three_cluster`,
 `--lambda-cap`, `--lambda-correlated` (ties high λ to cluster-extreme platforms).
 
 Outputs in `--out`: `trials.csv` (one row per paradigm × trial), `summary.csv`,
-`allocation_means.csv`, `manifest.json`, `figures/{welfare_by_paradigm,
+`allocation_means.csv`, `run_config.json` (the exact command with a `{run_dir}`
+placeholder, plus the parsed config), `figures/{welfare_by_paradigm,
 gap_vs_loser_share,lambda_by_paradigm}.png`, and `REPORT.md` auto-written from the
 just-run numbers. Only aggregates and winner allocations are persisted — no
 individual ballots.
+
+`python run_experiment.py verify-report --results <dir>` recomputes
+`summary.csv`, `allocation_means.csv`, and `REPORT.md` from `trials.csv` and
+byte-compares them against the files on disk, so the derived artifacts are
+verified to follow from the raw trial data.
 
 ## Metrics
 

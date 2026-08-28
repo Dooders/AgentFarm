@@ -103,3 +103,50 @@ def test_benefits_are_normalized_rows() -> None:
         population = generate_population(rng, n_voters=80, population_type=population_type)
         np.testing.assert_allclose(population.benefits.sum(axis=1), 1.0, atol=1e-9)
         assert (population.benefits >= 0.0).all()
+
+
+def test_portable_command_replaces_out_dir() -> None:
+    from run_experiment import _portable_command
+
+    assert (
+        _portable_command(["--seed", "0", "--out", "/tmp/x"])
+        == "python run_experiment.py --seed 0 --out {run_dir}"
+    )
+    assert (
+        _portable_command(["--out=/tmp/x", "--seed", "0"])
+        == "python run_experiment.py --out={run_dir} --seed 0"
+    )
+    assert _portable_command(["--seed", "0"]).endswith("--seed 0 --out {run_dir}")
+
+
+def test_outputs_are_bitwise_reproducible_and_derivations_verify(tmp_path) -> None:
+    """Two runs with the same seed produce byte-identical artifacts, and the
+    derived artifacts (summary, allocation means, report) recompute exactly
+    from trials.csv."""
+    import subprocess
+    import sys
+
+    from run_experiment import _verify_report
+
+    repo = Path(__file__).resolve().parents[2]
+    args = [
+        sys.executable,
+        str(repo / "run_experiment.py"),
+        "--trials", "6", "--voters", "60", "--candidates", "4",
+        "--population", "two_cluster", "--seed", "3",
+    ]
+    a, b = tmp_path / "a", tmp_path / "b"
+    subprocess.run(args + ["--out", str(a)], check=True, cwd=repo, capture_output=True)
+    subprocess.run(args + ["--out", str(b)], check=True, cwd=repo, capture_output=True)
+
+    artifacts = sorted(p.relative_to(a) for p in a.rglob("*") if p.is_file())
+    assert artifacts == sorted(p.relative_to(b) for p in b.rglob("*") if p.is_file())
+    for rel in artifacts:
+        assert (a / rel).read_bytes() == (b / rel).read_bytes(), f"{rel} differs between identical runs"
+
+    assert _verify_report(a) == 0
+
+    # Tampering with a derived artifact is caught.
+    summary = a / "summary.csv"
+    summary.write_text(summary.read_text().replace("0.", "1.", 1))
+    assert _verify_report(a) == 1

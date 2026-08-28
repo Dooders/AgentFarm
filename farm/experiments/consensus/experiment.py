@@ -121,8 +121,12 @@ def allocation_means(trials: pd.DataFrame) -> pd.DataFrame:
     return grouped.mean().reset_index()
 
 
-def write_outputs(trials: pd.DataFrame, out_dir: Path, manifest: dict) -> None:
-    """Write trials.csv, summary.csv, allocation_means.csv, manifest.json, figures, REPORT.md."""
+def write_outputs(trials: pd.DataFrame, out_dir: Path, run_config: dict) -> None:
+    """Write trials.csv, summary.csv, allocation_means.csv, run_config.json, figures, REPORT.md.
+
+    The run config is written as run_config.json, not manifest.json: the
+    manifest.json name is reserved for the FarmNotary artifact manifest.
+    """
     from farm.experiments.consensus.plots import write_figures
     from farm.experiments.consensus.report import write_report
 
@@ -133,10 +137,10 @@ def write_outputs(trials: pd.DataFrame, out_dir: Path, manifest: dict) -> None:
     trials.to_csv(out_dir / "trials.csv", index=False)
     summary.to_csv(out_dir / "summary.csv", index=False)
     allocations.to_csv(out_dir / "allocation_means.csv", index=False)
-    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (out_dir / "run_config.json").write_text(json.dumps(run_config, indent=2) + "\n")
 
     write_figures(trials, out_dir / "figures")
-    write_report(trials, summary, allocations, manifest, out_dir / "REPORT.md")
+    write_report(trials, summary, allocations, run_config, out_dir / "REPORT.md")
 
 
 def config_manifest(config: ExperimentConfig, command: str) -> dict:
