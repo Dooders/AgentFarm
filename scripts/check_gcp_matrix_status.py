@@ -2,7 +2,7 @@
 """Check intrinsic-evolution matrix progress without relying on SSH.
 
 Primary path: GCE guest attributes published by the matrix orchestrator
-(``status/matrix.json``). This works even when the guest is CPU-saturated and
+(``status/matrix``). This works even when the guest is CPU-saturated and
 ``sshd`` no longer answers.
 
 Fallback: SSH + read ``matrix_live_status.json`` on the VM (may time out under

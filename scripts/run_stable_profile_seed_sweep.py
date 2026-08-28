@@ -411,6 +411,7 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
         speciation=speciation,
         output_dir=str(run_dir),
         seed=seed,
+        resume=bool(getattr(args, "resume", False)),
     )
     return IntrinsicEvolutionExperiment(base_config, exp_config)
 

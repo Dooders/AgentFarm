@@ -123,7 +123,7 @@ def run_once(paradigm: str, n_voters: int, n_cand: int, seed: int, lambda_cap: f
         total_welfare=float(u.mean()),
         supporter_welfare=float(u[support].mean()) if support.any() else float("nan"),
         loser_welfare=float(u[losers].mean()) if losers.any() else float("nan"),
-        lambda_winner=float(loyalty[winner]),
+        lambda_winner=used_lambda,
         loser_share=float(losers.mean()),
     )
 
