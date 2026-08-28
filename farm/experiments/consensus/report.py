@@ -198,7 +198,7 @@ def render_report(
         "such; they are not the primary contrast. `rural_town` party `loser_share` equals the "
         "minority bloc size by construction (~0.30) and is not a treatment effect.\n"
         "- **Baselines** (same population + candidate draw): `random_winner` (uniform candidate, "
-        "nearest-pref supporters), `utilitarian` (mean-benefit direction; directed-only family), "
+        "nearest-pref supporters), `utilitarian` (simplex vertex maximizing mean utility), "
         "`egalitarian` (maximin LP). Normalized welfare is `(metric − random) / (utilitarian − random)` "
         "when the denominator is nonzero.\n"
         "- **Audit**: synthetic ballots, supporter masks, and cluster ids are written under "

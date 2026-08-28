@@ -318,8 +318,15 @@ def main(argv=None) -> int:
             populations=populations,
             candidate_counts=candidate_counts,
         )
-        trials = run_sweep(sweep)
-        write_outputs(trials, args.out, sweep_manifest(sweep, command), persist_ballots=sweep.base.persist_ballots)
+        run = run_sweep(sweep)
+        trials = run.trials
+        write_outputs(
+            trials,
+            args.out,
+            sweep_manifest(sweep, command),
+            audit=run.audit,
+            persist_ballots=sweep.base.persist_ballots,
+        )
     else:
         args = _build_run_parser().parse_args(argv)
         config = _base_config(args, candidates=args.candidates, population=args.population)

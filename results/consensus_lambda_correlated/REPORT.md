@@ -14,7 +14,7 @@ Robustness appendix (not the primary cell): when high λ is rank-coupled to plat
 - **Trials**: 250 per cell, base seed 0; every paradigm sees the identical population and candidate slate within a trial.
 - **Primary endpoints**: Δ minority-cluster welfare and Δ total welfare vs party, plus Δλ_winner. Holm correction across that family. Wilcoxon signed-rank on paired trial-level differences; 95% CIs are Student-t; effect size is paired Cohen's d.
 - **Fixed partition**: welfare is reported on generator clusters (PCA split for `one_cluster`). Election-endogenous supporter/loser numbers are kept and labeled as such; they are not the primary contrast. `rural_town` party `loser_share` equals the minority bloc size by construction (~0.30) and is not a treatment effect.
-- **Baselines** (same population + candidate draw): `random_winner` (uniform candidate, nearest-pref supporters), `utilitarian` (mean-benefit direction; directed-only family), `egalitarian` (maximin LP). Normalized welfare is `(metric − random) / (utilitarian − random)` when the denominator is nonzero.
+- **Baselines** (same population + candidate draw): `random_winner` (uniform candidate, nearest-pref supporters), `utilitarian` (simplex vertex maximizing mean utility), `egalitarian` (maximin LP). Normalized welfare is `(metric − random) / (utilitarian − random)` when the denominator is nonzero.
 - **Audit**: synthetic ballots, supporter masks, and cluster ids are written under `private/` when `--persist-ballots` is on (the default). They are not a privacy claim and they are not notarized. Official record: `summary.csv`, `trials.csv` aggregates, `contrasts.csv`.
 
 ## Results
@@ -23,10 +23,10 @@ Mean ± std over trials for **selection rules**. `loser_share` / `loser_welfare`
 
 | population | n_candidates | paradigm | total_welfare | minority_welfare | majority_welfare | min_utility | p10_utility | gini_utility | lambda_winner | loser_share | loser_welfare | gap |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| two_cluster | 8 | party | 0.2312 ± 0.0051 | 0.2084 ± 0.0589 | 0.2541 ± 0.0601 | 0.1225 ± 0.0182 | 0.1497 ± 0.0179 | 0.1701 ± 0.0420 | 0.4305 ± 0.1893 | 0.4978 ± 0.0022 | 0.1699 ± 0.0155 | 0.1222 ± 0.0341 |
-| two_cluster | 8 | individual | 0.2310 ± 0.0063 | 0.2289 ± 0.0658 | 0.2330 ± 0.0663 | 0.1195 ± 0.0209 | 0.1475 ± 0.0202 | 0.1749 ± 0.0482 | 0.4398 ± 0.1954 | 0.7008 ± 0.0766 | 0.2010 ± 0.0162 | 0.0980 ± 0.0411 |
-| two_cluster | 8 | score | 0.2295 ± 0.0064 | 0.2300 ± 0.0404 | 0.2290 ± 0.0417 | 0.1414 ± 0.0136 | 0.1751 ± 0.0153 | 0.1128 ± 0.0373 | 0.2394 ± 0.1247 | 0.8198 ± 0.0849 | 0.2209 ± 0.0095 | 0.0400 ± 0.0301 |
-| two_cluster | 8 | latent_match | 0.2289 ± 0.0065 | 0.2281 ± 0.0361 | 0.2296 ± 0.0365 | 0.1447 ± 0.0124 | 0.1793 ± 0.0129 | 0.1029 ± 0.0323 | 0.2047 ± 0.1040 | 0.8395 ± 0.0835 | 0.2226 ± 0.0082 | 0.0327 ± 0.0248 |
+| two_cluster | 8 | party | 0.2312 ± 0.0051 | 0.2541 ± 0.0601 | 0.2084 ± 0.0589 | 0.1225 ± 0.0182 | 0.1497 ± 0.0179 | 0.1701 ± 0.0420 | 0.4305 ± 0.1893 | 0.4978 ± 0.0022 | 0.1699 ± 0.0155 | 0.1222 ± 0.0341 |
+| two_cluster | 8 | individual | 0.2310 ± 0.0063 | 0.2330 ± 0.0663 | 0.2289 ± 0.0658 | 0.1195 ± 0.0209 | 0.1475 ± 0.0202 | 0.1749 ± 0.0482 | 0.4398 ± 0.1954 | 0.7008 ± 0.0766 | 0.2010 ± 0.0162 | 0.0980 ± 0.0411 |
+| two_cluster | 8 | score | 0.2295 ± 0.0064 | 0.2290 ± 0.0417 | 0.2300 ± 0.0404 | 0.1414 ± 0.0136 | 0.1751 ± 0.0153 | 0.1128 ± 0.0373 | 0.2394 ± 0.1247 | 0.8198 ± 0.0849 | 0.2209 ± 0.0095 | 0.0400 ± 0.0301 |
+| two_cluster | 8 | latent_match | 0.2289 ± 0.0065 | 0.2296 ± 0.0365 | 0.2281 ± 0.0361 | 0.1447 ± 0.0124 | 0.1793 ± 0.0129 | 0.1029 ± 0.0323 | 0.2047 ± 0.1040 | 0.8395 ± 0.0835 | 0.2226 ± 0.0082 | 0.0327 ± 0.0248 |
 
 ### Allocation baselines (not selection treatments)
 
@@ -34,8 +34,8 @@ Random-winner floor and utilitarian / egalitarian brackets on the same draws. No
 
 | population | n_candidates | paradigm | total_welfare | minority_welfare | majority_welfare | min_utility | p10_utility | gini_utility | lambda_winner | loser_share | loser_welfare | gap |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| two_cluster | 8 | random_winner | 0.2314 ± 0.0090 | 0.2314 ± 0.0722 | 0.2315 ± 0.0726 | 0.1129 ± 0.0277 | 0.1437 ± 0.0281 | 0.1842 ± 0.0698 | 0.5140 ± 0.2258 | 0.8747 ± 0.1038 | 0.2196 ± 0.0153 | 0.0980 ± 0.0599 |
-| two_cluster | 8 | utilitarian | 0.2268 ± 0.0017 | 0.2269 ± 0.0031 | 0.2267 ± 0.0030 | 0.1636 ± 0.0084 | 0.2047 ± 0.0022 | 0.0396 ± 0.0018 | nan | nan | nan | nan |
+| two_cluster | 8 | random_winner | 0.2314 ± 0.0090 | 0.2315 ± 0.0726 | 0.2314 ± 0.0722 | 0.1129 ± 0.0277 | 0.1437 ± 0.0281 | 0.1842 ± 0.0698 | 0.5140 ± 0.2258 | 0.8747 ± 0.1038 | 0.2196 ± 0.0153 | 0.0980 ± 0.0599 |
+| two_cluster | 8 | utilitarian | 0.2678 ± 0.0047 | 0.2697 ± 0.2092 | 0.2660 ± 0.2109 | 0.0065 ± 0.0047 | 0.0266 ± 0.0164 | 0.4958 ± 0.0439 | nan | nan | nan | nan |
 | two_cluster | 8 | egalitarian | 0.2000 ± 0.0000 | 0.2000 ± 0.0000 | 0.2000 ± 0.0000 | 0.2000 ± 0.0000 | 0.2000 ± 0.0000 | 0.0000 ± 0.0000 | nan | nan | nan | nan |
 
 ### Constitutional cap (not a selection treatment)
@@ -44,7 +44,7 @@ Random-winner floor and utilitarian / egalitarian brackets on the same draws. No
 
 | population | n_candidates | paradigm | total_welfare | minority_welfare | majority_welfare | min_utility | p10_utility | gini_utility | lambda_winner | loser_share | loser_welfare | gap |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| two_cluster | 8 | constrained_individual | 0.2309 ± 0.0058 | 0.2303 ± 0.0501 | 0.2316 ± 0.0503 | 0.1363 ± 0.0094 | 0.1653 ± 0.0067 | 0.1391 ± 0.0236 | 0.4398 ± 0.1954 | 0.7008 ± 0.0766 | 0.2077 ± 0.0107 | 0.0758 ± 0.0252 |
+| two_cluster | 8 | constrained_individual | 0.2309 ± 0.0058 | 0.2316 ± 0.0503 | 0.2303 ± 0.0501 | 0.1363 ± 0.0094 | 0.1653 ± 0.0067 | 0.1391 ± 0.0236 | 0.4398 ± 0.1954 | 0.7008 ± 0.0766 | 0.2077 ± 0.0107 | 0.0758 ± 0.0252 |
 
 ### Mean winner allocations
 
@@ -55,7 +55,7 @@ Random-winner floor and utilitarian / egalitarian brackets on the same draws. No
 | two_cluster | 8 | score | 0.2790 | 0.2611 | 0.2585 | 0.1012 | 0.1003 |
 | two_cluster | 8 | latent_match | 0.2815 | 0.2549 | 0.2584 | 0.1024 | 0.1028 |
 | two_cluster | 8 | random_winner | 0.2623 | 0.2741 | 0.2742 | 0.1001 | 0.0893 |
-| two_cluster | 8 | utilitarian | 0.2500 | 0.2643 | 0.2639 | 0.1068 | 0.1150 |
+| two_cluster | 8 | utilitarian | 0.0440 | 0.4720 | 0.4840 | 0.0000 | 0.0000 |
 | two_cluster | 8 | egalitarian | 0.2000 | 0.2000 | 0.2000 | 0.2000 | 0.2000 |
 
 ## Paired contrasts vs party
@@ -66,28 +66,28 @@ Same-trial differences. Primary endpoints carry Holm-adjusted p-values. Threshol
 
 | paradigm | endpoint | delta_mean | ci_low | ci_high | pvalue | pvalue_adjusted | effect_size |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| individual | minority_welfare | 0.0205 | 0.0095 | 0.0316 | 0.0029 | 0.0115 | 0.2318 |
+| individual | minority_welfare | -0.0210 | -0.0320 | -0.0101 | 0.0028 | 0.0110 | -0.2389 |
 | individual | total_welfare | -0.0002 | -0.0010 | 0.0005 | 0.8308 | 1.0000 | -0.0434 |
 | individual | lambda_winner | 0.0093 | -0.0166 | 0.0351 | 0.6653 | 1.0000 | 0.0447 |
-| score | minority_welfare | 0.0216 | 0.0124 | 0.0308 | 0.0000 | 0.0000 | 0.2934 |
+| score | minority_welfare | -0.0250 | -0.0344 | -0.0157 | 0.0000 | 0.0000 | -0.3339 |
 | score | total_welfare | -0.0017 | -0.0027 | -0.0008 | 0.0116 | 0.0349 | -0.2237 |
 | score | lambda_winner | -0.1911 | -0.2151 | -0.1671 | 0.0000 | 0.0000 | -0.9924 |
-| latent_match | minority_welfare | 0.0197 | 0.0108 | 0.0285 | 0.0000 | 0.0000 | 0.2762 |
+| latent_match | minority_welfare | -0.0244 | -0.0333 | -0.0155 | 0.0000 | 0.0000 | -0.3403 |
 | latent_match | total_welfare | -0.0024 | -0.0034 | -0.0014 | 0.0002 | 0.0012 | -0.3002 |
 | latent_match | lambda_winner | -0.2258 | -0.2485 | -0.2031 | 0.0000 | 0.0000 | -1.2388 |
 
-- `individual` vs `party` on `minority_welfare`: Δ = +0.02052 (95% CI [+0.00949, +0.03155]), paired Cohen's d = +0.232, Wilcoxon p = 0.002884, Holm-adjusted p = 0.01153.
+- `individual` vs `party` on `minority_welfare`: Δ = -0.02102 (95% CI [-0.03198, -0.01006]), paired Cohen's d = -0.239, Wilcoxon p = 0.002755, Holm-adjusted p = 0.01102.
 - `individual` vs `party` on `total_welfare`: Δ = -0.00025 (95% CI [-0.00096, +0.00046]), paired Cohen's d = -0.043, Wilcoxon p = 0.8308, Holm-adjusted p = 1.
 - `individual` vs `party` on `lambda_winner`: Δ = +0.00927 (95% CI [-0.01656, +0.03511]), paired Cohen's d = +0.045, Wilcoxon p = 0.6653, Holm-adjusted p = 1.
-- `score` vs `party` on `minority_welfare`: Δ = +0.02159 (95% CI [+0.01243, +0.03076]), paired Cohen's d = +0.293, Wilcoxon p = 8.221e-07, Holm-adjusted p = 5.755e-06.
+- `score` vs `party` on `minority_welfare`: Δ = -0.02504 (95% CI [-0.03438, -0.01570]), paired Cohen's d = -0.334, Wilcoxon p = 2.922e-07, Holm-adjusted p = 2.046e-06.
 - `score` vs `party` on `total_welfare`: Δ = -0.00172 (95% CI [-0.00268, -0.00076]), paired Cohen's d = -0.224, Wilcoxon p = 0.01164, Holm-adjusted p = 0.03492.
 - `score` vs `party` on `lambda_winner`: Δ = -0.19108 (95% CI [-0.21506, -0.16710]), paired Cohen's d = -0.992, Wilcoxon p = 1.113e-30, Holm-adjusted p = 8.902e-30.
-- `latent_match` vs `party` on `minority_welfare`: Δ = +0.01965 (95% CI [+0.01079, +0.02852]), paired Cohen's d = +0.276, Wilcoxon p = 5.523e-06, Holm-adjusted p = 3.314e-05.
+- `latent_match` vs `party` on `minority_welfare`: Δ = -0.02441 (95% CI [-0.03335, -0.01547]), paired Cohen's d = -0.340, Wilcoxon p = 3.648e-07, Holm-adjusted p = 2.189e-06.
 - `latent_match` vs `party` on `total_welfare`: Δ = -0.00238 (95% CI [-0.00337, -0.00139]), paired Cohen's d = -0.300, Wilcoxon p = 0.0002343, Holm-adjusted p = 0.001171.
 - `latent_match` vs `party` on `lambda_winner`: Δ = -0.22577 (95% CI [-0.24848, -0.20307]), paired Cohen's d = -1.239, Wilcoxon p = 1.063e-36, Holm-adjusted p = 9.567e-36.
 
 Mushy-bloc check (fixed partition):
-- not triggered — no rule shrank the election-endogenous gap without a rise in minority-cluster welfare.
+- election-endogenous gap shrank while minority-cluster welfare did not rise for `individual`, `score`, `latent_match`.
 
 ## Limitations
 

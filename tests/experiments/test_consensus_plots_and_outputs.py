@@ -140,8 +140,10 @@ class TestRunSweep:
             candidate_counts=(4,),
         )
         result = run_sweep(sweep)
-        assert isinstance(result, pd.DataFrame)
-        assert set(result["population"].unique()) == {"two_cluster", "one_cluster"}
+        assert isinstance(result.trials, pd.DataFrame)
+        assert set(result.trials["population"].unique()) == {"two_cluster", "one_cluster"}
+        assert result.audit.n_trials == 4
+        assert result.audit.cluster_ids.shape == (4, 30)
 
 
 class TestWriteOutputs:

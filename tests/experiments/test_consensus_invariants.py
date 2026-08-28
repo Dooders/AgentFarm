@@ -10,14 +10,22 @@ from farm.experiments.consensus.allocation import BLEND_DIRECTED, BLEND_PLATFORM
 from farm.experiments.consensus.contrasts import paired_contrasts
 from farm.experiments.consensus.experiment import (
     ExperimentConfig,
+    SweepConfig,
     config_manifest,
     run_cell,
+    run_sweep,
     run_trials,
     summarize,
+    sweep_manifest,
     write_outputs,
 )
 from farm.experiments.consensus.mechanism import choose_lambda_reelection
-from farm.experiments.consensus.metrics import ALLOCATION_COLUMNS, evaluate_trial
+from farm.experiments.consensus.metrics import (
+    ALLOCATION_COLUMNS,
+    _majority_minority,
+    evaluate_trial,
+    utilitarian_allocation,
+)
 from farm.experiments.consensus.paradigms import CONSTRAINED_PARADIGM, PARADIGMS, SELECTION_PARADIGMS, run_election
 from farm.experiments.consensus.population import Candidates, Population, generate_candidates, generate_population
 
@@ -373,3 +381,55 @@ def test_abandon_trailing_changes_some_ballots() -> None:
     strategic = run_election("individual", population, candidates, voting="abandon_trailing")
     assert sincere.ballots is not None and strategic.ballots is not None
     assert sincere.ballots.shape == strategic.ballots.shape
+    assert np.any(sincere.ballots != strategic.ballots)
+
+
+def test_utilitarian_allocation_is_mean_benefit_vertex() -> None:
+    rng = np.random.default_rng(3)
+    population = generate_population(rng, 80, "two_cluster")
+    direction = population.benefits.mean(axis=0)
+    alloc = utilitarian_allocation(population.benefits)
+    assert alloc.shape == direction.shape
+    np.testing.assert_allclose(alloc.sum(), 1.0)
+    assert (alloc >= 0.0).all()
+    assert int(np.count_nonzero(alloc)) == 1
+    assert int(alloc.argmax()) == int(direction.argmax())
+    mean_dir = direction / direction.sum()
+    util_mean = float((population.benefits @ alloc).mean())
+    dir_mean = float((population.benefits @ mean_dir).mean())
+    assert util_mean >= dir_mean - 1e-12
+
+
+def test_majority_minority_uses_smallest_other_group() -> None:
+    two = np.array([0] * 50 + [1] * 50)
+    assert _majority_minority(two) == (0, 1)
+    three = np.array([0] * 40 + [1] * 40 + [2] * 20)
+    assert _majority_minority(three) == (0, 2)
+    rural = np.array([0] * 70 + [1] * 30)
+    assert _majority_minority(rural) == (0, 1)
+    rng = np.random.default_rng(4)
+    population = generate_population(rng, 200, "three_cluster")
+    majority_id, minority_id = _majority_minority(population.cluster_ids)
+    counts = np.bincount(population.cluster_ids)
+    assert counts[minority_id] < counts[majority_id]
+    assert counts[minority_id] == counts[counts > 0].min()
+
+
+def test_sweep_persists_merged_audit(tmp_path) -> None:
+    sweep = SweepConfig(
+        base=ExperimentConfig(trials=2, voters=30, candidates=4, seed=1, persist_ballots=True),
+        populations=["two_cluster", "one_cluster"],
+        candidate_counts=(4,),
+    )
+    run = run_sweep(sweep)
+    write_outputs(
+        run.trials,
+        tmp_path,
+        sweep_manifest(sweep, "python run_experiment.py sweep"),
+        audit=run.audit,
+        persist_ballots=sweep.base.persist_ballots,
+    )
+    data = np.load(tmp_path / "private" / "ballots.npz")
+    assert data["cluster_ids"].shape == (4, 30)
+    assert data["group_ids"].shape == (4, 30)
+    assert "ballots_individual" in data.files

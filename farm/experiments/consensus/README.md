@@ -65,7 +65,7 @@ Not a voting rule:
    loops and from "which rule wins" language.
 
 Allocation baselines (same draw; not selection treatments): `random_winner`,
-`utilitarian` (mean-benefit direction), `egalitarian` (maximin).
+`utilitarian` (simplex vertex maximizing mean utility), `egalitarian` (maximin).
 
 `--voting abandon_trailing` applies a Duverger-style heuristic to plurality
 (`individual` / the cap overlay). Sincere plurality remains the default baseline.
@@ -131,9 +131,10 @@ Outputs in `--out`: `trials.csv` (one row per paradigm × trial, plus baseline
 rows), `summary.csv`, `allocation_means.csv`, `contrasts.csv`, `run_config.json`
 (the exact command with a `{run_dir}` placeholder, plus the parsed config,
 including `primary_question`), `figures/`, and `REPORT.md`. Synthetic ballots,
-supporter masks, and cluster ids go under `private/` (default on). They are an
-audit trail for synthetic voters, not a privacy claim, and they are not
-notarized. Official record: aggregates only.
+supporter masks, and cluster ids go under `private/` (default on), including
+sweeps (cells stacked in cell-major order). They are an audit trail for
+synthetic voters, not a privacy claim, and they are not notarized. Official
+record: aggregates only.
 
 `python run_experiment.py verify-report --results <dir>` recomputes
 `summary.csv`, `allocation_means.csv`, `contrasts.csv`, and `REPORT.md` from

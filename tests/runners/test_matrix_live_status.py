@@ -12,6 +12,7 @@ from unittest.mock import patch
 from farm.runners.matrix_live_status import (
     LIVE_STATUS_FILENAME,
     build_live_status,
+    count_completed_seed_runs,
     parse_seed_log_progress,
     publish_live_status,
     scan_active_runs,
@@ -124,6 +125,23 @@ class TestBuildAndWriteLiveStatus(unittest.TestCase):
                 self.assertEqual(body["note"], "job_complete")
                 self.assertEqual(body["recent"][0]["rc"], 1)
                 self.assertIn("RuntimeError", body["recent"][0]["err"])
+
+    def test_count_completed_seed_runs_ignores_non_balanced_profiles(self):
+        with TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            cell = out / "pop-sim__pressure-low__geneflow-mutation"
+            for profile, steps in (
+                ("stable_balanced", 1000),
+                ("stable_conservative", 1000),
+                ("stable_buffered", 1000),
+            ):
+                seed_dir = cell / profile / "seed_1"
+                seed_dir.mkdir(parents=True)
+                (seed_dir / "intrinsic_evolution_metadata.json").write_text(
+                    json.dumps({"num_steps_completed": steps}),
+                    encoding="utf-8",
+                )
+            self.assertEqual(count_completed_seed_runs(out, 1000), 1)
 
     def test_scan_skips_stale_completed_logs(self):
         with TemporaryDirectory() as tmp:

@@ -174,8 +174,8 @@ playground.ipynb
 simulations/
 /experiments/
 
-# Local consensus audit (synthetic ballots; not the official/notarized record)
-results/**/private/
+# Generated experiment outputs (regenerate via run_experiment.py / runners)
+results/
 
 # Generated distillation/quantization artifacts
 checkpoints/distillation*/

@@ -59,19 +59,22 @@ def gini(values: np.ndarray) -> float:
 
 
 def utilitarian_allocation(benefits: np.ndarray) -> np.ndarray:
-    """Simplex allocation maximizing mean utility: the mean benefit direction.
+    """Simplex allocation maximizing mean utility.
 
-    Documented family: directed-only (no platform blend). ``E[u] = dir_all @ a``
-    is maximized on the simplex at ``a = dir_all``.
+    ``E[u] = mean(benefits, axis=0) @ a`` is linear in ``a``, so the maximum
+    on the simplex is a vertex: one-hot on ``argmax`` of the mean-benefit
+    direction (lowest index on ties). Directed-only: no platform blend.
     """
-    direction = benefits.mean(axis=0)
-    return direction / direction.sum()
+    direction = np.asarray(benefits, dtype=float).mean(axis=0)
+    alloc = np.zeros(direction.shape[0], dtype=float)
+    alloc[int(np.argmax(direction))] = 1.0
+    return alloc
 
 
 def egalitarian_allocation(benefits: np.ndarray) -> np.ndarray:
     """Maximin allocation: maximize the worst-off voter's utility.
 
-    Small LP (P variables). Falls back to the utilitarian direction if the
+    Small LP (P variables). Falls back to the utilitarian vertex if the
     solver fails.
     """
     n_voters, n_projects = benefits.shape
@@ -116,10 +119,20 @@ def _group_welfare(utilities: np.ndarray, group_ids: np.ndarray) -> dict[str, fl
 
 
 def _majority_minority(group_ids: np.ndarray) -> tuple[int, int]:
+    """Largest present group and the smallest other present group.
+
+    Equal-sized groups (e.g. 50/50) must not collapse to the same id: the
+    majority takes the lowest id among the modal sizes, and the minority is
+    the smallest group among the remainder. For ``three_cluster`` (40/40/20)
+    that remainder is the 20% cluster, not the other 40% bloc.
+    """
     counts = np.bincount(group_ids)
-    order = np.argsort(counts)[::-1]
-    majority = int(order[0])
-    minority = int(order[1]) if order.size > 1 else majority
+    present = np.flatnonzero(counts)
+    majority = int(present[np.argmax(counts[present])])
+    if present.size <= 1:
+        return majority, majority
+    others = present[present != majority]
+    minority = int(others[np.argmin(counts[others])])
     return majority, minority
 
 

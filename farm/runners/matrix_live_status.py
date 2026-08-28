@@ -102,7 +102,10 @@ def parse_seed_log_progress(log_path: Path) -> Optional[tuple[int, int, int]]:
 
 
 def count_completed_seed_runs(output_dir: Path, num_steps: int) -> int:
-    """Count finished ``stable_*/seed_*`` runs under a matrix output directory.
+    """Count finished ``stable_balanced/seed_*`` runs under a matrix output directory.
+
+    The orchestrator launches the balanced profile. Extra ``stable_*`` trees
+    (conservative, buffered) must not inflate ``n_ok`` past the launch total.
 
     A run counts as complete when ``intrinsic_evolution_metadata.json`` exists
     and ``num_steps_completed >= num_steps``. This is the durable source of truth
@@ -111,7 +114,7 @@ def count_completed_seed_runs(output_dir: Path, num_steps: int) -> int:
     if not output_dir.is_dir():
         return 0
     completed = 0
-    for meta_path in output_dir.glob("*/stable_*/seed_*/intrinsic_evolution_metadata.json"):
+    for meta_path in output_dir.glob("*/stable_balanced/seed_*/intrinsic_evolution_metadata.json"):
         try:
             with meta_path.open(encoding="utf-8") as handle:
                 meta = json.load(handle)

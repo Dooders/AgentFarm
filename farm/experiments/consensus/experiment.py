@@ -305,8 +305,30 @@ def run_trials(config: ExperimentConfig) -> pd.DataFrame:
     return run_cell(config).trials
 
 
-def run_sweep(sweep: SweepConfig) -> pd.DataFrame:
-    return pd.concat([run_trials(cell) for cell in sweep.cells()], ignore_index=True)
+def _concat_audits(audits: Sequence[AuditArtifacts]) -> AuditArtifacts:
+    """Stack per-cell audit arrays in the same cell-major order as ``run_sweep``."""
+    supporters: dict[str, list[np.ndarray]] = {}
+    ballots: dict[str, list[np.ndarray]] = {}
+    for audit in audits:
+        for name, array in audit.supporters.items():
+            supporters.setdefault(name, []).append(array)
+        for name, array in audit.ballots.items():
+            ballots.setdefault(name, []).append(array)
+    return AuditArtifacts(
+        cluster_ids=np.concatenate([audit.cluster_ids for audit in audits], axis=0),
+        group_ids=np.concatenate([audit.group_ids for audit in audits], axis=0),
+        supporters={name: np.concatenate(chunks, axis=0) for name, chunks in supporters.items()},
+        ballots={name: np.concatenate(chunks, axis=0) for name, chunks in ballots.items()},
+    )
+
+
+def run_sweep(sweep: SweepConfig) -> TrialRun:
+    """Run every sweep cell and concatenate official rows plus audit arrays."""
+    runs = [run_cell(cell) for cell in sweep.cells()]
+    return TrialRun(
+        trials=pd.concat([run.trials for run in runs], ignore_index=True),
+        audit=_concat_audits([run.audit for run in runs]),
+    )
 
 
 def summarize(trials: pd.DataFrame) -> pd.DataFrame:
