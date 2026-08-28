@@ -19,7 +19,7 @@ under every rule by construction. Do not treat a flat λ profile as a finding.
 
 `--lambda-correlated` is a robustness appendix. `--mechanism reelection` is
 the incentive cell in which winners choose λ. See
-[`farm/experiments/consensus/README.md`](../../experiments/consensus/README.md).
+[`farm/experiments/consensus/README.md`](../../../farm/experiments/consensus/README.md).
 
 ## Paradigms
 
