@@ -6,7 +6,7 @@ live tickets: the environment that produced them could read
 `Dooders/AgentFarm` issues but could not create them (`403 Resource not
 accessible by personal access token`).
 
-File them (once a token with `issues:write` is available):
+File them (once you have a token with permission to create issues in this repo):
 
 ```bash
 # from repo root
