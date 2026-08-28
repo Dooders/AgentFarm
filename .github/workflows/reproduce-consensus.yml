@@ -40,9 +40,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-ci-lock.txt
           pip install -e . --no-deps
-          # Pinned to a specific commit on the mvp branch; update the SHA when
+          # Pinned to a specific commit; update the SHA when
           # the FarmNotary release ships and switch to a tagged version then.
-          pip install "git+https://github.com/Dooders/FarmNotary@cursor/farmnotary-mvp-2e2d"
+          pip install "git+https://github.com/Dooders/FarmNotary@1d5e8667ea6f37f7715995abe0f863873cf67ddb"
 
       - name: Run experiment
         run: python run_experiment.py --trials 60 --voters 200 --candidates 8 --population two_cluster --seed 0 --out /tmp/consensus-run
