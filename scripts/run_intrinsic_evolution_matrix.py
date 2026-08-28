@@ -243,6 +243,18 @@ def _nice_worker() -> None:
         pass
 
 
+def _apply_nice_to_command(command: list[str]) -> list[str]:
+    """Prefix *command* with ``nice -n 10`` on POSIX; return unchanged elsewhere.
+
+    Using ``nice`` as an executable prefix avoids calling ``os.nice`` in a
+    ``preexec_fn``, which is unsafe when the parent process runs threads
+    (the child can deadlock between fork and exec).
+    """
+    if os.name == "posix":
+        return ["nice", "-n", "10"] + command
+    return command
+
+
 def run_job(job: Job, args: argparse.Namespace) -> JobResult:
     """Execute one (cell, seed) job as a subprocess and capture its outcome."""
     cell_dir = Path(args.output_dir) / job.cell_name
@@ -253,13 +265,12 @@ def run_job(job: Job, args: argparse.Namespace) -> JobResult:
     t0 = time.time()
     with log_path.open("w", encoding="utf-8") as log_handle:
         completed = subprocess.run(
-            command,
+            _apply_nice_to_command(command),
             cwd=str(_REPO_ROOT),
             env=_child_env(),
             stdout=log_handle,
             stderr=subprocess.STDOUT,
             check=False,
-            preexec_fn=_nice_worker if os.name == "posix" else None,
         )
     elapsed = time.time() - t0
     status = "ok" if completed.returncode == 0 else "error"
@@ -449,29 +460,31 @@ def main(argv: list[str] | None = None) -> int:
     n_ok = 0
     n_fail = 0
     status_lock = Lock()
+    emit_lock = Lock()
     stop_heartbeat = Event()
     use_guest_attrs = not args.no_guest_attributes
 
     def _emit_status(note: str = "") -> None:
-        # Snapshot under the lock; publish outside so guest-attribute I/O cannot
-        # stall job accounting or the heartbeat thread.
-        with status_lock:
-            snapshot_ok = n_ok
-            snapshot_fail = n_fail
-            snapshot_recent = list(recent)
-        try:
-            publish_live_status(
-                output_dir,
-                total_jobs=len(jobs),
-                n_ok=snapshot_ok,
-                n_fail=snapshot_fail,
-                workers=workers,
-                recent=snapshot_recent,
-                note=note,
-                guest_attributes=use_guest_attrs,
-            )
-        except Exception as exc:  # noqa: BLE001 — status must never kill the matrix
-            print(f"warning: live status publish failed: {exc}", file=sys.stderr)
+        # Serialize snapshot-plus-publication with emit_lock so a slow heartbeat
+        # cannot overwrite a newer job_complete or finished publication.
+        with emit_lock:
+            with status_lock:
+                snapshot_ok = n_ok
+                snapshot_fail = n_fail
+                snapshot_recent = list(recent)
+            try:
+                publish_live_status(
+                    output_dir,
+                    total_jobs=len(jobs),
+                    n_ok=snapshot_ok,
+                    n_fail=snapshot_fail,
+                    workers=workers,
+                    recent=snapshot_recent,
+                    note=note,
+                    guest_attributes=use_guest_attrs,
+                )
+            except Exception as exc:  # noqa: BLE001 — status must never kill the matrix
+                print(f"warning: live status publish failed: {exc}", file=sys.stderr)
 
     def _heartbeat_loop() -> None:
         interval = max(5.0, float(args.status_interval))

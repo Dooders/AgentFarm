@@ -89,7 +89,7 @@ from farm.runners.intrinsic_evolution_experiment import (  # noqa: E402
     IntrinsicEvolutionPolicy,
     SpeciationConfig,
 )
-from farm.runners.intrinsic_evolution_checkpoint import has_resumable_checkpoint
+from farm.runners.intrinsic_evolution_checkpoint import has_resumable_checkpoint  # noqa: E402
 from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
 DEFAULT_SEEDS: List[int] = [42, 7, 19, 101, 137, 256]
@@ -411,6 +411,7 @@ def _build_run(profile: str, seed: int, args: argparse.Namespace, run_dir: Path)
         speciation=speciation,
         output_dir=str(run_dir),
         seed=seed,
+        resume=bool(getattr(args, "resume", False)),
     )
     return IntrinsicEvolutionExperiment(base_config, exp_config)
 

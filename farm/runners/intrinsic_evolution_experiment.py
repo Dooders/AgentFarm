@@ -646,6 +646,7 @@ class IntrinsicEvolutionExperimentConfig:
     speciation: SpeciationConfig = field(default_factory=SpeciationConfig)
     output_dir: Optional[str] = None
     seed: Optional[int] = None
+    resume: bool = False
 
     def __post_init__(self) -> None:
         if self.num_steps < 1:
@@ -703,7 +704,7 @@ class IntrinsicEvolutionExperiment:
         policy = self.config.policy
         resume_payload = None
         resume_start_step = 0
-        if self.config.output_dir and has_resumable_checkpoint(
+        if self.config.resume and self.config.output_dir and has_resumable_checkpoint(
             self.config.output_dir, self.config.num_steps
         ):
             resume_payload = load_checkpoint_payload(self.config.output_dir)

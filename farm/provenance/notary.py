@@ -1,18 +1,11 @@
-"""AgentFarm adapter for FarmNotary.
-
-FarmNotary is an optional dependency; every entry point here raises a helpful
-error when it is missing. The adapter is a thin veneer: manifests record the
-command (with a ``{run_dir}`` placeholder), config, git identity, and
-environment; anchoring goes through OpenTimestamps (free public calendars) or
-stays a dry run; reproduction re-executes the recorded command and
-byte-compares the artifacts.
-"""
+"""AgentFarm adapter for FarmNotary."""
 
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 RUN_CONFIG_NAME = "run_config.json"
 
@@ -29,12 +22,37 @@ def _require_farm_notary():
     return farm_notary
 
 
+def farm_notary_available() -> bool:
+    try:
+        _require_farm_notary()
+    except ImportError:
+        return False
+    return True
+
+
 def _read_run_config(run_dir: Path) -> dict:
     """The experiment's own run_config.json, when present."""
     path = Path(run_dir) / RUN_CONFIG_NAME
     if path.is_file():
         return json.loads(path.read_text())
     return {}
+
+
+def _git_sha() -> Optional[str]:
+    """Return the HEAD SHA of the AgentFarm checkout, or None."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    if not (repo_root / ".git").exists():
+        return None
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        return out.strip() or None
+    except (OSError, subprocess.CalledProcessError):
+        return None
 
 
 def notarize(
@@ -50,13 +68,7 @@ def notarize(
     ipfs_api: str | None = None,
     lockfile: Path | None = None,
 ) -> tuple[Any, Any]:
-    """Notarize a finished run directory; returns (manifest, receipt).
-
-    When the run directory contains run_config.json (written by
-    run_experiment.py), its command and config are used automatically, so the
-    manifest is reproduce-ready without extra arguments. backend is "dry-run"
-    (default, no network) or "ots" (OpenTimestamps public calendars, free).
-    """
+    """Notarize a finished run directory; returns (manifest, receipt)."""
     fn = _require_farm_notary()
     from farm_notary.anchor import get_backend
 
@@ -89,11 +101,7 @@ def verify(run_dir: Path) -> list:
 
 
 def reproduce(run_dir: Path, *, ignore: Sequence[str] = (), anchor: bool = False):
-    """Re-run the notarized command and byte-compare; returns the result.
-
-    Writes a reproduction.json receipt into run_dir; with anchor=True the
-    receipt hash is timestamped via OpenTimestamps (reproduction.ots).
-    """
+    """Re-run the notarized command and byte-compare; returns the result."""
     fn = _require_farm_notary()
     from farm_notary.reproduce import (
         RECEIPT_PROOF_NAME,
@@ -114,3 +122,47 @@ def reproduce(run_dir: Path, *, ignore: Sequence[str] = (), anchor: bool = False
         proof, _ = stamp_digest(bytes.fromhex(receipt_hash(receipt)))
         (run_dir / RECEIPT_PROOF_NAME).write_bytes(proof)
     return result
+
+
+def notarize_run_dir(
+    run_dir: str | Path,
+    *,
+    runner: Optional[str] = None,
+    config: Optional[Mapping[str, Any]] = None,
+    official_record: Optional[Mapping[str, Any]] = None,
+    git_sha: Optional[str] = None,
+    anchor: bool = False,
+) -> Optional[dict[str, Any]]:
+    """Write manifest.json if FarmNotary is installed.
+
+    Returns a small receipt dict, or None if the extra is missing.
+    """
+    if not farm_notary_available():
+        return None
+
+    from farm_notary.anchor import anchor_run
+    from farm_notary.manifest import build_manifest, write_manifest
+
+    run_dir = Path(run_dir)
+    if not run_dir.is_dir():
+        raise FileNotFoundError(f"run_dir does not exist: {run_dir}")
+    manifest = build_manifest(
+        run_dir,
+        config=config,
+        git_sha=git_sha or _git_sha(),
+        runner=runner,
+        official_record=official_record,
+    )
+    path = write_manifest(manifest, run_dir)
+    receipt: dict[str, Any] = {
+        "manifest_path": str(path),
+        "content_hash": manifest.content_hash(),
+        "anchored": False,
+    }
+    if anchor:
+        anchored = anchor_run(manifest)
+        receipt["anchored"] = not anchored.dry_run
+        receipt["backend"] = anchored.backend
+        receipt["tx_hash"] = anchored.tx_hash
+        write_manifest(manifest, run_dir)
+    return receipt

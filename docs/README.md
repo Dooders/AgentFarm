@@ -30,6 +30,7 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 - [Experiment runner](guides/experiment-runner.md)
 - [Experiment analysis](guides/experiment-analysis.md)
 - [Deterministic simulations](guides/deterministic-simulations.md)
+- [Notarizing a run (FarmNotary)](guides/farm-notary.md)
 - [Neural recombination](guides/neural-recombination.md) · [Runbook](guides/neural-recombination-runbook.md)
 - [Genetics analysis](guides/genetics-analysis.md)
 
@@ -52,10 +53,12 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 
 - [Experiments catalog](research/experiments-catalog.md)
 - [Devlog](research/devlog/index.md)
+- [Consensus paradigms](research/experiments/consensus_paradigms.md)
 
 ## Design & archive
 
 - [Design RFCs](design/README.md)
+- [On-chain run provenance](design/onchain_run_provenance.md)
 - [Documentation style guide](STYLE.md)
 - [Archived features](archive/features/) · [Archived analysis notes](archive/analysis-extensions/)
 
