@@ -156,6 +156,7 @@ class TestWriteOutputs:
         assert (tmp_path / "trials.csv").exists()
         assert (tmp_path / "summary.csv").exists()
         assert (tmp_path / "allocation_means.csv").exists()
+        assert (tmp_path / "contrasts.csv").exists()
         assert (tmp_path / "run_config.json").exists()
         assert (tmp_path / "figures").is_dir()
         assert (tmp_path / "REPORT.md").exists()

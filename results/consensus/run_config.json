@@ -1,5 +1,5 @@
 {
-  "command": "python run_experiment.py --trials 250 --voters 400 --candidates 8 --population two_cluster --seed 0 --out '{run_dir}'",
+  "command": "python run_experiment.py --trials 250 --voters 400 --candidates 8 --population two_cluster --seed 0 --no-persist-ballots --out '{run_dir}'",
   "config": {
     "trials": 250,
     "voters": 400,
@@ -8,6 +8,11 @@
     "seed": 0,
     "include_constrained": false,
     "lambda_cap": 0.25,
-    "lambda_correlated": false
+    "lambda_correlated": false,
+    "persist_ballots": false,
+    "mechanism": "oneshot",
+    "voting": "sincere",
+    "primary_question": "ballot_format_fixed_partition",
+    "lambda_primary": false
   }
 }

@@ -1,64 +1,94 @@
 # Political consensus experiment — auto-generated report
 
-Comparison of selection paradigms on a post-election budget-allocation task: does individual-centered selection (no parties) produce stewards who treat non-supporters better than party selection does?
+Holding λ's marginal distribution fixed and holding the set of people fixed, do individual-centered ballot formats change the winner's allocation in a way that raises minority-cluster welfare and/or total welfare relative to party? Election-endogenous loser welfare is reported but is not the primary contrast: 'supporters' is a different estimand under every rule.
 
 ## Methods
 
 - **Population**: 400 voters per trial, latent preference vectors in R^5 drawn from cluster centers plus Gaussian noise (σ = 0.35); benefit vectors are a softmax (temperature 0.55) of preferences, so rows are nonnegative and sum to 1. Population types run here: `two_cluster`.
-- **Projects**: `core_services`, `coalition_club`, `outgroup_repair`, `prestige_project`, `buffer_reserve`.
-- **Candidates**: 8 per trial (sweeps may vary this), platforms drawn from the same cluster structure; loyalty trait λ ~ Beta(2.2, 2.2), independent of the platform.
-- **Allocation**: `raw = λ·mean(benefits[supporters]) + (1−λ)·mean(benefits[all])`, then `raw = 0.72·raw + 0.28·clip(platform, 0, ∞)`, normalized to sum to 1. Zero supporters ⇒ all-voter direction only.
-- **Paradigms**: `party`, `individual`, `score`, `latent_match`.
+- **Projects** (generator tags, not winner-relative): `public_good`, `majority_pork`, `minority_pork`, `prestige`, `periphery_buffer`.
+- **Candidates**: 8 per trial (sweeps may vary this), platforms drawn from the same cluster structure; loyalty trait λ ~ Beta(2.2, 2.2), independent of the platform and of anything voters see. No rule reads λ, so E[λ_winner] is the Beta mean under every paradigm by construction — not an empirical finding.
+- **Allocation**: `directed = λ·mean(benefits[supporters]) + (1−λ)·mean(benefits[all])`, then `raw = 0.72·directed + 0.28·simplex(clip(platform, 0, ∞))`. The platform is renormalized before mixing so the weights are a convex combination of matched units. Zero supporters ⇒ all-voter direction only. A platform with no positive mass is dropped.
+- **Paradigms (selection treatments)**: `party`, `individual`, `score`, `latent_match`. `constrained_individual` is a constitutional λ cap, not a voting rule; it is not in this run.
+- **Voting**: `sincere`. Sincere plurality is the default baseline; `abandon_trailing` is a Duverger-style heuristic on individual (and the cap overlay).
+- **Mechanism**: `oneshot`. The default one-shot cell is a selection-rule comparison with exogenous types, not a test of loyalty formation.
 - **Trials**: 250 per cell, base seed 0; every paradigm sees the identical population and candidate slate within a trial.
-- **Privacy**: only aggregates and winner allocations are persisted; no individual ballots.
+- **Primary endpoints**: Δ minority-cluster welfare and Δ total welfare vs party. Holm correction across that family. Wilcoxon signed-rank on paired trial-level differences; 95% CIs are Student-t; effect size is paired Cohen's d.
+- **Fixed partition**: welfare is reported on generator clusters (PCA split for `one_cluster`). Election-endogenous supporter/loser numbers are kept and labeled as such; they are not the primary contrast. `rural_town` party `loser_share` equals the minority bloc size by construction (~0.30) and is not a treatment effect.
+- **Baselines** (same population + candidate draw): `random_winner` (uniform candidate, nearest-pref supporters), `utilitarian` (mean-benefit direction; directed-only family), `egalitarian` (maximin LP). Normalized welfare is `(metric − random) / (utilitarian − random)` when the denominator is nonzero.
+- **Audit**: synthetic ballots, supporter masks, and cluster ids are written under `private/` when `--persist-ballots` is on (the default). They are not a privacy claim and they are not notarized. Official record: `summary.csv`, `trials.csv` aggregates, `contrasts.csv`.
 
 ## Results
 
-Mean ± std over trials, by population, candidate count, and paradigm:
+Mean ± std over trials for **selection rules**. `loser_share` / `loser_welfare` / `gap` are election-endogenous (the loser *set* changes with the rule) and are not the primary contrast.
 
-| population | n_candidates | paradigm | total_welfare | supporter_welfare | loser_welfare | gap | lambda_winner | loser_share |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| two_cluster | 8 | party | 0.2329 ± 0.0067 | 0.3073 ± 0.0200 | 0.1580 ± 0.0149 | 0.1493 ± 0.0326 | 0.5145 ± 0.2211 | 0.4978 ± 0.0022 |
-| two_cluster | 8 | individual | 0.2323 ± 0.0081 | 0.3124 ± 0.0304 | 0.1969 ± 0.0169 | 0.1154 ± 0.0385 | 0.5111 ± 0.2155 | 0.7008 ± 0.0766 |
-| two_cluster | 8 | score | 0.2297 ± 0.0088 | 0.2763 ± 0.0323 | 0.2171 ± 0.0122 | 0.0592 ± 0.0373 | 0.5080 ± 0.2230 | 0.8198 ± 0.0849 |
-| two_cluster | 8 | latent_match | 0.2286 ± 0.0090 | 0.2707 ± 0.0306 | 0.2186 ± 0.0119 | 0.0521 ± 0.0344 | 0.5098 ± 0.2210 | 0.8395 ± 0.0835 |
+| population | n_candidates | paradigm | total_welfare | minority_welfare | majority_welfare | min_utility | p10_utility | gini_utility | lambda_winner | loser_share | loser_welfare | gap |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| two_cluster | 8 | party | 0.2313 ± 0.0051 | 0.2076 ± 0.0643 | 0.2549 ± 0.0653 | 0.1150 ± 0.0204 | 0.1427 ± 0.0190 | 0.1841 ± 0.0424 | 0.5145 ± 0.2211 | 0.4978 ± 0.0022 | 0.1644 ± 0.0161 | 0.1331 ± 0.0342 |
+| two_cluster | 8 | individual | 0.2308 ± 0.0066 | 0.2311 ± 0.0692 | 0.2306 ± 0.0697 | 0.1135 ± 0.0213 | 0.1422 ± 0.0196 | 0.1851 ± 0.0441 | 0.5111 ± 0.2155 | 0.7008 ± 0.0766 | 0.1993 ± 0.0156 | 0.1031 ± 0.0367 |
+| two_cluster | 8 | score | 0.2287 ± 0.0076 | 0.2305 ± 0.0527 | 0.2269 ± 0.0537 | 0.1275 ± 0.0203 | 0.1593 ± 0.0218 | 0.1425 ± 0.0479 | 0.5080 ± 0.2230 | 0.8198 ± 0.0849 | 0.2174 ± 0.0111 | 0.0534 ± 0.0344 |
+| two_cluster | 8 | latent_match | 0.2279 ± 0.0078 | 0.2270 ± 0.0498 | 0.2287 ± 0.0503 | 0.1305 ± 0.0197 | 0.1621 ± 0.0218 | 0.1350 ± 0.0480 | 0.5098 ± 0.2210 | 0.8395 ± 0.0835 | 0.2189 ± 0.0107 | 0.0472 ± 0.0319 |
+
+### Allocation baselines (not selection treatments)
+
+Random-winner floor and utilitarian / egalitarian brackets on the same draws. Normalized columns live on every row of `trials.csv`.
+
+| population | n_candidates | paradigm | total_welfare | minority_welfare | majority_welfare | min_utility | p10_utility | gini_utility | lambda_winner | loser_share | loser_welfare | gap |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| two_cluster | 8 | random_winner | 0.2309 ± 0.0088 | 0.2321 ± 0.0693 | 0.2298 ± 0.0688 | 0.1139 ± 0.0244 | 0.1449 ± 0.0240 | 0.1806 ± 0.0584 | 0.5266 ± 0.2261 | 0.8747 ± 0.1038 | 0.2189 ± 0.0154 | 0.0941 ± 0.0489 |
+| two_cluster | 8 | utilitarian | 0.2268 ± 0.0017 | 0.2269 ± 0.0031 | 0.2267 ± 0.0030 | 0.1636 ± 0.0084 | 0.2047 ± 0.0022 | 0.0396 ± 0.0018 | nan | nan | nan | nan |
+| two_cluster | 8 | egalitarian | 0.2000 ± 0.0000 | 0.2000 ± 0.0000 | 0.2000 ± 0.0000 | 0.2000 ± 0.0000 | 0.2000 ± 0.0000 | 0.0000 ± 0.0000 | nan | nan | nan | nan |
 
 ### Mean winner allocations
 
-| population | n_candidates | paradigm | core_services | coalition_club | outgroup_repair | prestige_project | buffer_reserve |
+| population | n_candidates | paradigm | public_good | majority_pork | minority_pork | prestige | periphery_buffer |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| two_cluster | 8 | party | 0.2756 | 0.2100 | 0.3353 | 0.0902 | 0.0889 |
-| two_cluster | 8 | individual | 0.2731 | 0.2709 | 0.2724 | 0.0930 | 0.0905 |
-| two_cluster | 8 | score | 0.2893 | 0.2593 | 0.2517 | 0.1023 | 0.0974 |
-| two_cluster | 8 | latent_match | 0.2931 | 0.2483 | 0.2525 | 0.1042 | 0.1018 |
+| two_cluster | 8 | party | 0.2669 | 0.2153 | 0.3269 | 0.0949 | 0.0960 |
+| two_cluster | 8 | individual | 0.2649 | 0.2710 | 0.2702 | 0.0964 | 0.0975 |
+| two_cluster | 8 | score | 0.2822 | 0.2601 | 0.2511 | 0.1040 | 0.1026 |
+| two_cluster | 8 | latent_match | 0.2865 | 0.2493 | 0.2530 | 0.1053 | 0.1059 |
+| two_cluster | 8 | random_winner | 0.2667 | 0.2733 | 0.2679 | 0.1014 | 0.0908 |
+| two_cluster | 8 | utilitarian | 0.2500 | 0.2643 | 0.2639 | 0.1068 | 0.1150 |
+| two_cluster | 8 | egalitarian | 0.2000 | 0.2000 | 0.2000 | 0.2000 | 0.2000 |
 
-## Hypothesis evaluation
+## Paired contrasts vs party
 
-Hypothesis: individual-centered rules (`individual`, `score`, `latent_match`) select lower-λ winners than `party` and raise loser welfare without merely inflating loser share.
+Same-trial differences. Primary endpoints carry Holm-adjusted p-values. Threshold constants are not used as a verdict machine.
 
-### two_cluster, 8 candidates
+λ_winner is **not** a primary endpoint in this cell. Voters never see λ, so a flat λ profile is implied by the generator.
 
-- `individual` vs `party`: Δλ_winner = -0.0034, Δloser_welfare = +0.03897, Δloser_share = +0.2030, Δgap = -0.03385, Δtotal_welfare = -0.00064 → raises loser welfare but mostly by inflating loser share (partial support).
-- `score` vs `party`: Δλ_winner = -0.0065, Δloser_welfare = +0.05915, Δloser_share = +0.3220, Δgap = -0.09007, Δtotal_welfare = -0.00326 → raises loser welfare but mostly by inflating loser share (partial support).
-- `latent_match` vs `party`: Δλ_winner = -0.0047, Δloser_welfare = +0.06067, Δloser_share = +0.3417, Δgap = -0.09720, Δtotal_welfare = -0.00438 → raises loser welfare but mostly by inflating loser share (partial support).
+### two_cluster, 8
 
-Falsifier checks:
-- λ_winner unchanged across rules (max |Δλ| < 0.02): max |Δλ| = 0.0065 → **triggered**.
-- total welfare flat (max relative change < 0.5%): max relative change = 1.8798% → not triggered.
-- loser_share rises a lot (> +0.15): max rise = +0.3417 → **triggered**.
-- gap shrinks only because the winning bloc is mushier (gap down without loser welfare up): not triggered — every gap reduction coincides with higher loser welfare.
+| paradigm | endpoint | delta_mean | ci_low | ci_high | pvalue | pvalue_adjusted | effect_size |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| individual | minority_welfare | 0.0235 | 0.0117 | 0.0353 | 0.0010 | 0.0029 | 0.2487 |
+| individual | total_welfare | -0.0004 | -0.0012 | 0.0003 | 0.8111 | 0.8111 | -0.0731 |
+| score | minority_welfare | 0.0230 | 0.0125 | 0.0335 | 0.0000 | 0.0000 | 0.2723 |
+| score | total_welfare | -0.0025 | -0.0036 | -0.0014 | 0.0010 | 0.0029 | -0.2877 |
+| latent_match | minority_welfare | 0.0194 | 0.0093 | 0.0296 | 0.0001 | 0.0002 | 0.2391 |
+| latent_match | total_welfare | -0.0034 | -0.0045 | -0.0023 | 0.0000 | 0.0000 | -0.3729 |
+
+- `individual` vs `party` on `minority_welfare`: Δ = +0.02353 (95% CI [+0.01174, +0.03531]), paired Cohen's d = +0.249, Wilcoxon p = 0.0009741, Holm-adjusted p = 0.002895.
+- `individual` vs `party` on `total_welfare`: Δ = -0.00043 (95% CI [-0.00117, +0.00031]), paired Cohen's d = -0.073, Wilcoxon p = 0.8111, Holm-adjusted p = 0.8111.
+- `score` vs `party` on `minority_welfare`: Δ = +0.02298 (95% CI [+0.01247, +0.03349]), paired Cohen's d = +0.272, Wilcoxon p = 6.125e-06, Holm-adjusted p = 3.063e-05.
+- `score` vs `party` on `total_welfare`: Δ = -0.00253 (95% CI [-0.00363, -0.00144]), paired Cohen's d = -0.288, Wilcoxon p = 0.000965, Holm-adjusted p = 0.002895.
+- `latent_match` vs `party` on `minority_welfare`: Δ = +0.01944 (95% CI [+0.00931, +0.02957]), paired Cohen's d = +0.239, Wilcoxon p = 5.079e-05, Holm-adjusted p = 0.0002032.
+- `latent_match` vs `party` on `total_welfare`: Δ = -0.00340 (95% CI [-0.00453, -0.00226]), paired Cohen's d = -0.373, Wilcoxon p = 4.637e-06, Holm-adjusted p = 2.782e-05.
+
+Mushy-bloc check (fixed partition):
+- not triggered — no rule shrank the election-endogenous gap without a rise in minority-cluster welfare.
 
 ## Limitations
 
 - Voters and candidates live in a stylized 5-dimensional project space; real preference structures are higher-dimensional and partly unobservable.
-- λ is exogenous by default; strategic candidate behavior, campaigning, and repeated elections are out of scope.
+- The default one-shot cell has exogenous λ. It compares selection rules with drawn types; it does not test citizen-candidate entry or core- vs swing-voter targeting. Use `--mechanism reelection` for an incentive-based λ cell (still not an entry model).
 - Party structure is idealized as two brands at cluster means with loyal nomination; real parties select through noisy primaries.
-- Supporter definitions differ across paradigms by design (that is part of the treatment), so loser-share differences should be read together with loser welfare, not alone.
+- Supporter definitions differ across paradigms by design. Primary welfare contrasts therefore use the fixed cluster partition, not the election-endogenous loser set.
+- `--lambda-correlated` is a researcher degree of freedom that can flip λ rankings. It is labeled a robustness appendix whenever it is the condition being reported.
 
 ## Reproduce
 
 ```
-python run_experiment.py --trials 250 --voters 400 --candidates 8 --population two_cluster --seed 0 --out results/consensus
+python run_experiment.py --trials 250 --voters 400 --candidates 8 --population two_cluster --seed 0 --no-persist-ballots --out '{run_dir}'
 ```
 
 Deterministic given identical parameters and seed (per-trial streams are derived from `numpy.random.default_rng([seed, population, candidates, trial])`).

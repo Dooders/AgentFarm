@@ -1,5 +1,5 @@
 {
-  "command": "python run_experiment.py --trials 250 --voters 400 --candidates 8 --population two_cluster --seed 0 --lambda-correlated --include-constrained --out '{run_dir}'",
+  "command": "python run_experiment.py --trials 250 --voters 400 --candidates 8 --population two_cluster --seed 0 --lambda-correlated --include-constrained --no-persist-ballots --out '{run_dir}'",
   "config": {
     "trials": 250,
     "voters": 400,
@@ -8,6 +8,11 @@
     "seed": 0,
     "include_constrained": true,
     "lambda_cap": 0.25,
-    "lambda_correlated": true
+    "lambda_correlated": true,
+    "persist_ballots": false,
+    "mechanism": "oneshot",
+    "voting": "sincere",
+    "primary_question": "lambda_selection_robustness",
+    "lambda_primary": true
   }
 }
