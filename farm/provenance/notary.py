@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence, Tuple
+from typing import Any, Mapping, Sequence
 
 RUN_CONFIG_NAME = "run_config.json"
 
@@ -40,16 +40,16 @@ def _read_run_config(run_dir: Path) -> dict:
 def notarize(
     run_dir: Path,
     *,
-    config: Optional[Mapping[str, Any]] = None,
-    command: Optional[str] = None,
+    config: Mapping[str, Any] | None = None,
+    command: str | None = None,
     runner: str = "agentfarm",
-    official_record: Optional[Mapping[str, Any]] = None,
+    official_record: Mapping[str, Any] | None = None,
     backend: str = "dry-run",
-    calendars: Optional[Sequence[str]] = None,
+    calendars: Sequence[str] | None = None,
     pin: bool = False,
-    ipfs_api: Optional[str] = None,
-    lockfile: Optional[Path] = None,
-) -> Tuple[Any, Any]:
+    ipfs_api: str | None = None,
+    lockfile: Path | None = None,
+) -> tuple[Any, Any]:
     """Notarize a finished run directory; returns (manifest, receipt).
 
     When the run directory contains run_config.json (written by
