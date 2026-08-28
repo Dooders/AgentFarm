@@ -1,5 +1,4 @@
 import sys
-import unittest.mock
 
 from farm.provenance.notary import notarize_run_dir
 

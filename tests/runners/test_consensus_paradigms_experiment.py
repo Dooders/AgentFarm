@@ -7,14 +7,12 @@ import unittest
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from farm.runners.consensus_paradigms_experiment import (
     PARADIGMS,
     ConsensusParadigmsExperiment,
     TrialRow,
     _allocate,
-    _population,
     run_once,
 )
 

@@ -402,6 +402,7 @@ def restore_environment_from_checkpoint(
     environment.resources = restored_resources
     if getattr(environment, "resource_manager", None) is not None:
         environment.resource_manager.resources = restored_resources
+    environment.cached_total_resources = sum(r.amount for r in restored_resources)
 
     environment.intrinsic_evolution_policy = policy
     environment.intrinsic_evolution_rng = policy_rng
@@ -443,8 +444,14 @@ def restore_environment_from_checkpoint(
             agent_type=str(raw_agent.get("agent_type", "AgentCore")),
         )
         agent.generation = int(raw_agent.get("generation", 0) or 0)
-        # genome_id / parent_ids are typically read-only properties on AgentCore;
-        # skip restore when no writable backing field is available.
+        # Restore genome_id / parent_ids before add_agent so the lineage
+        # recorded by Environment.add_agent connects to the preemption point.
+        genome_id_raw = raw_agent.get("genome_id")
+        parent_ids_raw = list(raw_agent.get("parent_ids") or [])
+        if genome_id_raw:
+            agent.state._state = agent.state._state.model_copy(
+                update={"genome_id": str(genome_id_raw), "parent_ids": parent_ids_raw}
+            )
         agent.resource_level = float(raw_agent.get("resources", 0.0))
         if raw_agent.get("health") is not None:
             combat_comp = agent.get_component("combat")
@@ -453,7 +460,12 @@ def restore_environment_from_checkpoint(
 
         chromosome_data = raw_agent.get("chromosome")
         if chromosome_data is not None:
-            agent.hyperparameter_chromosome = HyperparameterChromosome.from_dict(chromosome_data)
+            chromosome = HyperparameterChromosome.from_dict(chromosome_data)
+            # Apply the chromosome to the live decision module (updates config,
+            # reinitializes the algorithm, and refreshes action weights) before
+            # loading saved model state so the architecture matches.
+            from farm.core.initial_diversity import _apply_chromosome_to_agent
+            _apply_chromosome_to_agent(agent, chromosome)
 
         decision_module = getattr(getattr(agent, "behavior", None), "decision_module", None)
         model_state = raw_agent.get("model_state")
@@ -486,6 +498,15 @@ def restore_environment_from_checkpoint(
     environment.agents = [
         a.agent_id for a in environment._agent_objects.values() if a.agent_id in environment._alive_agents
     ]
+
+    # Advance the identity counter so the next birth does not re-generate an
+    # already-used agent ID.  Restored agents were added by explicit ID without
+    # going through Identity.agent_id(), so the counter stays at zero.
+    n_restored = len(environment._agent_objects)
+    if getattr(environment, "identity", None) is not None:
+        identity = environment.identity
+        if getattr(identity, "_agent_counter", 0) < n_restored:
+            identity._agent_counter = n_restored
 
     environment.time = int(payload.get("environment_time", payload.get("logical_step", 0)))
     _restore_rng_states(payload.get("rng") or {}, policy_rng)
