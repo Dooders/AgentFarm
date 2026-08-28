@@ -21,6 +21,9 @@ on:
       - "run_experiment.py"
       - ".github/workflows/reproduce-consensus.yml"
 
+permissions:
+  contents: read
+
 jobs:
   reproduce:
     runs-on: ubuntu-latest
