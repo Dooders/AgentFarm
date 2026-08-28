@@ -38,6 +38,17 @@ def make_run(tmp_path: Path) -> Path:
     return run_dir
 
 
+def test_notarize_skips_voter_level_files(tmp_path: Path) -> None:
+    run_dir = make_run(tmp_path)
+    (run_dir / "private").mkdir()
+    (run_dir / "private" / "ballots.npy").write_bytes(b"secret")
+    (run_dir / "voter_choices.csv").write_text("x\n")
+    manifest, _receipt = notarize(run_dir)
+    names = set(manifest.artifact_hashes)
+    assert "summary.csv" in names
+    assert not any("ballot" in name or "voter" in name or "private" in name for name in names)
+
+
 def test_notarize_picks_up_run_config(tmp_path: Path) -> None:
     run_dir = make_run(tmp_path)
     manifest, receipt = notarize(run_dir)

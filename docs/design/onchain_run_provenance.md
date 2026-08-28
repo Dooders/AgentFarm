@@ -22,9 +22,9 @@ AgentFarm depends on FarmNotary as an optional extra, not a git submodule:
 
 ```text
 pip install -e ".[notary]"
-# or, until the extra is wired in pyproject:
-pip install -e ../FarmNotary
 ```
+
+That extra pins [FarmNotary `v0.1.0`](https://github.com/Dooders/FarmNotary/tree/v0.1.0). A sibling clone (`pip install -e ../FarmNotary`) is still valid for local FarmNotary development.
 
 Call site after a runner writes a run directory:
 

@@ -134,11 +134,20 @@ class TestConsensusParadigmsExperiment(unittest.TestCase):
         lines = summary_csv.read_text().splitlines()
         self.assertEqual(len(lines), 1 + len(PARADIGMS) + 3)
 
-    def test_config_json_written(self):
+    def test_run_config_json_written(self):
         self._run()
-        cfg = json.loads((self.tmp_path / "exp" / "results" / "config.json").read_text())
-        self.assertEqual(cfg["trials"], 2)
-        self.assertEqual(cfg["voters"], 40)
+        cfg = json.loads((self.tmp_path / "exp" / "results" / "run_config.json").read_text())
+        self.assertEqual(cfg["config"]["trials"], 2)
+        self.assertEqual(cfg["config"]["voters"], 40)
+        self.assertFalse(cfg["config"]["persist_ballots"])
+
+    def test_official_record_omits_voter_choices(self):
+        self._run()
+        results = self.tmp_path / "exp" / "results"
+        self.assertFalse((results / "private").exists())
+        names = {path.name.lower() for path in results.rglob("*") if path.is_file()}
+        forbidden = ("ballot", "vote", "voter", "individual_choice")
+        self.assertFalse(any(frag in name for name in names for frag in forbidden))
 
     def test_no_notarize_skips_manifest(self):
         """Without FarmNotary, notarize=True should not raise."""

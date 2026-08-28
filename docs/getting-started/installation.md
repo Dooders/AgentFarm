@@ -21,6 +21,8 @@ pip install -e .
 
 Editable install (`pip install -e .`) is required for `farm` imports.
 
+Optional run notarization (FarmNotary): `pip install -e ".[notary]"`.
+
 ## Optional: Redis
 
 Redis is used for some agent memory features and can improve performance.

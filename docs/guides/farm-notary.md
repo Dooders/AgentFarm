@@ -5,10 +5,10 @@ Stamp a finished experiment directory so config + artifact hashes can be anchore
 ## Prerequisites
 
 ```bash
-# FarmNotary as a sibling clone (current workflow)
-git clone https://github.com/Dooders/FarmNotary.git ../FarmNotary
-pip install -e ../FarmNotary
+pip install -e ".[notary]"
 ```
+
+For FarmNotary development, a sibling clone still works: `pip install -e ../FarmNotary`.
 
 ## After a run
 
@@ -31,9 +31,15 @@ from farm.provenance.notary import notarize_run_dir
 receipt = notarize_run_dir("experiments/demo/results", runner="demo")
 ```
 
+The adapter stamps only the official allowlist (`trials.csv`, `summary.csv`,
+`allocation_means.csv`, `contrasts.csv`, `run_config.json`, `REPORT.md`,
+`figures/*.png`). FarmNotary also refuses name fragments `ballot`, `vote`,
+`voter`, `individual_choice`, and `private`.
+
 ## What must not be in the run dir you stamp
 
-Do not leave voter-level or agent-level choice files next to the official outputs unless they use a skipped name fragment (`ballot`, `vote`, …). Prefer writing those under a `private/` subfolder that is not hashed.
+Do not leave voter-level or agent-level choice files next to the official outputs.
+Prefer writing those under a `private/` subfolder; they are never hashed.
 
 ## Related
 

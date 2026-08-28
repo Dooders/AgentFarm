@@ -72,6 +72,8 @@ def test_notarize_run_dir_with_farm_notary(tmp_path, monkeypatch):
     assert receipt["anchored"] is False
     assert receipt["content_hash"] == "abc123"
     assert "manifest_path" in receipt
+    kwargs = fake_manifest_mod.build_manifest.call_args.kwargs
+    assert kwargs["publish_patterns"]
 
 
 def test_notarize_run_dir_with_anchor(tmp_path, monkeypatch):
