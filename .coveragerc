@@ -107,6 +107,13 @@ omit =
     farm/research/analysis/main.py
     farm/utils/chart_analyzer_validator.py
     farm/utils/logging/test_helpers.py
+    # animate.py / overview_video.py: produce MP4 animations; animate.py requires
+    # FFMpegWriter (ffmpeg binary) and overview_video.py requires the 'manim'
+    # package — neither is available in the standard CI environment.
+    # The corresponding tests are already skipped when those deps are absent
+    # (see tests/experiments/test_consensus_invariants.py).
+    farm/experiments/consensus/animate.py
+    farm/experiments/consensus/overview_video.py
 
 exclude_lines =
     pragma: no cover
