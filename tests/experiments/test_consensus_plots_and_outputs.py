@@ -1,6 +1,5 @@
 """Tests for consensus experiment plot generation and output helpers."""
 
-from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
