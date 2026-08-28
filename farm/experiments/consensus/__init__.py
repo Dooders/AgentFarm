@@ -1,8 +1,9 @@
-"""Political consensus experiment: selection paradigms vs. treatment of non-supporters.
+"""Political consensus experiment: selection paradigms vs. treatment of a fixed bloc.
 
-Compares how different election paradigms (party, individual, score, latent_match,
-optional constrained_individual) affect the welfare of electoral losers when the
-elected steward allocates a fixed budget across five public projects.
+Compares how different election paradigms (party, individual, score, latent_match)
+affect minority-cluster and total welfare when the elected steward allocates a
+fixed budget across five public projects. ``constrained_individual`` is an
+optional constitutional λ cap, not a voting rule.
 
 Entry point: ``run_experiment.py`` at the repository root.
 """

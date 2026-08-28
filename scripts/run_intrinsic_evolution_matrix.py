@@ -171,6 +171,68 @@ def build_matrix(
     return jobs
 
 
+def job_run_dir(cell_dir: Path, seed: int, *, sub_profile: str = "balanced") -> Path:
+    """Per-seed artifact directory used by the stable-profile seed sweep."""
+    return cell_dir / f"stable_{sub_profile}" / f"seed_{seed}"
+
+
+def is_job_complete(cell_dir: Path, seed: int, num_steps: int) -> bool:
+    """True when prior artifacts show a finished run to ``num_steps``.
+
+    Matches :func:`scripts.run_stable_profile_seed_sweep._maybe_resume_skip`:
+    ``intrinsic_evolution_metadata.json`` with ``num_steps_completed >= num_steps``.
+    """
+    meta_path = job_run_dir(cell_dir, seed) / "intrinsic_evolution_metadata.json"
+    if not meta_path.is_file():
+        return False
+    try:
+        with meta_path.open(encoding="utf-8") as handle:
+            meta = json.load(handle)
+        completed = meta.get("num_steps_completed")
+        return completed is not None and int(completed) >= int(num_steps)
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return False
+
+
+def skipped_done_result(job: Job, cell_dir: Path) -> JobResult:
+    """Synthetic ok result for a (cell, seed) already finished under ``--resume``."""
+    return JobResult(
+        job=asdict(job),
+        cell_dir=str(cell_dir),
+        command=[],
+        status="ok",
+        returncode=0,
+        elapsed_seconds=0.0,
+        log_tail=None,
+    )
+
+
+def partition_resume_jobs(
+    jobs: list[Job],
+    output_dir: Path,
+    num_steps: int,
+    *,
+    resume: bool,
+) -> tuple[list[JobResult], list[Job]]:
+    """Split jobs into already-complete results vs work still needed.
+
+    When ``resume`` is false, every job remains pending. When true, completed
+    seeds are recorded immediately so live status starts at the true progress
+    and workers never re-enter finished run directories.
+    """
+    if not resume:
+        return [], list(jobs)
+    done: list[JobResult] = []
+    pending: list[Job] = []
+    for job in jobs:
+        cell_dir = output_dir / job.cell_name
+        if is_job_complete(cell_dir, job.seed, num_steps):
+            done.append(skipped_done_result(job, cell_dir))
+        else:
+            pending.append(job)
+    return done, pending
+
+
 def build_command(job: Job, args: argparse.Namespace, cell_dir: Path) -> list[str]:
     """Resolve the seed-sweep subprocess command for a single job."""
     environment, profile, _ = POPULATION_LEVELS[job.population]
@@ -407,7 +469,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Skip (cell, seed) runs already completed to --num-steps.",
+        help=(
+            "Skip (cell, seed) runs whose artifacts already have "
+            "num_steps_completed >= --num-steps; count them as done in live status."
+        ),
     )
     parser.add_argument(
         "--sec-per-agent-step",
@@ -449,15 +514,22 @@ def main(argv: list[str] | None = None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     workers = max(1, int(args.jobs))
+    skipped_results, todo_jobs = partition_resume_jobs(
+        jobs,
+        output_dir,
+        args.num_steps,
+        resume=bool(args.resume),
+    )
     print(
-        f"Launching {len(jobs)} runs across {workers} worker(s) "
+        f"Launching {len(todo_jobs)} remaining of {len(jobs)} runs "
+        f"({len(skipped_results)} already complete) across {workers} worker(s) "
         f"into {output_dir} ...",
         file=sys.stderr,
     )
 
-    results: list[JobResult] = []
+    results: list[JobResult] = list(skipped_results)
     recent: list[dict] = []
-    n_ok = 0
+    n_ok = len(skipped_results)
     n_fail = 0
     status_lock = Lock()
     emit_lock = Lock()
@@ -491,74 +563,92 @@ def main(argv: list[str] | None = None) -> int:
         while not stop_heartbeat.wait(interval):
             _emit_status(note="heartbeat")
 
-    _emit_status(note="started")
+    if skipped_results:
+        with status_lock:
+            for result in skipped_results[-6:]:
+                recent.append(
+                    {
+                        "status": "skipped_done",
+                        "returncode": 0,
+                        "elapsed_seconds": 0.0,
+                        "population": result.job.get("population"),
+                        "pressure": result.job.get("pressure"),
+                        "gene_flow": result.job.get("gene_flow"),
+                        "seed": result.job.get("seed"),
+                        "cell_dir": result.cell_dir,
+                    }
+                )
+        _emit_status(note=f"resume_skipped_{len(skipped_results)}")
+    else:
+        _emit_status(note="started")
     heartbeat = Thread(target=_heartbeat_loop, name="matrix-status-heartbeat", daemon=True)
     heartbeat.start()
 
-    signal_attempts: dict[Job, int] = {job: 0 for job in jobs}
+    signal_attempts: dict[Job, int] = {job: 0 for job in todo_jobs}
 
     try:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            pending = {pool.submit(run_job, job, args): job for job in jobs}
-            while pending:
-                done, _ = wait(pending.keys(), return_when=FIRST_COMPLETED)
-                for future in done:
-                    job = pending.pop(future)
-                    result = future.result()
-                    rc = result.returncode
-                    if (
-                        rc in _RETRYABLE_RETURNCODES
-                        and signal_attempts[job] < _MAX_SIGNAL_RETRIES
-                    ):
-                        signal_attempts[job] += 1
+        if todo_jobs:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                pending = {pool.submit(run_job, job, args): job for job in todo_jobs}
+                while pending:
+                    done, _ = wait(pending.keys(), return_when=FIRST_COMPLETED)
+                    for future in done:
+                        job = pending.pop(future)
+                        result = future.result()
+                        rc = result.returncode
+                        if (
+                            rc in _RETRYABLE_RETURNCODES
+                            and signal_attempts[job] < _MAX_SIGNAL_RETRIES
+                        ):
+                            signal_attempts[job] += 1
+                            print(
+                                f"  retry {signal_attempts[job]}/{_MAX_SIGNAL_RETRIES} "
+                                f"after rc={rc} {result.elapsed_seconds}s "
+                                f"{result.cell_dir} seed={result.job['seed']}",
+                                file=sys.stderr,
+                            )
+                            pending[pool.submit(run_job, job, args)] = job
+                            _emit_status(note="retry_after_signal")
+                            continue
+
+                        results.append(result)
+                        with status_lock:
+                            if result.status == "ok":
+                                n_ok += 1
+                            else:
+                                n_fail += 1
+                            entry = {
+                                "status": result.status,
+                                "returncode": result.returncode,
+                                "elapsed_seconds": result.elapsed_seconds,
+                                "population": result.job.get("population"),
+                                "pressure": result.job.get("pressure"),
+                                "gene_flow": result.job.get("gene_flow"),
+                                "seed": result.job.get("seed"),
+                                "cell_dir": result.cell_dir,
+                            }
+                            if result.log_tail:
+                                entry["log_tail"] = result.log_tail[-400:]
+                            if rc in _RETRYABLE_RETURNCODES:
+                                entry["log_tail"] = (
+                                    f"killed by signal rc={rc} "
+                                    f"(operator stop / Spot reset / OOM); "
+                                    f"not a simulation error"
+                                )
+                            recent.append(entry)
+                            done_count = n_ok + n_fail
+                            result_status = result.status
+                            result_rc = result.returncode
+                            result_elapsed = result.elapsed_seconds
+                            result_seed = result.job["seed"]
+                            result_cell = result.cell_dir
                         print(
-                            f"  retry {signal_attempts[job]}/{_MAX_SIGNAL_RETRIES} "
-                            f"after rc={rc} {result.elapsed_seconds}s "
-                            f"{result.cell_dir} seed={result.job['seed']}",
+                            f"  [{done_count}/{len(jobs)}] {result_status:5s} "
+                            f"rc={result_rc} {result_elapsed}s "
+                            f"{result_cell} seed={result_seed}",
                             file=sys.stderr,
                         )
-                        pending[pool.submit(run_job, job, args)] = job
-                        _emit_status(note="retry_after_signal")
-                        continue
-
-                    results.append(result)
-                    with status_lock:
-                        if result.status == "ok":
-                            n_ok += 1
-                        else:
-                            n_fail += 1
-                        entry = {
-                            "status": result.status,
-                            "returncode": result.returncode,
-                            "elapsed_seconds": result.elapsed_seconds,
-                            "population": result.job.get("population"),
-                            "pressure": result.job.get("pressure"),
-                            "gene_flow": result.job.get("gene_flow"),
-                            "seed": result.job.get("seed"),
-                            "cell_dir": result.cell_dir,
-                        }
-                        if result.log_tail:
-                            entry["log_tail"] = result.log_tail[-400:]
-                        if rc in _RETRYABLE_RETURNCODES:
-                            entry["log_tail"] = (
-                                f"killed by signal rc={rc} "
-                                f"(operator stop / Spot reset / OOM); "
-                                f"not a simulation error"
-                            )
-                        recent.append(entry)
-                        done_count = n_ok + n_fail
-                        result_status = result.status
-                        result_rc = result.returncode
-                        result_elapsed = result.elapsed_seconds
-                        result_seed = result.job["seed"]
-                        result_cell = result.cell_dir
-                    print(
-                        f"  [{done_count}/{len(jobs)}] {result_status:5s} "
-                        f"rc={result_rc} {result_elapsed}s "
-                        f"{result_cell} seed={result_seed}",
-                        file=sys.stderr,
-                    )
-                    _emit_status(note="job_complete")
+                        _emit_status(note="job_complete")
     finally:
         stop_heartbeat.set()
         heartbeat.join(timeout=2.0)

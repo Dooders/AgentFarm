@@ -140,8 +140,10 @@ class TestRunSweep:
             candidate_counts=(4,),
         )
         result = run_sweep(sweep)
-        assert isinstance(result, pd.DataFrame)
-        assert set(result["population"].unique()) == {"two_cluster", "one_cluster"}
+        assert isinstance(result.trials, pd.DataFrame)
+        assert set(result.trials["population"].unique()) == {"two_cluster", "one_cluster"}
+        assert result.audit.n_trials == 4
+        assert result.audit.cluster_ids.shape == (4, 30)
 
 
 class TestWriteOutputs:
@@ -156,6 +158,7 @@ class TestWriteOutputs:
         assert (tmp_path / "trials.csv").exists()
         assert (tmp_path / "summary.csv").exists()
         assert (tmp_path / "allocation_means.csv").exists()
+        assert (tmp_path / "contrasts.csv").exists()
         assert (tmp_path / "run_config.json").exists()
         assert (tmp_path / "figures").is_dir()
         assert (tmp_path / "REPORT.md").exists()

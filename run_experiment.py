@@ -40,12 +40,14 @@ from farm.experiments.consensus.experiment import (
     SweepConfig,
     allocation_means,
     config_manifest,
+    run_cell,
     run_sweep,
-    run_trials,
     summarize,
     sweep_manifest,
     write_outputs,
 )
+from farm.experiments.consensus.mechanism import MECHANISMS
+from farm.experiments.consensus.paradigms import VOTING_MODES
 from farm.experiments.consensus.population import POPULATION_TYPES
 
 
@@ -67,7 +69,24 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--lambda-correlated",
         action="store_true",
-        help="Rank-couple candidate λ to platform extremity instead of drawing it independently",
+        help="Robustness appendix: rank-couple candidate λ to platform extremity (not the primary cell)",
+    )
+    parser.add_argument(
+        "--mechanism",
+        choices=MECHANISMS,
+        default="oneshot",
+        help="oneshot = exogenous λ; reelection = winner chooses λ to maximize observed-sample utility",
+    )
+    parser.add_argument(
+        "--voting",
+        choices=VOTING_MODES,
+        default="sincere",
+        help="sincere is the default baseline; abandon_trailing is a plurality heuristic",
+    )
+    parser.add_argument(
+        "--no-persist-ballots",
+        action="store_true",
+        help="Do not write synthetic ballots / supporter masks under private/",
     )
 
 
@@ -159,6 +178,9 @@ def _base_config(args: argparse.Namespace, candidates: int, population: str) -> 
         include_constrained=args.include_constrained,
         lambda_cap=args.lambda_cap,
         lambda_correlated=args.lambda_correlated,
+        persist_ballots=not args.no_persist_ballots,
+        mechanism=args.mechanism,
+        voting=args.voting,
     )
 
 
@@ -167,7 +189,7 @@ def _print_summary(trials: pd.DataFrame, out_dir: Path) -> None:
     with pd.option_context("display.width", 200, "display.max_columns", None, "display.float_format", "{:.4f}".format):
         print("\n=== Summary (means and stds by population, candidates, paradigm) ===")
         print(summary.to_string(index=False))
-    print(f"\nArtifacts written to {out_dir}/ (trials.csv, summary.csv, allocation_means.csv, figures/, REPORT.md)")
+    print(f"\nArtifacts written to {out_dir}/ (trials.csv, summary.csv, allocation_means.csv, contrasts.csv, figures/, REPORT.md)")
 
 
 def _portable_command(argv: list) -> str:
@@ -199,26 +221,31 @@ def _portable_command(argv: list) -> str:
 
 
 def _verify_report(results: Path) -> int:
-    """Recompute summary.csv, allocation_means.csv, and REPORT.md from trials.csv.
+    """Recompute summary.csv, allocation_means.csv, contrasts.csv, and REPORT.md from trials.csv.
 
     Byte-compares the recomputation against the files on disk, so the derived
     artifacts are verified to follow from the raw trial data.
     """
     import json
 
+    from farm.experiments.consensus.contrasts import paired_contrasts
     from farm.experiments.consensus.report import render_report
 
     # round_trip parsing recovers the exact float64 values that were written;
     # the default fast parser can be off by one ulp, which breaks byte equality.
     trials = pd.read_csv(results / "trials.csv", float_precision="round_trip")
     run_config = json.loads((results / "run_config.json").read_text())
+    config = run_config.get("config", {})
+    include_lambda = bool(config.get("lambda_correlated") or config.get("mechanism") == "reelection")
     summary = summarize(trials)
     allocations = allocation_means(trials)
+    contrasts = paired_contrasts(trials, include_lambda_primary=include_lambda)
 
     expected = {
         "summary.csv": summary.to_csv(index=False),
         "allocation_means.csv": allocations.to_csv(index=False),
-        "REPORT.md": render_report(trials, summary, allocations, run_config),
+        "contrasts.csv": contrasts.to_csv(index=False),
+        "REPORT.md": render_report(trials, summary, allocations, run_config, contrasts=contrasts),
     }
     failures = []
     for name, text in expected.items():
@@ -291,13 +318,27 @@ def main(argv=None) -> int:
             populations=populations,
             candidate_counts=candidate_counts,
         )
-        trials = run_sweep(sweep)
-        write_outputs(trials, args.out, sweep_manifest(sweep, command))
+        run = run_sweep(sweep)
+        trials = run.trials
+        write_outputs(
+            trials,
+            args.out,
+            sweep_manifest(sweep, command),
+            audit=run.audit,
+            persist_ballots=sweep.base.persist_ballots,
+        )
     else:
         args = _build_run_parser().parse_args(argv)
         config = _base_config(args, candidates=args.candidates, population=args.population)
-        trials = run_trials(config)
-        write_outputs(trials, args.out, config_manifest(config, command))
+        run = run_cell(config)
+        trials = run.trials
+        write_outputs(
+            trials,
+            args.out,
+            config_manifest(config, command),
+            audit=run.audit,
+            persist_ballots=config.persist_ballots,
+        )
 
     _print_summary(trials, args.out)
     return 0

@@ -125,14 +125,14 @@ class TestConsensusParadigmsExperiment(unittest.TestCase):
         trials_csv = self.tmp_path / "exp" / "results" / "trials.csv"
         self.assertTrue(trials_csv.exists())
         lines = trials_csv.read_text().splitlines()
-        # header + 2 trials * 5 paradigms = 11 lines
-        self.assertEqual(len(lines), 1 + 2 * len(PARADIGMS))
+        # header + 2 trials * (4 selection rules + 3 allocation baselines)
+        self.assertEqual(len(lines), 1 + 2 * (len(PARADIGMS) + 3))
 
     def test_summary_csv_has_one_row_per_paradigm(self):
         self._run()
         summary_csv = self.tmp_path / "exp" / "results" / "summary.csv"
         lines = summary_csv.read_text().splitlines()
-        self.assertEqual(len(lines), 1 + len(PARADIGMS))
+        self.assertEqual(len(lines), 1 + len(PARADIGMS) + 3)
 
     def test_config_json_written(self):
         self._run()

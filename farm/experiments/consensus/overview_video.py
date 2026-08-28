@@ -77,13 +77,14 @@ PARADIGM_ONE_LINERS = {
     "latent_match": "Elect the closest match\nto the average voter.",
 }
 
-PROJECT_NAMES = ("Core services", "Coalition club", "Outgroup repair", "Prestige", "Buffer")
+PROJECT_NAMES = ("Public good", "Majority pork", "Minority pork", "Prestige", "Periphery")
 
 
 @dataclass(frozen=True)
 class OverviewNumbers:
     """Real aggregates the video displays, keyed by paradigm."""
 
+    minority_welfare: dict
     loser_welfare: dict
     lambda_winner: dict
     lambda_correlated: dict
@@ -98,16 +99,23 @@ def load_numbers(default_results: Path, correlated_results: Path) -> OverviewNum
 
     def by_paradigm(path: Path, column: str) -> dict:
         summary = pd.read_csv(path / "summary.csv")
-        return dict(zip(summary["paradigm"], summary[column]))
+        selection = summary[summary["paradigm"].isin(PARADIGM_COLORS)]
+        if column not in selection.columns:
+            return {}
+        return dict(zip(selection["paradigm"], selection[column]))
 
     run_config = json.loads((default_results / "run_config.json").read_text())
+    cfg = run_config.get("config", run_config)
+    minority = by_paradigm(default_results, "minority_welfare_mean")
+    loser = by_paradigm(default_results, "loser_welfare_mean")
     return OverviewNumbers(
-        loser_welfare=by_paradigm(default_results, "loser_welfare_mean"),
+        minority_welfare=minority or loser,
+        loser_welfare=loser,
         lambda_winner=by_paradigm(default_results, "lambda_winner_mean"),
         lambda_correlated=by_paradigm(correlated_results, "lambda_winner_mean"),
-        voters=run_config["voters"],
-        n_candidates=run_config["candidates"],
-        trials=run_config["trials"],
+        voters=cfg["voters"],
+        n_candidates=cfg["candidates"],
+        trials=cfg["trials"],
     )
 
 
@@ -286,13 +294,13 @@ class ConsensusOverview(Scene):
 
     def _results(self):
         header = Text(
-            "Result: how well do non-supporters do?", font_size=FONT_HEADER, weight=BOLD
+            "Result: minority-cluster welfare (same people)", font_size=FONT_HEADER, weight=BOLD
         ).to_edge(UP, buff=HEADER_BUFF)
         self.play(FadeIn(self._kicker("The result")), FadeIn(header))
 
         rows = VGroup()
         trackers = []
-        values = self.numbers.loser_welfare
+        values = self.numbers.minority_welfare
         max_value = max(values.values())
         bar_left, max_bar_width, top_y, row_step = -3.6, 5.8, 1.9, 1.05
         for i, (name, color) in enumerate(PARADIGM_COLORS.items()):
@@ -357,7 +365,7 @@ class ConsensusOverview(Scene):
         self.play(FadeIn(chip, shift=LEFT * 0.25), run_time=0.8)
 
         footnote = Text(
-            f"average benefit to voters who did NOT back the winner ({self.numbers.trials} simulated elections per rule)",
+            f"mean utility of the minority generator cluster ({self.numbers.trials} paired elections per rule)",
             font_size=FONT_CAPTION,
             color=MUTED,
         ).to_edge(DOWN, buff=EDGE_BUFF)
@@ -366,17 +374,17 @@ class ConsensusOverview(Scene):
         self.play(FadeOut(footnote))
 
         lam_line = Text(
-            f"Winners' loyalty: \u03bb \u2248 {_format_range(self.numbers.lambda_winner.values())} "
-            "under every rule \u2014 no rule picked kinder people.",
+            f"Default cell: voters never see \u03bb, so E[\u03bb] \u2248 {_format_range(self.numbers.lambda_winner.values())} "
+            "under every rule \u2014 by construction, not a finding.",
             font_size=FONT_LABEL,
             t2c={"\u03bb": ACCENT},
         ).to_edge(DOWN, buff=1.2)
         self.play(FadeIn(lam_line))
         self.wait(3)
 
-        correlated = (self.numbers.lambda_correlated[name] for name in ("score", "latent_match"))
+        correlated = (self.numbers.lambda_correlated[name] for name in ("score", "latent_match") if name in self.numbers.lambda_correlated)
         twist = Text(
-            f"Twist: if platforms hint at \u03bb, score & latent match elect \u03bb \u2248 {_format_range(correlated)} winners.",
+            f"Appendix: if platforms hint at \u03bb, score & latent match elect \u03bb \u2248 {_format_range(correlated)} winners.",
             font_size=FONT_LABEL,
             t2c={"\u03bb": ACCENT},
         ).to_edge(DOWN, buff=0.55)
@@ -385,8 +393,8 @@ class ConsensusOverview(Scene):
         self._clear()
 
     def _takeaway(self):
-        line1 = Text("Selection rules didn't pick kinder winners \u2014", font_size=FONT_STATEMENT, weight=BOLD)
-        line2 = Text("they changed who the winner owes.", font_size=FONT_STATEMENT, weight=BOLD, color=ACCENT)
+        line1 = Text("The default cell cannot test loyalty selection.", font_size=FONT_STATEMENT, weight=BOLD)
+        line2 = Text("It can test whether the ballot format moves a fixed bloc.", font_size=FONT_STATEMENT, weight=BOLD, color=ACCENT)
         line2.next_to(line1, DOWN, buff=LINE_BUFF)
         credit = Text(
             "AgentFarm \u00b7 consensus experiment \u00b7 seeded & reproducible",
