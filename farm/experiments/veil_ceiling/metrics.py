@@ -189,31 +189,43 @@ def _nan_result(n_agents: int, n_seeds: int) -> ValidityResult:
     return ValidityResult(n_agents, n_seeds, nan, (nan, nan), nan, (nan, nan), nan)
 
 
-def _safe_auc(y: np.ndarray, score: np.ndarray) -> float:
+def safe_auc(y: np.ndarray, score: np.ndarray) -> float:
     if len(np.unique(y)) < 2:
         return float("nan")
     return float(roc_auc_score(y, score))
+
+
+def validity_target(table: pd.DataFrame) -> np.ndarray:
+    """Binary target: unobserved defection rate above the table's median."""
+    return (table["unobs_defect_rate"] > table["unobs_defect_rate"].median()).to_numpy(dtype=int)
+
+
+def validity_classifier():
+    return make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))
 
 
 def predictive_validity(
     table: pd.DataFrame,
     thresholds: AnalysisThresholds = THRESHOLDS,
     rng: np.random.Generator | None = None,
+    features: Sequence[str] = OBSERVED_FEATURES,
 ) -> ValidityResult:
     """Leave-one-seed-out logistic-regression AUC plus the single-feature rank AUC.
 
     The target is whether an agent's *unobserved* defection rate exceeds the
     pooled median. Confidence intervals are percentile bootstraps over seeds
-    applied to the out-of-fold predictions.
+    applied to the out-of-fold predictions. ``features`` selects the observed
+    columns the classifier may use (the rank AUC always uses the observed
+    defection rate).
     """
     rng = rng if rng is not None else np.random.default_rng(thresholds.bootstrap_seed)
     if table.empty:
         return _nan_result(0, 0)
     seeds = np.sort(table["seed"].unique())
-    y = (table["unobs_defect_rate"] > table["unobs_defect_rate"].median()).to_numpy(dtype=int)
+    y = validity_target(table)
     if len(np.unique(y)) < 2:
         return _nan_result(len(table), len(seeds))
-    x = table[list(OBSERVED_FEATURES)].to_numpy(dtype=float)
+    x = table[list(features)].to_numpy(dtype=float)
     oof = np.full(len(table), np.nan)
     seed_values = table["seed"].to_numpy()
     if len(seeds) >= 2:
@@ -223,17 +235,17 @@ def predictive_validity(
             if len(np.unique(y[train_mask])) < 2:
                 oof[test_mask] = 0.5
                 continue
-            model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))
+            model = validity_classifier()
             model.fit(x[train_mask], y[train_mask])
             oof[test_mask] = model.predict_proba(x[test_mask])[:, 1]
     else:
         # Single seed: in-sample fit is the only option; flagged by n_seeds == 1.
-        model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))
+        model = validity_classifier()
         model.fit(x, y)
         oof[:] = model.predict_proba(x)[:, 1]
     rank_score = table["obs_defect_rate"].to_numpy(dtype=float)
-    auc_clf = _safe_auc(y, oof)
-    auc_rank = _safe_auc(y, rank_score)
+    auc_clf = safe_auc(y, oof)
+    auc_rank = safe_auc(y, rank_score)
 
     by_seed = {s: np.flatnonzero(seed_values == s) for s in seeds}
     boots_clf: list[float] = []
@@ -243,10 +255,10 @@ def predictive_validity(
         idx = np.concatenate([by_seed[s] for s in pick])
         if len(np.unique(y[idx])) < 2:
             continue
-        boots_clf.append(_safe_auc(y[idx], oof[idx]))
-        boots_rank.append(_safe_auc(y[idx], rank_score[idx]))
-    ci_clf = _percentile_ci(boots_clf)
-    ci_rank = _percentile_ci(boots_rank)
+        boots_clf.append(safe_auc(y[idx], oof[idx]))
+        boots_rank.append(safe_auc(y[idx], rank_score[idx]))
+    ci_clf = percentile_ci(boots_clf)
+    ci_rank = percentile_ci(boots_rank)
     return ValidityResult(
         n_agents=len(table),
         n_seeds=len(seeds),
@@ -258,7 +270,7 @@ def predictive_validity(
     )
 
 
-def _percentile_ci(values: Sequence[float], alpha: float = 0.05) -> tuple[float, float]:
+def percentile_ci(values: Sequence[float], alpha: float = 0.05) -> tuple[float, float]:
     arr = np.asarray([v for v in values if np.isfinite(v)], dtype=float)
     if arr.size == 0:
         return float("nan"), float("nan")
