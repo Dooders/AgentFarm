@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field, replace
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 INHERITANCE_MODES: tuple[str, ...] = ("baldwinian", "lamarckian")
 
