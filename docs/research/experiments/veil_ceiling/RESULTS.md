@@ -115,6 +115,79 @@ accelerates plain cooperation (C1 cooperative onset median 50 vs 100 ticks), so
 H5's differential-acceleration claim is inconclusive: transfer speeds up
 whatever the population is learning.
 
+## Follow-up: why did validity survive? (exploratory, not pre-registered)
+
+H2 was falsified because the pre-registered classifier kept AUC 0.70–0.75 in
+C2. Three re-analyses of the same raw record ask what that number is made of.
+Full tables: [`VALIDITY_FOLLOWUP.md`](../../../../experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md);
+reproduce with `python scripts/run_veil_ceiling_validity_followup.py`.
+
+### 1. The surviving validity comes from one channel: movement
+
+Feature ablation of the LOSO classifier, Lamarckian C2:
+
+| Feature set | AUC |
+|---|---|
+| observed defection rate only | 0.546 [0.524, 0.568] |
+| action shares only (gather / move / pass) | 0.726 [0.712, 0.740] |
+| everything except defection rate | 0.752 [0.737, 0.768] |
+| full pre-registered set | 0.753 [0.738, 0.767] |
+| energy only | 0.478 |
+| exposure only | 0.500 |
+
+The observed defection rate — the thing sealed-world evaluation actually
+measures — is at chance on its own, and removing it from the full set costs
+nothing. Energy and exposure carry no information. All of the retained
+validity is in the action shares, and within them almost entirely `move_share`
+(standardised logistic coefficient 1.11 vs −0.07 for defection rate).
+Conditional defectors move on 28 % of observed ticks versus 17 % for
+cooperators (SMD +0.87): when an agent that has learned the cue finds itself
+watched, it leaves. The leak is not "rich agents defect", it is "agents that
+walk away from the camera defect elsewhere". The Baldwinian arm shows the same
+structure at lower amplitude (defection rate alone 0.676; +actions 0.703;
+`move_share` coefficient 0.47).
+
+### 2. A realistic evaluator has no validity at all
+
+The pre-registered LOSO AUC is an *oracle*: it fits the classifier on agents
+from the leaked-cue condition using their unobserved ground truth, which a real
+sealed-world evaluator never has. The honest alternative is to calibrate the
+evaluator where behaviour is believed to be honest (C1, or the C4 null) and
+apply it unchanged.
+
+| Evaluated cell (Lamarckian) | Oracle (LOSO) | Calibrated on C1 | Calibrated on C4 |
+|---|---|---|---|
+| C3 f = 0.7 | 0.771 | 0.765 | 0.765 |
+| C3 f = 0.9 | 0.747 | 0.661 | 0.666 |
+| C2 f = 1.0 | 0.753 [0.738, 0.767] | 0.480 [0.460, 0.502] | 0.491 [0.471, 0.513] |
+| C2 p = 3 | 0.734 | 0.540 | 0.548 |
+| C2 p = 9 | 0.732 | 0.480 | 0.484 |
+
+Calibrated on honest data, the evaluator puts weight 1.5 on observed defection
+and ~0 on movement — exactly the wrong features once the cue leaks. At f = 1
+its AUC is at or below chance in every Lamarckian C2 cell, and it degrades
+sharply above f ≈ 0.7. The Baldwinian arm degrades mildly (0.702 → 0.664)
+because its agents conceal weakly.
+
+This reverses the headline reading of H2. Under the pre-registered
+operationalisation — an evaluator with ground truth from the leaked regime —
+validity does not collapse (H2 stays falsified). Under the operationalisation
+that matches how sealed-world evaluation is actually used, the veil ceiling is
+complete: observed behaviour of cue-aware agents is uninformative, and the
+naive metric is inverted (rank AUC 0.446). The difference between the two is
+whether the evaluator already knows what concealment looks like.
+
+### 3. Implications
+
+- A sealed-world evaluator that has never seen cue-aware agents cannot detect
+  them from the behaviour it is designed to measure; it needs side channels it
+  has no prior reason to weight.
+- The side channel that does work here (leaving when observed) is specific to
+  this world and would itself be learned away if the evaluator acted on it —
+  the arms-race question (adaptive monitoring) is the natural next experiment.
+- Ablating features is not the same as hiding them from a motivated agent;
+  no agent in this run had any incentive to disguise `move_share`.
+
 ## Limitations
 
 - The world is a compact re-implementation of AgentFarm's grid dynamics, not

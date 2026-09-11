@@ -9,6 +9,7 @@ Results: [RESULTS.md](../../../docs/research/experiments/veil_ceiling/RESULTS.md
 PYTHONHASHSEED=0 python scripts/run_veil_ceiling.py                 # full 780-run matrix
 python scripts/run_veil_ceiling.py --analyze-only                    # re-analyse committed raw outputs
 python scripts/run_veil_ceiling.py --seeds 3 --no-robustness --output-dir /tmp/veil_pilot
+python scripts/run_veil_ceiling_validity_followup.py            # feature ablation + honest-calibrated evaluator
 ```
 
 | Module | Responsibility |
@@ -23,3 +24,4 @@ python scripts/run_veil_ceiling.py --seeds 3 --no-robustness --output-dir /tmp/v
 | `experiment.py` | `MatrixConfig`, `run_matrix`, `load_outputs`: cells × seeds × inheritance modes with raw outputs on disk |
 | `analysis.py` | Seed-paired contrasts, C4 noise band, dose-response, falsification checks, hypothesis verdicts |
 | `report.py` | `REPORT.md` and figures |
+| `validity_followup.py` | Exploratory follow-up to H2: feature ablation, C1/C4-calibrated evaluator, leak profiles (`VALIDITY_FOLLOWUP.md`) |
