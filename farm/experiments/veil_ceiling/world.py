@@ -9,8 +9,6 @@ a node is the over-harvest affordance.
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
-
 import numpy as np
 
 from farm.experiments.veil_ceiling.config import WorldConfig
