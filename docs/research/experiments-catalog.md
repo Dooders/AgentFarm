@@ -142,6 +142,34 @@ FarmNotary; synthetic ballots stay under `private/` off the record.
 - **Official stamp:** [`experiments/consensus_paradigms/results`](../../experiments/consensus_paradigms/results)
   (250×400×8 two-cluster; aggregates only)
 
+## Observation and evaluation validity
+
+Experiments that ask whether behaviour under observation is informative
+about behaviour when unobserved.
+
+### The Veil Ceiling
+
+Agents in a shared resource grid can over-harvest for a private gain at a
+collective cost. Enforcement (coverage, penalty) is held fixed while the
+fidelity of a cue correlated with being monitored is swept from 0 to 1,
+with a decorrelated-cue null control and a never-monitored held-out band.
+Measures observed/unobserved divergence, the predictive validity of
+observed behaviour (LOSO AUC), the cost of concealment, onset and
+spatial transfer, each crossed with Baldwinian vs Lamarckian policy
+inheritance on 30 seed-matched runs per cell.
+
+- **Status:** Implemented and run (`farm.experiments.veil_ceiling`).
+- **CLI:** [`scripts/run_veil_ceiling.py`](../../scripts/run_veil_ceiling.py),
+  [`scripts/run_veil_ceiling_validity_followup.py`](../../scripts/run_veil_ceiling_validity_followup.py),
+  [`scripts/run_veil_ceiling_adaptive.py`](../../scripts/run_veil_ceiling_adaptive.py)
+- **Docs:** [Pre-registered design and Appendix A](experiments/veil_ceiling/Design.md),
+  [Results](experiments/veil_ceiling/RESULTS.md),
+  [Adaptive monitor follow-up](experiments/veil_ceiling/Adaptive.md),
+  [package README](../../farm/experiments/veil_ceiling/README.md)
+- **Raw record:** [`experiments/veil_ceiling/results/REPORT.md`](../../experiments/veil_ceiling/results/REPORT.md),
+  [`VALIDITY_FOLLOWUP.md`](../../experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md)
+  (with per-cell ledgers and analysis tables alongside)
+
 ## Adding a new experiment
 
 When introducing a new experiment, follow the structure used by the
