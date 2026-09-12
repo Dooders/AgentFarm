@@ -27,7 +27,12 @@ from farm.experiments.veil_ceiling.agents import (
 )
 from farm.experiments.veil_ceiling.config import RunConfig
 from farm.experiments.veil_ceiling.learner import MLPQLearner
-from farm.experiments.veil_ceiling.monitoring import RESIDUAL_DEFECTIONS, RESIDUAL_MOVES, Monitoring
+from farm.experiments.veil_ceiling.monitoring import (
+    RESIDUAL_DEFECTIONS,
+    RESIDUAL_MOVES,
+    RESIDUAL_OCCUPANCY,
+    Monitoring,
+)
 from farm.experiments.veil_ceiling.world import ResourceField
 
 _STREAM_WORLD, _STREAM_MONITOR, _STREAM_DECOY, _STREAM_CUE, _STREAM_DYNAMICS, _STREAM_POLICY = range(6)
@@ -260,6 +265,7 @@ class VeilSimulation:
                     self.monitoring.record_residual(cell, RESIDUAL_DEFECTIONS)
                 if action == VeilAction.MOVE:
                     self.monitoring.record_residual(cell, RESIDUAL_MOVES)
+                self.monitoring.record_residual(cell, RESIDUAL_OCCUPANCY)
             if agent.energy <= 0.0 or agent.age >= w.max_age:
                 agent.alive = False
                 agent.death_tick = self.tick

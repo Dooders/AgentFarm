@@ -27,6 +27,7 @@ from farm.experiments.veil_ceiling.config import (
 
 RESIDUAL_DEFECTIONS = "defections"
 RESIDUAL_MOVES = "moves"
+RESIDUAL_OCCUPANCY = "occupancy"
 
 
 class Monitoring:
@@ -60,17 +61,19 @@ class Monitoring:
         self._eligible = self.training_cells
 
     def record_residual(self, cell: int, kind: str) -> None:
-        """Accumulate an observed residual on ``cell`` during the current epoch."""
-        if (
-            kind == RESIDUAL_DEFECTIONS
-            and self.cfg.policy
-            in (
-                MONITOR_POLICY_ADAPTIVE_CELLS,
-                MONITOR_POLICY_ADAPTIVE_BLIND,
-            )
-            or kind == RESIDUAL_MOVES
-            and self.cfg.policy == MONITOR_POLICY_ADAPTIVE_MOVE
-        ):
+        """Accumulate an observed residual on ``cell`` during the current epoch.
+
+        Each adaptive policy listens to one residual so HA4 is a real contrast:
+        ``adaptive_cells`` chases caught defections, ``adaptive_move`` chases
+        observed movement, and ``adaptive_blind`` chases occupancy (busy cells).
+        """
+        policy = self.cfg.policy
+        listens = (
+            (kind == RESIDUAL_DEFECTIONS and policy == MONITOR_POLICY_ADAPTIVE_CELLS)
+            or (kind == RESIDUAL_MOVES and policy == MONITOR_POLICY_ADAPTIVE_MOVE)
+            or (kind == RESIDUAL_OCCUPANCY and policy == MONITOR_POLICY_ADAPTIVE_BLIND)
+        )
+        if listens:
             self._residual[cell] += 1.0
 
     def _sample_uniform(self, rng: np.random.Generator, eligible: np.ndarray) -> np.ndarray:

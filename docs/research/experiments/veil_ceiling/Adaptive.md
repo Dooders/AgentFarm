@@ -32,7 +32,7 @@ and uses it as sampling weights (Laplace-smoothed) for the next epoch.
 |---|---|---|
 | `adaptive_cells` | observed defections | Chase the last place defection was *caught*. |
 | `adaptive_move` | observed movement | Act on the side channel that survived the H2 ablation. |
-| `adaptive_blind` | observed defections, treated as a spatial density | Control: is the monitor just chasing busy cells? |
+| `adaptive_blind` | observed occupancy (agent-ticks on the current true map) | Control: is the monitor just chasing busy cells? |
 
 Static C2 / C3_f0.9 / C3_f0.7 of the same seed are the matched baselines.
 

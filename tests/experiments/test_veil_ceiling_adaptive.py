@@ -25,7 +25,12 @@ from farm.experiments.veil_ceiling.config import (
     WorldConfig,
 )
 from farm.experiments.veil_ceiling.experiment import MatrixConfig, run_matrix
-from farm.experiments.veil_ceiling.monitoring import RESIDUAL_DEFECTIONS, RESIDUAL_MOVES, Monitoring
+from farm.experiments.veil_ceiling.monitoring import (
+    RESIDUAL_DEFECTIONS,
+    RESIDUAL_MOVES,
+    RESIDUAL_OCCUPANCY,
+    Monitoring,
+)
 from farm.experiments.veil_ceiling.simulation import run_simulation
 
 pytestmark = pytest.mark.unit
@@ -86,6 +91,28 @@ def test_adaptive_draw_overweights_high_residual_cells() -> None:
     assert 0.0 <= mon.last_weight_gini <= 1.0
 
 
+def test_blind_uses_occupancy_not_defections() -> None:
+    cells = _monitoring(
+        MonitoringConfig(coverage=0.5, fidelity=1.0, policy=MONITOR_POLICY_ADAPTIVE_CELLS), seed=6
+    )
+    blind = _monitoring(
+        MonitoringConfig(coverage=0.5, fidelity=1.0, policy=MONITOR_POLICY_ADAPTIVE_BLIND), seed=6
+    )
+    cells.maybe_resample(0, include_heldout=False)
+    blind.maybe_resample(0, include_heldout=False)
+    hot = int(cells.training_cells[0])
+    cold = int(cells.training_cells[1])
+    for _ in range(40):
+        cells.record_residual(hot, RESIDUAL_DEFECTIONS)
+        cells.record_residual(cold, RESIDUAL_OCCUPANCY)
+        blind.record_residual(hot, RESIDUAL_DEFECTIONS)
+        blind.record_residual(cold, RESIDUAL_OCCUPANCY)
+    cells_w = dict(zip(cells.training_cells.tolist(), cells._weights(cells.training_cells).tolist()))
+    blind_w = dict(zip(blind.training_cells.tolist(), blind._weights(blind.training_cells).tolist()))
+    assert cells_w[hot] > 10 * cells_w[cold]
+    assert blind_w[cold] > 10 * blind_w[hot]
+
+
 def test_adaptive_move_ignores_defection_residual() -> None:
     cfg = MonitoringConfig(coverage=0.5, fidelity=1.0, policy=MONITOR_POLICY_ADAPTIVE_MOVE)
     mon = _monitoring(cfg, seed=4)
@@ -129,6 +156,32 @@ def test_simulation_adaptive_run_records_telemetry() -> None:
     assert result.summary["expected_penalty_per_defection"] == pytest.approx(3.0)
     assert "mask_overlap" in result.windows.columns
     assert result.windows["coverage_realised"].dropna().between(0.49, 0.51).all()
+
+
+def test_cells_and_blind_diverge_after_first_epoch() -> None:
+    cells = run_simulation(
+        RunConfig(
+            condition=CONDITIONS["A_f1_cells"],
+            seed=2,
+            inheritance_mode="lamarckian",
+            train_ticks=200,
+            eval_ticks=0,
+            window_ticks=50,
+        )
+    )
+    blind = run_simulation(
+        RunConfig(
+            condition=CONDITIONS["A_f1_blind"],
+            seed=2,
+            inheritance_mode="lamarckian",
+            train_ticks=200,
+            eval_ticks=0,
+            window_ticks=50,
+        )
+    )
+    assert cells.summary["adaptive_draws"] > 0
+    assert blind.summary["adaptive_draws"] > 0
+    assert cells.summary["mean_weight_kl"] != pytest.approx(blind.summary["mean_weight_kl"], abs=1e-12)
 
 
 def test_static_run_does_not_count_adaptive_draws() -> None:

@@ -6,9 +6,9 @@ the next epoch's true map from last epoch's observed residual. Three policies:
 * ``adaptive_cells`` — overweight cells with recent *observed defections*.
 * ``adaptive_move`` — overweight cells with recent *observed movement* (the
   side channel that survived the H2 ablation).
-* ``adaptive_blind`` — same residual as ``adaptive_cells``, but treated as a
-  spatial density rather than "defection while watched". This is the control
-  for "the monitor is just chasing busy cells".
+* ``adaptive_blind`` — overweight cells with recent *observed occupancy*
+  (agent-ticks on the current true map). Control: is the monitor just chasing
+  busy cells rather than caught concealment?
 
 Every comparison is seed-matched against the static cell of the same fidelity
 (C2 / C3_f0.9 / C3_f0.7). Coverage is exact in every epoch; expected penalty

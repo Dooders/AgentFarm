@@ -290,7 +290,7 @@ def _register_adaptive_conditions() -> None:
             (MONITOR_POLICY_ADAPTIVE_MOVE, "reallocate coverage toward cells with recent observed movement"),
             (
                 MONITOR_POLICY_ADAPTIVE_BLIND,
-                "reallocate coverage toward cells with recent observed residual, ignoring the cue",
+                "reallocate coverage toward cells with recent observed occupancy (busy-cell control)",
             ),
         ):
             name = _adaptive_name(fidelity, policy)
