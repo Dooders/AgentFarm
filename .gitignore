@@ -176,6 +176,9 @@ simulations/
 !/experiments/consensus_paradigms/
 !/experiments/consensus_paradigms/results/
 !/experiments/consensus_paradigms/results/**
+!/experiments/veil_ceiling/
+!/experiments/veil_ceiling/results/
+!/experiments/veil_ceiling/results/**
 
 # Generated experiment outputs (regenerate via run_experiment.py / runners)
 /results/

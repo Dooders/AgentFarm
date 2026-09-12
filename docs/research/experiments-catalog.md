@@ -139,8 +139,35 @@ FarmNotary; synthetic ballots stay under `private/` off the record.
 - **Docs:** [Consensus paradigms](experiments/consensus_paradigms.md),
   [package README](../../farm/experiments/consensus/README.md)
 - **Notary:** [FarmNotary guide](../guides/farm-notary.md)
-- **Official stamp:** [`experiments/consensus_paradigms/results`](../../experiments/consensus_paradigms/results)
+- **Official stamp:** [`experiments/consensus_paradigms/results/REPORT.md`](../../experiments/consensus_paradigms/results/REPORT.md)
   (250×400×8 two-cluster; aggregates only)
+
+## Observation and evaluation validity
+
+Experiments that ask whether behaviour under observation is informative
+about behaviour when unobserved.
+
+### The Veil Ceiling
+
+Agents in a shared resource grid can over-harvest for a private gain at a
+collective cost. Enforcement (coverage, penalty) is held fixed while the
+fidelity of a cue correlated with being monitored is swept from 0 to 1,
+with a decorrelated-cue null control and a never-monitored held-out band.
+Measures observed/unobserved divergence, the predictive validity of
+observed behaviour (LOSO AUC), the cost of concealment, onset and
+spatial transfer, each crossed with Baldwinian vs Lamarckian policy
+inheritance on 30 seed-matched runs per cell.
+
+- **Status:** Implemented and run (`farm.experiments.veil_ceiling`).
+- **CLI:** [`scripts/run_veil_ceiling.py`](../../scripts/run_veil_ceiling.py),
+  [`scripts/run_veil_ceiling_validity_followup.py`](../../scripts/run_veil_ceiling_validity_followup.py)
+- **Docs:** [Pre-registered design and Appendix A](experiments/veil_ceiling/Design.md),
+  [Results](experiments/veil_ceiling/RESULTS.md),
+  [package README](../../farm/experiments/veil_ceiling/README.md)
+- **Devlog:** [The veil ceiling: a leaked cue inverts sealed-world evaluation](devlog/2026-09-12-veil-ceiling-observation-collapse.md)
+- **Raw record:** [`experiments/veil_ceiling/results/REPORT.md`](../../experiments/veil_ceiling/results/REPORT.md),
+  [`VALIDITY_FOLLOWUP.md`](../../experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md)
+  (with per-cell ledgers and analysis tables alongside)
 
 ## Adding a new experiment
 
