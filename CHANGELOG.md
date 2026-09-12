@@ -34,6 +34,18 @@ Baseline packaged release at `0.1.0`. Detailed history is captured in the dated 
 
 ## Entries
 
+### 2026-09-12
+
+#### Docs
+
+- **Veil Ceiling confirmatory write-up** — published the research-devlog post
+  [`docs/research/devlog/2026-09-12-veil-ceiling-observation-collapse.md`](docs/research/devlog/2026-09-12-veil-ceiling-observation-collapse.md)
+  covering the 780-run matrix: H1–H5 verdicts, the H2 follow-up (feature
+  ablation and honest-calibrated evaluator), and links from the experiments
+  catalog, design, and results pages. ([#1010](https://github.com/Dooders/AgentFarm/pull/1010))
+
+---
+
 ### 2026-07-03
 
 #### Performance

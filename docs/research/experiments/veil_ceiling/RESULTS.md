@@ -1,6 +1,8 @@
 # The Veil Ceiling — results of the confirmatory run
 
-**Design:** [Design.md](Design.md) · **Full report:**
+**Design:** [Design.md](Design.md) · **Devlog:**
+[The veil ceiling: a leaked cue inverts sealed-world evaluation](../../devlog/2026-09-12-veil-ceiling-observation-collapse.md)
+· **Full report:**
 [`experiments/veil_ceiling/results/REPORT.md`](../../../../experiments/veil_ceiling/results/REPORT.md)
 · **Raw record:** [`experiments/veil_ceiling/results/`](../../../../experiments/veil_ceiling/results)
 

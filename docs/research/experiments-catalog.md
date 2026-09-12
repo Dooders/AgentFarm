@@ -164,6 +164,7 @@ inheritance on 30 seed-matched runs per cell.
 - **Docs:** [Pre-registered design and Appendix A](experiments/veil_ceiling/Design.md),
   [Results](experiments/veil_ceiling/RESULTS.md),
   [package README](../../farm/experiments/veil_ceiling/README.md)
+- **Devlog:** [The veil ceiling: a leaked cue inverts sealed-world evaluation](devlog/2026-09-12-veil-ceiling-observation-collapse.md)
 - **Raw record:** [`experiments/veil_ceiling/results/REPORT.md`](../../experiments/veil_ceiling/results/REPORT.md),
   [`VALIDITY_FOLLOWUP.md`](../../experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md)
   (with per-cell ledgers and analysis tables alongside)

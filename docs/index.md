@@ -197,21 +197,23 @@ env = run_simulation(
 
     <ul class="posts">
       <li>
+        <a class="post-card" href="{{ '/research/devlog/2026-09-12-veil-ceiling-observation-collapse/' | relative_url }}">
+          <span class="post-card__date">2026-09-12</span>
+          <h3 class="post-card__title">The veil ceiling: a leaked cue inverts sealed-world evaluation</h3>
+          <p class="post-card__excerpt">
+            Hold enforcement fixed and vary only cue fidelity. A leaked observation
+            cue lets agents defect off-camera; an honest-calibrated evaluator
+            ranks them at chance.
+          </p>
+        </a>
+      </li>
+      <li>
         <a class="post-card" href="{{ '/research/devlog/2026-04-23-evolving-hyperparameter-genomes-foraging-learning-agents/' | relative_url }}">
           <span class="post-card__date">2026-04-23</span>
           <h3 class="post-card__title">Evolving hyperparameter genomes in foraging and learning agents</h3>
           <p class="post-card__excerpt">
             Each agent carries its own hyperparameter chromosome, offspring inherit it (with mutation and
             crossover), and selection is whatever the resource environment happens to apply.
-          </p>
-        </a>
-      </li>
-      <li>
-        <a class="post-card" href="{{ '/research/devlog/2026-04-17-dna-hyperparameter-evolution/' | relative_url }}">
-          <span class="post-card__date">2026-04-17</span>
-          <h3 class="post-card__title">DNA-style hyperparameter evolution results</h3>
-          <p class="post-card__excerpt">
-            Design and initial outcomes of the genetics-inspired hyperparameter evolution work in AgentFarm.
           </p>
         </a>
       </li>

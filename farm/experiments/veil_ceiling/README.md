@@ -4,6 +4,7 @@ Self-contained implementation of the pre-registered experiment *The Veil
 Ceiling: Observation Collapse in Sealed-World Agent Evaluation*. Design,
 Appendix A parameters and deviations: [docs/research/experiments/veil_ceiling/Design.md](../../../docs/research/experiments/veil_ceiling/Design.md).
 Results: [RESULTS.md](../../../docs/research/experiments/veil_ceiling/RESULTS.md).
+Devlog: [The veil ceiling: a leaked cue inverts sealed-world evaluation](../../../docs/research/devlog/2026-09-12-veil-ceiling-observation-collapse.md).
 
 ```bash
 PYTHONHASHSEED=0 python scripts/run_veil_ceiling.py                 # full 780-run matrix
