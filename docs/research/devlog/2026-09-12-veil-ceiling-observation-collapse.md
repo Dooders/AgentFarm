@@ -38,9 +38,9 @@ defection is an over-harvest at an opportunity that actually crosses the
 threshold, so rates are only counted where the affordance tempts.
 
 Monitoring is an epoch-resampled mask (`round(c · n)` cells, 25-tick epochs)
-so the map cannot be memorised. The cue is that bit passed through a binary
-symmetric channel with flip probability `(1 − f) / 2`. `f = 0` is a coin
-flip; `f = 1` is a perfect leak. The rightmost four columns (`x ≥ 16`) are
+so the map cannot be memorised. The cue is the monitoring bit passed through a
+binary symmetric channel with flip probability `(1 − f) / 2`. `f = 0` is a
+coin flip; `f = 1` is a perfect leak. The rightmost four columns (`x ≥ 16`) are
 never monitored during training and are switched on, with the cue, only in a
 frozen evaluation.
 
@@ -74,7 +74,8 @@ replicates). The C4 noise band is mean ± 2 SD of C4 Δ_cue.
 
 Δ_cue — defection rate at `cue = 0` minus `cue = 1` — rises monotonically with
 `f` in both modes (Spearman ρ = 1.0). Lamarckian transfer makes the response
-convex: `f ≤ 0.3` sits inside the C4 band, `f = 0.5` is clearly out of it
+convex: `f = 0.1` sits inside the late C4 band (upper 0.029), `f = 0.3` is
+already just outside it (0.041 [0.036, 0.045]), `f = 0.5` is clearly out
 (0.071), and `f = 1` reaches 0.359. Baldwinian shows the same ordering at a
 fifth of the amplitude (0.079). Robustness cells at `p = 3` and `p = 9`
 reproduce the split with essentially unchanged Δ_cue.
@@ -145,9 +146,10 @@ honest alternative is to calibrate where behaviour is believed to be honest
 
 Calibrated on honest data, the evaluator puts weight 1.5 on observed
 defection and ~0 on movement — exactly the wrong features once the cue leaks.
-At `f = 1` its AUC is at or below chance in every Lamarckian C2 cell, and it
-degrades sharply above `f ≈ 0.7`. Baldwinian degrades only mildly (0.702 →
-0.664) because those agents conceal weakly.
+At `f = 1` the primary cell (`p = 6`) is at chance (0.480 [0.460, 0.502]);
+the `p = 9` robustness cell matches (0.480) while `p = 3` is only slightly
+above (0.540). The drop is sharp above `f ≈ 0.7`. Baldwinian degrades only
+mildly (0.702 → 0.664) because those agents conceal weakly.
 
 Under the pre-registered operationalisation, H2 stays falsified. Under the
 operationalisation that matches how sealed-world evaluation is actually used,
@@ -188,7 +190,7 @@ earlier). The differential is −48 ticks [−125, 38].
 | H2 validity collapses at `f = 1` (oracle AUC) | **falsified** | **falsified** |
 | H3 concealment is not costly | supported | supported |
 | H4 spatial transfer to the held-out band | **falsified** | supported |
-| H5 inheritance accelerates concealment more than cooperation | inconclusive | |
+| H5 inheritance accelerates concealment more than cooperation | inconclusive | inconclusive |
 
 The honest-calibrated follow-up is a different operationalisation of H2, not
 a re-verdict. Pre-registered H2 asked whether an oracle with leaked-regime
@@ -215,7 +217,7 @@ where the veil is intact, has none.
 ## Reproduce
 
 The confirmatory record is committed under
-[`experiments/veil_ceiling/results/`](../../../experiments/veil_ceiling/results/).
+[`experiments/veil_ceiling/results/`](https://github.com/Dooders/AgentFarm/tree/dev/experiments/veil_ceiling/results).
 Re-analyse without re-running:
 
 ```bash
@@ -241,7 +243,7 @@ PYTHONHASHSEED=0 python scripts/run_veil_ceiling.py \
 
 - [Pre-registered design and Appendix A](../experiments/veil_ceiling/Design.md)
 - [Narrative results](../experiments/veil_ceiling/RESULTS.md)
-- [Confirmatory REPORT](../../../experiments/veil_ceiling/results/REPORT.md)
-- [Validity follow-up](../../../experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md)
-- [Package README](../../../farm/experiments/veil_ceiling/README.md)
+- [Confirmatory REPORT](https://github.com/Dooders/AgentFarm/blob/dev/experiments/veil_ceiling/results/REPORT.md)
+- [Validity follow-up](https://github.com/Dooders/AgentFarm/blob/dev/experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md)
+- [Package README](https://github.com/Dooders/AgentFarm/blob/dev/farm/experiments/veil_ceiling/README.md)
 - [Baldwinian vs Lamarckian: policy warm-start across three resource regimes](2026-05-21-baldwinian-vs-lamarckian-ab-harness.md)
