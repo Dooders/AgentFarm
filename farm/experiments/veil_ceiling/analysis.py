@@ -366,6 +366,11 @@ def compute_concealment(outputs: MatrixOutputs, thresholds: AnalysisThresholds =
             "share_cooperative": float(shares.get(STRATEGY_COOPERATIVE, 0.0)),
             "share_defector": float(shares.get(STRATEGY_DEFECTOR, 0.0)),
             "share_mixed": float(shares.get(STRATEGY_MIXED, 0.0)),
+            "cost_mean_diff": float("nan"),
+            "cost_ci_lo": float("nan"),
+            "cost_ci_hi": float("nan"),
+            "cost_n_pairs": 0,
+            "cost_relative": float("nan"),
         }
         for strategy in (STRATEGY_CONDITIONAL, STRATEGY_COOPERATIVE, STRATEGY_DEFECTOR, STRATEGY_MIXED):
             col = per_seed[strategy] if strategy in per_seed else pd.Series(dtype=float)

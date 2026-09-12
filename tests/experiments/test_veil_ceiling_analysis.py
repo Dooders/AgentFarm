@@ -418,6 +418,9 @@ def test_analyze_and_write_outputs_end_to_end(tiny_outputs) -> None:
     assert "lamarckian-baldwinian" in set(paired["inheritance_mode"])
     c2c1 = paired[(paired["treatment"] == "C2") & (paired["baseline"] == "C1") & (paired["metric"] == "rate")]
     assert (c2c1["n_pairs"] == 2).all()
+    assert {"cost_mean_diff", "cost_ci_lo", "cost_ci_hi", "cost_n_pairs", "cost_relative"} <= set(
+        result.concealment.columns
+    )
 
     assert set(result.calibration) == {"baldwinian", "lamarckian"}
     for mode in ("baldwinian", "lamarckian"):
