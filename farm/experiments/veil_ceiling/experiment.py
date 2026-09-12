@@ -147,6 +147,40 @@ def _run_one(cfg: RunConfig) -> RunResult:
     return run_simulation(cfg)
 
 
+def _resume_signature(manifest: dict) -> dict:
+    return {
+        "seeds": manifest["seeds"],
+        "inheritance_modes": manifest["inheritance_modes"],
+        "train_ticks": manifest["train_ticks"],
+        "eval_ticks": manifest["eval_ticks"],
+        "window_ticks": manifest["window_ticks"],
+        "world": manifest["world"],
+        "learner": manifest["learner"],
+        "conditions": manifest["conditions"],
+    }
+
+
+def _validate_resume_manifest(manifest_path: Path, expected_manifest: dict) -> None:
+    existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if _resume_signature(existing) != _resume_signature(expected_manifest):
+        raise ValueError(f"incompatible output directory for resume: {manifest_path.parent}")
+
+
+def _has_expected_run_ids(path: Path, expected_run_ids: set[str]) -> bool:
+    try:
+        run_ids = pd.read_csv(path, usecols=["run_id"])["run_id"]
+    except (FileNotFoundError, ValueError, pd.errors.EmptyDataError):
+        return False
+    return run_ids.nunique() == len(expected_run_ids) and set(run_ids) == expected_run_ids
+
+
+def _cell_is_complete(cell_dir: Path, expected_run_ids: set[str]) -> bool:
+    return all(
+        _has_expected_run_ids(path, expected_run_ids)
+        for path in (cell_dir / AGENTS_FILENAME, cell_dir / WINDOWS_FILENAME, cell_dir / RUNS_FILENAME)
+    )
+
+
 def _attach_run_columns(df: pd.DataFrame, result: RunResult) -> pd.DataFrame:
     df = df.copy()
     cfg = result.config
@@ -169,17 +203,26 @@ def run_matrix(
     out = Path(output_dir)
     cells_dir = out / CELLS_DIRNAME
     cells_dir.mkdir(parents=True, exist_ok=True)
-    (out / MANIFEST_FILENAME).write_text(json.dumps(matrix_manifest(matrix), indent=2), encoding="utf-8")
+    manifest_path = out / MANIFEST_FILENAME
+    manifest = matrix_manifest(matrix)
+    if resume and manifest_path.exists():
+        _validate_resume_manifest(manifest_path, manifest)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     by_cell: dict[str, list[RunConfig]] = {}
     for cfg in matrix.run_configs():
         by_cell.setdefault(cfg.cell_id, []).append(cfg)
 
+    completed_cells = {
+        cell
+        for cell, cfgs in by_cell.items()
+        if resume and _cell_is_complete(cells_dir / cell, {cell_cfg.run_id for cell_cfg in cfgs})
+    }
     todo = [
         cfg
         for cell, cfgs in by_cell.items()
         for cfg in cfgs
-        if not (resume and (cells_dir / cell / AGENTS_FILENAME).exists())
+        if cell not in completed_cells
     ]
     n_total = sum(len(cfgs) for cfgs in by_cell.values())
     if progress:

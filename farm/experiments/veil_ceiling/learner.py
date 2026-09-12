@@ -162,3 +162,5 @@ class MLPQLearner:
         if policy_state:
             self.policy.load_state_dict(policy_state)
             self._target.load_state_dict(policy_state)
+        if "step_count" in state:
+            self.step_count = int(state["step_count"])

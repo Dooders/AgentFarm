@@ -150,11 +150,23 @@ def compute_noise_band(
     for mode, group in run_metrics[run_metrics["family"] == "C4"].groupby("inheritance_mode"):
         late = group["delta_cue"].dropna().to_numpy(dtype=float)
         heldout = group["eval_heldout_delta_cue"].dropna().to_numpy(dtype=float)
-        window_values: list[float] = []
+        window_rows: list[pd.DataFrame] = []
         for run_id in group["run_id"]:
             rates = window_rates(outputs.windows[outputs.windows["run_id"] == run_id])
-            window_values.extend(rates.loc[rates["phase"] == "train", "delta_cue"].dropna().tolist())
-        windows_arr = np.asarray(window_values, dtype=float)
+            train = rates.loc[rates["phase"] == "train", ["window_end_tick", "delta_cue"]].dropna(subset=["delta_cue"])
+            if not train.empty:
+                window_rows.append(train)
+        window_band_hi_by_tick: dict[int, float] = {}
+        window_band_lo_by_tick: dict[int, float] = {}
+        if window_rows:
+            window_frame = pd.concat(window_rows, ignore_index=True)
+            for tick, tick_group in window_frame.groupby("window_end_tick", sort=True):
+                values = tick_group["delta_cue"].to_numpy(dtype=float)
+                if values.size > 1:
+                    mean = values.mean()
+                    sd = values.std(ddof=1)
+                    window_band_hi_by_tick[int(tick)] = float(mean + k * sd)
+                    window_band_lo_by_tick[int(tick)] = float(mean - k * sd)
         mean, lo, hi, n = bootstrap_mean_ci(late, thresholds)
         rows.append(
             {
@@ -167,11 +179,13 @@ def compute_noise_band(
                 "late_band_lo": float(late.mean() - k * late.std(ddof=1)) if late.size > 1 else float("nan"),
                 "late_band_hi": float(late.mean() + k * late.std(ddof=1)) if late.size > 1 else float("nan"),
                 "window_band_hi": (
-                    float(windows_arr.mean() + k * windows_arr.std(ddof=1)) if windows_arr.size > 1 else float("nan")
+                    max(window_band_hi_by_tick.values()) if window_band_hi_by_tick else float("nan")
                 ),
                 "window_band_lo": (
-                    float(windows_arr.mean() - k * windows_arr.std(ddof=1)) if windows_arr.size > 1 else float("nan")
+                    min(window_band_lo_by_tick.values()) if window_band_lo_by_tick else float("nan")
                 ),
+                "window_band_hi_by_tick": window_band_hi_by_tick,
+                "window_band_lo_by_tick": window_band_lo_by_tick,
                 "heldout_band_hi": float(heldout.mean() + k * heldout.std(ddof=1))
                 if heldout.size > 1
                 else float("nan"),
@@ -261,6 +275,7 @@ def compute_validity(outputs: MatrixOutputs, thresholds: AnalysisThresholds = TH
     rng = np.random.default_rng(thresholds.bootstrap_seed)
     for cell in outputs.cells():
         agents = outputs.agents_by_cell[cell]
+        run = outputs.runs[outputs.runs["cell_id"] == cell].iloc[0]
         table = agent_validity_table(agents, thresholds)
         result = predictive_validity(table, thresholds, rng)
         first = agents.iloc[0]
@@ -269,9 +284,7 @@ def compute_validity(outputs: MatrixOutputs, thresholds: AnalysisThresholds = TH
             "condition": first["condition"],
             "family": first["family"],
             "inheritance_mode": first["inheritance_mode"],
-            "fidelity": CONDITIONS[first["condition"]].monitoring.fidelity
-            if first["condition"] in CONDITIONS
-            else float("nan"),
+            "fidelity": float(run["fidelity"]) if float(run["fidelity"]) >= 0.0 else float("nan"),
         }
         row.update(result.to_dict())
         rows.append(row)
@@ -385,7 +398,7 @@ def compute_onsets(
 ) -> pd.DataFrame:
     """Per run: when Δ clears the C4 window band (conditional onset) and when the
     defection rate falls below half the seed-matched C0 baseline (cooperative onset)."""
-    band_by_mode = noise_band.set_index("inheritance_mode")["window_band_hi"].to_dict()
+    band_by_mode = noise_band.set_index("inheritance_mode")["window_band_hi_by_tick"].to_dict()
     c0_by_mode_seed = {
         (r["inheritance_mode"], r["seed"]): r["rate"] for _, r in run_metrics[run_metrics["family"] == "C0"].iterrows()
     }
@@ -395,14 +408,29 @@ def compute_onsets(
             continue
         mode = run["inheritance_mode"]
         rates = window_rates(outputs.windows[outputs.windows["run_id"] == run["run_id"]])
-        upper = band_by_mode.get(mode, float("nan"))
-        onset_tick, onset_gen = onset_window(rates, upper, thresholds.onset_consecutive_windows)
+        upper_by_tick = band_by_mode.get(mode, {})
+        train = rates[rates["phase"] == "train"].reset_index(drop=True)
+        above = np.array(
+            [
+                np.isfinite(row["delta_cue"])
+                and np.isfinite(upper_by_tick.get(int(row["window_end_tick"]), float("nan")))
+                and row["delta_cue"] > upper_by_tick[int(row["window_end_tick"])]
+                for _, row in train.iterrows()
+            ],
+            dtype=bool,
+        )
+        upper = max(upper_by_tick.values()) if upper_by_tick else float("nan")
+        onset_tick, onset_gen = float("nan"), float("nan")
+        k = thresholds.onset_consecutive_windows
+        for i in range(len(above) - k + 1):
+            if above[i : i + k].all():
+                onset_tick = float(train.loc[i, "window_end_tick"])
+                onset_gen = float(train.loc[i, "mean_generation"])
+                break
         baseline = c0_by_mode_seed.get((mode, run["seed"]), float("nan"))
         coop_tick, coop_gen = float("nan"), float("nan")
         if np.isfinite(baseline):
-            train = rates[rates["phase"] == "train"].reset_index(drop=True)
             below = (train["rate"] < 0.5 * baseline).to_numpy()
-            k = thresholds.onset_consecutive_windows
             for i in range(len(below) - k + 1):
                 if below[i : i + k].all():
                     coop_tick = float(train.loc[i, "window_end_tick"])
@@ -566,6 +594,7 @@ def hypothesis_verdicts(
     onset_summary: pd.DataFrame,
     onsets: pd.DataFrame,
     falsification: dict[str, Any],
+    censor_tick: float,
     thresholds: AnalysisThresholds = THRESHOLDS,
 ) -> dict[str, Any]:
     out: dict[str, Any] = {}
@@ -592,7 +621,7 @@ def hypothesis_verdicts(
             rho = float(dose["spearman_fidelity_delta"].iloc[0]) if not dose.empty else float("nan")
             if c2_clears:
                 verdicts["H1"] = {
-                    "verdict": VERDICT_SUPPORTED if (np.isnan(rho) or rho > 0) else VERDICT_INCONCLUSIVE,
+                    "verdict": VERDICT_SUPPORTED if np.isfinite(rho) and rho > 0 else VERDICT_INCONCLUSIVE,
                     "c2_minus_c4_delta_cue_ci": [float(c2c4["ci_lo"].iloc[0]), float(c2c4["ci_hi"].iloc[0])],
                     "spearman_fidelity_delta": rho,
                 }
@@ -655,11 +684,16 @@ def hypothesis_verdicts(
                 }
         out[mode] = verdicts
 
-    out["H5"] = _h5_verdict(onsets, paired, thresholds)
+    out["H5"] = _h5_verdict(onsets, paired, thresholds, censor_tick)
     return out
 
 
-def _h5_verdict(onsets: pd.DataFrame, paired: pd.DataFrame, thresholds: AnalysisThresholds) -> dict[str, Any]:
+def _h5_verdict(
+    onsets: pd.DataFrame,
+    paired: pd.DataFrame,
+    thresholds: AnalysisThresholds,
+    censor_tick: float,
+) -> dict[str, Any]:
     """Inheritance accelerates the conditional policy (C2 onset) more than the cooperative one (C1 onset)."""
     if (
         onsets.empty
@@ -667,12 +701,7 @@ def _h5_verdict(onsets: pd.DataFrame, paired: pd.DataFrame, thresholds: Analysis
         or "baldwinian" not in set(onsets["inheritance_mode"])
     ):
         return {"verdict": VERDICT_INCONCLUSIVE, "reason": "both inheritance modes required"}
-    censor = (
-        float(np.nanmax(onsets[["conditional_onset_tick", "cooperative_onset_tick"]].to_numpy()))
-        if len(onsets)
-        else 0.0
-    )
-    censor = censor + 50.0 if np.isfinite(censor) else 0.0
+    censor = float(censor_tick)
 
     def _by_seed(condition: str, mode: str, column: str) -> pd.Series:
         sel = onsets[(onsets["condition"] == condition) & (onsets["inheritance_mode"] == mode)]
@@ -764,12 +793,23 @@ def analyze(outputs: MatrixOutputs, thresholds: AnalysisThresholds = THRESHOLDS)
     dose = compute_dose_response(cell_summary, validity, thresholds)
     concealment = compute_concealment(outputs, thresholds)
     onsets = compute_onsets(outputs, run_metrics, noise_band, thresholds)
-    window_ticks = int(np.diff(np.sort(outputs.windows["window_end_tick"].unique()))[0]) if len(outputs.windows) else 50
+    train_window_ticks = outputs.windows.loc[outputs.windows["phase"] == "train", "window_end_tick"]
+    window_ticks = int(train_window_ticks.min()) if len(train_window_ticks) else 50
     onset_summary = summarise_onsets(onsets, outputs.train_ticks, window_ticks) if not onsets.empty else pd.DataFrame()
     calibration = calibration_check(run_metrics, thresholds)
     falsification = falsification_checks(cell_summary, noise_band, paired, validity, thresholds)
     hypotheses = hypothesis_verdicts(
-        cell_summary, noise_band, paired, validity, dose, concealment, onset_summary, onsets, falsification, thresholds
+        cell_summary,
+        noise_band,
+        paired,
+        validity,
+        dose,
+        concealment,
+        onset_summary,
+        onsets,
+        falsification,
+        outputs.train_ticks + window_ticks,
+        thresholds,
     )
     return AnalysisResult(
         run_metrics=run_metrics,

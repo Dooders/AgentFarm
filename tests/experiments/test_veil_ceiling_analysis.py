@@ -14,6 +14,10 @@ from farm.experiments.veil_ceiling.analysis import (
     VERDICT_VOID,
     analyze,
     bootstrap_mean_ci,
+    compute_noise_band,
+    compute_onsets,
+    compute_validity,
+    hypothesis_verdicts,
     paired_contrast,
     write_analysis,
 )
@@ -22,7 +26,10 @@ from farm.experiments.veil_ceiling.experiment import (
     AGENTS_FILENAME,
     CELLS_DIRNAME,
     MANIFEST_FILENAME,
+    RUNS_FILENAME,
+    WINDOWS_FILENAME,
     MatrixConfig,
+    MatrixOutputs,
     load_outputs,
     matrix_manifest,
     run_matrix,
@@ -33,6 +40,7 @@ from farm.experiments.veil_ceiling.metrics import (
     STRATEGY_DEFECTOR,
     agent_validity_table,
     classify_strategies,
+    late_training_windows,
     onset_window,
     predictive_validity,
     safe_rate,
@@ -99,6 +107,12 @@ def test_onset_requires_consecutive_windows_above_band() -> None:
     assert all(np.isnan(v) for v in onset_window(rates, 0.9, consecutive=2))
 
 
+def test_late_training_windows_uses_last_third() -> None:
+    windows = pd.DataFrame({"phase": ["train"] * 6 + ["eval"], "window_end_tick": [50, 100, 150, 200, 250, 300, 350]})
+    late = late_training_windows(windows)
+    assert list(late["window_end_tick"]) == [250, 300]
+
+
 def _synthetic_agents(n: int, seed_count: int, conditional: bool) -> pd.DataFrame:
     rng = np.random.default_rng(0)
     rows = []
@@ -131,9 +145,11 @@ def _synthetic_agents(n: int, seed_count: int, conditional: bool) -> pd.DataFram
 
 def test_validity_table_and_auc_on_synthetic_agents() -> None:
     conditional = _synthetic_agents(80, 4, conditional=True)
+    conditional["ticks__train__train__m1__c0"] = 40.0
     table = agent_validity_table(conditional, FAST_THRESHOLDS)
     assert len(table) == 80
     assert (table["unobs_defect_rate"] > table["obs_defect_rate"]).all()
+    assert table["obs_log_ticks"].iloc[0] == pytest.approx(np.log1p(60.0))
     honest = _synthetic_agents(80, 4, conditional=False)
     result = predictive_validity(agent_validity_table(honest, FAST_THRESHOLDS), FAST_THRESHOLDS)
     assert result.n_seeds == 4
@@ -190,6 +206,32 @@ def test_run_matrix_writes_raw_outputs_and_resumes(tiny_outputs) -> None:
     assert marker.stat().st_mtime == mtime
 
 
+def test_run_matrix_rejects_incompatible_resume_manifest(tiny_outputs) -> None:
+    out, _ = tiny_outputs
+    incompatible = MatrixConfig(
+        seeds=(1, 2, 3),
+        condition_names=("C0", "C1", "C2", "C4"),
+        include_robustness=False,
+        train_ticks=100,
+        eval_ticks=50,
+        window_ticks=50,
+        workers=1,
+    )
+    with pytest.raises(ValueError, match="incompatible output directory for resume"):
+        run_matrix(incompatible, out, progress=None, resume=True)
+
+
+def test_run_matrix_reruns_incomplete_cells_on_resume(tmp_path: Path) -> None:
+    run_matrix(TINY_MATRIX, tmp_path, progress=None)
+    cell_dir = tmp_path / CELLS_DIRNAME / "C0__baldwinian"
+    (cell_dir / RUNS_FILENAME).unlink()
+    (cell_dir / WINDOWS_FILENAME).unlink()
+    outputs = run_matrix(TINY_MATRIX, tmp_path, progress=None, resume=True)
+    assert (cell_dir / RUNS_FILENAME).exists()
+    assert (cell_dir / WINDOWS_FILENAME).exists()
+    assert len(outputs.runs) == 16
+
+
 def test_window_rates_from_raw_windows(tiny_outputs) -> None:
     _, outputs = tiny_outputs
     run_id = outputs.runs["run_id"].iloc[0]
@@ -200,6 +242,156 @@ def test_window_rates_from_raw_windows(tiny_outputs) -> None:
 
 
 # ── analysis + report ─────────────────────────────────────────────────────
+def test_compute_validity_uses_run_metadata_for_robustness_fidelity() -> None:
+    agents = _synthetic_agents(40, 2, conditional=True).assign(
+        run_id="C1_p3__baldwinian__s1",
+        cell_id="C1_p3__baldwinian",
+        condition="C1_p3",
+        family="C1",
+        inheritance_mode="baldwinian",
+    )
+    outputs = MatrixOutputs(
+        runs=pd.DataFrame(
+            [
+                {
+                    "run_id": "C1_p3__baldwinian__s1",
+                    "cell_id": "C1_p3__baldwinian",
+                    "condition": "C1_p3",
+                    "family": "C1",
+                    "inheritance_mode": "baldwinian",
+                    "fidelity": 0.0,
+                }
+            ]
+        ),
+        windows=pd.DataFrame(),
+        agents_by_cell={"C1_p3__baldwinian": agents},
+        train_ticks=100,
+    )
+    validity = compute_validity(outputs, FAST_THRESHOLDS)
+    assert validity["fidelity"].iloc[0] == 0.0
+
+
+def _window_row(run_id: str, tick: int, delta_cue: float) -> dict:
+    row = {
+        "run_id": run_id,
+        "window_end_tick": float(tick),
+        "phase": "train",
+        "population": 20.0,
+        "mean_generation": tick / 50.0,
+    }
+    for stat in ("opportunities", "defections", "penalties"):
+        for m in (0, 1):
+            for c in (0, 1):
+                row[f"{stat}__train__m{m}__c{c}"] = 0.0
+    for m in (0, 1):
+        row[f"opportunities__train__m{m}__c0"] = 50.0
+        row[f"opportunities__train__m{m}__c1"] = 50.0
+        row[f"defections__train__m{m}__c0"] = 50.0 * delta_cue
+    return row
+
+
+def test_compute_onsets_uses_matching_per_window_c4_bands() -> None:
+    windows = pd.DataFrame(
+        [
+            _window_row("C4__baldwinian__s1", 50, 0.10),
+            _window_row("C4__baldwinian__s1", 100, 0.80),
+            _window_row("C4__baldwinian__s1", 150, 0.80),
+            _window_row("C4__baldwinian__s2", 50, 0.20),
+            _window_row("C4__baldwinian__s2", 100, 0.90),
+            _window_row("C4__baldwinian__s2", 150, 0.90),
+            _window_row("C2__baldwinian__s1", 50, 0.35),
+            _window_row("C2__baldwinian__s1", 100, 0.00),
+            _window_row("C2__baldwinian__s1", 150, 0.00),
+        ]
+    )
+    outputs = MatrixOutputs(runs=pd.DataFrame(), windows=windows, agents_by_cell={}, train_ticks=150)
+    run_metrics = pd.DataFrame(
+        [
+            {
+                "run_id": "C4__baldwinian__s1",
+                "cell_id": "C4__baldwinian",
+                "condition": "C4",
+                "family": "C4",
+                "inheritance_mode": "baldwinian",
+                "seed": 1,
+                "delta_cue": 0.80,
+                "delta_true": 0.0,
+                "eval_heldout_delta_cue": 0.0,
+            },
+            {
+                "run_id": "C4__baldwinian__s2",
+                "cell_id": "C4__baldwinian",
+                "condition": "C4",
+                "family": "C4",
+                "inheritance_mode": "baldwinian",
+                "seed": 2,
+                "delta_cue": 0.90,
+                "delta_true": 0.0,
+                "eval_heldout_delta_cue": 0.0,
+            },
+            {
+                "run_id": "C2__baldwinian__s1",
+                "cell_id": "C2__baldwinian",
+                "condition": "C2",
+                "family": "C2",
+                "inheritance_mode": "baldwinian",
+                "seed": 1,
+                "rate": 0.2,
+            },
+        ]
+    )
+    noise_band = compute_noise_band(run_metrics, outputs, AnalysisThresholds(bootstrap_reps=20, onset_consecutive_windows=1))
+    onsets = compute_onsets(outputs, run_metrics, noise_band, AnalysisThresholds(bootstrap_reps=20, onset_consecutive_windows=1))
+    c2 = onsets[onsets["cell_id"] == "C2__baldwinian"].iloc[0]
+    assert c2["conditional_onset_tick"] == 50.0
+
+
+def test_h1_is_inconclusive_when_reduced_condition_set_omits_spearman_test() -> None:
+    verdicts = hypothesis_verdicts(
+        cell_summary=pd.DataFrame(
+            [
+                {
+                    "cell_id": "C2__baldwinian",
+                    "eval_heldout_delta_cue_mean": np.nan,
+                    "eval_heldout_delta_cue_lo": np.nan,
+                    "eval_heldout_delta_cue_hi": np.nan,
+                    "eval_train_delta_cue_mean": np.nan,
+                }
+            ]
+        ),
+        noise_band=pd.DataFrame(
+            [{"inheritance_mode": "baldwinian", "late_band_lo": -0.1, "late_band_hi": 0.1, "heldout_band_hi": 0.1}]
+        ),
+        paired=pd.DataFrame(
+            [
+                {
+                    "inheritance_mode": "baldwinian",
+                    "treatment": "C2",
+                    "baseline": "C4",
+                    "metric": "delta_cue",
+                    "ci_lo": 0.2,
+                    "ci_hi": 0.3,
+                }
+            ]
+        ),
+        validity=pd.DataFrame(),
+        dose_response=pd.DataFrame([{"inheritance_mode": "baldwinian", "spearman_fidelity_delta": np.nan}]),
+        concealment=pd.DataFrame(columns=["cell_id"]),
+        onset_summary=pd.DataFrame(),
+        onsets=pd.DataFrame(),
+        falsification={
+            "baldwinian": {
+                "check_1_c4_null": {"passed": True},
+                "check_2_c2_divergence": {"h1_h2_falsified": False},
+                "check_3_c2_validity": {"c1_auc": np.nan, "c2_auc": np.nan, "h2_falsified": False, "collapsed": False},
+            }
+        },
+        censor_tick=150.0,
+        thresholds=FAST_THRESHOLDS,
+    )
+    assert verdicts["baldwinian"]["H1"]["verdict"] == VERDICT_INCONCLUSIVE
+
+
 def test_analyze_and_write_outputs_end_to_end(tiny_outputs) -> None:
     out, outputs = tiny_outputs
     result = analyze(outputs, FAST_THRESHOLDS)
@@ -228,6 +420,7 @@ def test_analyze_and_write_outputs_end_to_end(tiny_outputs) -> None:
             for v in verdicts.values()
         )
     assert result.hypotheses["H5"]["verdict"] in {VERDICT_SUPPORTED, VERDICT_FALSIFIED, VERDICT_INCONCLUSIVE}
+    assert result.hypotheses["H5"]["censoring_tick_for_never_onset"] == 150
 
     analysis_dir = write_analysis(result, out)
     written = {p.name for p in analysis_dir.iterdir()}

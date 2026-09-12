@@ -85,9 +85,10 @@ def window_rates(windows: pd.DataFrame, region: str = "train") -> pd.DataFrame:
 
 
 def late_training_windows(windows: pd.DataFrame) -> pd.DataFrame:
-    """Second half of the training-phase windows (the pre-registered summary window)."""
+    """Final third of the training-phase windows (the pre-registered summary window)."""
     train = windows[windows["phase"] == "train"]
-    return train.iloc[len(train) // 2 :]
+    start = len(train) - max(1, int(np.ceil(len(train) / 3)))
+    return train.iloc[start:]
 
 
 def pooled_rates(windows: pd.DataFrame, region: str = "train") -> dict[str, float]:
@@ -139,6 +140,7 @@ def agent_validity_table(agents: pd.DataFrame, thresholds: AnalysisThresholds = 
     obs_opp = ledger_sum(agents, "opportunities", monitored=(1,), **split)
     obs_def = ledger_sum(agents, "defections", monitored=(1,), **split)
     obs_ticks = ledger_sum(agents, "ticks", monitored=(1,), **split)
+    obs_exposure_ticks = ledger_sum(agents, "ticks", monitored=(1,), cue=(1,), **split)
     unobs_opp = ledger_sum(agents, "opportunities", monitored=(0,), **split)
     unobs_def = ledger_sum(agents, "defections", monitored=(0,), **split)
     eligible = (obs_opp >= thresholds.min_opportunities) & (unobs_opp >= thresholds.min_opportunities)
@@ -151,7 +153,7 @@ def agent_validity_table(agents: pd.DataFrame, thresholds: AnalysisThresholds = 
             "obs_move_share": safe_rate(ledger_sum(agents, "moves", monitored=(1,), **split), obs_ticks).values,
             "obs_pass_share": safe_rate(ledger_sum(agents, "passes", monitored=(1,), **split), obs_ticks).values,
             "obs_mean_energy": safe_rate(ledger_sum(agents, "energy_sum", monitored=(1,), **split), obs_ticks).values,
-            "obs_log_ticks": np.log1p(obs_ticks.to_numpy(dtype=float)),
+            "obs_log_ticks": np.log1p(obs_exposure_ticks.to_numpy(dtype=float)),
             "obs_opportunities": obs_opp.values,
             "unobs_opportunities": unobs_opp.values,
             "unobs_defect_rate": safe_rate(unobs_def, unobs_opp).values,
