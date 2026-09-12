@@ -1,0 +1,203 @@
+{
+  "calibration": {},
+  "falsification": {
+    "baldwinian": {
+      "check_1_c4_null": {
+        "description": "C4 (decorrelated cue) shows no divergence comparable to C2",
+        "c4_delta_cue_mean": 0.006298136470465257,
+        "c4_delta_cue_ci": [
+          0.003856012235448578,
+          0.00878610817266861
+        ],
+        "c4_delta_true_ci": [
+          0.006874865943125957,
+          0.011985598819623225
+        ],
+        "c4_cue_ci_includes_zero": false,
+        "c4_dwarfed_by_c2": true,
+        "passed": true,
+        "consequence_if_failed": "design void: cue channel confounded with input dimensionality"
+      },
+      "check_2_c2_divergence": {
+        "description": "\u0394 in C2 at f = 1.0 lies outside the C4 noise band",
+        "c2_delta_cue_mean": 0.07859433137430052,
+        "c4_band": [
+          -0.007922698417274901,
+          0.020518971358205414
+        ],
+        "c2_minus_c4_ci": [
+          0.06728571457503739,
+          0.07727836365869054
+        ],
+        "c1_delta_true_mean": 0.011243754832189645,
+        "h1_h2_falsified": false
+      },
+      "check_3_c2_validity": {
+        "description": "validity AUC in C2 collapses (H2) rather than staying high",
+        "c1_auc": 0.7919794707890936,
+        "c1_auc_ci_lo": 0.7806349952848862,
+        "c2_auc": 0.7024012016290146,
+        "c2_auc_ci_hi": 0.7157851178863536,
+        "auc_high_threshold": 0.7,
+        "auc_collapse_threshold": 0.6,
+        "h2_falsified": true,
+        "collapsed": false
+      }
+    },
+    "lamarckian": {
+      "check_1_c4_null": {
+        "description": "C4 (decorrelated cue) shows no divergence comparable to C2",
+        "c4_delta_cue_mean": 0.006873799619357922,
+        "c4_delta_cue_ci": [
+          0.0029193630202171117,
+          0.010822957143926752
+        ],
+        "c4_delta_true_ci": [
+          0.005079552860354417,
+          0.008074560756592027
+        ],
+        "c4_cue_ci_includes_zero": false,
+        "c4_dwarfed_by_c2": true,
+        "passed": true,
+        "consequence_if_failed": "design void: cue channel confounded with input dimensionality"
+      },
+      "check_2_c2_divergence": {
+        "description": "\u0394 in C2 at f = 1.0 lies outside the C4 noise band",
+        "c2_delta_cue_mean": 0.3587418183035623,
+        "c4_band": [
+          -0.015150742441131067,
+          0.028898341679846912
+        ],
+        "c2_minus_c4_ci": [
+          0.33493840034824873,
+          0.36934425192694464
+        ],
+        "c1_delta_true_mean": 0.004586429384777207,
+        "h1_h2_falsified": false
+      },
+      "check_3_c2_validity": {
+        "description": "validity AUC in C2 collapses (H2) rather than staying high",
+        "c1_auc": 0.7880760420858675,
+        "c1_auc_ci_lo": 0.7774247036547509,
+        "c2_auc": 0.7528553619875933,
+        "c2_auc_ci_hi": 0.7672629282938794,
+        "auc_high_threshold": 0.7,
+        "auc_collapse_threshold": 0.6,
+        "h2_falsified": true,
+        "collapsed": false
+      }
+    }
+  },
+  "hypotheses": {
+    "baldwinian": {
+      "H1": {
+        "verdict": "supported",
+        "c2_minus_c4_delta_cue_ci": [
+          0.06728571457503739,
+          0.07727836365869054
+        ],
+        "spearman_fidelity_delta": 1.0
+      },
+      "H2": {
+        "verdict": "falsified",
+        "c1_auc": 0.7919794707890936,
+        "c2_auc": 0.7024012016290146
+      },
+      "H3": {
+        "verdict": "supported",
+        "fitness_conditional": 0.2951220491408584,
+        "fitness_cooperative": 0.15069649385933237,
+        "cost_mean_diff": 0.14442555528152604,
+        "cost_ci": [
+          0.12666373616519735,
+          0.16300207116055912
+        ],
+        "share_conditional": 0.11305070656691604,
+        "tolerance_10pct_of_cooperative": 0.015069649385933238
+      },
+      "H4": {
+        "verdict": "falsified",
+        "heldout_delta_cue_mean": 0.05195391502290518,
+        "heldout_delta_cue_ci": [
+          0.02558094624778498,
+          0.08143586657939747
+        ],
+        "train_region_delta_cue_mean": 0.05720189009034012,
+        "transfer_ratio": 0.9082552157079651,
+        "c4_heldout_band_hi": 0.0914437388795241
+      }
+    },
+    "lamarckian": {
+      "H1": {
+        "verdict": "supported",
+        "c2_minus_c4_delta_cue_ci": [
+          0.33493840034824873,
+          0.36934425192694464
+        ],
+        "spearman_fidelity_delta": 1.0
+      },
+      "H2": {
+        "verdict": "falsified",
+        "c1_auc": 0.7880760420858675,
+        "c2_auc": 0.7528553619875933
+      },
+      "H3": {
+        "verdict": "supported",
+        "fitness_conditional": 0.19038196810691144,
+        "fitness_cooperative": 0.13187183471343467,
+        "cost_mean_diff": 0.0585101333934768,
+        "cost_ci": [
+          0.049522016787353254,
+          0.06737034231537928
+        ],
+        "share_conditional": 0.42129228100607113,
+        "tolerance_10pct_of_cooperative": 0.013187183471343468
+      },
+      "H4": {
+        "verdict": "supported",
+        "heldout_delta_cue_mean": 0.49379357908047605,
+        "heldout_delta_cue_ci": [
+          0.45123229066369497,
+          0.5367204384900527
+        ],
+        "train_region_delta_cue_mean": 0.3591127656787872,
+        "transfer_ratio": 1.3750376658070567,
+        "c4_heldout_band_hi": 0.18717872385866108
+      }
+    },
+    "H5": {
+      "verdict": "inconclusive",
+      "conditional_acceleration_ticks": {
+        "mean_diff": 56.666666666666664,
+        "ci_lo": -8.333333333333334,
+        "ci_hi": 133.33333333333334,
+        "n_pairs": 30,
+        "sign_agreement": 0.5333333333333333,
+        "paired_cohen_d": 0.29179925434435916
+      },
+      "cooperative_acceleration_ticks": {
+        "mean_diff": 0.0,
+        "ci_lo": 0.0,
+        "ci_hi": 0.0,
+        "n_pairs": 30,
+        "sign_agreement": NaN,
+        "paired_cohen_d": NaN
+      },
+      "conditional_minus_cooperative_acceleration": {
+        "mean_diff": 56.666666666666664,
+        "ci_lo": -8.333333333333334,
+        "ci_hi": 133.33333333333334,
+        "n_pairs": 30,
+        "sign_agreement": 0.5333333333333333,
+        "paired_cohen_d": 0.29179925434435916
+      },
+      "c2_delta_cue_lamarckian_minus_baldwinian": {
+        "mean_diff": 0.28014748692926184,
+        "ci_lo": 0.26294793454982923,
+        "ci_hi": 0.29731471404327287,
+        "n_pairs": 30.0
+      },
+      "censoring_tick_for_never_onset": 1500.0
+    }
+  }
+}

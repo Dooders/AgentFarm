@@ -1,0 +1,104 @@
+{
+  "baldwinian": {
+    "HA1": {
+      "claim": "adaptive_cells at f=1 reduces \u0394_cue vs static C2",
+      "verdict": "inconclusive",
+      "mean_diff": 0.003410784032237564,
+      "ci": [
+        -0.0023042049937807368,
+        0.00875672700732346
+      ]
+    },
+    "HA2": {
+      "claim": "adaptive_cells at f=1 raises realised enforcement vs static C2",
+      "verdict": "supported",
+      "mean_diff": 0.012008705935039455,
+      "ci": [
+        0.003172890207632329,
+        0.021572753892252834
+      ]
+    },
+    "HA3": {
+      "claim": "adaptive_move reduces \u0394_cue more than adaptive_cells (movement leak is actionable)",
+      "verdict": "falsified",
+      "move_minus_cells": [
+        -0.007542617960646728,
+        0.003349175730977227
+      ],
+      "move_minus_static": [
+        -0.004084786964656032,
+        0.0065976241027250445
+      ]
+    },
+    "HA4": {
+      "claim": "adaptive_cells beats adaptive_blind: the policy is catching concealment, not crowding",
+      "verdict": "inconclusive",
+      "mean_diff": -0.003580234838575487,
+      "ci": [
+        -0.009765242591908292,
+        0.0030776226613605877
+      ]
+    },
+    "HA5": {
+      "claim": "C1-calibrated evaluator recovers validity on adaptive_cells at f=1",
+      "verdict": "inconclusive",
+      "adaptive_auc": 0.6627847427020966,
+      "adaptive_auc_ci": [
+        0.6473355090914188,
+        0.677689372678872
+      ],
+      "static_c2_auc": 0.6636349450500457
+    }
+  },
+  "lamarckian": {
+    "HA1": {
+      "claim": "adaptive_cells at f=1 reduces \u0394_cue vs static C2",
+      "verdict": "inconclusive",
+      "mean_diff": -0.005923436751598314,
+      "ci": [
+        -0.025002868036679345,
+        0.012181244485422958
+      ]
+    },
+    "HA2": {
+      "claim": "adaptive_cells at f=1 raises realised enforcement vs static C2",
+      "verdict": "inconclusive",
+      "mean_diff": 0.0010807924393571825,
+      "ci": [
+        -0.005011540293781665,
+        0.0073748451410836245
+      ]
+    },
+    "HA3": {
+      "claim": "adaptive_move reduces \u0394_cue more than adaptive_cells (movement leak is actionable)",
+      "verdict": "falsified",
+      "move_minus_cells": [
+        -0.00520125296742958,
+        0.029701170846106167
+      ],
+      "move_minus_static": [
+        -0.014007173733920084,
+        0.027729898966533998
+      ]
+    },
+    "HA4": {
+      "claim": "adaptive_cells beats adaptive_blind: the policy is catching concealment, not crowding",
+      "verdict": "inconclusive",
+      "mean_diff": 0.01795586028794457,
+      "ci": [
+        -0.007565167394981825,
+        0.04375430540418081
+      ]
+    },
+    "HA5": {
+      "claim": "C1-calibrated evaluator recovers validity on adaptive_cells at f=1",
+      "verdict": "falsified",
+      "adaptive_auc": 0.4852047999739535,
+      "adaptive_auc_ci": [
+        0.46642602252125015,
+        0.5029771364785268
+      ],
+      "static_c2_auc": 0.47998063798006146
+    }
+  }
+}
