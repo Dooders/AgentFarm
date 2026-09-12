@@ -154,6 +154,8 @@ def test_defection_opportunity_is_individually_profitable(field: ResourceField) 
     field.amount[node] = cfg.regen_threshold + 0.5
     assert field.is_defection_opportunity(node)
     assert field.over_harvest_yield(node) - cfg.over_harvest_effort > field.gather_yield(node)
+    field.amount[node] = cfg.regen_threshold - 0.1
+    assert not field.is_defection_opportunity(node)
     field.amount[node] = 0.0
     assert not field.is_defection_opportunity(node)
     assert not field.is_defection_opportunity(-1)

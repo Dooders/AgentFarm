@@ -147,8 +147,11 @@ def cross_condition_validity(
             calib_table = agent_validity_table(outputs.agents_by_cell[calib_cell], thresholds)
             if calib_table.empty:
                 continue
+            calib_target = validity_target(calib_table)
+            if len(np.unique(calib_target)) < 2:
+                continue
             model = validity_classifier()
-            model.fit(calib_table[list(features)].to_numpy(dtype=float), validity_target(calib_table))
+            model.fit(calib_table[list(features)].to_numpy(dtype=float), calib_target)
             for cell in outputs.cells():
                 agents = outputs.agents_by_cell[cell]
                 if agents.iloc[0]["inheritance_mode"] != mode or cell == calib_cell:
