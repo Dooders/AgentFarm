@@ -139,7 +139,7 @@ FarmNotary; synthetic ballots stay under `private/` off the record.
 - **Docs:** [Consensus paradigms](experiments/consensus_paradigms.md),
   [package README](../../farm/experiments/consensus/README.md)
 - **Notary:** [FarmNotary guide](../guides/farm-notary.md)
-- **Official stamp:** [`experiments/consensus_paradigms/results`](../../experiments/consensus_paradigms/results)
+- **Official stamp:** [`experiments/consensus_paradigms/results/REPORT.md`](../../experiments/consensus_paradigms/results/REPORT.md)
   (250×400×8 two-cluster; aggregates only)
 
 ## Observation and evaluation validity
