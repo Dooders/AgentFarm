@@ -56,6 +56,9 @@ RUN_METRIC_COLUMNS = (
     "mean_generation_end",
     "eval_heldout_delta_cue",
     "eval_train_delta_cue",
+    "mean_mask_overlap",
+    "mean_weight_kl",
+    "mean_weight_gini",
 )
 
 
@@ -122,12 +125,17 @@ def compute_run_metrics(outputs: MatrixOutputs) -> pd.DataFrame:
             "seed": int(run["seed"]),
             "fidelity": float(run["fidelity"]),
             "penalty": float(run["penalty"]),
+            "monitor_policy": run.get("monitor_policy", "static"),
             "expected_penalty_per_defection": float(run["expected_penalty_per_defection"]),
             "extinct": int(run["extinct"]),
             "final_population": int(run["final_population"]),
             "total_agents": int(run["total_agents"]),
             "warmstart_applied": int(run["warmstart_applied"]),
             "warmstart_skipped": int(run["warmstart_skipped"]),
+            "adaptive_draws": int(run["adaptive_draws"]) if "adaptive_draws" in run else 0,
+            "mean_mask_overlap": float(run["mean_mask_overlap"]) if "mean_mask_overlap" in run else float("nan"),
+            "mean_weight_kl": float(run["mean_weight_kl"]) if "mean_weight_kl" in run else 0.0,
+            "mean_weight_gini": float(run["mean_weight_gini"]) if "mean_weight_gini" in run else 0.0,
             "population_late": float(late["population"].mean()) if len(late) else float("nan"),
             "mean_generation_end": float(train_rates["mean_generation"].iloc[-1]) if len(train_rates) else float("nan"),
             "drift_per_100_ticks": baseline_drift(train_rates),
@@ -197,6 +205,7 @@ def summarise_cells(run_metrics: pd.DataFrame, thresholds: AnalysisThresholds = 
             "inheritance_mode": group["inheritance_mode"].iloc[0],
             "fidelity": group["fidelity"].iloc[0],
             "penalty": group["penalty"].iloc[0],
+            "monitor_policy": group["monitor_policy"].iloc[0] if "monitor_policy" in group else "static",
             "n_runs": len(group),
             "n_extinct": int(group["extinct"].sum()),
             "expected_penalty_per_defection": group["expected_penalty_per_defection"].iloc[0],
@@ -385,6 +394,8 @@ def compute_onsets(
 ) -> pd.DataFrame:
     """Per run: when Δ clears the C4 window band (conditional onset) and when the
     defection rate falls below half the seed-matched C0 baseline (cooperative onset)."""
+    if noise_band.empty:
+        return pd.DataFrame()
     band_by_mode = noise_band.set_index("inheritance_mode")["window_band_hi"].to_dict()
     c0_by_mode_seed = {
         (r["inheritance_mode"], r["seed"]): r["rate"] for _, r in run_metrics[run_metrics["family"] == "C0"].iterrows()

@@ -120,6 +120,8 @@ def matrix_manifest(matrix: MatrixConfig) -> dict:
             "fidelity": c.monitoring.fidelity,
             "penalty": c.monitoring.penalty,
             "decorrelated": c.monitoring.decorrelated,
+            "policy": c.monitoring.policy,
+            "smoothing": c.monitoring.smoothing,
             "epoch_ticks": c.monitoring.epoch_ticks,
             "expected_penalty_per_defection": c.monitoring.expected_penalty_per_defection,
             "description": c.description,

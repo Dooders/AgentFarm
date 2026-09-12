@@ -25,7 +25,8 @@ pytestmark = pytest.mark.unit
 
 # ── configuration ─────────────────────────────────────────────────────────
 def test_pre_registered_conditions_are_present() -> None:
-    assert set(PRIMARY_CONDITION_ORDER) == set(CONDITIONS)
+    assert set(PRIMARY_CONDITION_ORDER) <= set(CONDITIONS)
+    assert all(name in CONDITIONS for name in PRIMARY_CONDITION_ORDER)
     assert CONDITIONS["C0"].monitoring.coverage == 0.0
     assert CONDITIONS["C0"].monitoring.fidelity is None
     assert CONDITIONS["C1"].monitoring == MonitoringConfig(coverage=COVERAGE_PRIMARY, fidelity=0.0)

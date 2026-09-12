@@ -160,9 +160,11 @@ inheritance on 30 seed-matched runs per cell.
 
 - **Status:** Implemented and run (`farm.experiments.veil_ceiling`).
 - **CLI:** [`scripts/run_veil_ceiling.py`](../../scripts/run_veil_ceiling.py),
-  [`scripts/run_veil_ceiling_validity_followup.py`](../../scripts/run_veil_ceiling_validity_followup.py)
+  [`scripts/run_veil_ceiling_validity_followup.py`](../../scripts/run_veil_ceiling_validity_followup.py),
+  [`scripts/run_veil_ceiling_adaptive.py`](../../scripts/run_veil_ceiling_adaptive.py)
 - **Docs:** [Pre-registered design and Appendix A](experiments/veil_ceiling/Design.md),
   [Results](experiments/veil_ceiling/RESULTS.md),
+  [Adaptive monitor follow-up](experiments/veil_ceiling/Adaptive.md),
   [package README](../../farm/experiments/veil_ceiling/README.md)
 - **Raw record:** [`experiments/veil_ceiling/results/REPORT.md`](../../experiments/veil_ceiling/results/REPORT.md),
   [`VALIDITY_FOLLOWUP.md`](../../experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md)

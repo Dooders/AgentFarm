@@ -27,7 +27,7 @@ from farm.experiments.veil_ceiling.agents import (
 )
 from farm.experiments.veil_ceiling.config import RunConfig
 from farm.experiments.veil_ceiling.learner import MLPQLearner
-from farm.experiments.veil_ceiling.monitoring import Monitoring
+from farm.experiments.veil_ceiling.monitoring import RESIDUAL_DEFECTIONS, RESIDUAL_MOVES, Monitoring
 from farm.experiments.veil_ceiling.world import ResourceField
 
 _STREAM_WORLD, _STREAM_MONITOR, _STREAM_DECOY, _STREAM_CUE, _STREAM_DYNAMICS, _STREAM_POLICY = range(6)
@@ -81,6 +81,9 @@ class VeilSimulation:
         self._window_births = 0
         self._window_deaths = 0
         self._window_rows: list[dict[str, Any]] = []
+        self._epoch_overlaps: list[float] = []
+        self._epoch_kl: list[float] = []
+        self._epoch_gini: list[float] = []
         self._spawn_initial_population()
 
     # ── setup ─────────────────────────────────────────────────────────────
@@ -209,7 +212,11 @@ class VeilSimulation:
     def step(self) -> None:
         cfg = self.cfg
         w = cfg.world
-        self.monitoring.maybe_resample(self.tick, include_heldout=self.in_eval)
+        resampled = self.monitoring.maybe_resample(self.tick, include_heldout=self.in_eval)
+        if resampled and np.isfinite(self.monitoring.last_overlap):
+            self._epoch_overlaps.append(self.monitoring.last_overlap)
+            self._epoch_kl.append(self.monitoring.last_kl)
+            self._epoch_gini.append(self.monitoring.last_weight_gini)
         self.field.regenerate()
         crowding = self._crowding()
         phase = 1 if self.in_eval else 0
@@ -248,6 +255,11 @@ class VeilSimulation:
                 wc[1] += 1
             if outcome.penalised:
                 wc[2] += 1
+            if monitored and not self.in_eval:
+                if outcome.defected:
+                    self.monitoring.record_residual(cell, RESIDUAL_DEFECTIONS)
+                if action == VeilAction.MOVE:
+                    self.monitoring.record_residual(cell, RESIDUAL_MOVES)
             if agent.energy <= 0.0 or agent.age >= w.max_age:
                 agent.alive = False
                 agent.death_tick = self.tick
@@ -296,6 +308,10 @@ class VeilSimulation:
             "total_stock": self.field.total_stock(),
             "suppressed_fraction": self.field.suppressed_fraction(),
             "coverage_realised": self.monitoring.coverage_realised(),
+            "monitor_policy": self.cfg.condition.monitoring.policy,
+            "mask_overlap": self.monitoring.last_overlap,
+            "weight_kl": self.monitoring.last_kl,
+            "weight_gini": self.monitoring.last_weight_gini,
         }
         for si, stat in enumerate(_WINDOW_STATS):
             for ri, region in enumerate(("train", "heldout")):
@@ -342,8 +358,13 @@ class VeilSimulation:
             "fidelity": -1.0 if cfg.condition.monitoring.fidelity is None else cfg.condition.monitoring.fidelity,
             "penalty": cfg.condition.monitoring.penalty,
             "decorrelated": int(cfg.condition.monitoring.decorrelated),
+            "monitor_policy": cfg.condition.monitoring.policy,
             "expected_penalty_per_defection": cfg.condition.monitoring.expected_penalty_per_defection,
             "realised_enforcement": (train_penalties / train_defections) if train_defections > 0 else float("nan"),
+            "adaptive_draws": self.monitoring.n_adaptive_draws,
+            "mean_mask_overlap": float(np.mean(self._epoch_overlaps)) if self._epoch_overlaps else float("nan"),
+            "mean_weight_kl": float(np.mean(self._epoch_kl)) if self._epoch_kl else 0.0,
+            "mean_weight_gini": float(np.mean(self._epoch_gini)) if self._epoch_gini else 0.0,
             "ticks_completed": self.tick,
             "extinct": int(not any(a.alive for a in self.agents)),
             "final_population": int(sum(1 for a in self.agents if a.alive)),

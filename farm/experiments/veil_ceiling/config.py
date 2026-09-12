@@ -19,6 +19,19 @@ COVERAGE_PRIMARY: float = 0.5
 FIDELITY_SWEEP: tuple[float, ...] = (0.1, 0.3, 0.5, 0.7, 0.9)
 SEEDS_PER_CELL: int = 30
 
+MONITOR_POLICY_STATIC: str = "static"
+MONITOR_POLICY_ADAPTIVE_CELLS: str = "adaptive_cells"
+MONITOR_POLICY_ADAPTIVE_MOVE: str = "adaptive_move"
+MONITOR_POLICY_ADAPTIVE_BLIND: str = "adaptive_blind"
+MONITOR_POLICIES: tuple[str, ...] = (
+    MONITOR_POLICY_STATIC,
+    MONITOR_POLICY_ADAPTIVE_CELLS,
+    MONITOR_POLICY_ADAPTIVE_MOVE,
+    MONITOR_POLICY_ADAPTIVE_BLIND,
+)
+ADAPTIVE_SMOOTHING: float = 1.0
+ADAPTIVE_FIDELITY_SWEEP: tuple[float, ...] = (0.7, 0.9, 1.0)
+
 
 @dataclass(frozen=True)
 class WorldConfig:
@@ -117,6 +130,12 @@ class MonitoringConfig:
     ``decorrelated`` swaps the source bit for a decoy monitor map with the
     same coverage, epoch schedule and spatial restriction, drawn from an
     independent stream and never used for enforcement (the C4 null control).
+
+    ``policy`` selects how the next epoch's true mask is drawn. ``static``
+    (the original design) samples uniformly. The adaptive policies keep the
+    same coverage budget and instead overweight cells according to last
+    epoch's observed residual, so they can reallocate enforcement without
+    raising ``c`` or ``p``.
     """
 
     coverage: float = 0.0
@@ -124,6 +143,8 @@ class MonitoringConfig:
     penalty: float = PENALTY_PRIMARY
     decorrelated: bool = False
     epoch_ticks: int = 25
+    policy: str = MONITOR_POLICY_STATIC
+    smoothing: float = ADAPTIVE_SMOOTHING
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.coverage <= 1.0:
@@ -136,6 +157,12 @@ class MonitoringConfig:
             raise ValueError("epoch_ticks must be at least 1")
         if self.decorrelated and self.fidelity is None:
             raise ValueError("a decorrelated cue requires a fidelity")
+        if self.policy not in MONITOR_POLICIES:
+            raise ValueError(f"policy must be one of {MONITOR_POLICIES}")
+        if self.smoothing < 0.0:
+            raise ValueError("smoothing must be non-negative")
+        if self.policy != MONITOR_POLICY_STATIC and self.coverage <= 0.0:
+            raise ValueError("adaptive policies require positive coverage")
 
     @property
     def flip_probability(self) -> float:
@@ -244,6 +271,50 @@ PRIMARY_CONDITION_ORDER: tuple[str, ...] = (
     *(_c3_name(f) for f in FIDELITY_SWEEP),
     "C4",
 )
+
+
+def _adaptive_name(fidelity: float, policy: str) -> str:
+    suffix = {
+        MONITOR_POLICY_ADAPTIVE_CELLS: "cells",
+        MONITOR_POLICY_ADAPTIVE_MOVE: "move",
+        MONITOR_POLICY_ADAPTIVE_BLIND: "blind",
+    }[policy]
+    return f"A_f{fidelity:g}_{suffix}"
+
+
+def _register_adaptive_conditions() -> None:
+    """Leak-aware reallocation of a fixed coverage budget (follow-up experiment)."""
+    for fidelity in ADAPTIVE_FIDELITY_SWEEP:
+        for policy, description in (
+            (MONITOR_POLICY_ADAPTIVE_CELLS, "reallocate coverage toward cells with recent observed defections"),
+            (MONITOR_POLICY_ADAPTIVE_MOVE, "reallocate coverage toward cells with recent observed movement"),
+            (
+                MONITOR_POLICY_ADAPTIVE_BLIND,
+                "reallocate coverage toward cells with recent observed residual, ignoring the cue",
+            ),
+        ):
+            name = _adaptive_name(fidelity, policy)
+            CONDITIONS[name] = Condition(
+                name=name,
+                family="A",
+                monitoring=MonitoringConfig(
+                    coverage=COVERAGE_PRIMARY,
+                    fidelity=fidelity,
+                    policy=policy,
+                ),
+                description=f"{description}; f = {fidelity:g}",
+            )
+
+
+_register_adaptive_conditions()
+
+ADAPTIVE_CONDITION_ORDER: tuple[str, ...] = tuple(
+    _adaptive_name(f, policy)
+    for f in ADAPTIVE_FIDELITY_SWEEP
+    for policy in (MONITOR_POLICY_ADAPTIVE_CELLS, MONITOR_POLICY_ADAPTIVE_MOVE, MONITOR_POLICY_ADAPTIVE_BLIND)
+)
+STATIC_LEAK_CONDITION_ORDER: tuple[str, ...] = ("C1", "C3_f0.7", "C3_f0.9", "C2", "C4")
+ADAPTIVE_MATRIX_CONDITION_ORDER: tuple[str, ...] = STATIC_LEAK_CONDITION_ORDER + ADAPTIVE_CONDITION_ORDER
 
 
 def robustness_conditions() -> dict[str, Condition]:

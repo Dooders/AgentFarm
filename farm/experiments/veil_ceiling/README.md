@@ -10,6 +10,7 @@ PYTHONHASHSEED=0 python scripts/run_veil_ceiling.py                 # full 780-r
 python scripts/run_veil_ceiling.py --analyze-only                    # re-analyse committed raw outputs
 python scripts/run_veil_ceiling.py --seeds 3 --no-robustness --output-dir /tmp/veil_pilot
 python scripts/run_veil_ceiling_validity_followup.py            # feature ablation + honest-calibrated evaluator
+python scripts/run_veil_ceiling_adaptive.py                    # adaptive monitor follow-up (fixed coverage budget)
 ```
 
 | Module | Responsibility |
@@ -25,3 +26,4 @@ python scripts/run_veil_ceiling_validity_followup.py            # feature ablati
 | `analysis.py` | Seed-paired contrasts, C4 noise band, dose-response, falsification checks, hypothesis verdicts |
 | `report.py` | `REPORT.md` and figures |
 | `validity_followup.py` | Exploratory follow-up to H2: feature ablation, C1/C4-calibrated evaluator, leak profiles (`VALIDITY_FOLLOWUP.md`) |
+| `adaptive.py` | Adaptive-monitor follow-up: reallocate a fixed coverage budget; `ADAPTIVE_REPORT.md` |
