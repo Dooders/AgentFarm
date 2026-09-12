@@ -1,7 +1,8 @@
 # Adaptive monitor follow-up
 
-**Status:** Implemented (`farm.experiments.veil_ceiling.adaptive`)
+**Status:** Implemented and run (`farm.experiments.veil_ceiling.adaptive`)
 **CLI:** [`scripts/run_veil_ceiling_adaptive.py`](../../../../scripts/run_veil_ceiling_adaptive.py)
+**Results:** [AdaptiveResults.md](AdaptiveResults.md)
 **Parent experiment:** [Design.md](Design.md), [RESULTS.md](RESULTS.md)
 
 The confirmatory Veil Ceiling run held enforcement fixed (`c = 0.5`, `p = 6`)
@@ -56,7 +57,8 @@ stable in `p`).
 ## Outputs
 
 Raw per-cell ledgers under `experiments/veil_ceiling/adaptive_results/`, plus
-`ADAPTIVE_REPORT.md`, analysis tables and figures. Reproduce with:
+`ADAPTIVE_REPORT.md`, analysis tables and figures. Narrative:
+[AdaptiveResults.md](AdaptiveResults.md). Reproduce with:
 
 ```bash
 PYTHONHASHSEED=0 python scripts/run_veil_ceiling_adaptive.py

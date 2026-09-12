@@ -184,7 +184,10 @@ whether the evaluator already knows what concealment looks like.
   has no prior reason to weight.
 - The side channel that does work here (leaving when observed) is specific to
   this world and would itself be learned away if the evaluator acted on it —
-  the arms-race question (adaptive monitoring) is the natural next experiment.
+  the arms-race question is tested in
+  [AdaptiveResults.md](AdaptiveResults.md): reallocating the same coverage
+  budget by caught defections does not restore validity; occupancy chasing
+  raises enforcement but a C1-calibrated evaluator stays at chance at `f = 1`.
 - Ablating features is not the same as hiding them from a motivated agent;
   no agent in this run had any incentive to disguise `move_share`.
 

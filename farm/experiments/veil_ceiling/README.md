@@ -3,7 +3,8 @@
 Self-contained implementation of the pre-registered experiment *The Veil
 Ceiling: Observation Collapse in Sealed-World Agent Evaluation*. Design,
 Appendix A parameters and deviations: [docs/research/experiments/veil_ceiling/Design.md](../../../docs/research/experiments/veil_ceiling/Design.md).
-Results: [RESULTS.md](../../../docs/research/experiments/veil_ceiling/RESULTS.md).
+Results: [RESULTS.md](../../../docs/research/experiments/veil_ceiling/RESULTS.md),
+[AdaptiveResults.md](../../../docs/research/experiments/veil_ceiling/AdaptiveResults.md).
 
 ```bash
 PYTHONHASHSEED=0 python scripts/run_veil_ceiling.py                 # full 780-run matrix

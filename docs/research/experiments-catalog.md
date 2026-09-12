@@ -165,9 +165,11 @@ inheritance on 30 seed-matched runs per cell.
 - **Docs:** [Pre-registered design and Appendix A](experiments/veil_ceiling/Design.md),
   [Results](experiments/veil_ceiling/RESULTS.md),
   [Adaptive monitor follow-up](experiments/veil_ceiling/Adaptive.md),
+  [Adaptive monitor results](experiments/veil_ceiling/AdaptiveResults.md),
   [package README](../../farm/experiments/veil_ceiling/README.md)
 - **Raw record:** [`experiments/veil_ceiling/results/REPORT.md`](../../experiments/veil_ceiling/results/REPORT.md),
-  [`VALIDITY_FOLLOWUP.md`](../../experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md)
+  [`VALIDITY_FOLLOWUP.md`](../../experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md),
+  [`adaptive_results/ADAPTIVE_REPORT.md`](../../experiments/veil_ceiling/adaptive_results/ADAPTIVE_REPORT.md)
   (with per-cell ledgers and analysis tables alongside)
 
 ## Adding a new experiment
