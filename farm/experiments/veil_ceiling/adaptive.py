@@ -55,7 +55,7 @@ STATIC_MATCH = {1.0: "C2", 0.9: "C3_f0.9", 0.7: "C3_f0.7"}
 POLICY_LABEL = {
     MONITOR_POLICY_ADAPTIVE_CELLS: "cells (observed defections)",
     MONITOR_POLICY_ADAPTIVE_MOVE: "move (observed movement)",
-    MONITOR_POLICY_ADAPTIVE_BLIND: "blind (spatial density)",
+    MONITOR_POLICY_ADAPTIVE_BLIND: "blind (occupancy)",
     "static": "static",
 }
 ADAPTIVE_POLICIES = (
