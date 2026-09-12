@@ -232,6 +232,16 @@ def test_run_matrix_reruns_incomplete_cells_on_resume(tmp_path: Path) -> None:
     assert len(outputs.runs) == 16
 
 
+def test_run_matrix_non_resume_clears_stale_cells(tmp_path: Path) -> None:
+    run_matrix(TINY_MATRIX, tmp_path, progress=None)
+    stale = tmp_path / CELLS_DIRNAME / "stale__cell"
+    stale.mkdir(parents=True)
+    (stale / "orphan.csv").write_text("stale", encoding="utf-8")
+    outputs = run_matrix(TINY_MATRIX, tmp_path, progress=None, resume=False)
+    assert not stale.exists()
+    assert len(outputs.cells()) == len(TINY_MATRIX.condition_names) * len(TINY_MATRIX.inheritance_modes)
+
+
 def test_window_rates_from_raw_windows(tiny_outputs) -> None:
     _, outputs = tiny_outputs
     run_id = outputs.runs["run_id"].iloc[0]

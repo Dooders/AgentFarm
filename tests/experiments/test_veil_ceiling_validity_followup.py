@@ -79,9 +79,29 @@ def test_cross_condition_validity_excludes_self_and_bounds_auc(tiny) -> None:
     assert not (cross["condition"] == cross["calibration_condition"]).any()
     for mode in ("baldwinian", "lamarckian"):
         sub = cross[cross["inheritance_mode"] == mode]
-        assert set(sub["condition"]) == {"C1", "C2", "C4"}
+        assert set(sub["condition"]) <= {"C1", "C2", "C4"}
         assert (sub["inheritance_mode"] == mode).all()
     assert cross["auc"].between(0.0, 1.0).all()
+
+
+def test_cross_condition_validity_skips_single_class_calibration_target(tiny) -> None:
+    _, outputs = tiny
+    modified = dict(outputs.agents_by_cell)
+    for cell in ("C1__baldwinian", "C1__lamarckian"):
+        agents = modified[cell].copy()
+        for c in (0, 1):
+            agents[f"opportunities__train__train__m0__c{c}"] = 30.0
+            agents[f"opportunities__train__train__m1__c{c}"] = 30.0
+            agents[f"defections__train__train__m0__c{c}"] = 0.0
+        modified[cell] = agents
+    degenerate = outputs.__class__(
+        runs=outputs.runs,
+        windows=outputs.windows,
+        agents_by_cell=modified,
+        train_ticks=outputs.train_ticks,
+    )
+    cross = cross_condition_validity(degenerate, FAST, calibration_conditions=("C1",))
+    assert cross.empty
 
 
 def test_feature_profiles_and_coefficients(tiny) -> None:
@@ -93,7 +113,7 @@ def test_feature_profiles_and_coefficients(tiny) -> None:
     for f in OBSERVED_FEATURES:
         assert f"mean_{f}" in profiles.columns
         assert f"coef_{f}" in coefficients.columns
-    assert len(coefficients) == len(outputs.cells())
+    assert 0 < len(coefficients) <= len(outputs.cells())
 
 
 def test_run_and_write_followup(tiny) -> None:

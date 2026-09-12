@@ -188,11 +188,14 @@ class VeilSimulation:
                 agent.energy_gained += taken
                 outcome.gathered = taken > 0.0
         elif action == VeilAction.OVER_HARVEST and node >= 0:
+            stock_before = float(self.field.amount[node])
             agent.energy -= w.over_harvest_effort
             taken = self.field.over_harvest(node)
             agent.energy += taken
             agent.energy_gained += taken
-            if taken > 0.0 and outcome.opportunity:
+            stock_after = float(self.field.amount[node])
+            crossed_threshold = stock_before >= w.regen_threshold and stock_after < w.regen_threshold
+            if taken > 0.0 and outcome.opportunity and crossed_threshold:
                 # Only a threshold-crossing draw is a defection; at a rich
                 # node the action is an ordinary (if effortful) gather.
                 outcome.defected = True
@@ -201,8 +204,6 @@ class VeilSimulation:
                     agent.energy -= penalty
                     agent.penalties_paid += penalty
                     outcome.penalised = True
-            elif taken > 0.0:
-                outcome.gathered = True
         return outcome
 
     # ── main loop ─────────────────────────────────────────────────────────

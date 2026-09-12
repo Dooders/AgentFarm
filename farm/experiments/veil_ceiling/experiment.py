@@ -7,6 +7,7 @@ without re-simulating (Appendix B: every figure reproducible from the seeds).
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -203,6 +204,12 @@ def run_matrix(
     out = Path(output_dir)
     cells_dir = out / CELLS_DIRNAME
     cells_dir.mkdir(parents=True, exist_ok=True)
+    if not resume:
+        for existing in cells_dir.iterdir():
+            if existing.is_dir():
+                shutil.rmtree(existing)
+            else:
+                existing.unlink()
     manifest_path = out / MANIFEST_FILENAME
     manifest = matrix_manifest(matrix)
     if resume and manifest_path.exists():

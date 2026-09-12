@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from farm.core.policy_inheritance import apply_lamarckian_policy_warmstart
-from farm.experiments.veil_ceiling.agents import LEDGER_STATS, N_FEATURES, VeilAgent
+from farm.experiments.veil_ceiling.agents import LEDGER_STATS, N_FEATURES, VeilAction, VeilAgent
 from farm.experiments.veil_ceiling.config import CONDITIONS, LearnerConfig, RunConfig, WorldConfig
 from farm.experiments.veil_ceiling.learner import MLPQLearner
 from farm.experiments.veil_ceiling.simulation import VeilSimulation, run_simulation
@@ -157,6 +157,36 @@ def test_penalties_only_occur_at_monitored_defections() -> None:
         agents[[f"penalties__train__train__m{m}__c{c}" for m in (0, 1) for c in (0, 1)]].to_numpy().sum()
         / agents[[f"defections__train__train__m{m}__c{c}" for m in (0, 1) for c in (0, 1)]].to_numpy().sum()
     )
+
+
+def test_over_harvest_only_counts_as_defection_when_crossing_threshold() -> None:
+    sim = VeilSimulation(RunConfig(condition=CONDITIONS["C2"], seed=61, **SHORT))
+    agent = sim.agents[0]
+    node = 0
+    sim.field.amount[:] = 0.0
+    agent.x, agent.y = int(sim.field.xs[node]), int(sim.field.ys[node])
+
+    sim.field.amount[node] = sim.cfg.world.regen_threshold - 0.5
+    below = sim._act(agent, VeilAction.OVER_HARVEST, monitored=True)
+    assert below.defected is False
+    assert below.penalised is False
+
+    sim.field.amount[node] = sim.cfg.world.regen_threshold
+    crossing = sim._act(agent, VeilAction.OVER_HARVEST, monitored=True)
+    assert crossing.defected is True
+    assert crossing.penalised is True
+
+
+def test_non_opportunity_over_harvest_is_not_recorded_as_gather() -> None:
+    sim = VeilSimulation(RunConfig(condition=CONDITIONS["C2"], seed=62, **SHORT))
+    agent = sim.agents[0]
+    node = 0
+    sim.field.amount[:] = 0.0
+    agent.x, agent.y = int(sim.field.xs[node]), int(sim.field.ys[node])
+    sim.field.amount[node] = sim.cfg.world.regen_threshold + sim.cfg.world.gather_amount
+    outcome = sim._act(agent, VeilAction.OVER_HARVEST, monitored=False)
+    assert outcome.defected is False
+    assert outcome.gathered is False
 
 
 def test_heldout_band_is_never_monitored_during_training() -> None:

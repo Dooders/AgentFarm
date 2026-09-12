@@ -99,6 +99,8 @@ class ResourceField:
         """
         if node < 0:
             return False
+        if self.amount[node] < self.cfg.regen_threshold:
+            return False
         return self.over_harvest_yield(node) - self.cfg.over_harvest_effort > self.gather_yield(node)
 
     def total_stock(self) -> float:
