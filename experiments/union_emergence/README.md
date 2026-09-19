@@ -30,4 +30,5 @@ Layer C (AgentFarm chromosome + `bond` / `leave`) lives in
 PYTHONHASHSEED=0 python scripts/run_union_emergence.py --mode first_glance
 ```
 
-Writes `experiments/union_emergence/layer_c/`. Full protocol: [`SCOPE.md`](SCOPE.md).
+Writes `experiments/union_emergence/layer_c/`. First-glance read:
+[`layer_c/READ.md`](layer_c/READ.md). Full protocol: [`SCOPE.md`](SCOPE.md).

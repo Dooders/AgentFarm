@@ -302,12 +302,14 @@ class UnionEmergenceExperiment:
             result.final_population = len(alive)
             result.end_genes = dict(snap["gene_means"])
 
-        run_dir = os.path.join(self.config.output_dir, f"{cell.name}_{arm}_s{seed}")
-        os.makedirs(run_dir, exist_ok=True)
+        run_dir = None
+        if not self.config.in_memory_db:
+            run_dir = os.path.join(self.config.output_dir, f"{cell.name}_{arm}_s{seed}")
+            os.makedirs(run_dir, exist_ok=True)
         run_simulation(
             num_steps=self.config.num_steps,
             config=run_config,
-            path=None if self.config.in_memory_db else run_dir,
+            path=run_dir,
             save_config=False,
             seed=seed,
             disable_console_logging=True,
@@ -427,10 +429,24 @@ def _write_markdown(output_dir: str, payload: Dict[str, Any]) -> str:
             f"{_fmt_metric(row, 'mean_extraction')} | {_fmt_metric(row, 'final_population', 1)} |"
         )
     wins = payload.get("win_conditions", {})
+    headline = wins.get("headline", {})
     lines.append("")
     lines.append(f"Win-condition checks: {wins.get('passed', 0)}/{wins.get('total', 0)}.")
     for name, ok in wins.get("checks", {}).items():
         lines.append(f"- {'PASS' if ok else 'FAIL'}: {name}")
+    lines.append("")
+    lines.append("Headline (baseline):")
+    for key in (
+        "baseline_optional_synergy",
+        "baseline_forced_synergy",
+        "baseline_optional_energy",
+        "baseline_promiscuous_energy",
+        "baseline_optional_delta_commitment",
+        "baseline_optional_delta_fidelity",
+    ):
+        value = headline.get(key)
+        rendered = "—" if value is None else f"{float(value):.3f}"
+        lines.append(f"- {key}: {rendered}")
     path = os.path.join(output_dir, "LAYER_C.md")
     with open(path, "w", encoding="utf-8") as handle:
         handle.write("\n".join(lines) + "\n")
@@ -462,7 +478,7 @@ def _write_figures(
             energies,
             color=["#6b7280", "#9ca3af", "#2563eb", "#dc2626"],
         )
-        axes[0].set_title("Baseline — population energy")
+        axes[0].set_title("Baseline - population energy")
         axes[0].set_ylabel("Mean energy")
         syn_arms = [arm for arm in ("optional_union", "forced_union") if arm in by_arm]
         axes[1].bar(
@@ -471,7 +487,7 @@ def _write_figures(
             color=["#2563eb", "#dc2626"],
         )
         axes[1].axhline(1.0, color="black", linestyle="--", linewidth=1)
-        axes[1].set_title("Baseline — synergy")
+        axes[1].set_title("Baseline - synergy")
         axes[1].set_ylabel("Paired / unpaired energy")
         fig.tight_layout()
         path = os.path.join(output_dir, "synergy_bar.png")
@@ -487,6 +503,7 @@ def _write_figures(
     ax.set_xlabel("step")
     ax.set_ylabel("paired fraction")
     ax.set_title("Baseline paired-frac trajectory")
+    ax.set_ylim(0.0, 1.05)
     ax.legend(fontsize=7, frameon=False)
     fig.tight_layout()
     path = os.path.join(output_dir, "paired_frac_trajectory.png")
@@ -509,6 +526,7 @@ def _write_figures(
         ax.set_xlabel("step")
         ax.set_ylabel("gene mean")
         ax.set_title("Baseline gene drift (commitment vs fidelity)")
+        ax.axhline(0.5, color="black", linestyle=":", linewidth=0.8)
         ax.legend(fontsize=7, frameon=False)
         fig.tight_layout()
         path = os.path.join(output_dir, "gene_drift.png")
