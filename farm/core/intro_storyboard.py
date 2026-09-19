@@ -26,7 +26,7 @@ TYPE_SCALE: dict[str, dict[str, int | str]] = {
     "label": {"size": 22, "weight": "MEDIUM"},
     "step": {"size": 26, "weight": "SEMIBOLD"},
     "chip": {"size": 20, "weight": "MEDIUM"},
-    "meta": {"size": 16, "weight": "NORMAL"},
+    "meta": {"size": 18, "weight": "NORMAL"},
 }
 
 
@@ -51,9 +51,9 @@ AGENT_TRAITS = (
 )
 
 AGENT_KINDS = (
-    {"key": "cooperative", "label": "Cooperative", "color": COOPERATIVE, "hint": "Shares more, fights less"},
-    {"key": "self_interested", "label": "Self-interested", "color": SELF_INTERESTED, "hint": "Keeps food, competes more"},
-    {"key": "balanced", "label": "Balanced", "color": BALANCED, "hint": "A middle path, for comparison"},
+    {"key": "cooperative", "label": "Cooperative", "color": COOPERATIVE, "hint": "Shares more,\nfights less"},
+    {"key": "self_interested", "label": "Self-interested", "color": SELF_INTERESTED, "hint": "Keeps food,\ncompetes more"},
+    {"key": "balanced", "label": "Balanced", "color": BALANCED, "hint": "A middle path,\nfor comparison"},
 )
 
 HOOK_TITLE = "A limited world."

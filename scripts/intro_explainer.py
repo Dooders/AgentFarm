@@ -285,7 +285,7 @@ class IntroExplainer(Scene):
         for item in AGENT_KINDS:
             circle = agent_dot(item["color"], 0.24)
             label = ink_text(item["label"], "label")
-            hint = ink_text(item["hint"], "meta", MUTED)
+            hint = ink_text(item["hint"], "meta", MUTED, line_spacing=0.9)
             label.next_to(circle, DOWN, buff=0.26)
             hint.next_to(label, DOWN, buff=0.10)
             kind_group.add(VGroup(circle, label, hint))
