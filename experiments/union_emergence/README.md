@@ -31,4 +31,6 @@ PYTHONHASHSEED=0 python scripts/run_union_emergence.py --mode first_glance
 ```
 
 Writes `experiments/union_emergence/layer_c/`. First-glance read:
-[`layer_c/READ.md`](layer_c/READ.md). Full protocol: [`SCOPE.md`](SCOPE.md).
+[`layer_c/READ.md`](layer_c/READ.md). Outcome post:
+[`docs/research/devlog/2026-09-19-union-emergence-layer-c.md`](../../docs/research/devlog/2026-09-19-union-emergence-layer-c.md).
+Full protocol: [`SCOPE.md`](SCOPE.md).

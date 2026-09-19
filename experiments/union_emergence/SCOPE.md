@@ -34,7 +34,7 @@ same: they vary a share-or-defect knob and never grow a `partner_id`.
 |---|---|---|
 | **A. Standalone v1 pilot** | Specified; runnable here | Instant synergy, no bonding cost, binary lock. 4 arms × 8 seeds × 900 steps. |
 | **B. Standalone v2 grid** | Specified; default runner | Courtship, bonding cost, accumulated strength, accidental divorce, extraction. 4 worlds × 4 arms × 4 seeds × 550 steps. |
-| **C. AgentFarm port** | Wired; run via `scripts/run_union_emergence.py` | Three genes on the chromosome, `bond` / `leave` next to `share`, `UnionEmergenceExperiment`. |
+| **C. AgentFarm port** | First-glance complete; see the 2026-09-19 devlog | Three genes on the chromosome, `bond` / `leave` next to `share`, `UnionEmergenceExperiment`. |
 | **D. Port follow-ups** | After C | Seed-matched A/B on the baseline cell; ablate synergy vs split-cost vs exit tax; heterogeneous goals × union. |
 
 First-glance evidence is layer B (or a seed/step-reduced B that still

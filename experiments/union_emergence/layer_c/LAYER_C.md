@@ -1,5 +1,7 @@
 # Union emergence Layer C
 
+Outcome post: [`docs/research/devlog/2026-09-19-union-emergence-layer-c.md`](../../../docs/research/devlog/2026-09-19-union-emergence-layer-c.md).
+
 | cell | arm | synergy | energy | paired | Δ commit | Δ fidelity | extraction | pop |
 |---|---|---|---|---|---|---|---|---|
 | baseline | solo_only | — | 35.4 | 0.000 | 0.001 | -0.000 | — | 80.0 |

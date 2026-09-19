@@ -2,7 +2,8 @@
 
 100 steps × 2 seeds × 6 cells × 4 arms on the AgentFarm chromosome
 (`scripts/run_union_emergence.py --mode first_glance`). Table and figures
-sit next to this file.
+sit next to this file. Outcome post:
+[`docs/research/devlog/2026-09-19-union-emergence-layer-c.md`](../../../docs/research/devlog/2026-09-19-union-emergence-layer-c.md).
 
 ## Direction
 

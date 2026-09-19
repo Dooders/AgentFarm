@@ -113,13 +113,16 @@ Asks whether an exclusive, costly-to-exit pair-bond is a selected *unit*
 that promiscuous `share` cannot fake. Standalone intrinsic-evolution arena
 plus a compact threshold grid over courtship delay, bonding cost, exit tax,
 and neighborhood size. Layer C wires the same genes and `bond` / `leave`
-actions onto the AgentFarm chromosome.
+actions onto the AgentFarm chromosome and first-glances the port (optional
+synergy 1.12; 5 of 8 direction checks).
 
-- **Status:** Standalone pilot + threshold grid; AgentFarm port wired (`UnionEmergenceExperiment`).
+- **Status:** Standalone pilot + threshold grid; AgentFarm port first-glance complete (`UnionEmergenceExperiment`).
 - **Standalone runner:** [`experiments/union_emergence/union_intrinsic_evolution.py`](../../experiments/union_emergence/union_intrinsic_evolution.py)
 - **Port runner:** [`scripts/run_union_emergence.py`](../../scripts/run_union_emergence.py)
-- **Docs:** [Devlog 2026-09-18](devlog/2026-09-18-union-as-emergent-property.md)
+- **Docs:** [Pre-register (2026-09-18)](devlog/2026-09-18-union-as-emergent-property.md),
+  [Layer C first-glance (2026-09-19)](devlog/2026-09-19-union-emergence-layer-c.md)
 - **Grid summary:** [`experiments/union_emergence/compact_threshold_summary.json`](../../experiments/union_emergence/compact_threshold_summary.json)
+- **Port artifacts:** [`experiments/union_emergence/layer_c/LAYER_C.md`](../../experiments/union_emergence/layer_c/LAYER_C.md)
 - **Related:** Intrinsic goals (`reward_share_bonus`), One of a Kind / Cooperation
 
 ### Rabbit's Foot
