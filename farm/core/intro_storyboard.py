@@ -79,11 +79,26 @@ CAPTION_CLUSTER = "Nobody told the blue agents to gather. It just happened."
 CLOSE_TITLE = "The research measures what shows up."
 CLOSE_QUESTION = "Does a mix last longer than a world\nof only helpers — or only competitors?"
 
-# Seconds on screen so a first-time viewer can finish each line.
-HOLD_LINE = 1.15
-HOLD_READ = 3.05
-HOLD_LONG = 3.85
-WALK_TIME = 0.88
+# On-screen reading: ~150 wpm plus a rest so the last words are not cut off.
+SECONDS_PER_WORD = 0.40
+HOLD_REST = 1.8
+HOLD_LINE = 2.2
+HOLD_READ = 4.4
+HOLD_LONG = 5.8
+WALK_TIME = 1.05
+
+
+def word_count(*texts: str) -> int:
+    """Count whitespace-separated tokens across one or more copy strings."""
+    total = 0
+    for text in texts:
+        total += sum(1 for token in text.replace("\n", " ").split() if token)
+    return total
+
+
+def hold_for(*texts: str, minimum: float = HOLD_LINE) -> float:
+    """Seconds to leave copy up for a first-time viewer."""
+    return max(minimum, word_count(*texts) * SECONDS_PER_WORD + HOLD_REST)
 
 ACTIONS = (
     "Walk",

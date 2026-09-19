@@ -58,7 +58,6 @@ from farm.core.intro_storyboard import (
     GRID_EDGE,
     GRID_SIZE,
     HOLD_LINE,
-    HOLD_LONG,
     HOLD_READ,
     HOOK_LINE,
     HOOK_QUESTION,
@@ -76,6 +75,7 @@ from farm.core.intro_storyboard import (
     TYPE_FONT,
     WALK_TIME,
     WORLD_CHANGES,
+    hold_for,
     kind_color,
     type_role,
 )
@@ -243,6 +243,7 @@ class IntroExplainer(Scene):
             run_time=0.55,
             rate_func=smooth,
         )
+        self.wait(hold_for(subtitle))
         return head, sub
 
     def _hook(self) -> None:
@@ -267,14 +268,14 @@ class IntroExplainer(Scene):
 
         self.play(FadeIn(title, shift=UP * 0.06), run_time=0.7, rate_func=smooth)
         self.play(FadeIn(line, shift=DOWN * 0.08), run_time=0.5, rate_func=smooth)
-        self.wait(HOLD_LINE)
+        self.wait(hold_for(HOOK_TITLE, HOOK_LINE))
         self.play(
             FadeIn(rule),
             FadeIn(card_group, shift=UP * 0.06),
             run_time=0.7,
             rate_func=smooth,
         )
-        self.wait(HOLD_LONG)
+        self.wait(hold_for(HOOK_QUESTION))
         self._fade_all()
 
     def _what_is_an_agent(self) -> None:
@@ -294,11 +295,12 @@ class IntroExplainer(Scene):
             LaggedStart(*[FadeIn(mob, shift=DOWN * 0.08) for mob in trait_mobs], lag_ratio=0.16),
             run_time=1.15,
         )
-        self.wait(HOLD_READ)
+        self.wait(hold_for(*AGENT_TRAITS, minimum=HOLD_READ))
 
         self.play(FadeOut(trait_mobs), FadeOut(sub), run_time=0.35, rate_func=smooth)
         kinds_title = caption(CAPTION_KINDS)
         self.play(FadeIn(kinds_title), run_time=0.35)
+        self.wait(HOLD_LINE)
 
         kind_group = VGroup()
         for item in AGENT_KINDS:
@@ -326,7 +328,7 @@ class IntroExplainer(Scene):
             run_time=0.75,
             rate_func=smooth,
         )
-        self.wait(HOLD_READ)
+        self.wait(hold_for(CAPTION_KINDS, minimum=HOLD_READ))
         self._fade_all()
 
     def _what_is_the_environment(self) -> None:
@@ -344,7 +346,7 @@ class IntroExplainer(Scene):
             FadeIn(note),
             run_time=0.95,
         )
-        self.wait(HOLD_READ)
+        self.wait(hold_for(NOTE_ENV, CAPTION_ENV))
         self._fade_all()
 
     def _what_do_agents_do(self) -> None:
@@ -366,13 +368,13 @@ class IntroExplainer(Scene):
         self.play(FadeIn(arrows), run_time=0.35)
         for card in cards:
             box = card[0]
-            self.play(box.animate.set_stroke(INK, 2.0), run_time=0.22, rate_func=smooth)
-            self.play(box.animate.set_stroke(GRID_EDGE, 1.4), run_time=0.18, rate_func=smooth)
+            self.play(box.animate.set_stroke(INK, 2.0), run_time=0.32, rate_func=smooth)
+            self.play(box.animate.set_stroke(GRID_EDGE, 1.4), run_time=0.26, rate_func=smooth)
 
         world = ink_text(WORLD_CHANGES, "lead")
         world.next_to(cards, DOWN, buff=0.46)
         self.play(FadeIn(world, shift=DOWN * 0.08), run_time=0.4, rate_func=smooth)
-        self.wait(HOLD_LINE)
+        self.wait(hold_for(WORLD_CHANGES))
 
         top = VGroup(*[pill(name) for name in ACTIONS[:4]])
         bottom = VGroup(*[pill(name) for name in ACTIONS[4:]])
@@ -423,7 +425,7 @@ class IntroExplainer(Scene):
 
         beat = caption(CAPTION_WALK)
         self.play(FadeOut(sub), FadeIn(beat), run_time=0.4, rate_func=smooth)
-        self.wait(HOLD_LINE)
+        self.wait(hold_for(CAPTION_WALK))
 
         for turn in TURNS:
             animations = []
@@ -444,16 +446,16 @@ class IntroExplainer(Scene):
                     eaten.append(patch.animate.scale(0.2).set_opacity(0))
                     food.pop(cell, None)
             if eaten:
-                self.play(*eaten, run_time=0.4, rate_func=smooth)
+                self.play(*eaten, run_time=0.5, rate_func=smooth)
             else:
-                self.wait(0.06)
+                self.wait(0.12)
 
         cluster = VGroup(dots["blue_a"], dots["blue_b"], dots["red_a"], dots["red_b"])
         closer = caption(CAPTION_CLUSTER)
         halo = SurroundingRectangle(cluster, color=INK, buff=0.20, stroke_width=2.0)
         self.play(FadeOut(beat), FadeIn(closer), run_time=0.4, rate_func=smooth)
         self.play(FadeIn(halo), run_time=0.45, rate_func=smooth)
-        self.wait(HOLD_READ)
+        self.wait(hold_for(CAPTION_CLUSTER))
         self._fade_all()
 
     def _close(self) -> None:
@@ -463,8 +465,9 @@ class IntroExplainer(Scene):
         group = VGroup(title, question)
         group.move_to(ORIGIN)
         self.play(FadeIn(title, shift=UP * 0.05), run_time=0.7, rate_func=smooth)
+        self.wait(hold_for(CLOSE_TITLE))
         self.play(FadeIn(question, shift=DOWN * 0.04), run_time=0.6, rate_func=smooth)
-        self.wait(HOLD_LONG)
+        self.wait(hold_for(CLOSE_QUESTION))
         self._fade_all(run_time=0.55)
         self.wait(0.15)
 

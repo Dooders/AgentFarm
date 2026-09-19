@@ -13,6 +13,7 @@ from farm.core.intro_storyboard import (
     CLOSE_TITLE,
     FOOD_START,
     GRID_SIZE,
+    HOLD_LINE,
     HOLD_LONG,
     HOLD_READ,
     HOOK_QUESTION,
@@ -22,6 +23,7 @@ from farm.core.intro_storyboard import (
     TYPE_FONT,
     TYPE_SCALE,
     WORLD_CHANGES,
+    hold_for,
     in_bounds,
     kind_color,
     type_role,
@@ -45,8 +47,10 @@ def test_copy_covers_the_four_intro_beats():
     assert "share" in HOOK_QUESTION.lower() or "helping" in HOOK_QUESTION.lower()
     assert "individual" in CAPTION_AGENT.lower()
     assert CLOSE_TITLE.endswith(".")
-    assert HOLD_READ > 2.5
+    assert HOLD_READ >= 4.0
     assert HOLD_LONG > HOLD_READ
+    assert hold_for(HOOK_QUESTION) >= 6.0
+    assert hold_for("one two three") >= HOLD_LINE
 
 
 def test_kind_color_and_bounds():
