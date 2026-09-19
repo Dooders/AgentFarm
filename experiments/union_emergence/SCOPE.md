@@ -156,10 +156,10 @@ python experiments/union_emergence/union_intrinsic_evolution.py --mode first_gla
 python experiments/union_emergence/union_intrinsic_evolution.py --mode v1
 ```
 
-Writes `experiments/union_emergence/compact_threshold_summary.json` (v2 /
-first-glance) or `v1_pilot_summary.json`. The README also mentions a
-sandbox `union_experiment/` path; the runner copies the summary there
-when that directory exists or `--sandbox-dir` is set.
+Writes `experiments/union_emergence/compact_threshold_summary.json` in
+v2 mode, `first_glance_summary.json` in first-glance mode, or
+`v1_pilot_summary.json` in v1 mode. The runner only copies the matching
+summary into a sandbox path when `--sandbox-dir` is supplied.
 
 ## Layer C — AgentFarm port (not in this runner)
 

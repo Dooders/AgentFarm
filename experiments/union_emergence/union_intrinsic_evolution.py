@@ -557,8 +557,6 @@ class UnionArena:
     def _reproduce(self, agent: Agent, living: Sequence[Agent]) -> None:
         if len(living) >= self.world.max_pop:
             return
-        if agent.energy < self.world.reproduce_threshold:
-            return
         other = self.partner_of(agent)
         mature = (
             other is not None
@@ -569,6 +567,8 @@ class UnionArena:
         if mature:
             if agent.agent_id < other.agent_id:
                 return
+            if agent.energy + other.energy < 2.0 * self.world.reproduce_threshold:
+                return
             each = 0.5 * cost
             if agent.energy < each or other.energy < each:
                 return
@@ -576,6 +576,8 @@ class UnionArena:
             other.energy -= each
             mate = other
         else:
+            if agent.energy < self.world.reproduce_threshold:
+                return
             if agent.energy < cost:
                 return
             agent.energy -= cost
