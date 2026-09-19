@@ -19,16 +19,16 @@ _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from farm.config import SimulationConfig
-from farm.core.hyperparameter_chromosome import BoundaryMode, MutationMode
-from farm.runners.union_emergence_experiment import (
+from farm.config import SimulationConfig  # noqa: E402
+from farm.core.hyperparameter_chromosome import BoundaryMode, MutationMode  # noqa: E402
+from farm.runners.union_emergence_experiment import (  # noqa: E402
     ARM_NAMES,
     UnionCell,
     UnionEmergenceExperiment,
     UnionEmergenceExperimentConfig,
     default_cells,
 )
-from farm.utils.logging import configure_logging
+from farm.utils.logging import configure_logging  # noqa: E402
 
 
 def _build_parser() -> argparse.ArgumentParser:

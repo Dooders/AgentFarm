@@ -1540,13 +1540,16 @@ def leave_action(agent: "AgentCore") -> dict:
     return try_leave_action(agent)
 
 
-def get_action_space() -> dict[str, int]:
+def get_action_space(*, include_union: bool = False) -> dict[str, int]:
     """Get the centralized mapping of action names to indices.
+
+    Bond/leave are union-only and stay off the default space so existing
+    0–7 indices and DQN heads stay aligned unless a run opts in.
 
     Returns:
         dict[str, int]: Mapping from action name strings to ActionType enum values
     """
-    return {
+    space = {
         "defend": ActionType.DEFEND.value,
         "attack": ActionType.ATTACK.value,
         "gather": ActionType.GATHER.value,
@@ -1555,9 +1558,11 @@ def get_action_space() -> dict[str, int]:
         "reproduce": ActionType.REPRODUCE.value,
         "pass": ActionType.PASS.value,
         "communicate": ActionType.COMMUNICATE.value,
-        "bond": ActionType.BOND.value,
-        "leave": ActionType.LEAVE.value,
     }
+    if include_union:
+        space["bond"] = ActionType.BOND.value
+        space["leave"] = ActionType.LEAVE.value
+    return space
 
 
 def action_name_to_index(action_name: str) -> int:
@@ -1569,26 +1574,26 @@ def action_name_to_index(action_name: str) -> int:
     Returns:
         int: Action index from ActionType enum, defaults to DEFEND (0) if unknown
     """
-    action_space = get_action_space()
+    action_space = get_action_space(include_union=True)
     return action_space.get(action_name.lower(), ActionType.DEFEND.value)
 
 
-def get_action_names() -> list[str]:
+def get_action_names(*, include_union: bool = False) -> list[str]:
     """Get list of all valid action names in the action space.
 
     Returns:
         list[str]: List of action names in the order defined by ActionType enum
     """
-    return list(get_action_space().keys())
+    return list(get_action_space(include_union=include_union).keys())
 
 
-def get_action_count() -> int:
-    """Get the total number of actions in the action space.
+def get_action_count(*, include_union: bool = False) -> int:
+    """Get the total number of actions in the default (or full) action space.
 
     Returns:
-        int: Number of actions defined in the action space
+        int: Number of actions in the requested space
     """
-    return len(ActionType)
+    return len(get_action_space(include_union=include_union))
 
 
 action_registry.register("attack", 0.1, attack_action)
