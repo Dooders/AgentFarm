@@ -6,6 +6,23 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/research/devlog/2026-09-18-union-as-emergent-property/' | relative_url }}">
+      <span class="post-card__date">2026-09-18</span>
+      <h3 class="post-card__title">The union as an emergent property</h3>
+      <p class="post-card__excerpt">
+        Exclusive pair-bonds can produce superadditive in-world returns that
+        promiscuous sharing cannot match, but only under constrained neighborhoods
+        and costly exits. The compact threshold grid isolates where fidelity rises,
+        where commitment collapses, and where forced unions become extractive.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/research/experiments-catalog/' | relative_url }}">Experiments catalog entry</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/research/devlog/2026-09-12-veil-ceiling-observation-collapse/' | relative_url }}">
       <span class="post-card__date">2026-09-12</span>
       <h3 class="post-card__title">The veil ceiling: a leaked cue inverts sealed-world evaluation</h3>

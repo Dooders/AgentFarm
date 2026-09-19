@@ -117,7 +117,10 @@ not yet merged.
 
 - **Status:** Design + standalone pilot and threshold grid; platform port outlined.
 - **Standalone runner:** [`experiments/union_emergence/union_intrinsic_evolution.py`](../../experiments/union_emergence/union_intrinsic_evolution.py)
-- **Docs:** [Devlog 2026-09-18](devlog/2026-09-18-union-as-emergent-property.md)
+- **Docs:** [Devlog 2026-09-18](devlog/2026-09-18-union-as-emergent-property.md),
+  [README](../../experiments/union_emergence/README.md),
+  [Scope](../../experiments/union_emergence/SCOPE.md),
+  [First glance](../../experiments/union_emergence/FIRST_GLANCE.md)
 - **Grid summary:** [`experiments/union_emergence/compact_threshold_summary.json`](../../experiments/union_emergence/compact_threshold_summary.json)
 - **Related:** Intrinsic goals (`reward_share_bonus`), One of a Kind / Cooperation
 
