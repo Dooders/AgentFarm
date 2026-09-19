@@ -249,13 +249,23 @@ def step_card(label: str) -> VGroup:
     return VGroup(box, text)
 
 
-def trait_chip(label: str) -> VGroup:
+def trait_chip(label: str, width: float | None = None) -> VGroup:
     """Small card used around the single-agent diagram."""
     text = ink_text(label, "chip", MUTED)
-    box = RoundedRectangle(width=text.width + 0.50, height=0.50, corner_radius=0.14)
+    box = RoundedRectangle(
+        width=text.width + 0.50 if width is None else width,
+        height=0.50,
+        corner_radius=0.14,
+    )
     box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.15)
     text.move_to(box.get_center())
     return VGroup(box, text)
+
+
+def trait_chips() -> VGroup:
+    """The four traits as equal-width chips, so the ring reads symmetrically."""
+    widest = max(ink_text(label, "chip").width for label in AGENT_TRAITS) + 0.50
+    return VGroup(*[trait_chip(label, widest) for label in AGENT_TRAITS])
 
 
 def agent_dot(color: str, radius: float = 0.17) -> Circle:
@@ -390,12 +400,11 @@ class IntroExplainer(Scene):
         seat_in_stage(dot, top, bottom)
         self.play(GrowFromCenter(dot), run_time=0.45, rate_func=smooth)
 
-        chips = [trait_chip(label) for label in AGENT_TRAITS]
-        chips[0].next_to(dot, UP, buff=0.46)
-        chips[1].next_to(dot, RIGHT, buff=0.52)
-        chips[2].next_to(dot, DOWN, buff=0.46)
-        chips[3].next_to(dot, LEFT, buff=0.52)
-        traits = VGroup(*chips)
+        traits = trait_chips()
+        traits[0].next_to(dot, UP, buff=0.46)
+        traits[1].next_to(dot, RIGHT, buff=0.52)
+        traits[2].next_to(dot, DOWN, buff=0.46)
+        traits[3].next_to(dot, LEFT, buff=0.52)
         self.play(
             LaggedStart(*[FadeIn(mob, shift=DOWN * 0.08) for mob in traits], lag_ratio=0.16),
             run_time=1.15,
@@ -597,4 +606,5 @@ __all__ = [
     "seat_on_bottom",
     "section_banner",
     "section_stage",
+    "trait_chips",
 ]

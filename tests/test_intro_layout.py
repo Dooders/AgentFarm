@@ -175,6 +175,15 @@ def test_action_loop_row_is_centered_with_arrows_between_cards():
         assert left.get_right()[0] < mark.get_center()[0] < right.get_left()[0]
 
 
+def test_trait_chips_are_equal_width_so_the_ring_is_symmetric():
+    chips = explainer.trait_chips()
+    widths = [float(chip.width) for chip in chips]
+    assert widths == pytest.approx([widths[0]] * len(widths), abs=1e-6)
+    for chip in chips:
+        box, text = chip
+        assert abs(box.get_center()[0] - text.get_center()[0]) < CENTER_TOLERANCE
+
+
 def test_kind_columns_use_fixed_equal_columns():
     columns = explainer.kind_columns()
     centers = [float(column.get_center()[0]) for column in columns]
