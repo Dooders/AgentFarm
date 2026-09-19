@@ -5,6 +5,8 @@ simulation iterations with different parameters and analyze the results.
 This page describes how to use the runner directly; for the catalog of
 **defined experiments** (intrinsic evolution, hyperparameter convergence,
 multi-seed cohorts, etc.), see [Experiments](../research/experiments-catalog.md).
+For whole-experiment narratives (including variant runs), see
+[Experiment writeups](../research/writeups/index.md).
 
 ## Overview
 

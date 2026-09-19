@@ -28,7 +28,7 @@ Results appear under `simulations/`. See [Installation](docs/getting-started/ins
 
 - **Docs site:** [dooders.github.io/AgentFarm](https://dooders.github.io/AgentFarm/)
 - **Hub:** [docs/README.md](docs/README.md)
-- **Research:** [Devlog](docs/research/devlog/index.md) · [Experiments](docs/research/experiments-catalog.md)
+- **Research:** [Writeups](docs/research/writeups/index.md) · [Devlog](docs/research/devlog/index.md) · [Experiments](docs/research/experiments-catalog.md)
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License

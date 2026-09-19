@@ -131,5 +131,5 @@ Training, distillation, PTQ/QAT, and crossover tooling live under `farm/core/dec
 |-------|----------|
 | Getting started | [Installation](../getting-started/installation.md) · [First simulation](../getting-started/first-simulation.md) |
 | Design RFCs | [Design index](../design/README.md) |
-| Research writeups | [Devlog](../research/devlog/index.md) · [Experiments](../research/experiments-catalog.md) |
+| Research writeups | [Writeups](../research/writeups/index.md) · [Devlog](../research/devlog/index.md) · [Experiments](../research/experiments-catalog.md) |
 | Legacy feature pages | [Archive](../archive/features/FEATURES.md) (deprecated stubs) |

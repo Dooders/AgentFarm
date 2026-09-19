@@ -34,6 +34,22 @@ Baseline packaged release at `0.1.0`. Detailed history is captured in the dated 
 
 ## Entries
 
+### 2026-09-19
+
+#### Docs
+
+- **Experiment writeups on GitHub Pages** — added
+  [`docs/research/writeups/`](docs/research/writeups/index.md), a
+  devlog-like index of **whole-experiment** narratives. Each writeup page
+  covers one experiment and its variant runs (conditions, sweeps,
+  follow-ups) so the account is self-contained. Seeded from the existing
+  catalog: Veil Ceiling, intrinsic evolution, consensus paradigms,
+  hyperparameter evolution, One of a Kind, Memory Agent, and Rabbit's
+  Foot. Linked from the site nav, homepage, catalog, and documentation
+  hub.
+
+---
+
 ### 2026-09-12
 
 #### Docs

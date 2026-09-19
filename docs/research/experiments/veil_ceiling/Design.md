@@ -4,6 +4,7 @@
 **CLI:** [`scripts/run_veil_ceiling.py`](../../../../scripts/run_veil_ceiling.py)
 **Results:** [RESULTS.md](RESULTS.md), raw record under
 [`experiments/veil_ceiling/results`](../../../../experiments/veil_ceiling/results)
+**Writeup:** [The Veil Ceiling](../../writeups/veil-ceiling.md)
 **Devlog:** [The veil ceiling: a leaked cue inverts sealed-world evaluation](../../devlog/2026-09-12-veil-ceiling-observation-collapse.md)
 
 This page records the pre-registered design as implemented. Section numbers

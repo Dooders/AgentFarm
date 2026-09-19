@@ -1,5 +1,6 @@
 # Consensus paradigms
 
+**Writeup:** [Consensus paradigms](../writeups/consensus-paradigms.md)  
 **Status:** Implemented  
 **Package:** `farm.experiments.consensus`  
 **CLI:** `python run_experiment.py`  

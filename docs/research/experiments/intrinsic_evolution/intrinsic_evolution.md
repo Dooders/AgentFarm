@@ -1,5 +1,8 @@
 # Intrinsic Evolution Experiment
 
+**Writeup:** [Intrinsic evolution](../../writeups/intrinsic-evolution.md) — whole
+experiment, including every reported variant run.
+
 The intrinsic evolution experiment treats hyperparameter selection as an
 *emergent* property of a single simulation. Each agent carries its own
 `HyperparameterChromosome`; offspring inherit it, optionally crossed with a

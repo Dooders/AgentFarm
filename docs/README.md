@@ -12,7 +12,7 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 
 | Role | Start here |
 |------|------------|
-| **User / researcher** | [Experiments catalog](research/experiments-catalog.md) · [Devlog](research/devlog/index.md) · [Experiment quickstart](getting-started/experiments-quickstart.md) |
+| **User / researcher** | [Experiment writeups](research/writeups/index.md) · [Experiments catalog](research/experiments-catalog.md) · [Devlog](research/devlog/index.md) · [Experiment quickstart](getting-started/experiments-quickstart.md) |
 | **Developer** | [Development setup](guides/development-setup.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [Architecture](concepts/architecture.md) |
 | **Maintainer** | [Release process](RELEASE.md) · [Milestone 0.2.0](milestones/0.2.0.md) |
 | **Operator** | [Deployment](guides/deployment.md) · [Logging](guides/logging.md) · [Monitoring](guides/monitoring.md) |
@@ -51,8 +51,9 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 
 ## Research
 
-- [Experiments catalog](research/experiments-catalog.md)
-- [Devlog](research/devlog/index.md)
+- [Experiment writeups](research/writeups/index.md) — whole-experiment narratives, including variant runs
+- [Experiments catalog](research/experiments-catalog.md) — runners, CLIs, status
+- [Devlog](research/devlog/index.md) — chronological field notes
 - [Consensus paradigms](research/experiments/consensus_paradigms.md)
 
 ## Design & archive

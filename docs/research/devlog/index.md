@@ -4,6 +4,9 @@ title: Devlog
 subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm development.
 ---
 
+Chronological field notes. For a **whole experiment** — protocol plus every
+variant run on one page — see [Experiment writeups](../writeups/index.md).
+
 <ul class="posts">
   <li>
     <a class="post-card" href="{{ '/research/devlog/2026-09-12-veil-ceiling-observation-collapse/' | relative_url }}">

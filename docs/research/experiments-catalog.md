@@ -6,6 +6,10 @@ framework against a specific question. Each experiment below has its own
 dedicated documentation covering motivation, configuration, output
 artifacts, and (where available) results.
 
+> Looking for a **whole-experiment narrative** (question, protocol, every
+> variant run, synthesis) rather than this runner index? See
+> [Experiment writeups](writeups/index.md).
+>
 > Looking for the generic multi-iteration runner instead of a specific
 > experiment? See [ExperimentRunner — Running Multi-Iteration Simulations](../guides/experiment-runner.md).
 >
@@ -26,6 +30,7 @@ environment — no external fitness function, no separate evaluation
 runs.
 
 - **Status:** Implemented and reproducible end-to-end.
+- **Writeup:** [Intrinsic evolution](writeups/intrinsic-evolution.md)
 - **Runner:** `IntrinsicEvolutionExperiment`
   ([`farm/runners/intrinsic_evolution_experiment.py`](../../farm/runners/intrinsic_evolution_experiment.py))
 - **CLI:** [`scripts/run_intrinsic_evolution_experiment.py`](../../scripts/run_intrinsic_evolution_experiment.py)
@@ -43,6 +48,7 @@ and interpret learning-rate convergence, the `stable_hyper_evo` preset
 that prevents lower-bound collapse, and the adaptive-mutation controller.
 
 - **Status:** Implemented and reproducible end-to-end.
+- **Writeup:** [Hyperparameter evolution convergence](writeups/hyperparameter-evolution.md)
 - **Runner:** `EvolutionExperiment`
   ([`farm/runners/evolution_experiment.py`](../../farm/runners/evolution_experiment.py))
 - **CLI:** [`scripts/run_evolution_experiment.py`](../../scripts/run_evolution_experiment.py)
@@ -74,6 +80,7 @@ asks how hierarchical memory compression impacts agent learning,
 adaptation, and decision quality.
 
 - **Status:** Design and analysis notes; ongoing research.
+- **Writeup:** [Memory Agent](writeups/memory-agent.md)
 - **Docs:**
   - [Overview](experiments/memory_agent/README.md)
   - [Memory model](experiments/memory_agent/Memory.md)
@@ -96,6 +103,7 @@ agent type ultimately thrives.
 
 - **Status:** Case study with published findings; data and analysis
   artifacts available in the docs tree.
+- **Writeup:** [One of a Kind](writeups/one-of-a-kind.md)
 - **Docs:**
   - [Findings](experiments/one_of_a_kind/Findings.md)
   - [Dominance measures](experiments/one_of_a_kind/Measures.md)
@@ -116,6 +124,7 @@ dominant strategy.
 
 - **Status:** Design proposal; mechanics, configuration, and metrics
   specified ahead of implementation.
+- **Writeup:** [Rabbit's Foot](writeups/rabbits-foot.md)
 - **Docs:** [Design](experiments/rabbits_foot/Design.md)
 
 ## Collective choice
@@ -132,6 +141,7 @@ holding λ's marginal fixed. Official artifacts can be stamped with
 FarmNotary; synthetic ballots stay under `private/` off the record.
 
 - **Status:** Implemented (`farm.experiments.consensus`).
+- **Writeup:** [Consensus paradigms](writeups/consensus-paradigms.md)
 - **CLI:** [`run_experiment.py`](../../run_experiment.py)
 - **Wrapper:** `ConsensusParadigmsExperiment`
   ([`farm/runners/consensus_paradigms_experiment.py`](../../farm/runners/consensus_paradigms_experiment.py))
@@ -159,6 +169,7 @@ spatial transfer, each crossed with Baldwinian vs Lamarckian policy
 inheritance on 30 seed-matched runs per cell.
 
 - **Status:** Implemented and run (`farm.experiments.veil_ceiling`).
+- **Writeup:** [The Veil Ceiling](writeups/veil-ceiling.md)
 - **CLI:** [`scripts/run_veil_ceiling.py`](../../scripts/run_veil_ceiling.py),
   [`scripts/run_veil_ceiling_validity_followup.py`](../../scripts/run_veil_ceiling_validity_followup.py)
 - **Docs:** [Pre-registered design and Appendix A](experiments/veil_ceiling/Design.md),
@@ -184,10 +195,14 @@ existing entries:
    (or a single `docs/research/experiments/<experiment_name>.md` for smaller
    experiments). Include motivation, configuration reference, output
    artifacts, and at least one reproducible quick-start command.
-4. **Link the experiment from this page** under the appropriate
-   category, with a one-paragraph summary, status, runner / CLI
-   references, and a link to the detailed documentation.
-5. **Add tests** under `tests/runners/` and/or `tests/analysis/` for any
+4. **Write the experiment writeup** under `docs/research/writeups/<slug>.md`
+   (`layout: experiment`). One page for the whole experiment; put each
+   variant run in its own `##` section. The [writeups index](writeups/index.md)
+   lists pages with that layout automatically.
+5. **Link the experiment from this page** under the appropriate
+   category, with a one-paragraph summary, status, writeup link, runner /
+   CLI references, and a link to the detailed documentation.
+6. **Add tests** under `tests/runners/` and/or `tests/analysis/` for any
    new runner, analysis function, or artifact schema.
-6. **Optional:** stamp official outputs with FarmNotary
+7. **Optional:** stamp official outputs with FarmNotary
    (`scripts/notarize_run.py`). Do not include private choice files.

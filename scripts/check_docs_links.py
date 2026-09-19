@@ -49,13 +49,27 @@ SKIP_SUBSTRINGS = (
 )
 
 
+SKIP_DIR_PARTS = {
+    "vendor",
+    "_site",
+    ".jekyll-cache",
+    "node_modules",
+}
+
+
 def iter_markdown_files() -> list[Path]:
     files: list[Path] = []
     for root in SCAN_ROOTS:
         if root.is_file():
             files.append(root)
         elif root.is_dir():
-            files.extend(sorted(root.rglob("*.md")))
+            files.extend(
+                sorted(
+                    path
+                    for path in root.rglob("*.md")
+                    if not SKIP_DIR_PARTS.intersection(path.parts)
+                )
+            )
     return files
 
 

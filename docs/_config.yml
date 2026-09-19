@@ -28,6 +28,10 @@ defaults:
       path: "research/devlog"
     values:
       layout: post
+  - scope:
+      path: "research/writeups"
+    values:
+      layout: experiment
 
 plugins:
   - jekyll-optional-front-matter
@@ -62,6 +66,8 @@ nav_links:
     url: /guides/development-setup/
   - title: Reference
     url: /reference/api-reference/
+  - title: Writeups
+    url: /research/writeups/
   - title: Devlog
     url: /research/devlog/
   - title: GitHub

@@ -186,6 +186,36 @@ env = run_simulation(
   </div>
 </section>
 
+<section class="section">
+  <div class="container">
+    <header class="section__head">
+      <h2 class="section__title">Experiment writeups</h2>
+      <p class="section__lede">
+        Whole-experiment accounts: one page per research line, including every
+        variant run, so you can read a result without hopping across posts.
+      </p>
+    </header>
+
+    <ul class="posts">
+      {% assign writeups = site.pages | where: "layout", "experiment" %}
+      {% assign writeups = writeups | sort: "updated" | reverse %}
+      {% for writeup in writeups limit: 2 %}
+      <li>
+        <a class="post-card" href="{{ writeup.url | relative_url }}">
+          <span class="post-card__date">{{ writeup.updated | date: "%Y-%m-%d" }}</span>
+          <h3 class="post-card__title">{{ writeup.title }}</h3>
+          <p class="post-card__excerpt">{{ writeup.excerpt | strip }}</p>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <p class="section__more">
+      <a class="btn" href="{{ '/research/writeups/' | relative_url }}">All experiment writeups</a>
+    </p>
+  </div>
+</section>
+
 <section class="section section--last">
   <div class="container">
     <header class="section__head">
