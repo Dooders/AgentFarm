@@ -22,6 +22,8 @@ Writes JSON/markdown summaries next to this README
 `v1_pilot_summary.json`). Pass `--sandbox-dir union_experiment` to also
 copy the summary to the original sandbox path.
 
+First-glance read of the v2 grid: [`FIRST_GLANCE.md`](FIRST_GLANCE.md).
+
 The three new genes (`pair_commitment`, `fidelity`, `specialize`) and the
 `bond` / `leave` actions are **not** on the AgentFarm chromosome yet.
 That is layer C in `SCOPE.md`.

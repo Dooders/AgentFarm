@@ -24,14 +24,18 @@ DEFAULT_EXIT_TAX = 1.1
 DEFAULT_SOCIAL_RANGE = 3.2
 DEFAULT_ACCIDENT_DIVORCE = 0.01
 DEFAULT_MAX_POP = 80
-DEFAULT_BOND_GAIN = 0.08
-DEFAULT_BOND_DECAY = 0.02
-DEFAULT_SYNERGY_K = 0.85
+DEFAULT_BOND_GAIN = 0.11
+DEFAULT_BOND_DECAY = 0.015
+DEFAULT_SYNERGY_K = 0.95
 DEFAULT_FORCED_PAIR_RATE = 0.85
-DEFAULT_EQUALIZE_RATE = 0.12
-DEFAULT_GRIEF_SCALE = 0.35
-DEFAULT_RESIDUAL_SHARE = 0.04
-DEFAULT_PROMISCUOUS_SHARE = 0.22
+DEFAULT_EQUALIZE_RATE = 0.10
+DEFAULT_GRIEF_SCALE = 0.18
+DEFAULT_RESIDUAL_SHARE = 0.03
+DEFAULT_PROMISCUOUS_SHARE = 0.18
+COLOCATION_RADIUS = 1.75
+GATHER_RADIUS = 1.55
+PAIR_PULL = 0.95
+INITIAL_BOND_STRENGTH = 0.18
 
 ARMS = ("solo_only", "promiscuous", "optional_union", "forced_union")
 UNION_ARMS = ("optional_union", "forced_union")
@@ -52,15 +56,15 @@ class WorldParams:
     bond_decay: float = DEFAULT_BOND_DECAY
     synergy_k: float = DEFAULT_SYNERGY_K
     binary_lock: bool = False
-    world_size: float = 20.0
-    n_resources: int = 22
-    initial_pop: int = 36
-    metabolism: float = 0.11
-    gather_base: float = 0.28
-    resource_regen: float = 0.16
-    resource_cap: float = 2.8
-    offspring_cost: float = 2.2
-    reproduce_threshold: float = 4.6
+    world_size: float = 22.0
+    n_resources: int = 52
+    initial_pop: int = 48
+    metabolism: float = 0.08
+    gather_base: float = 0.38
+    resource_regen: float = 0.24
+    resource_cap: float = 3.4
+    offspring_cost: float = 1.7
+    reproduce_threshold: float = 3.6
     mutation_scale: float = 0.08
 
 
@@ -222,7 +226,7 @@ class UnionArena:
                 lineage=lineage,
                 x=px,
                 y=py,
-                energy=self.rng.uniform(3.2, 5.0),
+                energy=self.rng.uniform(4.0, 6.2),
                 pair_commitment=clip01(self.rng.gauss(0.52, 0.16)),
                 fidelity=clip01(self.rng.gauss(0.48, 0.16)),
                 specialize=clip01(self.rng.gauss(0.50, 0.16)),
@@ -282,7 +286,7 @@ class UnionArena:
         return other
 
     def are_colocated(self, a: Agent, b: Agent) -> bool:
-        return torus_distance(a.x, a.y, b.x, b.y, self.world.world_size) <= 1.35
+        return torus_distance(a.x, a.y, b.x, b.y, self.world.world_size) <= COLOCATION_RADIUS
 
     def pairing_enabled(self) -> bool:
         return self.arm in UNION_ARMS
@@ -321,8 +325,8 @@ class UnionArena:
             a.bond_strength = 1.0
             b.bond_strength = 1.0
         else:
-            a.bond_strength = 0.0
-            b.bond_strength = 0.0
+            a.bond_strength = INITIAL_BOND_STRENGTH
+            b.bond_strength = INITIAL_BOND_STRENGTH
         if a.specialize >= b.specialize:
             a.role, b.role = "gather", "guard"
         else:
@@ -470,7 +474,7 @@ class UnionArena:
             dx = _torus_delta(other.x, agent.x, size)
             dy = _torus_delta(other.y, agent.y, size)
             dist = math.hypot(dx, dy) or 1.0
-            pull = 0.55 + 0.35 * agent.bond_strength
+            pull = PAIR_PULL + 0.25 * agent.bond_strength
             agent.x = (agent.x + pull * dx / dist) % size
             agent.y = (agent.y + pull * dy / dist) % size
             return
@@ -491,7 +495,7 @@ class UnionArena:
         if patch is None:
             return
         dist = torus_distance(agent.x, agent.y, patch.x, patch.y, self.world.world_size)
-        if dist > 1.2:
+        if dist > GATHER_RADIUS:
             return
         role_bonus = 1.18 if agent.role == "gather" else 1.0
         taken = min(patch.amount, self.world.gather_base * self.synergy_multiplier(agent) * role_bonus)
@@ -575,8 +579,8 @@ class UnionArena:
     def _deaths(self, living: Sequence[Agent]) -> None:
         for agent in living:
             agent.energy -= self.world.metabolism
-            hunger = max(0.0, 1.6 - agent.energy)
-            agent.stress = clip01(0.65 * agent.stress + 0.35 * min(1.0, hunger / 1.6))
+            hunger = max(0.0, 2.2 - agent.energy)
+            agent.stress = clip01(0.55 * agent.stress + 0.25 * min(1.0, hunger / 2.2))
             if agent.energy <= 0.0:
                 other = self.partner_of(agent)
                 if other is not None:
@@ -839,27 +843,28 @@ def grid_specs(mode: str, seeds: Optional[Sequence[int]], steps: Optional[int]) 
 def render_table(payload: Dict[str, object]) -> str:
     cells: Sequence[Dict[str, object]] = payload["cells"]  # type: ignore[assignment]
     lines = [
-        "| world | arm | synergy | paired | duration | Δ commit | Δ fidelity | extraction | lineages |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| world | arm | synergy | energy | paired | duration | Δ commit | Δ fidelity | extraction | lineages |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
-    for cell in cells:
-        def fmt(key: str, digits: int = 3) -> str:
-            value = cell.get(key)
-            if value is None:
-                return "—"
-            return f"{float(value):.{digits}f}"
+    def fmt(cell: Dict[str, object], key: str, digits: int = 3) -> str:
+        value = cell.get(key)
+        if value is None:
+            return "—"
+        return f"{float(value):.{digits}f}"
 
+    for cell in cells:
         lines.append(
-            "| {world} | {arm} | {syn} | {pf} | {dur} | {dc} | {df} | {ex} | {lin} |".format(
+            "| {world} | {arm} | {syn} | {en} | {pf} | {dur} | {dc} | {df} | {ex} | {lin} |".format(
                 world=cell["world"],
                 arm=cell["arm"],
-                syn=fmt("synergy_index"),
-                pf=fmt("paired_frac"),
-                dur=fmt("mean_pair_duration", 1),
-                dc=fmt("delta_pair_commitment"),
-                df=fmt("delta_fidelity"),
-                ex=fmt("mean_extraction"),
-                lin=fmt("lineages_alive", 1),
+                syn=fmt(cell, "synergy_index"),
+                en=fmt(cell, "mean_energy", 1),
+                pf=fmt(cell, "paired_frac"),
+                dur=fmt(cell, "mean_pair_duration", 1),
+                dc=fmt(cell, "delta_pair_commitment"),
+                df=fmt(cell, "delta_fidelity"),
+                ex=fmt(cell, "mean_extraction"),
+                lin=fmt(cell, "lineages_alive", 1),
             )
         )
     wins = payload.get("win_conditions", {})
@@ -887,7 +892,7 @@ def write_outputs(
         report_name = "v1_pilot.md"
     elif mode == "first_glance":
         summary_name = "first_glance_summary.json"
-        report_name = "FIRST_GLANCE.md"
+        report_name = "first_glance_grid.md"
     else:
         summary_name = "compact_threshold_summary.json"
         report_name = "v2_grid.md"

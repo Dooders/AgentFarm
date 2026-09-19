@@ -195,6 +195,11 @@ These are the port tests, enforced on the arena first:
 
 ## First-glance bar
 
+Recorded first-glance (v2 4×550, `FIRST_GLANCE.md`): optional synergy
+1.15 (CI excludes 1); population energy 27.9 vs promiscuous 17.3;
+commitment flat, fidelity up; cheap exit drops synergy to 1.03.
+Courtship inflation and the Han extraction index did **not** replicate.
+
 A first-glance run is enough to say whether the *direction* of the
 pre-register appears:
 
