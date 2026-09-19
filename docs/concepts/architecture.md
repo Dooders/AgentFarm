@@ -1,5 +1,7 @@
 # Architecture
 
+For a non-technical walkthrough of agents, the environment, and a grid example, see [A gentle introduction](../getting-started/a-gentle-introduction.md).
+
 AgentFarm is a Python-first multi-agent simulation platform built on PettingZoo's AECEnv interface. The codebase under `farm/` separates environment orchestration, agent decision-making, persistence, and analysis into composable modules.
 
 For API signatures see [API reference](../reference/api-reference.md). For hands-on patterns see [Usage examples](../guides/usage-examples.md).

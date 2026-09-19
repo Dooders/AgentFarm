@@ -1,5 +1,7 @@
 # First simulation
 
+New to the ideas? Start with [A gentle introduction](a-gentle-introduction.md).
+
 ## Command line
 
 ```bash

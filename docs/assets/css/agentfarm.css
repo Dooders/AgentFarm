@@ -637,6 +637,20 @@ samp {
   border-radius: var(--radius);
   border: 1px solid var(--border);
 }
+.prose figure {
+  margin: 1.5rem 0;
+}
+.prose figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.prose figcaption {
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
 .prose .mermaid-figure {
   position: relative;
   margin: 1.25rem 0;
