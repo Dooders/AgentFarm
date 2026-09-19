@@ -14,6 +14,29 @@ CARD = "#ffffff"
 GRID_EDGE = "#d4d4d8"
 FOOD = "#16a34a"
 
+# Inter, same family as the docs site. Sizes are Manim font_size points.
+# tracking_em matches the docs heading range (about -0.01 to -0.02em).
+TYPE_FONT = "Inter"
+TYPE_SCALE: dict[str, dict[str, int | float | str]] = {
+    "display": {"size": 46, "weight": "SEMIBOLD", "tracking_em": -0.022},
+    "heading": {"size": 32, "weight": "SEMIBOLD", "tracking_em": -0.016},
+    "lead": {"size": 24, "weight": "MEDIUM", "tracking_em": -0.006},
+    "body": {"size": 25, "weight": "NORMAL", "tracking_em": -0.004},
+    "caption": {"size": 20, "weight": "NORMAL", "tracking_em": 0.0},
+    "label": {"size": 22, "weight": "MEDIUM", "tracking_em": -0.008},
+    "step": {"size": 26, "weight": "SEMIBOLD", "tracking_em": -0.012},
+    "chip": {"size": 18, "weight": "MEDIUM", "tracking_em": 0.01},
+    "meta": {"size": 16, "weight": "NORMAL", "tracking_em": 0.004},
+}
+
+
+def type_role(name: str) -> dict[str, int | float | str]:
+    """Return a copy of a named type-scale role."""
+    try:
+        return dict(TYPE_SCALE[name])
+    except KeyError as exc:
+        raise KeyError(name) from exc
+
 COOPERATIVE = "#2563eb"
 SELF_INTERESTED = "#dc2626"
 BALANCED = "#d97706"

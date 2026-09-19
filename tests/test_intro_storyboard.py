@@ -13,9 +13,12 @@ from farm.core.intro_storyboard import (
     GRID_SIZE,
     LOOP_STEPS,
     TURNS,
+    TYPE_FONT,
+    TYPE_SCALE,
     WORLD_CHANGES,
     in_bounds,
     kind_color,
+    type_role,
     validate_storyboard,
 )
 
@@ -43,6 +46,32 @@ def test_kind_color_and_bounds():
     assert not in_bounds((GRID_SIZE, 0))
     with pytest.raises(KeyError):
         kind_color("unknown")
+
+
+def test_type_system_matches_docs_inter():
+    assert TYPE_FONT == "Inter"
+    assert set(TYPE_SCALE) == {
+        "display",
+        "heading",
+        "lead",
+        "body",
+        "caption",
+        "label",
+        "step",
+        "chip",
+        "meta",
+    }
+    display = type_role("display")
+    heading = type_role("heading")
+    body = type_role("body")
+    caption = type_role("caption")
+    assert display["weight"] == "SEMIBOLD"
+    assert heading["weight"] == "SEMIBOLD"
+    assert type_role("label")["weight"] == "MEDIUM"
+    assert caption["size"] < body["size"] < heading["size"] < display["size"]
+    assert display["tracking_em"] < heading["tracking_em"] < 0
+    with pytest.raises(KeyError):
+        type_role("unknown")
 
 
 def test_example_uses_every_agent_and_some_food():

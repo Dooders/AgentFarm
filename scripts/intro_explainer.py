@@ -12,6 +12,8 @@ Or:
 
 from __future__ import annotations
 
+from html import escape
+
 from manim import (
     DOWN,
     LEFT,
@@ -25,14 +27,13 @@ from manim import (
     GrowFromCenter,
     LaggedStart,
     Line,
+    MarkupText,
     MoveAlongPath,
     RoundedRectangle,
     Scene,
     Square,
     SurroundingRectangle,
-    Text,
     VGroup,
-    Write,
     smooth,
 )
 
@@ -54,60 +55,89 @@ from farm.core.intro_storyboard import (
     MUTED,
     SELF_INTERESTED,
     TURNS,
+    TYPE_FONT,
     WORLD_CHANGES,
     kind_color,
+    type_role,
 )
 
 CELL = 0.58
 SAFE_WIDTH = 12.4
 
 
-def ink_text(body: str, size: int = 36, color: str = INK) -> Text:
-    """Plain-language title or caption. Avoids LaTeX."""
-    return Text(body, font_size=size, color=color)
+def ink_text(
+    body: str,
+    role: str = "body",
+    color: str = INK,
+    *,
+    line_spacing: float = -1,
+) -> MarkupText:
+    """Inter lockup. Avoids LaTeX. Tracking is Pango letter-spacing in 1/1024 pt."""
+    spec = type_role(role)
+    size = float(spec["size"])
+    weight = str(spec["weight"])
+    tracking_em = float(spec["tracking_em"])
+    pango_ls = round(tracking_em * size * 1024)
+    markup = f'<span letter_spacing="{pango_ls}">{escape(body)}</span>'
+    return MarkupText(
+        markup,
+        font=TYPE_FONT,
+        font_size=size,
+        color=color,
+        weight=weight,
+        line_spacing=line_spacing,
+        disable_ligatures=True,
+    )
 
 
-def heading(body: str) -> Text:
+def heading(body: str) -> MarkupText:
     """Section heading pinned to the top of the frame."""
-    text = ink_text(body, 38)
-    text.to_edge(UP, buff=0.42)
+    text = ink_text(body, "heading")
+    text.to_edge(UP, buff=0.34)
     return text
 
 
-def caption(body: str) -> Text:
-    """Muted line sitting on a fixed baseline under the heading."""
-    text = ink_text(body, 24, MUTED)
+def heading_rule(head: MarkupText) -> Line:
+    """Hairline under a heading — same cue as docs h2 borders."""
+    rule = Line(head.get_left() + DOWN * 0.14, head.get_right() + DOWN * 0.14)
+    rule.set_stroke(GRID_EDGE, 1.35)
+    return rule
+
+
+def caption(body: str) -> MarkupText:
+    """Muted line sitting on a fixed baseline under the heading rule."""
+    text = ink_text(body, "caption", MUTED)
     text.to_edge(UP, buff=1.08)
     return text
 
 
 def pill(label: str) -> VGroup:
-    """Action chip with room to breathe."""
-    text = ink_text(label, 22)
+    """Action chip — Medium Inter, room to breathe."""
+    text = ink_text(label, "chip")
     box = RoundedRectangle(
-        width=text.width + 0.50,
-        height=0.56,
-        corner_radius=0.18,
+        width=text.width + 0.56,
+        height=0.52,
+        corner_radius=0.16,
     )
-    box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.4)
+    box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.25)
     text.move_to(box.get_center())
     return VGroup(box, text)
 
 
 def step_card(label: str) -> VGroup:
     """Equal-sized card for Look / Decide / Act."""
-    text = ink_text(label, 28)
-    box = RoundedRectangle(width=2.9, height=1.12, corner_radius=0.18)
-    box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.5)
+    text = ink_text(label, "step")
+    box = RoundedRectangle(width=2.85, height=1.18, corner_radius=0.16)
+    box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.4)
     text.move_to(box.get_center())
     return VGroup(box, text)
 
 
 def trait_chip(label: str) -> VGroup:
     """Small card used around the single-agent diagram."""
-    text = ink_text(label, 22, MUTED)
-    box = RoundedRectangle(width=text.width + 0.40, height=0.50, corner_radius=0.14)
-    box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.2)
+    text = ink_text(label, "chip", MUTED)
+    box = RoundedRectangle(width=text.width + 0.46, height=0.48, corner_radius=0.14)
+    box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.15)
     text.move_to(box.get_center())
     return VGroup(box, text)
 
@@ -146,8 +176,8 @@ def agent_dot(color: str, radius: float = 0.17) -> Circle:
     return dot
 
 
-def arrow_mark() -> Text:
-    return ink_text("→", 34, MUTED)
+def arrow_mark() -> MarkupText:
+    return ink_text("→", "label", MUTED)
 
 
 class IntroExplainer(Scene):
@@ -167,40 +197,53 @@ class IntroExplainer(Scene):
         if lingering:
             self.play(*[FadeOut(mob) for mob in lingering], run_time=run_time, rate_func=smooth)
 
-    def _open_section(self, title: str, subtitle: str) -> tuple[Text, Text]:
+    def _open_section(self, title: str, subtitle: str) -> tuple[MarkupText, MarkupText]:
         head = heading(title)
+        rule = heading_rule(head)
         sub = caption(subtitle)
         self.play(
-            FadeIn(head, shift=UP * 0.06),
-            FadeIn(sub, shift=UP * 0.04),
+            FadeIn(head, shift=UP * 0.05),
+            FadeIn(rule),
+            FadeIn(sub, shift=UP * 0.03),
             run_time=0.55,
             rate_func=smooth,
         )
         return head, sub
 
     def _hook(self) -> None:
-        title = ink_text("A limited world.", 50)
-        line = ink_text("Many agents share the food.", 28, MUTED)
-        line.next_to(title, DOWN, buff=0.32)
-        question = ink_text("What mix of helpfulness", 32)
-        question2 = ink_text("and self-interest actually works?", 32)
-        question2.next_to(question, DOWN, buff=0.16)
-        q_group = VGroup(question, question2)
-        box = RoundedRectangle(
-            width=q_group.width + 0.95,
-            height=q_group.height + 0.78,
-            corner_radius=0.20,
+        title = ink_text("A limited world.", "display")
+        line = ink_text("Many agents share the food.", "lead", MUTED)
+        line.next_to(title, DOWN, buff=0.26)
+        rule = Line(LEFT * 0.48, RIGHT * 0.48)
+        rule.set_stroke(GRID_EDGE, 1.3)
+        rule.next_to(line, DOWN, buff=0.40)
+        question = ink_text(
+            "What mix of helpfulness\nand self-interest actually works?",
+            "lead",
+            line_spacing=0.88,
         )
-        box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.4)
-        q_group.move_to(box.get_center())
-        card_group = VGroup(box, q_group)
-        card_group.next_to(line, DOWN, buff=0.72)
+        box = RoundedRectangle(
+            width=question.width + 1.05,
+            height=question.height + 0.82,
+            corner_radius=0.18,
+        )
+        box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.25)
+        question.move_to(box.get_center())
+        card_group = VGroup(box, question)
+        card_group.next_to(rule, DOWN, buff=0.42)
+        lockup = VGroup(title, line, rule, card_group)
+        lockup.move_to(ORIGIN)
 
-        self.play(Write(title), run_time=1.05)
-        self.play(FadeIn(line, shift=DOWN * 0.12), run_time=0.65, rate_func=smooth)
-        self.wait(0.55)
-        self.play(FadeIn(card_group, shift=UP * 0.08), run_time=0.75, rate_func=smooth)
-        self.wait(2.3)
+        self.play(FadeIn(title, shift=UP * 0.06), run_time=0.7, rate_func=smooth)
+        self.play(FadeIn(line, shift=DOWN * 0.08), run_time=0.5, rate_func=smooth)
+        self.wait(0.4)
+        self.play(
+            FadeIn(rule),
+            FadeIn(card_group, shift=UP * 0.06),
+            run_time=0.7,
+            rate_func=smooth,
+        )
+        self.wait(2.2)
         self._fade_all()
 
     def _what_is_an_agent(self) -> None:
@@ -211,10 +254,10 @@ class IntroExplainer(Scene):
         self.play(GrowFromCenter(dot), run_time=0.45, rate_func=smooth)
 
         chips = [trait_chip(label) for label in AGENT_TRAITS]
-        chips[0].next_to(dot, UP, buff=0.42)
-        chips[1].next_to(dot, RIGHT, buff=0.48)
-        chips[2].next_to(dot, DOWN, buff=0.42)
-        chips[3].next_to(dot, LEFT, buff=0.48)
+        chips[0].next_to(dot, UP, buff=0.44)
+        chips[1].next_to(dot, RIGHT, buff=0.50)
+        chips[2].next_to(dot, DOWN, buff=0.44)
+        chips[3].next_to(dot, LEFT, buff=0.50)
         trait_mobs = VGroup(*chips)
         self.play(
             LaggedStart(*[FadeIn(mob, shift=DOWN * 0.08) for mob in trait_mobs], lag_ratio=0.16),
@@ -229,13 +272,13 @@ class IntroExplainer(Scene):
         kind_group = VGroup()
         for item in AGENT_KINDS:
             circle = agent_dot(item["color"], 0.24)
-            label = ink_text(item["label"], 26)
-            hint = ink_text(item["hint"], 20, MUTED)
-            label.next_to(circle, DOWN, buff=0.24)
+            label = ink_text(item["label"], "label")
+            hint = ink_text(item["hint"], "meta", MUTED)
+            label.next_to(circle, DOWN, buff=0.26)
             hint.next_to(label, DOWN, buff=0.10)
             kind_group.add(VGroup(circle, label, hint))
-        kind_group.arrange(RIGHT, buff=1.5)
-        kind_group.next_to(kinds_title, DOWN, buff=0.90)
+        kind_group.arrange(RIGHT, buff=1.55)
+        kind_group.next_to(kinds_title, DOWN, buff=0.88)
 
         self.play(
             dot.animate.move_to(kind_group[0][0].get_center()).set_fill(COOPERATIVE, 1),
@@ -263,8 +306,8 @@ class IntroExplainer(Scene):
         self.play(Create(grid, lag_ratio=0.012), run_time=1.5, rate_func=smooth)
 
         food = VGroup(*[food_patch(x, y, origin) for x, y in FOOD_START])
-        note = ink_text("Some squares hold food. The rules do not change.", 24, MUTED)
-        note.to_edge(DOWN, buff=0.42)
+        note = ink_text("Some squares hold food. The rules do not change.", "caption", MUTED)
+        note.to_edge(DOWN, buff=0.40)
         self.play(
             LaggedStart(*[FadeIn(patch, scale=0.75) for patch in food], lag_ratio=0.14),
             FadeIn(note),
@@ -278,7 +321,7 @@ class IntroExplainer(Scene):
 
         cards = VGroup(*[step_card(step) for step in LOOP_STEPS])
         cards.arrange(RIGHT, buff=1.05)
-        cards.shift(UP * 0.42)
+        cards.shift(UP * 0.38)
         arrows = VGroup()
         for left, right in zip(cards, cards[1:]):
             mark = arrow_mark()
@@ -293,19 +336,19 @@ class IntroExplainer(Scene):
         for card in cards:
             box = card[0]
             self.play(box.animate.set_stroke(INK, 2.0), run_time=0.22, rate_func=smooth)
-            self.play(box.animate.set_stroke(GRID_EDGE, 1.5), run_time=0.18, rate_func=smooth)
+            self.play(box.animate.set_stroke(GRID_EDGE, 1.4), run_time=0.18, rate_func=smooth)
 
-        world = ink_text(WORLD_CHANGES, 26, INK)
-        world.next_to(cards, DOWN, buff=0.42)
+        world = ink_text(WORLD_CHANGES, "lead")
+        world.next_to(cards, DOWN, buff=0.46)
         self.play(FadeIn(world, shift=DOWN * 0.08), run_time=0.4, rate_func=smooth)
         self.wait(0.85)
 
         top = VGroup(*[pill(name) for name in ACTIONS[:4]])
         bottom = VGroup(*[pill(name) for name in ACTIONS[4:]])
-        top.arrange(RIGHT, buff=0.28)
-        bottom.arrange(RIGHT, buff=0.28)
-        action_pills = VGroup(top, bottom).arrange(DOWN, buff=0.24)
-        action_pills.next_to(world, DOWN, buff=0.55)
+        top.arrange(RIGHT, buff=0.30)
+        bottom.arrange(RIGHT, buff=0.30)
+        action_pills = VGroup(top, bottom).arrange(DOWN, buff=0.26)
+        action_pills.next_to(world, DOWN, buff=0.52)
         if action_pills.width > SAFE_WIDTH:
             action_pills.scale_to_fit_width(SAFE_WIDTH)
         self.play(
@@ -343,7 +386,7 @@ class IntroExplainer(Scene):
             _legend_item(BALANCED, "Balanced"),
             _legend_item(FOOD, "Food", square=True),
         )
-        legend.arrange(RIGHT, buff=0.55)
+        legend.arrange(RIGHT, buff=0.58)
         legend.to_edge(DOWN, buff=0.30)
         self.play(FadeIn(legend), run_time=0.35, rate_func=smooth)
 
@@ -382,15 +425,18 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _close(self) -> None:
-        title = ink_text("The research measures what emerges.", 36)
-        q1 = ink_text("Does a mix survive better", 28, MUTED)
-        q2 = ink_text("than only helpers — or only competitors?", 28, MUTED)
-        q1.next_to(title, DOWN, buff=0.42)
-        q2.next_to(q1, DOWN, buff=0.16)
-        group = VGroup(title, q1, q2)
+        title = ink_text("The research measures what emerges.", "heading")
+        question = ink_text(
+            "Does a mix survive better\nthan only helpers — or only competitors?",
+            "caption",
+            MUTED,
+            line_spacing=0.92,
+        )
+        question.next_to(title, DOWN, buff=0.40)
+        group = VGroup(title, question)
         group.move_to(ORIGIN)
-        self.play(FadeIn(title, shift=UP * 0.06), run_time=0.7, rate_func=smooth)
-        self.play(FadeIn(q1), FadeIn(q2), run_time=0.65, rate_func=smooth)
+        self.play(FadeIn(title, shift=UP * 0.05), run_time=0.7, rate_func=smooth)
+        self.play(FadeIn(question, shift=DOWN * 0.04), run_time=0.6, rate_func=smooth)
         self.wait(2.8)
         self._fade_all(run_time=0.55)
         self.wait(0.15)
@@ -398,9 +444,9 @@ class IntroExplainer(Scene):
 
 def _legend_item(color: str, label: str, square: bool = False) -> VGroup:
     if square:
-        mark = Square(0.20).set_fill(color, 0.9).set_stroke(width=0)
+        mark = Square(0.18).set_fill(color, 0.9).set_stroke(width=0)
     else:
-        mark = Circle(radius=0.10).set_fill(color, 1).set_stroke(INK, 1.0)
-    text = ink_text(label, 20, MUTED)
+        mark = Circle(radius=0.09).set_fill(color, 1).set_stroke(INK, 1.0)
+    text = ink_text(label, "meta", MUTED)
     text.next_to(mark, RIGHT, buff=0.14)
     return VGroup(mark, text)
