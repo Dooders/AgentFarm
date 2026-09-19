@@ -651,6 +651,15 @@ samp {
   line-height: 1.45;
   color: var(--text-muted);
 }
+.prose video {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 1.5rem 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+}
 .prose .mermaid-figure {
   position: relative;
   margin: 1.25rem 0;

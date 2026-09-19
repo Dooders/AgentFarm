@@ -1,0 +1,115 @@
+"""Copy and motion plan for the shareable intro explainer.
+
+Kept free of Manim so unit tests can check the story without a render.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+INK = "#111827"
+MUTED = "#4b5563"
+BG = "#f7f7f8"
+CARD = "#ffffff"
+GRID_EDGE = "#d4d4d8"
+FOOD = "#16a34a"
+
+COOPERATIVE = "#2563eb"
+SELF_INTERESTED = "#dc2626"
+BALANCED = "#d97706"
+
+GRID_SIZE = 8
+
+AGENT_TRAITS = (
+    "Lives somewhere",
+    "Carries food",
+    "Looks around",
+    "Chooses for itself",
+)
+
+AGENT_KINDS = (
+    {"key": "cooperative", "label": "Cooperative", "color": COOPERATIVE, "hint": "Shares more"},
+    {"key": "self_interested", "label": "Self-interested", "color": SELF_INTERESTED, "hint": "Keeps more"},
+    {"key": "balanced", "label": "Balanced", "color": BALANCED, "hint": "A middle path"},
+)
+
+ACTIONS = (
+    "Walk",
+    "Eat",
+    "Share",
+    "Fight",
+    "Defend",
+    "Have offspring",
+    "Wait",
+)
+
+LOOP_STEPS = (
+    "Look",
+    "Decide",
+    "Act",
+    "The world changes",
+)
+
+# Starting cells (x, y) with origin at bottom-left, y up.
+AGENTS: dict[str, dict[str, Any]] = {
+    "blue_a": {"kind": "cooperative", "start": (1, 6)},
+    "blue_b": {"kind": "cooperative", "start": (2, 7)},
+    "red_a": {"kind": "self_interested", "start": (7, 2)},
+    "red_b": {"kind": "self_interested", "start": (6, 7)},
+    "orange_a": {"kind": "balanced", "start": (3, 2)},
+}
+
+FOOD_START = (
+    (5, 5),
+    (5, 6),
+    (1, 2),
+    (6, 1),
+)
+
+# Each turn: optional new cell per agent, optional food cells that shrink.
+TURNS: tuple[dict[str, Any], ...] = (
+    {"moves": {"blue_a": (2, 6), "blue_b": (3, 7), "red_a": (7, 3), "orange_a": (3, 3)}, "eat": ()},
+    {"moves": {"blue_a": (3, 6), "blue_b": (4, 6), "red_a": (6, 4), "red_b": (6, 6)}, "eat": ()},
+    {"moves": {"blue_a": (4, 5), "blue_b": (4, 6), "red_a": (6, 5), "orange_a": (4, 3)}, "eat": ()},
+    {"moves": {"blue_a": (5, 5), "blue_b": (5, 6), "red_a": (5, 4)}, "eat": ((5, 5),)},
+    {
+        "moves": {"blue_a": (5, 5), "blue_b": (5, 6), "red_a": (6, 5), "red_b": (6, 6), "orange_a": (4, 4)},
+        "eat": ((5, 6),),
+    },
+)
+
+
+def kind_color(kind: str) -> str:
+    """Return the hex color for a named agent kind."""
+    for item in AGENT_KINDS:
+        if item["key"] == kind:
+            return item["color"]
+    raise KeyError(kind)
+
+
+def in_bounds(cell: tuple[int, int], size: int = GRID_SIZE) -> bool:
+    """True if ``cell`` is on the teaching grid."""
+    x, y = cell
+    return 0 <= x < size and 0 <= y < size
+
+
+def validate_storyboard() -> None:
+    """Raise if the scripted example leaves the grid or names unknown agents."""
+    known = set(AGENTS)
+    for agent_id, spec in AGENTS.items():
+        if spec["kind"] not in {item["key"] for item in AGENT_KINDS}:
+            raise ValueError(f"Unknown kind for {agent_id}: {spec['kind']}")
+        if not in_bounds(spec["start"]):
+            raise ValueError(f"Start out of bounds for {agent_id}: {spec['start']}")
+    for cell in FOOD_START:
+        if not in_bounds(cell):
+            raise ValueError(f"Food out of bounds: {cell}")
+    for index, turn in enumerate(TURNS):
+        for agent_id, cell in turn["moves"].items():
+            if agent_id not in known:
+                raise ValueError(f"Turn {index} names unknown agent {agent_id}")
+            if not in_bounds(cell):
+                raise ValueError(f"Turn {index} moves {agent_id} out of bounds: {cell}")
+        for cell in turn["eat"]:
+            if not in_bounds(cell):
+                raise ValueError(f"Turn {index} eats out of bounds: {cell}")

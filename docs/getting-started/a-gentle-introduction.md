@@ -9,6 +9,12 @@ This research asks a simple-sounding question: **when many individuals share a l
 
 You do not need computer science, mathematics, or machine learning to follow this page. The ideas are closer to a board game than to a textbook.
 
+The shareable explainer below walks through all four ideas — what an agent is, what the environment is, what agents do, and an example on a grid. The file to send is [intro-explainer.mp4](../assets/intro-explainer.mp4) (about 45 seconds, 720p).
+
+<video controls playsinline preload="metadata" style="width:100%;height:auto;border:1px solid var(--border);border-radius:6px;">
+  <source src="{{ '/assets/intro-explainer.mp4' | relative_url }}" type="video/mp4" />
+</video>
+
 ## What is an agent?
 
 An **agent** is one actor in the world. Think of a person, an animal, or a character in a game.
@@ -118,7 +124,13 @@ Later work in this project also lets agents **learn** during a lifetime and **pa
 - [Experiments catalog](../research/experiments-catalog.md) — the actual studies built on this world
 - [Research notes](../concepts/agents-and-decisions.md) — the original questions about balanced populations
 
-To regenerate the animation on this page (optional):
+To regenerate the shareable explainer (needs Manim: `pip install '.[intro]'`):
+
+```bash
+python scripts/render_intro_explainer.py
+```
+
+The short grid-only GIF above can be rebuilt with:
 
 ```bash
 PYTHONHASHSEED=0 python scripts/render_intro_grid_example.py

@@ -14,6 +14,9 @@ license-files = ["LICENSE"]
 notary = [
     "farm-notary @ git+https://github.com/Dooders/FarmNotary.git@v0.1.0",
 ]
+intro = [
+    "manim>=0.18,<0.20",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

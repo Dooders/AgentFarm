@@ -4,7 +4,7 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 
 ## New here?
 
-1. [A gentle introduction](getting-started/a-gentle-introduction.md) — what an agent is, what the environment is, and a grid example (no technical background needed)
+1. [A gentle introduction](getting-started/a-gentle-introduction.md) — what an agent is, what the environment is, and a grid example (shareable file: [intro-explainer.mp4](assets/intro-explainer.mp4))
 2. [Installation](getting-started/installation.md)
 3. [First simulation](getting-started/first-simulation.md)
 4. [Architecture overview](concepts/architecture.md)
