@@ -28,4 +28,5 @@ RFC-style design notes for AgentFarm subsystems. These describe intent and evolu
 - [Architecture overview](../concepts/architecture.md)
 - [Neural recombination guide](../guides/neural-recombination.md)
 - [FarmNotary guide](../guides/farm-notary.md)
+- [Experiment writeups](../research/writeups/index.md)
 - [Research devlog](../research/devlog/index.md)

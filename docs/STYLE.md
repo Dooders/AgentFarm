@@ -10,9 +10,18 @@ Conventions for AgentFarm docs under `docs/`.
 | How-to | `guides/` | Task-oriented workflows |
 | Concepts | `concepts/` | Architecture and subsystem explanations |
 | Reference | `reference/` | API, config, data schema, lookup |
-| Research | `research/` | Devlog and experiment case studies |
+| Research | `research/` | Devlog, experiment catalog, and whole-experiment writeups |
 | Design | `design/` | RFCs and design proposals |
 | Archive | `archive/` | Deprecated or superseded material |
+
+## Experiment writeups
+
+Whole-experiment GitHub Pages narratives live in `research/writeups/`
+(`layout: experiment`). One page per experiment; variant runs are `##`
+sections with `{#id}` matching the front-matter `variants` list. The
+[writeups index](research/writeups/index.md) auto-lists those pages. Keep
+runner/CLI details on the [experiments catalog](research/experiments-catalog.md);
+keep dated field notes in `research/devlog/`.
 
 ## Filenames
 

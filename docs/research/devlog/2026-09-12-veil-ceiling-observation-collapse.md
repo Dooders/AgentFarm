@@ -3,6 +3,9 @@ layout: page
 title: "The veil ceiling: a leaked cue inverts sealed-world evaluation"
 ---
 
+Whole-experiment writeup, including every variant run:
+[The Veil Ceiling](../writeups/veil-ceiling.md).
+
 Sealed-world evaluation assumes that what an agent does while watched is
 informative about what it does when unwatched. The Veil Ceiling experiment
 holds enforcement fixed — coverage `c = 0.5`, penalty `p = 6` — and varies

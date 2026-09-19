@@ -1175,6 +1175,77 @@ body.mermaid-modal-open {
   line-height: 1.55;
 }
 
+/* Experiment writeups */
+.writeup-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: -8px 0 18px;
+}
+.writeup-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
+  text-transform: capitalize;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+.writeup-updated {
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  font-family: var(--font-mono);
+}
+.writeup-lede {
+  margin: 0 0 1.4em;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+.writeup-runs {
+  margin: 0 0 2em;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+.writeup-runs__label {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+.writeup-runs__list {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 6px;
+}
+.writeup-runs__list a {
+  font-weight: 550;
+}
+.writeup-runs__note {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+}
+.prose .writeup-runs__list {
+  margin: 0;
+}
+.prose .post-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
 .section__more {
   margin-top: 24px;
 }

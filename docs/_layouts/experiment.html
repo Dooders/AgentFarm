@@ -1,0 +1,37 @@
+---
+layout: default
+---
+
+<div class="writeup-meta">
+  {% if page.status %}
+    <span class="writeup-pill writeup-pill--{{ page.status }}">{{ page.status | replace: "-", " " }}</span>
+  {% endif %}
+  {% if page.category %}
+    <span class="writeup-pill">{{ page.category }}</span>
+  {% endif %}
+  {% if page.updated %}
+    <time class="writeup-updated" datetime="{{ page.updated | date_to_xmlschema }}">Updated {{ page.updated | date: "%B %-d, %Y" }}</time>
+  {% endif %}
+</div>
+
+{% if page.excerpt %}
+<p class="writeup-lede">{{ page.excerpt | strip }}</p>
+{% endif %}
+
+{% if page.variants and page.variants.size > 0 %}
+<nav class="writeup-runs" aria-label="Variant runs in this writeup">
+  <p class="writeup-runs__label">Variant runs in this writeup</p>
+  <ol class="writeup-runs__list">
+    {% for variant in page.variants %}
+      <li>
+        <a href="#{{ variant.id }}">{{ variant.title }}</a>
+        {% if variant.note %}
+          <span class="writeup-runs__note">{{ variant.note }}</span>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ol>
+</nav>
+{% endif %}
+
+{{ content }}
