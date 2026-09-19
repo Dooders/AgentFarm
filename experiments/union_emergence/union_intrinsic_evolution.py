@@ -443,6 +443,7 @@ class UnionArena:
         singles = [agent for agent in living if agent.partner_id is None]
         self.rng.shuffle(singles)
         claimed = set()
+        attempted_pairs = set()
         for agent in singles:
             if agent.agent_id in claimed or agent.partner_id is not None:
                 continue
@@ -459,6 +460,10 @@ class UnionArena:
                     agent.x, agent.y, cand.x, cand.y, self.world.world_size
                 ),
             )
+            pair_key = tuple(sorted((agent.agent_id, other.agent_id)))
+            if pair_key in attempted_pairs:
+                continue
+            attempted_pairs.add(pair_key)
             if self.arm == "forced_union":
                 pair_p = DEFAULT_FORCED_PAIR_RATE
             else:
@@ -562,6 +567,8 @@ class UnionArena:
         )
         cost = self.world.offspring_cost
         if mature:
+            if agent.agent_id < other.agent_id:
+                return
             each = 0.5 * cost
             if agent.energy < each or other.energy < each:
                 return
