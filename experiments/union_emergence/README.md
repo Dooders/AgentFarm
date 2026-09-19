@@ -3,12 +3,11 @@
 Pilot + compact threshold grid for exclusive pair-bonds under implicit
 selection. Not yet wired into `farm.runners`.
 
-```bash
-python experiments/union_emergence/union_intrinsic_evolution.py
-```
+This directory currently contains documentation only.
 
-Writes `union_experiment/compact_threshold_summary.json` next to the CWD
-artifacts path used in the sandbox; on this branch the checked-in grid
-summary lives beside this README.
+Working-artifact references from the linked devlog (not checked in on this branch):
+
+- `experiments/union_emergence/union_intrinsic_evolution.py`
+- `experiments/union_emergence/compact_threshold_summary.json`
 
 See `docs/research/devlog/2026-09-18-union-as-emergent-property.md`.

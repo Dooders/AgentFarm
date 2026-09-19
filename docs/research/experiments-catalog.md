@@ -116,9 +116,9 @@ and neighborhood size. AgentFarm chromosome / action wiring is specified,
 not yet merged.
 
 - **Status:** Design + standalone pilot and threshold grid; platform port outlined.
-- **Standalone runner:** [`experiments/union_emergence/union_intrinsic_evolution.py`](../../experiments/union_emergence/union_intrinsic_evolution.py)
+- **Standalone runner:** Working-artifact reference `experiments/union_emergence/union_intrinsic_evolution.py` (not checked in on this branch).
 - **Docs:** [Devlog 2026-09-18](devlog/2026-09-18-union-as-emergent-property.md)
-- **Grid summary:** [`experiments/union_emergence/compact_threshold_summary.json`](../../experiments/union_emergence/compact_threshold_summary.json)
+- **Grid summary:** Working-artifact reference `experiments/union_emergence/compact_threshold_summary.json` (not checked in on this branch).
 - **Related:** Intrinsic goals (`reward_share_bonus`), One of a Kind / Cooperation
 
 ### Rabbit's Foot
