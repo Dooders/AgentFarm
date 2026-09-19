@@ -20,8 +20,11 @@ PYTHONHASHSEED=0 python experiments/union_emergence/union_intrinsic_evolution.py
   (`compact_threshold_summary.json`) — this is the first-glance *of the
   experiment as specified*, not a substitute cell.
 
-Population sits on the cap (`max_pop=80`) in every arm, matching the
-post's "signal is node quality, not headcount."
+Population is generally near the cap (`max_pop=80`), but not in every
+arm: the scout averages 70 agents for baseline forced and 59 for
+wide-neighborhood forced, and the full-grid baseline controls land
+around 78–80. Treat headcount as a possible contributor to the
+comparison, not something this reconstruction rules out.
 
 ## Headline (baseline world, v2 4×550)
 

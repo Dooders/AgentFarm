@@ -142,6 +142,81 @@ def test_solo_arm_never_sets_partner_id():
 
 
 @pytest.mark.unit
+def test_mature_pair_reproduces_once_per_step():
+    world = WorldParams(
+        name="unit",
+        initial_pop=0,
+        max_pop=10,
+        courtship_steps=12,
+        offspring_cost=1.7,
+        reproduce_threshold=3.6,
+    )
+    arena = UnionArena(RunSpec(world=world, arm="optional_union", seed=5, steps=1))
+    first = Agent(1, 1, 0.0, 0.0, 5.0, 0.6, 0.5, 0.5, 0.1, 0.1, partner_id=2, pair_age=12)
+    second = Agent(2, 2, 0.1, 0.0, 5.0, 0.6, 0.5, 0.5, 0.1, 0.1, partner_id=1, pair_age=12)
+    arena.agents[1] = first
+    arena.agents[2] = second
+    arena.next_id = 3
+
+    reproducers = list(arena._alive())
+    for agent in reproducers:
+        arena._reproduce(agent, arena._alive())
+
+    children = [agent for agent in arena.agents.values() if agent.agent_id not in (1, 2)]
+    assert len(children) == 1
+    assert arena.telemetry.reproduce_events == 1
+    assert first.energy == pytest.approx(4.15)
+    assert second.energy == pytest.approx(4.15)
+    assert children[0].lineage == 2
+
+
+@pytest.mark.unit
+def test_mature_pair_threshold_is_symmetric_across_partner_ids():
+    world = WorldParams(
+        name="unit",
+        initial_pop=0,
+        max_pop=10,
+        courtship_steps=12,
+        offspring_cost=1.7,
+        reproduce_threshold=3.6,
+    )
+    for low_id_energy, high_id_energy in ((5.0, 3.0), (3.0, 5.0)):
+        arena = UnionArena(RunSpec(world=world, arm="optional_union", seed=5, steps=1))
+        first = Agent(1, 1, 0.0, 0.0, low_id_energy, 0.6, 0.5, 0.5, 0.1, 0.1, partner_id=2, pair_age=12)
+        second = Agent(2, 2, 0.1, 0.0, high_id_energy, 0.6, 0.5, 0.5, 0.1, 0.1, partner_id=1, pair_age=12)
+        arena.agents[1] = first
+        arena.agents[2] = second
+        arena.next_id = 3
+
+        for agent in list(arena._alive()):
+            arena._reproduce(agent, arena._alive())
+
+        children = [agent for agent in arena.agents.values() if agent.agent_id not in (1, 2)]
+        assert len(children) == 1
+        assert arena.telemetry.reproduce_events == 1
+
+
+@pytest.mark.unit
+def test_failed_bond_roll_is_not_retried_by_nearest_neighbor():
+    world = WorldParams(name="unit", initial_pop=0, max_pop=10, bonding_cost=0.8)
+    arena = UnionArena(RunSpec(world=world, arm="optional_union", seed=6, steps=1))
+    first = Agent(1, 1, 1.0, 1.0, 5.0, 0.5, 0.5, 0.5, 0.1, 0.1)
+    second = Agent(2, 2, 1.1, 1.0, 5.0, 0.5, 0.5, 0.5, 0.1, 0.1)
+    arena.agents[1] = first
+    arena.agents[2] = second
+    rolls = [0.9, 0.05]
+    arena.rng.shuffle = lambda seq: seq.sort(key=lambda agent: agent.agent_id)
+    arena.rng.random = lambda: rolls.pop(0)
+
+    arena._maybe_bond(arena._alive())
+
+    assert first.partner_id is None
+    assert second.partner_id is None
+    assert arena.telemetry.bond_events == 0
+    assert rolls == [0.05]
+
+
+@pytest.mark.unit
 def test_v2_worlds_match_pre_register_knobs():
     worlds = {world.name: world for world in v2_worlds()}
     assert worlds["baseline"].bonding_cost == 0.8
