@@ -1,0 +1,1948 @@
+{
+  "config": {
+    "num_steps": 100,
+    "seed": 42,
+    "num_replicates": 2,
+    "arms": [
+      "solo_only",
+      "promiscuous",
+      "optional_union",
+      "forced_union"
+    ],
+    "cells": [
+      "baseline",
+      "no_courtship",
+      "cheap_exit",
+      "costly_exit",
+      "tight_range",
+      "wide_range"
+    ],
+    "courtship_steps": 12,
+    "exit_tax": 1.1,
+    "social_range": 3.2,
+    "bonding_cost": 0.8,
+    "selection_pressure": "low"
+  },
+  "cells": [
+    {
+      "cell": "baseline",
+      "arm": "solo_only",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 35.39239594594601,
+      "mean_energy_std": 0.24039594594594504,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0010104529709177024,
+      "delta_pair_commitment_std": 0.0020953215054471397,
+      "delta_fidelity": -0.0003144969437887113,
+      "delta_fidelity_std": 0.00036436811824336335,
+      "delta_specialize": 0.007497458896150222,
+      "delta_specialize_std": 0.005503851302431084,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "baseline",
+      "arm": "promiscuous",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 36.45284733143577,
+      "mean_energy_std": 0.25004733143568814,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0007241314914971653,
+      "delta_pair_commitment_std": 0.004930986238656981,
+      "delta_fidelity": -0.0009083992043637246,
+      "delta_fidelity_std": 0.0003868511123818197,
+      "delta_specialize": 0.005410670578322008,
+      "delta_specialize_std": 0.0014234553908837322,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "baseline",
+      "arm": "optional_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 1.1233558474589422,
+      "synergy_index_std": 0.05275507330821838,
+      "paired_frac": 0.7738778964400865,
+      "paired_frac_std": 0.007575462784711606,
+      "mean_energy": 35.64073061771933,
+      "mean_energy_std": 0.11938981665895554,
+      "mean_extraction": 0.3858242061818057,
+      "mean_extraction_std": 0.20906748412002382,
+      "leave_rate": 2.3842105263157896,
+      "leave_rate_std": 0.0052631578947368585,
+      "delta_pair_commitment": 0.0028965345323142544,
+      "delta_pair_commitment_std": 0.0027255366104193546,
+      "delta_fidelity": 0.0013462183750534429,
+      "delta_fidelity_std": 0.00011501000058544708,
+      "delta_specialize": 0.0031928572819215906,
+      "delta_specialize_std": 0.0008970705466909146,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "baseline",
+      "arm": "forced_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 0.8973236175027361,
+      "synergy_index_std": 0.04780559470349055,
+      "paired_frac": 0.9052169959055099,
+      "paired_frac_std": 0.0061107632918144805,
+      "mean_energy": 34.20701566054834,
+      "mean_energy_std": 0.24269436101646846,
+      "mean_extraction": 0.26254667314632496,
+      "mean_extraction_std": 0.05035828925664479,
+      "leave_rate": 3.1315789473684212,
+      "leave_rate_std": 0.047368421052631726,
+      "delta_pair_commitment": 0.0004223101771018978,
+      "delta_pair_commitment_std": 0.0054506291939917795,
+      "delta_fidelity": -0.0005458058599611404,
+      "delta_fidelity_std": 0.005345040159542874,
+      "delta_specialize": 0.0010490299334524333,
+      "delta_specialize_std": 0.004626407284894302,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "solo_only",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 35.39239594594601,
+      "mean_energy_std": 0.24039594594594504,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0010104529709177024,
+      "delta_pair_commitment_std": 0.0020953215054471397,
+      "delta_fidelity": -0.0003144969437887113,
+      "delta_fidelity_std": 0.00036436811824336335,
+      "delta_specialize": 0.007497458896150222,
+      "delta_specialize_std": 0.005503851302431084,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "promiscuous",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 36.45284733143577,
+      "mean_energy_std": 0.25004733143568814,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0007241314914971653,
+      "delta_pair_commitment_std": 0.004930986238656981,
+      "delta_fidelity": -0.0009083992043637246,
+      "delta_fidelity_std": 0.0003868511123818197,
+      "delta_specialize": 0.005410670578322008,
+      "delta_specialize_std": 0.0014234553908837322,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "optional_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 1.358210663587369,
+      "synergy_index_std": 0.2951771771315921,
+      "paired_frac": 0.7754614668647472,
+      "paired_frac_std": 0.0022132002402996953,
+      "mean_energy": 33.6844767375619,
+      "mean_energy_std": 1.1887315889021224,
+      "mean_extraction": 0.2784248868772168,
+      "mean_extraction_std": 0.17914315932810893,
+      "leave_rate": 2.610526315789474,
+      "leave_rate_std": 0.18947368421052624,
+      "delta_pair_commitment": 0.00037627326462463806,
+      "delta_pair_commitment_std": 0.00401971299179571,
+      "delta_fidelity": 0.001802830889821444,
+      "delta_fidelity_std": 0.0021499624522502148,
+      "delta_specialize": 0.007268745570842949,
+      "delta_specialize_std": 0.006583271069099339,
+      "final_population": 79.5,
+      "final_population_std": 0.5
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "forced_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 1.044234587990247,
+      "synergy_index_std": 0.03879590562289037,
+      "paired_frac": 0.8818156081778372,
+      "paired_frac_std": 0.005201935681811765,
+      "mean_energy": 33.84228139036236,
+      "mean_energy_std": 0.7684463433536912,
+      "mean_extraction": 0.24667762435654944,
+      "mean_extraction_std": 0.21321281040748002,
+      "leave_rate": 3.057894736842105,
+      "leave_rate_std": 0.015789473684210353,
+      "delta_pair_commitment": 0.0026704547485998653,
+      "delta_pair_commitment_std": 0.003036302075857339,
+      "delta_fidelity": 0.001160643926616467,
+      "delta_fidelity_std": 0.005388441598225324,
+      "delta_specialize": 0.0006154330424156251,
+      "delta_specialize_std": 0.00016275466581450182,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "solo_only",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 35.39239594594601,
+      "mean_energy_std": 0.24039594594594504,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0010104529709177024,
+      "delta_pair_commitment_std": 0.0020953215054471397,
+      "delta_fidelity": -0.0003144969437887113,
+      "delta_fidelity_std": 0.00036436811824336335,
+      "delta_specialize": 0.007497458896150222,
+      "delta_specialize_std": 0.005503851302431084,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "promiscuous",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 36.45284733143577,
+      "mean_energy_std": 0.25004733143568814,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0007241314914971653,
+      "delta_pair_commitment_std": 0.004930986238656981,
+      "delta_fidelity": -0.0009083992043637246,
+      "delta_fidelity_std": 0.0003868511123818197,
+      "delta_specialize": 0.005410670578322008,
+      "delta_specialize_std": 0.0014234553908837322,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "optional_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 0.9054519306075224,
+      "synergy_index_std": 0.07708611228783446,
+      "paired_frac": 0.7852128537227203,
+      "paired_frac_std": 0.012240596326611175,
+      "mean_energy": 36.238992154227105,
+      "mean_energy_std": 0.17761604398851816,
+      "mean_extraction": 0.21374742529893948,
+      "mean_extraction_std": 0.17224210671280116,
+      "leave_rate": 2.5105263157894737,
+      "leave_rate_std": 0.20526315789473681,
+      "delta_pair_commitment": 0.002423273989403174,
+      "delta_pair_commitment_std": 7.988221026528075e-05,
+      "delta_fidelity": 0.0011427227580971255,
+      "delta_fidelity_std": 0.0007267477565899849,
+      "delta_specialize": -0.0016854303561333328,
+      "delta_specialize_std": 0.0017432106433238337,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "forced_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 1.137844445876711,
+      "synergy_index_std": 0.12070013340086783,
+      "paired_frac": 0.897416386307046,
+      "paired_frac_std": 0.0026146528292562143,
+      "mean_energy": 34.10262813391627,
+      "mean_energy_std": 0.5286064979984637,
+      "mean_extraction": 0.4476905201307676,
+      "mean_extraction_std": 0.004135115041215803,
+      "leave_rate": 3.2210526315789476,
+      "leave_rate_std": 0.021052631578947212,
+      "delta_pair_commitment": 0.005818588513696044,
+      "delta_pair_commitment_std": 0.0037911414102001495,
+      "delta_fidelity": -0.0029137210882927977,
+      "delta_fidelity_std": 0.0024689943647980828,
+      "delta_specialize": 0.002549613745680246,
+      "delta_specialize_std": 0.0013254909766629575,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "solo_only",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 35.39239594594601,
+      "mean_energy_std": 0.24039594594594504,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0010104529709177024,
+      "delta_pair_commitment_std": 0.0020953215054471397,
+      "delta_fidelity": -0.0003144969437887113,
+      "delta_fidelity_std": 0.00036436811824336335,
+      "delta_specialize": 0.007497458896150222,
+      "delta_specialize_std": 0.005503851302431084,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "promiscuous",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 36.45284733143577,
+      "mean_energy_std": 0.25004733143568814,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0007241314914971653,
+      "delta_pair_commitment_std": 0.004930986238656981,
+      "delta_fidelity": -0.0009083992043637246,
+      "delta_fidelity_std": 0.0003868511123818197,
+      "delta_specialize": 0.005410670578322008,
+      "delta_specialize_std": 0.0014234553908837322,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "optional_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 1.3160969467997026,
+      "synergy_index_std": 0.1215117518351626,
+      "paired_frac": 0.7656933195379483,
+      "paired_frac_std": 0.0052066576778184714,
+      "mean_energy": 33.69746518481503,
+      "mean_energy_std": 1.5129133546774653,
+      "mean_extraction": 0.22988726656434436,
+      "mean_extraction_std": 0.1369654861648679,
+      "leave_rate": 2.7263157894736842,
+      "leave_rate_std": 0.16842105263157903,
+      "delta_pair_commitment": 0.005610058999331785,
+      "delta_pair_commitment_std": 0.005932700972506727,
+      "delta_fidelity": -0.0010120559271898921,
+      "delta_fidelity_std": 0.0015604566374739504,
+      "delta_specialize": -0.0020061227456475705,
+      "delta_specialize_std": 0.0024138899853366202,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "forced_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 1.5109419304222973,
+      "synergy_index_std": 0.40744076497714954,
+      "paired_frac": 0.8621295002368605,
+      "paired_frac_std": 0.00927790772900211,
+      "mean_energy": 34.84196800056319,
+      "mean_energy_std": 1.0037465562612624,
+      "mean_extraction": 0.3005159658288659,
+      "mean_extraction_std": 0.20193408151928055,
+      "leave_rate": 2.7421052631578946,
+      "leave_rate_std": 0.05789473684210522,
+      "delta_pair_commitment": 0.006075712126685784,
+      "delta_pair_commitment_std": 0.002286986980543304,
+      "delta_fidelity": -0.001839815884653262,
+      "delta_fidelity_std": 0.004746785265531572,
+      "delta_specialize": -0.0033843354206703202,
+      "delta_specialize_std": 0.0016234719109583795,
+      "final_population": 79.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "tight_range",
+      "arm": "solo_only",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 35.39239594594601,
+      "mean_energy_std": 0.24039594594594504,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0010104529709177024,
+      "delta_pair_commitment_std": 0.0020953215054471397,
+      "delta_fidelity": -0.0003144969437887113,
+      "delta_fidelity_std": 0.00036436811824336335,
+      "delta_specialize": 0.007497458896150222,
+      "delta_specialize_std": 0.005503851302431084,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "tight_range",
+      "arm": "promiscuous",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 36.45284733143577,
+      "mean_energy_std": 0.25004733143568814,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0007241314914971653,
+      "delta_pair_commitment_std": 0.004930986238656981,
+      "delta_fidelity": -0.0009083992043637246,
+      "delta_fidelity_std": 0.0003868511123818197,
+      "delta_specialize": 0.005410670578322008,
+      "delta_specialize_std": 0.0014234553908837322,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "tight_range",
+      "arm": "optional_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 1.1594889841524898,
+      "synergy_index_std": 0.09978239269191769,
+      "paired_frac": 0.7857798844348141,
+      "paired_frac_std": 0.012376978310284004,
+      "mean_energy": 35.70667523146594,
+      "mean_energy_std": 0.021064500460155955,
+      "mean_extraction": 0.438279290963543,
+      "mean_extraction_std": 0.008874057608584174,
+      "leave_rate": 2.3684210526315788,
+      "leave_rate_std": 0.1578947368421051,
+      "delta_pair_commitment": 0.003025960718088777,
+      "delta_pair_commitment_std": 0.005775412426397258,
+      "delta_fidelity": -0.002022113198501263,
+      "delta_fidelity_std": 0.0037447387368887974,
+      "delta_specialize": -0.005237099888082686,
+      "delta_specialize_std": 0.0009751871296779235,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "tight_range",
+      "arm": "forced_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 1.6510566449502493,
+      "synergy_index_std": 0.7117197080881406,
+      "paired_frac": 0.869404041904042,
+      "paired_frac_std": 0.035407902907902966,
+      "mean_energy": 33.82827972339513,
+      "mean_energy_std": 0.460986455712721,
+      "mean_extraction": 0.09728732898952963,
+      "mean_extraction_std": 0.0016890831275181706,
+      "leave_rate": 2.863157894736842,
+      "leave_rate_std": 0.0631578947368423,
+      "delta_pair_commitment": 0.0028610083608514025,
+      "delta_pair_commitment_std": 0.0026974488233980076,
+      "delta_fidelity": 0.0024306621713373056,
+      "delta_fidelity_std": 0.007163679847877524,
+      "delta_specialize": -0.002756733840742459,
+      "delta_specialize_std": 0.0018465266106230949,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "wide_range",
+      "arm": "solo_only",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 35.39239594594601,
+      "mean_energy_std": 0.24039594594594504,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0010104529709177024,
+      "delta_pair_commitment_std": 0.0020953215054471397,
+      "delta_fidelity": -0.0003144969437887113,
+      "delta_fidelity_std": 0.00036436811824336335,
+      "delta_specialize": 0.007497458896150222,
+      "delta_specialize_std": 0.005503851302431084,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "wide_range",
+      "arm": "promiscuous",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": null,
+      "synergy_index_std": null,
+      "paired_frac": 0.0,
+      "paired_frac_std": 0.0,
+      "mean_energy": 36.45284733143577,
+      "mean_energy_std": 0.25004733143568814,
+      "mean_extraction": null,
+      "mean_extraction_std": null,
+      "leave_rate": 0.0,
+      "leave_rate_std": 0.0,
+      "delta_pair_commitment": 0.0007241314914971653,
+      "delta_pair_commitment_std": 0.004930986238656981,
+      "delta_fidelity": -0.0009083992043637246,
+      "delta_fidelity_std": 0.0003868511123818197,
+      "delta_specialize": 0.005410670578322008,
+      "delta_specialize_std": 0.0014234553908837322,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    },
+    {
+      "cell": "wide_range",
+      "arm": "optional_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 1.3819288897397455,
+      "synergy_index_std": 0.41018279083178283,
+      "paired_frac": 0.839748761063233,
+      "paired_frac_std": 0.04107787498728366,
+      "mean_energy": 32.783191288369146,
+      "mean_energy_std": 1.1624296617963576,
+      "mean_extraction": 0.35025422108570964,
+      "mean_extraction_std": 0.24688753940951386,
+      "leave_rate": 2.942105263157895,
+      "leave_rate_std": 0.047368421052631504,
+      "delta_pair_commitment": 0.008943287720413695,
+      "delta_pair_commitment_std": 0.0045820543631570065,
+      "delta_fidelity": -0.0006697122519271625,
+      "delta_fidelity_std": 0.0016408354685344684,
+      "delta_specialize": -0.00471122793934875,
+      "delta_specialize_std": 0.0027148302677572067,
+      "final_population": 79.5,
+      "final_population_std": 0.5
+    },
+    {
+      "cell": "wide_range",
+      "arm": "forced_union",
+      "n_seeds": 2,
+      "seeds": [
+        42,
+        43
+      ],
+      "synergy_index": 7.393708404861986,
+      "synergy_index_std": 1.419933950124268,
+      "paired_frac": 0.909367148748233,
+      "paired_frac_std": 0.036700119498925265,
+      "mean_energy": 34.390112285938926,
+      "mean_energy_std": 1.7756262221336847,
+      "mean_extraction": 0.11804379074554554,
+      "mean_extraction_std": 0.03070017777539051,
+      "leave_rate": 2.963157894736842,
+      "leave_rate_std": 0.07894736842105265,
+      "delta_pair_commitment": 0.0018751400758972303,
+      "delta_pair_commitment_std": 0.003612288337009939,
+      "delta_fidelity": -1.4721419268809433e-05,
+      "delta_fidelity_std": 0.003498956776188805,
+      "delta_specialize": 0.00046504495318711037,
+      "delta_specialize_std": 0.0010238417598135152,
+      "final_population": 80.0,
+      "final_population_std": 0.0
+    }
+  ],
+  "runs": [
+    {
+      "cell": "baseline",
+      "arm": "solo_only",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.152000000000065,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.0010848685345294373,
+      "delta_fidelity": -0.0006788650620320746,
+      "delta_specialize": 0.0019936075937191378,
+      "end_genes": {
+        "pair_commitment": 0.49891513146547056,
+        "fidelity": 0.4993211349379679,
+        "specialize": 0.5019936075937191,
+        "share_weight": 0.158185549595155
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "baseline",
+      "arm": "solo_only",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.632791891891955,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.003105774476364842,
+      "delta_fidelity": 4.9871174454652056e-05,
+      "delta_specialize": 0.013001310198581306,
+      "end_genes": {
+        "pair_commitment": 0.5031057744763648,
+        "fidelity": 0.5000498711744547,
+        "specialize": 0.5130013101985813,
+        "share_weight": 0.17526296665470936
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "baseline",
+      "arm": "promiscuous",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.20280000000008,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.004206854747159816,
+      "delta_fidelity": -0.0012952503167455443,
+      "delta_specialize": 0.0039872151874382755,
+      "end_genes": {
+        "pair_commitment": 0.4957931452528402,
+        "fidelity": 0.49870474968325446,
+        "specialize": 0.5039872151874383,
+        "share_weight": 0.16089227146881774
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "baseline",
+      "arm": "promiscuous",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.70289466287146,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.005655117730154147,
+      "delta_fidelity": -0.0005215480919819049,
+      "delta_specialize": 0.00683412596920574,
+      "end_genes": {
+        "pair_commitment": 0.5056551177301541,
+        "fidelity": 0.4994784519080181,
+        "specialize": 0.5068341259692057,
+        "share_weight": 0.16343255033942888
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "baseline",
+      "arm": "optional_union",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": 1.070600774150724,
+      "paired_frac": 0.7814533592247981,
+      "mean_energy": 35.76012043437828,
+      "mean_extraction": 0.5948916903018295,
+      "leave_rate": 2.389473684210526,
+      "delta_pair_commitment": 0.005622071142733609,
+      "delta_fidelity": 0.00146122837563889,
+      "delta_specialize": 0.004089927828612505,
+      "end_genes": {
+        "pair_commitment": 0.5056220711427336,
+        "fidelity": 0.5014612283756389,
+        "specialize": 0.5040899278286125,
+        "share_weight": 0.15238999108912085
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "baseline",
+      "arm": "optional_union",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": 1.1761109207671607,
+      "paired_frac": 0.7663024336553749,
+      "mean_energy": 35.52134080106037,
+      "mean_extraction": 0.1767567220617819,
+      "leave_rate": 2.3789473684210525,
+      "delta_pair_commitment": 0.00017099792189489982,
+      "delta_fidelity": 0.0012312083744679958,
+      "delta_specialize": 0.002295786735230676,
+      "end_genes": {
+        "pair_commitment": 0.5001709979218949,
+        "fidelity": 0.501231208374468,
+        "specialize": 0.5022957867352307,
+        "share_weight": 0.17698444854364415
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "baseline",
+      "arm": "forced_union",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": 0.8495180227992456,
+      "paired_frac": 0.8991062326136954,
+      "mean_energy": 33.964321299531875,
+      "mean_extraction": 0.21218838388968014,
+      "leave_rate": 3.1789473684210527,
+      "delta_pair_commitment": 0.005872939371093677,
+      "delta_fidelity": -0.005890846019504015,
+      "delta_specialize": 0.005675437218346735,
+      "end_genes": {
+        "pair_commitment": 0.5058729393710937,
+        "fidelity": 0.494109153980496,
+        "specialize": 0.5056754372183467,
+        "share_weight": 0.15606498203655395
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "baseline",
+      "arm": "forced_union",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": 0.9451292122062267,
+      "paired_frac": 0.9113277591973243,
+      "mean_energy": 34.44971002156481,
+      "mean_extraction": 0.3129049624029697,
+      "leave_rate": 3.0842105263157893,
+      "delta_pair_commitment": -0.005028319016889882,
+      "delta_fidelity": 0.004799234299581734,
+      "delta_specialize": -0.0035773773514418683,
+      "end_genes": {
+        "pair_commitment": 0.4949716809831101,
+        "fidelity": 0.5047992342995817,
+        "specialize": 0.49642262264855813,
+        "share_weight": 0.16666272697036938
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "solo_only",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.152000000000065,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.0010848685345294373,
+      "delta_fidelity": -0.0006788650620320746,
+      "delta_specialize": 0.0019936075937191378,
+      "end_genes": {
+        "pair_commitment": 0.49891513146547056,
+        "fidelity": 0.4993211349379679,
+        "specialize": 0.5019936075937191,
+        "share_weight": 0.158185549595155
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "solo_only",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.632791891891955,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.003105774476364842,
+      "delta_fidelity": 4.9871174454652056e-05,
+      "delta_specialize": 0.013001310198581306,
+      "end_genes": {
+        "pair_commitment": 0.5031057744763648,
+        "fidelity": 0.5000498711744547,
+        "specialize": 0.5130013101985813,
+        "share_weight": 0.17526296665470936
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "promiscuous",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.20280000000008,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.004206854747159816,
+      "delta_fidelity": -0.0012952503167455443,
+      "delta_specialize": 0.0039872151874382755,
+      "end_genes": {
+        "pair_commitment": 0.4957931452528402,
+        "fidelity": 0.49870474968325446,
+        "specialize": 0.5039872151874383,
+        "share_weight": 0.16089227146881774
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "promiscuous",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.70289466287146,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.005655117730154147,
+      "delta_fidelity": -0.0005215480919819049,
+      "delta_specialize": 0.00683412596920574,
+      "end_genes": {
+        "pair_commitment": 0.5056551177301541,
+        "fidelity": 0.4994784519080181,
+        "specialize": 0.5068341259692057,
+        "share_weight": 0.16343255033942888
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "optional_union",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": 1.653387840718961,
+      "paired_frac": 0.7732482666244475,
+      "mean_energy": 34.873208326464024,
+      "mean_extraction": 0.4575680462053257,
+      "leave_rate": 2.4210526315789473,
+      "delta_pair_commitment": -0.0036434397271710717,
+      "delta_fidelity": -0.00034713156242877075,
+      "delta_specialize": 0.0006854745017436104,
+      "end_genes": {
+        "pair_commitment": 0.49635656027282893,
+        "fidelity": 0.49965286843757123,
+        "specialize": 0.5006854745017436,
+        "share_weight": 0.14881527975179948
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "optional_union",
+      "seed": 43,
+      "final_population": 79,
+      "synergy_index": 1.0630334864557769,
+      "paired_frac": 0.7776746671050468,
+      "mean_energy": 32.49574514865978,
+      "mean_extraction": 0.09928172754910783,
+      "leave_rate": 2.8,
+      "delta_pair_commitment": 0.004395986256420348,
+      "delta_fidelity": 0.003952793342071659,
+      "delta_specialize": 0.013852016639942288,
+      "end_genes": {
+        "pair_commitment": 0.5043959862564203,
+        "fidelity": 0.5039527933420717,
+        "specialize": 0.5138520166399423,
+        "share_weight": 0.15132037377514115
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "forced_union",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": 1.0054386823673567,
+      "paired_frac": 0.887017543859649,
+      "mean_energy": 33.073835047008664,
+      "mean_extraction": 0.03346481394906939,
+      "leave_rate": 3.042105263157895,
+      "delta_pair_commitment": -0.0003658473272574736,
+      "delta_fidelity": 0.006549085524841791,
+      "delta_specialize": 0.0004526783766011233,
+      "end_genes": {
+        "pair_commitment": 0.4996341526727425,
+        "fidelity": 0.5065490855248418,
+        "specialize": 0.5004526783766011,
+        "share_weight": 0.148207578761018
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "no_courtship",
+      "arm": "forced_union",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": 1.0830304936131374,
+      "paired_frac": 0.8766136724960255,
+      "mean_energy": 34.61072773371605,
+      "mean_extraction": 0.45989043476402947,
+      "leave_rate": 3.0736842105263156,
+      "delta_pair_commitment": 0.005706756824457204,
+      "delta_fidelity": -0.004227797671608857,
+      "delta_specialize": 0.000778187708230127,
+      "end_genes": {
+        "pair_commitment": 0.5057067568244572,
+        "fidelity": 0.49577220232839114,
+        "specialize": 0.5007781877082301,
+        "share_weight": 0.14501794658367326
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "solo_only",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.152000000000065,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.0010848685345294373,
+      "delta_fidelity": -0.0006788650620320746,
+      "delta_specialize": 0.0019936075937191378,
+      "end_genes": {
+        "pair_commitment": 0.49891513146547056,
+        "fidelity": 0.4993211349379679,
+        "specialize": 0.5019936075937191,
+        "share_weight": 0.158185549595155
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "solo_only",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.632791891891955,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.003105774476364842,
+      "delta_fidelity": 4.9871174454652056e-05,
+      "delta_specialize": 0.013001310198581306,
+      "end_genes": {
+        "pair_commitment": 0.5031057744763648,
+        "fidelity": 0.5000498711744547,
+        "specialize": 0.5130013101985813,
+        "share_weight": 0.17526296665470936
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "promiscuous",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.20280000000008,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.004206854747159816,
+      "delta_fidelity": -0.0012952503167455443,
+      "delta_specialize": 0.0039872151874382755,
+      "end_genes": {
+        "pair_commitment": 0.4957931452528402,
+        "fidelity": 0.49870474968325446,
+        "specialize": 0.5039872151874383,
+        "share_weight": 0.16089227146881774
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "promiscuous",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.70289466287146,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.005655117730154147,
+      "delta_fidelity": -0.0005215480919819049,
+      "delta_specialize": 0.00683412596920574,
+      "end_genes": {
+        "pair_commitment": 0.5056551177301541,
+        "fidelity": 0.4994784519080181,
+        "specialize": 0.5068341259692057,
+        "share_weight": 0.16343255033942888
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "optional_union",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": 0.8283658183196879,
+      "paired_frac": 0.7729722573961091,
+      "mean_energy": 36.061376110238584,
+      "mean_extraction": 0.38598953201174063,
+      "leave_rate": 2.7157894736842105,
+      "delta_pair_commitment": 0.002503156199668455,
+      "delta_fidelity": 0.0018694705146871105,
+      "delta_specialize": -0.0034286409994571665,
+      "end_genes": {
+        "pair_commitment": 0.5025031561996685,
+        "fidelity": 0.5018694705146871,
+        "specialize": 0.49657135900054283,
+        "share_weight": 0.15910084024462345
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "optional_union",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": 0.9825380428953568,
+      "paired_frac": 0.7974534500493314,
+      "mean_energy": 36.41660819821562,
+      "mean_extraction": 0.04150531858613834,
+      "leave_rate": 2.305263157894737,
+      "delta_pair_commitment": 0.0023433917791378933,
+      "delta_fidelity": 0.0004159750015071406,
+      "delta_specialize": 5.778028719050088e-05,
+      "end_genes": {
+        "pair_commitment": 0.5023433917791379,
+        "fidelity": 0.5004159750015071,
+        "specialize": 0.5000577802871905,
+        "share_weight": 0.1823310282151688
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "forced_union",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": 1.017144312475843,
+      "paired_frac": 0.9000310391363022,
+      "mean_energy": 33.5740216359178,
+      "mean_extraction": 0.4518256351719834,
+      "leave_rate": 3.2421052631578946,
+      "delta_pair_commitment": 0.009609729923896193,
+      "delta_fidelity": -0.0053827154530908805,
+      "delta_specialize": 0.0038751047223432034,
+      "end_genes": {
+        "pair_commitment": 0.5096097299238962,
+        "fidelity": 0.4946172845469091,
+        "specialize": 0.5038751047223432,
+        "share_weight": 0.15100894885176108
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "cheap_exit",
+      "arm": "forced_union",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": 1.2585445792775787,
+      "paired_frac": 0.8948017334777898,
+      "mean_energy": 34.63123463191473,
+      "mean_extraction": 0.44355540508955177,
+      "leave_rate": 3.2,
+      "delta_pair_commitment": 0.002027447103495894,
+      "delta_fidelity": -0.000444726723494715,
+      "delta_specialize": 0.0012241227690172884,
+      "end_genes": {
+        "pair_commitment": 0.5020274471034959,
+        "fidelity": 0.4995552732765053,
+        "specialize": 0.5012241227690173,
+        "share_weight": 0.15714566052405546
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "solo_only",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.152000000000065,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.0010848685345294373,
+      "delta_fidelity": -0.0006788650620320746,
+      "delta_specialize": 0.0019936075937191378,
+      "end_genes": {
+        "pair_commitment": 0.49891513146547056,
+        "fidelity": 0.4993211349379679,
+        "specialize": 0.5019936075937191,
+        "share_weight": 0.158185549595155
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "solo_only",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.632791891891955,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.003105774476364842,
+      "delta_fidelity": 4.9871174454652056e-05,
+      "delta_specialize": 0.013001310198581306,
+      "end_genes": {
+        "pair_commitment": 0.5031057744763648,
+        "fidelity": 0.5000498711744547,
+        "specialize": 0.5130013101985813,
+        "share_weight": 0.17526296665470936
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "promiscuous",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.20280000000008,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.004206854747159816,
+      "delta_fidelity": -0.0012952503167455443,
+      "delta_specialize": 0.0039872151874382755,
+      "end_genes": {
+        "pair_commitment": 0.4957931452528402,
+        "fidelity": 0.49870474968325446,
+        "specialize": 0.5039872151874383,
+        "share_weight": 0.16089227146881774
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "promiscuous",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.70289466287146,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.005655117730154147,
+      "delta_fidelity": -0.0005215480919819049,
+      "delta_specialize": 0.00683412596920574,
+      "end_genes": {
+        "pair_commitment": 0.5056551177301541,
+        "fidelity": 0.4994784519080181,
+        "specialize": 0.5068341259692057,
+        "share_weight": 0.16343255033942888
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "optional_union",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": 1.4376086986348653,
+      "paired_frac": 0.7604866618601298,
+      "mean_energy": 32.184551830137565,
+      "mean_extraction": 0.36685275272921225,
+      "leave_rate": 2.8947368421052633,
+      "delta_pair_commitment": 0.011542759971838512,
+      "delta_fidelity": 0.0005484007102840582,
+      "delta_specialize": 0.0004077672396890497,
+      "end_genes": {
+        "pair_commitment": 0.5115427599718385,
+        "fidelity": 0.5005484007102841,
+        "specialize": 0.500407767239689,
+        "share_weight": 0.1547241911826579
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "optional_union",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": 1.19458519496454,
+      "paired_frac": 0.7708999772157668,
+      "mean_energy": 35.210378539492496,
+      "mean_extraction": 0.09292178039947646,
+      "leave_rate": 2.557894736842105,
+      "delta_pair_commitment": -0.0003226419731749419,
+      "delta_fidelity": -0.0025725125646638425,
+      "delta_specialize": -0.004420012730984191,
+      "end_genes": {
+        "pair_commitment": 0.49967735802682506,
+        "fidelity": 0.49742748743533616,
+        "specialize": 0.4955799872690158,
+        "share_weight": 0.1625447926931481
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "forced_union",
+      "seed": 42,
+      "final_population": 79,
+      "synergy_index": 1.1035011654451479,
+      "paired_frac": 0.8528515925078585,
+      "mean_energy": 35.845714556824454,
+      "mean_extraction": 0.5024500473481465,
+      "leave_rate": 2.6842105263157894,
+      "delta_pair_commitment": 0.008362699107229088,
+      "delta_fidelity": -0.006586601150184834,
+      "delta_specialize": -0.0017608635097119407,
+      "end_genes": {
+        "pair_commitment": 0.5083626991072291,
+        "fidelity": 0.49341339884981517,
+        "specialize": 0.49823913649028806,
+        "share_weight": 0.14896140253765497
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "costly_exit",
+      "arm": "forced_union",
+      "seed": 43,
+      "final_population": 79,
+      "synergy_index": 1.918382695399447,
+      "paired_frac": 0.8714074079658627,
+      "mean_energy": 33.83822144430193,
+      "mean_extraction": 0.09858188430958537,
+      "leave_rate": 2.8,
+      "delta_pair_commitment": 0.00378872514614248,
+      "delta_fidelity": 0.0029069693808783104,
+      "delta_specialize": -0.0050078073316287,
+      "end_genes": {
+        "pair_commitment": 0.5037887251461425,
+        "fidelity": 0.5029069693808783,
+        "specialize": 0.4949921926683713,
+        "share_weight": 0.16204975224651763
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "tight_range",
+      "arm": "solo_only",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.152000000000065,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.0010848685345294373,
+      "delta_fidelity": -0.0006788650620320746,
+      "delta_specialize": 0.0019936075937191378,
+      "end_genes": {
+        "pair_commitment": 0.49891513146547056,
+        "fidelity": 0.4993211349379679,
+        "specialize": 0.5019936075937191,
+        "share_weight": 0.158185549595155
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "tight_range",
+      "arm": "solo_only",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.632791891891955,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.003105774476364842,
+      "delta_fidelity": 4.9871174454652056e-05,
+      "delta_specialize": 0.013001310198581306,
+      "end_genes": {
+        "pair_commitment": 0.5031057744763648,
+        "fidelity": 0.5000498711744547,
+        "specialize": 0.5130013101985813,
+        "share_weight": 0.17526296665470936
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "tight_range",
+      "arm": "promiscuous",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.20280000000008,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.004206854747159816,
+      "delta_fidelity": -0.0012952503167455443,
+      "delta_specialize": 0.0039872151874382755,
+      "end_genes": {
+        "pair_commitment": 0.4957931452528402,
+        "fidelity": 0.49870474968325446,
+        "specialize": 0.5039872151874383,
+        "share_weight": 0.16089227146881774
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "tight_range",
+      "arm": "promiscuous",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.70289466287146,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.005655117730154147,
+      "delta_fidelity": -0.0005215480919819049,
+      "delta_specialize": 0.00683412596920574,
+      "end_genes": {
+        "pair_commitment": 0.5056551177301541,
+        "fidelity": 0.4994784519080181,
+        "specialize": 0.5068341259692057,
+        "share_weight": 0.16343255033942888
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "tight_range",
+      "arm": "optional_union",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": 1.2592713768444075,
+      "paired_frac": 0.77340290612453,
+      "mean_energy": 35.72773973192609,
+      "mean_extraction": 0.4471533485721272,
+      "leave_rate": 2.210526315789474,
+      "delta_pair_commitment": 0.008801373144486035,
+      "delta_fidelity": -0.0057668519353900605,
+      "delta_specialize": -0.006212287017760609,
+      "end_genes": {
+        "pair_commitment": 0.508801373144486,
+        "fidelity": 0.49423314806460994,
+        "specialize": 0.4937877129822394,
+        "share_weight": 0.15239626318278326
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "tight_range",
+      "arm": "optional_union",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": 1.0597065914605721,
+      "paired_frac": 0.798156862745098,
+      "mean_energy": 35.68561073100578,
+      "mean_extraction": 0.42940523335495884,
+      "leave_rate": 2.526315789473684,
+      "delta_pair_commitment": -0.0027494517083084813,
+      "delta_fidelity": 0.0017226255383875344,
+      "delta_specialize": -0.004261912758404762,
+      "end_genes": {
+        "pair_commitment": 0.4972505482916915,
+        "fidelity": 0.5017226255383875,
+        "specialize": 0.49573808724159524,
+        "share_weight": 0.17133634330799358
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "tight_range",
+      "arm": "forced_union",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": 2.36277635303839,
+      "paired_frac": 0.9048119448119449,
+      "mean_energy": 33.367293267682406,
+      "mean_extraction": 0.0989764121170478,
+      "leave_rate": 2.9263157894736844,
+      "delta_pair_commitment": 0.00555845718424941,
+      "delta_fidelity": -0.004733017676540219,
+      "delta_specialize": -0.004603260451365554,
+      "end_genes": {
+        "pair_commitment": 0.5055584571842494,
+        "fidelity": 0.4952669823234598,
+        "specialize": 0.49539673954863445,
+        "share_weight": 0.15876348928134976
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "tight_range",
+      "arm": "forced_union",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": 0.9393369368621087,
+      "paired_frac": 0.833996138996139,
+      "mean_energy": 34.28926617910785,
+      "mean_extraction": 0.09559824586201146,
+      "leave_rate": 2.8,
+      "delta_pair_commitment": 0.0001635595374533949,
+      "delta_fidelity": 0.00959434201921483,
+      "delta_specialize": -0.0009102072301193642,
+      "end_genes": {
+        "pair_commitment": 0.5001635595374534,
+        "fidelity": 0.5095943420192148,
+        "specialize": 0.49908979276988064,
+        "share_weight": 0.16251980288347057
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "wide_range",
+      "arm": "solo_only",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.152000000000065,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.0010848685345294373,
+      "delta_fidelity": -0.0006788650620320746,
+      "delta_specialize": 0.0019936075937191378,
+      "end_genes": {
+        "pair_commitment": 0.49891513146547056,
+        "fidelity": 0.4993211349379679,
+        "specialize": 0.5019936075937191,
+        "share_weight": 0.158185549595155
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "wide_range",
+      "arm": "solo_only",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 35.632791891891955,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.003105774476364842,
+      "delta_fidelity": 4.9871174454652056e-05,
+      "delta_specialize": 0.013001310198581306,
+      "end_genes": {
+        "pair_commitment": 0.5031057744763648,
+        "fidelity": 0.5000498711744547,
+        "specialize": 0.5130013101985813,
+        "share_weight": 0.17526296665470936
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "wide_range",
+      "arm": "promiscuous",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.20280000000008,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": -0.004206854747159816,
+      "delta_fidelity": -0.0012952503167455443,
+      "delta_specialize": 0.0039872151874382755,
+      "end_genes": {
+        "pair_commitment": 0.4957931452528402,
+        "fidelity": 0.49870474968325446,
+        "specialize": 0.5039872151874383,
+        "share_weight": 0.16089227146881774
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "wide_range",
+      "arm": "promiscuous",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": null,
+      "paired_frac": 0.0,
+      "mean_energy": 36.70289466287146,
+      "mean_extraction": null,
+      "leave_rate": 0.0,
+      "delta_pair_commitment": 0.005655117730154147,
+      "delta_fidelity": -0.0005215480919819049,
+      "delta_specialize": 0.00683412596920574,
+      "end_genes": {
+        "pair_commitment": 0.5056551177301541,
+        "fidelity": 0.4994784519080181,
+        "specialize": 0.5068341259692057,
+        "share_weight": 0.16343255033942888
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "wide_range",
+      "arm": "optional_union",
+      "seed": 42,
+      "final_population": 79,
+      "synergy_index": 1.7921116805715283,
+      "paired_frac": 0.7986708860759494,
+      "mean_energy": 31.62076162657279,
+      "mean_extraction": 0.5971417604952235,
+      "leave_rate": 2.9894736842105263,
+      "delta_pair_commitment": 0.013525342083570702,
+      "delta_fidelity": -0.002310547720461631,
+      "delta_specialize": -0.0019963976715915432,
+      "end_genes": {
+        "pair_commitment": 0.5135253420835707,
+        "fidelity": 0.49768945227953837,
+        "specialize": 0.49800360232840846,
+        "share_weight": 0.15141107890516167
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "wide_range",
+      "arm": "optional_union",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": 0.9717460989079626,
+      "paired_frac": 0.8808266360505167,
+      "mean_energy": 33.945620950165505,
+      "mean_extraction": 0.10336668167619575,
+      "leave_rate": 2.8947368421052633,
+      "delta_pair_commitment": 0.004361233357256689,
+      "delta_fidelity": 0.0009711232166073058,
+      "delta_specialize": -0.007426058207105957,
+      "end_genes": {
+        "pair_commitment": 0.5043612333572567,
+        "fidelity": 0.5009711232166073,
+        "specialize": 0.49257394179289404,
+        "share_weight": 0.17110520840380875
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "wide_range",
+      "arm": "forced_union",
+      "seed": 42,
+      "final_population": 80,
+      "synergy_index": 5.973774454737717,
+      "paired_frac": 0.8726670292493077,
+      "mean_energy": 32.614486063805245,
+      "mean_extraction": 0.08734361297015503,
+      "leave_rate": 3.042105263157895,
+      "delta_pair_commitment": 0.005487428412907169,
+      "delta_fidelity": -0.0035136781954576146,
+      "delta_specialize": -0.0005587968066264049,
+      "end_genes": {
+        "pair_commitment": 0.5054874284129072,
+        "fidelity": 0.4964863218045424,
+        "specialize": 0.4994412031933736,
+        "share_weight": 0.14675637995200747
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    },
+    {
+      "cell": "wide_range",
+      "arm": "forced_union",
+      "seed": 43,
+      "final_population": 80,
+      "synergy_index": 8.813642354986253,
+      "paired_frac": 0.9460672682471583,
+      "mean_energy": 36.165738508072614,
+      "mean_extraction": 0.14874396852093605,
+      "leave_rate": 2.8842105263157896,
+      "delta_pair_commitment": -0.0017371482611127087,
+      "delta_fidelity": 0.0034842353569199958,
+      "delta_specialize": 0.0014888867130006256,
+      "end_genes": {
+        "pair_commitment": 0.4982628517388873,
+        "fidelity": 0.50348423535692,
+        "specialize": 0.5014888867130006,
+        "share_weight": 0.15568876566180478
+      },
+      "start_genes": {
+        "pair_commitment": 0.5,
+        "fidelity": 0.5,
+        "specialize": 0.5,
+        "share_weight": 0.14999999999999994
+      }
+    }
+  ],
+  "win_conditions": {
+    "checks": {
+      "baseline_optional_synergy_gt_1": true,
+      "baseline_forced_synergy_gt_1": false,
+      "optional_energy_beats_promiscuous": false,
+      "optional_commitment_does_not_climb": true,
+      "optional_fidelity_rises_on_baseline": true,
+      "cheap_exit_drops_optional_synergy": true,
+      "no_courtship_inflates_optional_synergy": true,
+      "forced_extraction_gt_optional": false
+    },
+    "passed": 5,
+    "total": 8,
+    "headline": {
+      "baseline_optional_synergy": 1.1233558474589422,
+      "baseline_forced_synergy": 0.8973236175027361,
+      "baseline_optional_energy": 35.64073061771933,
+      "baseline_promiscuous_energy": 36.45284733143577,
+      "baseline_optional_delta_commitment": 0.0028965345323142544,
+      "baseline_optional_delta_fidelity": 0.0013462183750534429
+    }
+  }
+}

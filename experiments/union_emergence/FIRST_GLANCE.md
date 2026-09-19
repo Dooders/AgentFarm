@@ -94,5 +94,6 @@ implements the documented knobs (`bonding_cost`, `courtship_steps`,
 energy economy that had to be reconstructed. Courtship and extraction
 need another pass before the literature-ablation claims are trusted.
 
-Layer C (AgentFarm chromosome + `bond` / `leave` actions) is still not
-run. See `SCOPE.md`.
+Layer C (AgentFarm chromosome + `bond` / `leave` actions) is in
+`scripts/run_union_emergence.py`. See `SCOPE.md` and
+`experiments/union_emergence/layer_c/`.

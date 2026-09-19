@@ -1,7 +1,6 @@
-# Union emergence (standalone arena)
+# Union emergence
 
-Pilot + compact threshold grid for exclusive pair-bonds under implicit
-selection. Not yet wired into `farm.runners`.
+Standalone arena (layers A/B) plus the AgentFarm chromosome port (layer C).
 
 Full protocol: [`SCOPE.md`](SCOPE.md). Pre-register:
 [`docs/research/devlog/2026-09-18-union-as-emergent-property.md`](../../docs/research/devlog/2026-09-18-union-as-emergent-property.md).
@@ -24,6 +23,14 @@ copy the summary to the original sandbox path.
 
 First-glance read of the v2 grid: [`FIRST_GLANCE.md`](FIRST_GLANCE.md).
 
-The three new genes (`pair_commitment`, `fidelity`, `specialize`) and the
-`bond` / `leave` actions are **not** on the AgentFarm chromosome yet.
-That is layer C in `SCOPE.md`.
+Layer C (AgentFarm chromosome + `bond` / `leave`) lives in
+`farm/runners/union_emergence_experiment.py`:
+
+```bash
+PYTHONHASHSEED=0 python scripts/run_union_emergence.py --mode first_glance
+```
+
+Writes `experiments/union_emergence/layer_c/`. First-glance read:
+[`layer_c/READ.md`](layer_c/READ.md). Outcome post:
+[`docs/research/devlog/2026-09-19-union-emergence-layer-c.md`](../../docs/research/devlog/2026-09-19-union-emergence-layer-c.md).
+Full protocol: [`SCOPE.md`](SCOPE.md).

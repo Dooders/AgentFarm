@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 
+from farm.core.action import get_action_count
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.shape_utils import batch_observation
 from farm.utils.logging import get_logger
@@ -109,10 +110,8 @@ class DecisionModule:
         if hasattr(action_space, "n"):
             self.num_actions = int(action_space.n)
         else:
-            # Fallback: count actions in Action enum
-            from farm.core.action import ActionType
-
-            self.num_actions = len(ActionType)
+            # Fallback: default action space (excludes union-only bond/leave)
+            self.num_actions = get_action_count()
 
         # Use provided observation space
         self.observation_space = observation_space

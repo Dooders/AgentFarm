@@ -34,11 +34,12 @@ same: they vary a share-or-defect knob and never grow a `partner_id`.
 |---|---|---|
 | **A. Standalone v1 pilot** | Specified; runnable here | Instant synergy, no bonding cost, binary lock. 4 arms × 8 seeds × 900 steps. |
 | **B. Standalone v2 grid** | Specified; default runner | Courtship, bonding cost, accumulated strength, accidental divorce, extraction. 4 worlds × 4 arms × 4 seeds × 550 steps. |
-| **C. AgentFarm port** | Outlined, not wired | Three genes on the chromosome, `bond` / `leave` next to `share`, `UnionEmergenceExperiment` or a `unique+union` arm on `IntrinsicGoalsExperiment`. |
+| **C. AgentFarm port** | First-glance complete; see the 2026-09-19 devlog | Three genes on the chromosome, `bond` / `leave` next to `share`, `UnionEmergenceExperiment`. |
 | **D. Port follow-ups** | After C | Seed-matched A/B on the baseline cell; ablate synergy vs split-cost vs exit tax; heterogeneous goals × union. |
 
 First-glance evidence is layer B (or a seed/step-reduced B that still
-crosses every arm and every world). Layer C is scoped here and not run.
+crosses every arm and every world). Layer C is the AgentFarm port in
+`farm/runners/union_emergence_experiment.py`.
 
 ## Literature constraints (do not drop)
 
@@ -161,19 +162,29 @@ v2 mode, `first_glance_summary.json` in first-glance mode, or
 `v1_pilot_summary.json` in v1 mode. The runner only copies the matching
 summary into a sandbox path when `--sandbox-dir` is supplied.
 
-## Layer C — AgentFarm port (not in this runner)
+## Layer C — AgentFarm port
 
-1. Add `pair_commitment`, `fidelity`, `specialize` to
+Implemented on the chromosome and action loop. Run:
+
+```bash
+PYTHONHASHSEED=0 python scripts/run_union_emergence.py --mode first_glance
+PYTHONHASHSEED=0 python scripts/run_union_emergence.py --mode full
+```
+
+Writes `experiments/union_emergence/layer_c/union_emergence_summary.json`
+plus gene-drift, synergy bar, paired-frac trajectory, and extraction vs
+leave-rate figures.
+
+1. `pair_commitment`, `fidelity`, `specialize` on
    `farm/core/hyperparameter_chromosome.py` (linear 8-bit, same table as
    `share_weight`).
 2. `partner_id`, `pair_age`, `bond_strength`, `role` on agent state;
-   `bond` / `leave` next to `share`.
+   `bond` / `leave` next to `share` when `union_enabled`.
 3. Gather path: synergy only if partner alive, co-located, and
    `pair_age ≥ courtship_steps`.
 4. Reproduction path: split cost + co-parent crossover only for mature bonds.
 5. `social_dynamics.py`: `bond` as cooperation; log dissolution separately.
-6. Runner: `UnionEmergenceExperiment`, or a `unique+union` arm on
-   `intrinsic_goals_experiment.py`. Freeze learning genes; evolve union +
+6. Runner: `UnionEmergenceExperiment`. Freeze learning genes; evolve union +
    share + goal loci.
 7. CLI: `scripts/run_union_emergence.py` (`--num-steps`,
    `--selection-pressure`, `--exit-tax`, `--courtship-steps`,

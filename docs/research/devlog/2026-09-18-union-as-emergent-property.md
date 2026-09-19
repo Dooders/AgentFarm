@@ -12,7 +12,7 @@ related:
 
 # The union as an emergent property
 
-**Status:** standalone pilot + compact threshold grid complete. AgentFarm port outlined, not yet wired.
+**Status:** standalone pilot + compact threshold grid complete. AgentFarm port wired and first-glanced — see [the 19 September Layer C post](2026-09-19-union-emergence-layer-c.md).
 
 **Question (v1).** Does an exclusive, costly-to-exit union produce superadditive returns that promiscuous `share` does not?
 
@@ -160,15 +160,19 @@ Under **Emergent behavior & dominance** in `docs/research/experiments-catalog.md
 
 Drop-in path: `docs/research/devlog/2026-09-18-union-as-emergent-property.md` plus an index bullet.
 
-Follow-ups if the port runs:
+Layer C first-glance (100 steps × 2 seeds × 6 cells × 4 arms) is written up in
+[The union on the chromosome](2026-09-19-union-emergence-layer-c.md).
+Optional synergy 1.12; forced 0.90; 5 of 8 direction checks. Layer D:
 
 - Seed-matched AgentFarm A/B on the baseline cell (this pre-register).
-- Ablate synergy multiplier vs split-cost vs exit tax (which term carries the 1.3×).
+- Ablate synergy multiplier vs split-cost vs exit tax (which term carries the 1.12×).
 - Heterogeneous goals × union: does `reward_*` distance predict `leave`?
 
 ## Files
 
 - `experiments/union_emergence/union_intrinsic_evolution.py` — v2 arena
 - `experiments/union_emergence/compact_threshold_summary.json` — v2 grid
+- `experiments/union_emergence/layer_c/` — port first-glance
+- [Layer C outcome](2026-09-19-union-emergence-layer-c.md)
 
 Through-line: **sharing is a transaction; a union is an agent.** Selection keeps the second only when leaving costs more than staying, the neighborhood is small enough to stop shopping, and the surplus split is not silent extraction.

@@ -182,6 +182,7 @@ simulations/
 !/experiments/union_emergence/
 !/experiments/union_emergence/**
 experiments/union_emergence/**/__pycache__/
+experiments/union_emergence/layer_c/*_s*/
 
 # Generated experiment outputs (regenerate via run_experiment.py / runners)
 /results/

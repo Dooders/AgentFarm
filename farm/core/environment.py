@@ -48,6 +48,7 @@ from farm.config import ResourceConfig, SimulationConfig
 
 # Use action registry for cleaner action management
 from farm.core.action import ActionType, action_registry
+from farm.core.union_bonds import tick_union_bonds
 from farm.core.channels import NUM_CHANNELS
 from farm.core.geometry import discretize_position_continuous
 from farm.core.interfaces import DatabaseFactoryProtocol, DatabaseProtocol
@@ -523,7 +524,9 @@ class Environment(AECEnv):
         - Validation of required actions
         - Graceful handling of missing actions
         """
-        # Default mapping from ActionType enum to action registry names
+        # Default mapping from ActionType enum to action registry names.
+        # Bond/leave stay off the default action space so existing 0–7 indices
+        # and DQN heads stay aligned unless this run opted into unions.
         default_action_mapping = {
             ActionType.DEFEND: "defend",
             ActionType.ATTACK: "attack",
@@ -534,6 +537,9 @@ class Environment(AECEnv):
             ActionType.PASS: "pass",
             ActionType.COMMUNICATE: "communicate",
         }
+        if getattr(self.config, "union_enabled", False):
+            default_action_mapping[ActionType.BOND] = "bond"
+            default_action_mapping[ActionType.LEAVE] = "leave"
 
         # Get enabled actions from config, or use all available if not specified
         if self.config and hasattr(self.config, "enabled_actions"):
@@ -980,6 +986,8 @@ class Environment(AECEnv):
         for the current time step but before the next step begins.
         """
         try:
+            tick_union_bonds(self)
+
             # Update resources using ResourceManager
             resource_stats = self.resource_manager.update_resources(self.time)
 
