@@ -44,39 +44,39 @@ BALANCED = "#d97706"
 GRID_SIZE = 8
 
 AGENT_TRAITS = (
-    "Lives somewhere",
-    "Carries food",
-    "Looks around",
-    "Chooses for itself",
+    "Lives on the map",
+    "Carries some food",
+    "Sees what's nearby",
+    "Chooses its next move",
 )
 
 AGENT_KINDS = (
-    {"key": "cooperative", "label": "Cooperative", "color": COOPERATIVE, "hint": "Tends to share"},
-    {"key": "self_interested", "label": "Self-interested", "color": SELF_INTERESTED, "hint": "Tends to keep food"},
-    {"key": "balanced", "label": "Balanced", "color": BALANCED, "hint": "A middle path"},
+    {"key": "cooperative", "label": "Cooperative", "color": COOPERATIVE, "hint": "Shares more, fights less"},
+    {"key": "self_interested", "label": "Self-interested", "color": SELF_INTERESTED, "hint": "Keeps food, competes more"},
+    {"key": "balanced", "label": "Balanced", "color": BALANCED, "hint": "A middle path, for comparison"},
 )
 
-HOOK_TITLE = "Food is limited."
-HOOK_LINE = "Everyone in this world has to share it."
-HOOK_QUESTION = "What mix of helping others\nand looking out for yourself actually works?"
+HOOK_TITLE = "A limited world."
+HOOK_LINE = "Many individuals have to share the food."
+HOOK_QUESTION = "What mix of helpfulness\nand self-interest actually works?"
 
 SECTION_AGENT = "What is an agent?"
-CAPTION_AGENT = "One individual — it lives here, looks around, and chooses."
-CAPTION_KINDS = "They lean different ways. These are tendencies, not personalities."
+CAPTION_AGENT = "One actor in the world. Nobody tells it what to do."
+CAPTION_KINDS = "They lean in different directions. These are tendencies, not personalities."
 
 SECTION_ENV = "What is the environment?"
-CAPTION_ENV = "The map they all share. Here it is a grid of squares."
-NOTE_ENV = "Some squares hold food. The rules are the same for everyone."
+CAPTION_ENV = "The world they share. Here it is a grid, like a board-game board."
+NOTE_ENV = "Some squares hold food. One meal is food someone else cannot eat."
 
 SECTION_DO = "What do agents do?"
-CAPTION_DO = "Each turn, every living agent does the same three things."
+CAPTION_DO = "On every turn, each living agent does the same three things."
 
 SECTION_GRID = "An example on a grid"
-CAPTION_GRID = "A few agents, a few patches of food. Nothing here is scripted."
-CAPTION_WALK = "They walk toward food. Some eat. Neighbors appear."
-CAPTION_CLUSTER = "Nobody told the blue agents to gather. It just happened."
+CAPTION_GRID = "A short run on a small map — a postcard, not the experiment."
+CAPTION_WALK = "They walk toward food. A green patch shrinks when someone eats."
+CAPTION_CLUSTER = "The blue agents gathered on their own. Nobody programmed that."
 
-CLOSE_TITLE = "The research measures what shows up."
+CLOSE_TITLE = "The research measures\nthe patterns that appear."
 CLOSE_QUESTION = "Does a mix last longer than a world\nof only helpers — or only competitors?"
 
 # On-screen reading: ~180 wpm plus a rest so the last words are not cut off.
@@ -116,7 +116,7 @@ LOOP_STEPS = (
     "Act",
 )
 
-WORLD_CHANGES = "Then the map updates, and the next turn starts."
+WORLD_CHANGES = "After everyone has acted,\nthe map updates and the next turn begins."
 
 # Starting cells (x, y) with origin at bottom-left, y up.
 AGENTS: dict[str, dict[str, Any]] = {

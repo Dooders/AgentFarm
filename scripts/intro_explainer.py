@@ -82,20 +82,6 @@ from farm.core.intro_storyboard import (
 
 CELL = 0.58
 SAFE_WIDTH = 12.4
-# Word gap as a fraction of font_size. Manim's space glyph is not trustworthy
-# with Inter, so lines are composed word-by-word.
-WORD_SPACE = 0.0044
-LINE_GAP = 0.0040
-
-
-def _word(body: str, size: float, weight: str, color: str) -> Text:
-    return Text(
-        body,
-        font=TYPE_FONT,
-        font_size=size,
-        color=color,
-        weight=weight,
-    )
 
 
 def ink_text(
@@ -103,35 +89,28 @@ def ink_text(
     role: str = "body",
     color: str = INK,
     *,
-    line_spacing: float = 1.0,
-) -> VGroup:
-    """Inter lockup. Avoids LaTeX. Words are placed explicitly."""
+    line_spacing: float = -1,
+) -> Text:
+    """Inter lockup as a single line (or wrapped lines). Avoids LaTeX."""
     spec = type_role(role)
-    size = float(spec["size"])
-    weight = str(spec["weight"])
-    rows = []
-    for raw_line in body.split("\n"):
-        words = [token for token in raw_line.split(" ") if token]
-        if not words:
-            continue
-        parts = [_word(token, size, weight, color) for token in words]
-        row = parts[0] if len(parts) == 1 else VGroup(*parts).arrange(RIGHT, buff=size * WORD_SPACE)
-        rows.append(row)
-    if not rows:
-        return VGroup(_word("", size, weight, color))
-    if len(rows) == 1:
-        return VGroup(rows[0])
-    return VGroup(*rows).arrange(DOWN, buff=size * LINE_GAP * line_spacing, aligned_edge=LEFT)
+    return Text(
+        body,
+        font=TYPE_FONT,
+        font_size=float(spec["size"]),
+        color=color,
+        weight=str(spec["weight"]),
+        line_spacing=line_spacing,
+    )
 
 
-def heading(body: str) -> VGroup:
+def heading(body: str) -> Text:
     """Section heading pinned to the top of the frame."""
     text = ink_text(body, "heading")
     text.to_edge(UP, buff=0.34)
     return text
 
 
-def heading_rule(head: VGroup) -> Line:
+def heading_rule(head: Text) -> Line:
     """Hairline under a heading — same cue as docs h2 borders."""
     y = head.get_bottom()[1] - 0.12
     rule = Line([head.get_left()[0], y, 0], [head.get_right()[0], y, 0])
@@ -139,7 +118,7 @@ def heading_rule(head: VGroup) -> Line:
     return rule
 
 
-def caption(body: str) -> VGroup:
+def caption(body: str) -> Text:
     """Muted line sitting on a fixed baseline under the heading rule."""
     text = ink_text(body, "caption", MUTED)
     text.to_edge(UP, buff=1.12)
@@ -211,7 +190,7 @@ def agent_dot(color: str, radius: float = 0.17) -> Circle:
     return dot
 
 
-def arrow_mark() -> VGroup:
+def arrow_mark() -> Text:
     return ink_text("→", "label", MUTED)
 
 
@@ -232,7 +211,7 @@ class IntroExplainer(Scene):
         if lingering:
             self.play(*[FadeOut(mob) for mob in lingering], run_time=run_time, rate_func=smooth)
 
-    def _open_section(self, title: str, subtitle: str) -> tuple[VGroup, VGroup]:
+    def _open_section(self, title: str, subtitle: str) -> tuple[Text, Text]:
         head = heading(title)
         rule = heading_rule(head)
         sub = caption(subtitle)
@@ -310,7 +289,7 @@ class IntroExplainer(Scene):
             label.next_to(circle, DOWN, buff=0.26)
             hint.next_to(label, DOWN, buff=0.10)
             kind_group.add(VGroup(circle, label, hint))
-        kind_group.arrange(RIGHT, buff=1.55)
+        kind_group.arrange(RIGHT, buff=1.25)
         kind_group.next_to(kinds_title, DOWN, buff=0.88)
 
         self.play(
@@ -371,7 +350,7 @@ class IntroExplainer(Scene):
             self.play(box.animate.set_stroke(INK, 2.0), run_time=0.32, rate_func=smooth)
             self.play(box.animate.set_stroke(GRID_EDGE, 1.4), run_time=0.26, rate_func=smooth)
 
-        world = ink_text(WORLD_CHANGES, "lead")
+        world = ink_text(WORLD_CHANGES, "lead", line_spacing=0.9)
         world.next_to(cards, DOWN, buff=0.46)
         self.play(FadeIn(world, shift=DOWN * 0.08), run_time=0.4, rate_func=smooth)
         self.wait(hold_for(WORLD_CHANGES))
@@ -459,7 +438,7 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _close(self) -> None:
-        title = ink_text(CLOSE_TITLE, "heading")
+        title = ink_text(CLOSE_TITLE, "heading", line_spacing=0.88)
         question = ink_text(CLOSE_QUESTION, "caption", MUTED, line_spacing=0.92)
         question.next_to(title, DOWN, buff=0.40)
         group = VGroup(title, question)
