@@ -369,7 +369,7 @@ def test_tick_forms_pairs_exits_on_accident_and_marks_dirty():
     wrap_env.height = 24.0
     tick_union_bonds(wrap_env)
     assert wrap_left.pair_age == 3
-    assert wrap_left.bond_strength > 0.0
+    assert wrap_left.bond_strength > 0.5
 
     dead_partner = _agent("alive", 4.0, partner_id="dead")
     ghost_env = SimpleNamespace(
@@ -470,3 +470,72 @@ def test_tick_forms_pairs_exits_on_accident_and_marks_dirty():
     assert mixed_snap["synergy_index"] is not None
     assert mixed_snap["paired_frac"] == pytest.approx(2.0 / 3.0)
     assert is_mature_bond(_agent("ghost", partner_id="missing")) is False
+
+
+@pytest.mark.unit
+def test_wrapped_neighbors_pair_and_receive_synergy():
+    policy = UnionPolicy(
+        enabled=True,
+        pairing_mode="forced",
+        forced_pair_rate=1.0,
+        bonding_cost=0.0,
+        social_range=2.0,
+        courtship_steps=0,
+        accident_divorce=0.0,
+        implicit_leave=False,
+        colocation_radius=1.75,
+    )
+    first = _agent("a", 5.0, position=(0.2, 0.0))
+    second = _agent("b", 5.0, position=(23.8, 0.0))
+    env = _paired_env(first, second, policy)
+    env.width = 24.0
+    env.height = 24.0
+    env.union_rng = random.Random(0)
+
+    tick_union_bonds(env)
+    assert first.partner_id == "b"
+    assert second.partner_id == "a"
+    first.pair_age = 1
+    second.pair_age = 1
+    first.bond_strength = 0.9
+    second.bond_strength = 0.9
+    assert gather_synergy_multiplier(first) > 1.0
+
+
+@pytest.mark.unit
+def test_pairing_rng_is_seeded_from_environment_seed():
+    policy = UnionPolicy(
+        enabled=True,
+        pairing_mode="optional",
+        bonding_cost=0.0,
+        social_range=5.0,
+        accident_divorce=0.0,
+        implicit_leave=False,
+    )
+
+    def _bond_once(seed: int) -> bool:
+        first = _agent("a", 5.0, position=(0.0, 0.0))
+        second = _agent("b", 5.0, position=(0.4, 0.0))
+        env = _paired_env(first, second, policy)
+        env.seed_value = seed
+        return try_bond_action(first)["success"]
+
+    outcomes = [_bond_once(123) for _ in range(8)]
+    assert all(outcome == outcomes[0] for outcome in outcomes)
+
+    seeded = _paired_env(_agent("s1", 5.0, position=(0.0, 0.0)), _agent("s2", 5.0, position=(0.4, 0.0)), policy)
+    seeded.seed_value = 7
+    tick_union_bonds(seeded)
+    assert isinstance(seeded.union_rng, random.Random)
+
+    reject_policy = UnionPolicy(enabled=True, pairing_mode="optional", social_range=5.0, bonding_cost=0.0)
+    seeker = _agent("s", 8.0, position=(0.0, 0.0))
+    target = _agent("t", 8.0, position=(0.5, 0.0))
+    reject_env = _paired_env(seeker, target, reject_policy)
+
+    class _OneRng:
+        def random(self):
+            return 1.0
+
+    reject_env.intrinsic_evolution_rng = _OneRng()
+    assert try_bond_action(seeker)["error"] == "Pairing probability rejected the bond"

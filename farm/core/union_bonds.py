@@ -181,7 +181,10 @@ def are_colocated(agent: Any, other: Any, radius: float) -> bool:
 def _distance(agent: Any, other: Any) -> float:
     pos_a = getattr(agent, "position", (0.0, 0.0))
     pos_b = getattr(other, "position", (0.0, 0.0))
-    return math.dist(pos_a, pos_b)
+    width, height = _world_size(agent)
+    dx = _shortest_delta(float(pos_b[0]) - float(pos_a[0]), width)
+    dy = _shortest_delta(float(pos_b[1]) - float(pos_a[1]), height)
+    return math.hypot(dx, dy)
 
 
 def _world_size(agent: Any) -> Tuple[float, float]:
@@ -436,6 +439,21 @@ def _maybe_bond(living: Sequence[Any], policy: UnionPolicy, rng: random.Random) 
                 claimed.add(other.agent_id)
 
 
+def _resolve_union_rng(environment: Any) -> Any:
+    """Return the pairing RNG, seeding and attaching one when missing."""
+    rng = getattr(environment, "union_rng", None) or getattr(environment, "intrinsic_evolution_rng", None)
+    if rng is not None:
+        return rng
+    seed = getattr(environment, "seed_value", None)
+    if seed is None:
+        config = getattr(environment, "config", None)
+        seed = getattr(config, "seed", None)
+    rng = random.Random(seed)
+    if environment is not None:
+        environment.union_rng = rng
+    return rng
+
+
 def tick_union_bonds(environment: Any) -> None:
     """Per-step strength, accidental divorce, implicit leave, implicit pairing."""
     policy = get_union_policy(environment)
@@ -444,10 +462,7 @@ def tick_union_bonds(environment: Any) -> None:
     living = [agent for agent in getattr(environment, "alive_agent_objects", []) if getattr(agent, "alive", False)]
     for agent in living:
         ensure_bond_state(agent)
-    rng = getattr(environment, "union_rng", None) or getattr(environment, "intrinsic_evolution_rng", None)
-    if rng is None:
-        rng = random.Random()
-        environment.union_rng = rng
+    rng = _resolve_union_rng(environment)
     _update_live_bonds(living, policy)
     if policy.pairing_enabled:
         _maybe_exit(living, policy, rng)
@@ -482,7 +497,7 @@ def try_bond_action(agent: Any) -> Dict[str, Any]:
             "details": {"social_range": policy.social_range},
         }
     other = min(candidates, key=lambda cand: _distance(agent, cand))
-    rng = getattr(env, "union_rng", None) or random
+    rng = _resolve_union_rng(env)
     if rng.random() >= _pairing_probability(agent, other, policy):
         return {
             "success": False,

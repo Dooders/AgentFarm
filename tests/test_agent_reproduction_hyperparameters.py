@@ -85,6 +85,32 @@ def test_reproduce_inherits_chromosome_unchanged_without_policy():
     assert child_config.decision.learning_rate == parent_lr
 
 
+def test_reproduce_records_coparent_in_parent_ids():
+    """Mature-bond reproduction must list both parents on the child."""
+    parent = _build_parent_agent_for_reproduction()
+    mate = Mock()
+    mate.agent_id = "mate_1"
+    mate.get_component.return_value.remove.return_value = True
+
+    offspring = Mock()
+    offspring.state = Mock()
+    inner_state = Mock()
+    offspring.state._state = inner_state
+    inner_state.model_copy.return_value = Mock()
+
+    with patch("farm.core.agent.core.mature_bond_partner", return_value=mate), patch(
+        "farm.core.agent.factory.AgentFactory"
+    ) as factory_cls:
+        factory = factory_cls.return_value
+        factory.create_learning_agent.return_value = offspring
+        success = AgentCore.reproduce(parent)
+
+    assert success is True
+    parent.get_component("resource").remove.assert_called_once_with(2.5)
+    mate.get_component.return_value.remove.assert_called_once_with(2.5)
+    inner_state.model_copy.assert_called_once_with(update={"parent_ids": ["parent_1", "mate_1"]})
+
+
 def test_reproduce_with_policy_mutates_learning_rate_and_passes_child_config():
     """When the policy is enabled, child genes are mutated using the policy's knobs."""
     parent = _build_parent_agent_for_reproduction()

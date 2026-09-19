@@ -1248,7 +1248,10 @@ class AgentCore:
             offspring.hyperparameter_chromosome = child_chromosome
 
             # Set offspring parent IDs (genome_id will be generated in add_agent() using parent info)
-            offspring.state._state = offspring.state._state.model_copy(update={"parent_ids": [self.agent_id]})
+            parent_ids = [self.agent_id]
+            if mate is not None:
+                parent_ids.append(mate.agent_id)
+            offspring.state._state = offspring.state._state.model_copy(update={"parent_ids": parent_ids})
 
             # Optional Lamarckian step: copy parent policy weights into the
             # already-constructed offspring before the env sees the child, so
