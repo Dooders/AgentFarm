@@ -42,18 +42,39 @@ from farm.core.intro_storyboard import (
     AGENTS,
     BALANCED,
     BG,
+    CAPTION_AGENT,
+    CAPTION_CLUSTER,
+    CAPTION_DO,
+    CAPTION_ENV,
+    CAPTION_GRID,
+    CAPTION_KINDS,
+    CAPTION_WALK,
     CARD,
+    CLOSE_QUESTION,
+    CLOSE_TITLE,
     COOPERATIVE,
     FOOD,
     FOOD_START,
     GRID_EDGE,
     GRID_SIZE,
+    HOLD_LINE,
+    HOLD_LONG,
+    HOLD_READ,
+    HOOK_LINE,
+    HOOK_QUESTION,
+    HOOK_TITLE,
     INK,
     LOOP_STEPS,
     MUTED,
+    NOTE_ENV,
+    SECTION_AGENT,
+    SECTION_DO,
+    SECTION_ENV,
+    SECTION_GRID,
     SELF_INTERESTED,
     TURNS,
     TYPE_FONT,
+    WALK_TIME,
     WORLD_CHANGES,
     kind_color,
     type_role,
@@ -225,17 +246,13 @@ class IntroExplainer(Scene):
         return head, sub
 
     def _hook(self) -> None:
-        title = ink_text("A limited world.", "display")
-        line = ink_text("Many agents share the food.", "lead", MUTED)
+        title = ink_text(HOOK_TITLE, "display")
+        line = ink_text(HOOK_LINE, "lead", MUTED)
         line.next_to(title, DOWN, buff=0.26)
         rule = Line(LEFT * 0.48, RIGHT * 0.48)
         rule.set_stroke("#9ca3af", 1.8)
         rule.next_to(line, DOWN, buff=0.40)
-        question = ink_text(
-            "What mix of helpfulness\nand self-interest actually works?",
-            "lead",
-            line_spacing=0.88,
-        )
+        question = ink_text(HOOK_QUESTION, "lead", line_spacing=0.88)
         box = RoundedRectangle(
             width=question.width + 1.05,
             height=question.height + 0.82,
@@ -250,18 +267,18 @@ class IntroExplainer(Scene):
 
         self.play(FadeIn(title, shift=UP * 0.06), run_time=0.7, rate_func=smooth)
         self.play(FadeIn(line, shift=DOWN * 0.08), run_time=0.5, rate_func=smooth)
-        self.wait(0.4)
+        self.wait(HOLD_LINE)
         self.play(
             FadeIn(rule),
             FadeIn(card_group, shift=UP * 0.06),
             run_time=0.7,
             rate_func=smooth,
         )
-        self.wait(2.2)
+        self.wait(HOLD_LONG)
         self._fade_all()
 
     def _what_is_an_agent(self) -> None:
-        _title, sub = self._open_section("What is an agent?", "One actor. It lives, looks, and chooses.")
+        _title, sub = self._open_section(SECTION_AGENT, CAPTION_AGENT)
 
         dot = agent_dot("#6b7280", 0.30)
         dot.shift(DOWN * 0.10)
@@ -277,10 +294,10 @@ class IntroExplainer(Scene):
             LaggedStart(*[FadeIn(mob, shift=DOWN * 0.08) for mob in trait_mobs], lag_ratio=0.16),
             run_time=1.15,
         )
-        self.wait(1.7)
+        self.wait(HOLD_READ)
 
         self.play(FadeOut(trait_mobs), FadeOut(sub), run_time=0.35, rate_func=smooth)
-        kinds_title = caption("Three tendencies — not personalities.")
+        kinds_title = caption(CAPTION_KINDS)
         self.play(FadeIn(kinds_title), run_time=0.35)
 
         kind_group = VGroup()
@@ -309,29 +326,29 @@ class IntroExplainer(Scene):
             run_time=0.75,
             rate_func=smooth,
         )
-        self.wait(2.1)
+        self.wait(HOLD_READ)
         self._fade_all()
 
     def _what_is_the_environment(self) -> None:
-        self._open_section("What is the environment?", "The world they share — a grid of places.")
+        self._open_section(SECTION_ENV, CAPTION_ENV)
 
         origin = DOWN * 0.22
         grid = make_grid(origin)
         self.play(Create(grid, lag_ratio=0.012), run_time=1.5, rate_func=smooth)
 
         food = VGroup(*[food_patch(x, y, origin) for x, y in FOOD_START])
-        note = ink_text("Some squares hold food. The rules do not change.", "caption", MUTED)
+        note = ink_text(NOTE_ENV, "caption", MUTED)
         note.to_edge(DOWN, buff=0.40)
         self.play(
             LaggedStart(*[FadeIn(patch, scale=0.75) for patch in food], lag_ratio=0.14),
             FadeIn(note),
             run_time=0.95,
         )
-        self.wait(2.3)
+        self.wait(HOLD_READ)
         self._fade_all()
 
     def _what_do_agents_do(self) -> None:
-        self._open_section("What do agents do?", "Every turn is the same three steps.")
+        self._open_section(SECTION_DO, CAPTION_DO)
 
         cards = VGroup(*[step_card(step) for step in LOOP_STEPS])
         cards.arrange(RIGHT, buff=1.05)
@@ -355,7 +372,7 @@ class IntroExplainer(Scene):
         world = ink_text(WORLD_CHANGES, "lead")
         world.next_to(cards, DOWN, buff=0.46)
         self.play(FadeIn(world, shift=DOWN * 0.08), run_time=0.4, rate_func=smooth)
-        self.wait(0.85)
+        self.wait(HOLD_LINE)
 
         top = VGroup(*[pill(name) for name in ACTIONS[:4]])
         bottom = VGroup(*[pill(name) for name in ACTIONS[4:]])
@@ -369,11 +386,11 @@ class IntroExplainer(Scene):
             LaggedStart(*[FadeIn(mob, shift=DOWN * 0.08) for mob in (*top, *bottom)], lag_ratio=0.07),
             run_time=0.95,
         )
-        self.wait(2.1)
+        self.wait(HOLD_READ)
         self._fade_all()
 
     def _grid_example(self) -> None:
-        _title, sub = self._open_section("An example on a grid", "A handful of agents. A few patches of food.")
+        _title, sub = self._open_section(SECTION_GRID, CAPTION_GRID)
 
         origin = DOWN * 0.08
         grid = make_grid(origin)
@@ -404,8 +421,9 @@ class IntroExplainer(Scene):
         legend.to_edge(DOWN, buff=0.30)
         self.play(FadeIn(legend), run_time=0.35, rate_func=smooth)
 
-        beat = caption("They walk. They eat. Neighbors form.")
+        beat = caption(CAPTION_WALK)
         self.play(FadeOut(sub), FadeIn(beat), run_time=0.4, rate_func=smooth)
+        self.wait(HOLD_LINE)
 
         for turn in TURNS:
             animations = []
@@ -418,7 +436,7 @@ class IntroExplainer(Scene):
                 path.set_opacity(0)
                 animations.append(MoveAlongPath(dots[agent_id], path))
             if animations:
-                self.play(*animations, run_time=0.72, rate_func=smooth)
+                self.play(*animations, run_time=WALK_TIME, rate_func=smooth)
             eaten = []
             for cell in turn["eat"]:
                 patch = food.get(cell)
@@ -431,27 +449,22 @@ class IntroExplainer(Scene):
                 self.wait(0.06)
 
         cluster = VGroup(dots["blue_a"], dots["blue_b"], dots["red_a"], dots["red_b"])
-        closer = caption("Nobody told the blue agents to cluster.")
+        closer = caption(CAPTION_CLUSTER)
         halo = SurroundingRectangle(cluster, color=INK, buff=0.20, stroke_width=2.0)
         self.play(FadeOut(beat), FadeIn(closer), run_time=0.4, rate_func=smooth)
         self.play(FadeIn(halo), run_time=0.45, rate_func=smooth)
-        self.wait(2.1)
+        self.wait(HOLD_READ)
         self._fade_all()
 
     def _close(self) -> None:
-        title = ink_text("The research measures what emerges.", "heading")
-        question = ink_text(
-            "Does a mix survive better\nthan only helpers — or only competitors?",
-            "caption",
-            MUTED,
-            line_spacing=0.92,
-        )
+        title = ink_text(CLOSE_TITLE, "heading")
+        question = ink_text(CLOSE_QUESTION, "caption", MUTED, line_spacing=0.92)
         question.next_to(title, DOWN, buff=0.40)
         group = VGroup(title, question)
         group.move_to(ORIGIN)
         self.play(FadeIn(title, shift=UP * 0.05), run_time=0.7, rate_func=smooth)
         self.play(FadeIn(question, shift=DOWN * 0.04), run_time=0.6, rate_func=smooth)
-        self.wait(2.8)
+        self.wait(HOLD_LONG)
         self._fade_all(run_time=0.55)
         self.wait(0.15)
 

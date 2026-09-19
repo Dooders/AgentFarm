@@ -9,8 +9,14 @@ from farm.core.intro_storyboard import (
     AGENT_KINDS,
     AGENT_TRAITS,
     AGENTS,
+    CAPTION_AGENT,
+    CLOSE_TITLE,
     FOOD_START,
     GRID_SIZE,
+    HOLD_LONG,
+    HOLD_READ,
+    HOOK_QUESTION,
+    HOOK_TITLE,
     LOOP_STEPS,
     TURNS,
     TYPE_FONT,
@@ -36,6 +42,11 @@ def test_copy_covers_the_four_intro_beats():
     assert WORLD_CHANGES.startswith("Then")
     assert "Eat" in ACTIONS
     assert "Walk" in ACTIONS
+    assert "share" in HOOK_QUESTION.lower() or "helping" in HOOK_QUESTION.lower()
+    assert "individual" in CAPTION_AGENT.lower()
+    assert CLOSE_TITLE.endswith(".")
+    assert HOLD_READ > 2.5
+    assert HOLD_LONG > HOLD_READ
 
 
 def test_kind_color_and_bounds():

@@ -51,10 +51,39 @@ AGENT_TRAITS = (
 )
 
 AGENT_KINDS = (
-    {"key": "cooperative", "label": "Cooperative", "color": COOPERATIVE, "hint": "Shares more"},
-    {"key": "self_interested", "label": "Self-interested", "color": SELF_INTERESTED, "hint": "Keeps more"},
+    {"key": "cooperative", "label": "Cooperative", "color": COOPERATIVE, "hint": "Tends to share"},
+    {"key": "self_interested", "label": "Self-interested", "color": SELF_INTERESTED, "hint": "Tends to keep food"},
     {"key": "balanced", "label": "Balanced", "color": BALANCED, "hint": "A middle path"},
 )
+
+HOOK_TITLE = "Food is limited."
+HOOK_LINE = "Everyone in this world has to share it."
+HOOK_QUESTION = "What mix of helping others\nand looking out for yourself actually works?"
+
+SECTION_AGENT = "What is an agent?"
+CAPTION_AGENT = "One individual — it lives here, looks around, and chooses."
+CAPTION_KINDS = "They lean different ways. These are tendencies, not personalities."
+
+SECTION_ENV = "What is the environment?"
+CAPTION_ENV = "The map they all share. Here it is a grid of squares."
+NOTE_ENV = "Some squares hold food. The rules are the same for everyone."
+
+SECTION_DO = "What do agents do?"
+CAPTION_DO = "Each turn, every living agent does the same three things."
+
+SECTION_GRID = "An example on a grid"
+CAPTION_GRID = "A few agents, a few patches of food. Nothing here is scripted."
+CAPTION_WALK = "They walk toward food. Some eat. Neighbors appear."
+CAPTION_CLUSTER = "Nobody told the blue agents to gather. It just happened."
+
+CLOSE_TITLE = "The research measures what shows up."
+CLOSE_QUESTION = "Does a mix last longer than a world\nof only helpers — or only competitors?"
+
+# Seconds on screen so a first-time viewer can finish each line.
+HOLD_LINE = 1.15
+HOLD_READ = 3.05
+HOLD_LONG = 3.85
+WALK_TIME = 0.88
 
 ACTIONS = (
     "Walk",
@@ -72,7 +101,7 @@ LOOP_STEPS = (
     "Act",
 )
 
-WORLD_CHANGES = "Then the world changes."
+WORLD_CHANGES = "Then the map updates, and the next turn starts."
 
 # Starting cells (x, y) with origin at bottom-left, y up.
 AGENTS: dict[str, dict[str, Any]] = {
