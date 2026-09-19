@@ -47,9 +47,9 @@ def test_copy_covers_the_four_intro_beats():
     assert "share" in HOOK_QUESTION.lower() or "helping" in HOOK_QUESTION.lower()
     assert "individual" in CAPTION_AGENT.lower()
     assert CLOSE_TITLE.endswith(".")
-    assert HOLD_READ >= 4.0
+    assert HOLD_READ >= 3.5
     assert HOLD_LONG > HOLD_READ
-    assert hold_for(HOOK_QUESTION) >= 6.0
+    assert hold_for(HOOK_QUESTION) >= 5.0
     assert hold_for("one two three") >= HOLD_LINE
 
 

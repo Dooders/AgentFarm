@@ -243,7 +243,7 @@ class IntroExplainer(Scene):
             run_time=0.55,
             rate_func=smooth,
         )
-        self.wait(hold_for(subtitle))
+        self.wait(HOLD_LINE)
         return head, sub
 
     def _hook(self) -> None:
@@ -346,7 +346,7 @@ class IntroExplainer(Scene):
             FadeIn(note),
             run_time=0.95,
         )
-        self.wait(hold_for(NOTE_ENV, CAPTION_ENV))
+        self.wait(hold_for(NOTE_ENV))
         self._fade_all()
 
     def _what_do_agents_do(self) -> None:
@@ -465,9 +465,8 @@ class IntroExplainer(Scene):
         group = VGroup(title, question)
         group.move_to(ORIGIN)
         self.play(FadeIn(title, shift=UP * 0.05), run_time=0.7, rate_func=smooth)
-        self.wait(hold_for(CLOSE_TITLE))
         self.play(FadeIn(question, shift=DOWN * 0.04), run_time=0.6, rate_func=smooth)
-        self.wait(hold_for(CLOSE_QUESTION))
+        self.wait(hold_for(CLOSE_TITLE, CLOSE_QUESTION))
         self._fade_all(run_time=0.55)
         self.wait(0.15)
 

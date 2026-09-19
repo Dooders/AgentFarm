@@ -79,13 +79,13 @@ CAPTION_CLUSTER = "Nobody told the blue agents to gather. It just happened."
 CLOSE_TITLE = "The research measures what shows up."
 CLOSE_QUESTION = "Does a mix last longer than a world\nof only helpers — or only competitors?"
 
-# On-screen reading: ~150 wpm plus a rest so the last words are not cut off.
-SECONDS_PER_WORD = 0.40
-HOLD_REST = 1.8
-HOLD_LINE = 2.2
-HOLD_READ = 4.4
-HOLD_LONG = 5.8
-WALK_TIME = 1.05
+# On-screen reading: ~180 wpm plus a rest so the last words are not cut off.
+SECONDS_PER_WORD = 0.33
+HOLD_REST = 1.5
+HOLD_LINE = 1.8
+HOLD_READ = 3.8
+HOLD_LONG = 5.2
+WALK_TIME = 1.0
 
 
 def word_count(*texts: str) -> int:
