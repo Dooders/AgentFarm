@@ -69,7 +69,6 @@ def test_type_system_matches_docs_inter():
     assert heading["weight"] == "SEMIBOLD"
     assert type_role("label")["weight"] == "MEDIUM"
     assert caption["size"] < body["size"] < heading["size"] < display["size"]
-    assert display["tracking_em"] < heading["tracking_em"] < 0
     with pytest.raises(KeyError):
         type_role("unknown")
 

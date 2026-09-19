@@ -15,22 +15,22 @@ GRID_EDGE = "#d4d4d8"
 FOOD = "#16a34a"
 
 # Inter, same family as the docs site. Sizes are Manim font_size points.
-# tracking_em matches the docs heading range (about -0.01 to -0.02em).
+# Word spacing is applied in the scene (Manim space glyphs are unreliable).
 TYPE_FONT = "Inter"
-TYPE_SCALE: dict[str, dict[str, int | float | str]] = {
-    "display": {"size": 46, "weight": "SEMIBOLD", "tracking_em": -0.022},
-    "heading": {"size": 32, "weight": "SEMIBOLD", "tracking_em": -0.016},
-    "lead": {"size": 24, "weight": "MEDIUM", "tracking_em": -0.006},
-    "body": {"size": 25, "weight": "NORMAL", "tracking_em": -0.004},
-    "caption": {"size": 20, "weight": "NORMAL", "tracking_em": 0.0},
-    "label": {"size": 22, "weight": "MEDIUM", "tracking_em": -0.008},
-    "step": {"size": 26, "weight": "SEMIBOLD", "tracking_em": -0.012},
-    "chip": {"size": 18, "weight": "MEDIUM", "tracking_em": 0.01},
-    "meta": {"size": 16, "weight": "NORMAL", "tracking_em": 0.004},
+TYPE_SCALE: dict[str, dict[str, int | str]] = {
+    "display": {"size": 46, "weight": "SEMIBOLD"},
+    "heading": {"size": 32, "weight": "SEMIBOLD"},
+    "lead": {"size": 24, "weight": "MEDIUM"},
+    "body": {"size": 25, "weight": "NORMAL"},
+    "caption": {"size": 20, "weight": "NORMAL"},
+    "label": {"size": 22, "weight": "MEDIUM"},
+    "step": {"size": 26, "weight": "SEMIBOLD"},
+    "chip": {"size": 20, "weight": "MEDIUM"},
+    "meta": {"size": 16, "weight": "NORMAL"},
 }
 
 
-def type_role(name: str) -> dict[str, int | float | str]:
+def type_role(name: str) -> dict[str, int | str]:
     """Return a copy of a named type-scale role."""
     try:
         return dict(TYPE_SCALE[name])

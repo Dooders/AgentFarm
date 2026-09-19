@@ -12,8 +12,6 @@ Or:
 
 from __future__ import annotations
 
-from html import escape
-
 from manim import (
     DOWN,
     LEFT,
@@ -27,12 +25,12 @@ from manim import (
     GrowFromCenter,
     LaggedStart,
     Line,
-    MarkupText,
     MoveAlongPath,
     RoundedRectangle,
     Scene,
     Square,
     SurroundingRectangle,
+    Text,
     VGroup,
     smooth,
 )
@@ -63,6 +61,20 @@ from farm.core.intro_storyboard import (
 
 CELL = 0.58
 SAFE_WIDTH = 12.4
+# Word gap as a fraction of font_size. Manim's space glyph is not trustworthy
+# with Inter, so lines are composed word-by-word.
+WORD_SPACE = 0.0044
+LINE_GAP = 0.0040
+
+
+def _word(body: str, size: float, weight: str, color: str) -> Text:
+    return Text(
+        body,
+        font=TYPE_FONT,
+        font_size=size,
+        color=color,
+        weight=weight,
+    )
 
 
 def ink_text(
@@ -70,44 +82,46 @@ def ink_text(
     role: str = "body",
     color: str = INK,
     *,
-    line_spacing: float = -1,
-) -> MarkupText:
-    """Inter lockup. Avoids LaTeX. Tracking is Pango letter-spacing in 1/1024 pt."""
+    line_spacing: float = 1.0,
+) -> VGroup:
+    """Inter lockup. Avoids LaTeX. Words are placed explicitly."""
     spec = type_role(role)
     size = float(spec["size"])
     weight = str(spec["weight"])
-    tracking_em = float(spec["tracking_em"])
-    pango_ls = round(tracking_em * size * 1024)
-    markup = f'<span letter_spacing="{pango_ls}">{escape(body)}</span>'
-    return MarkupText(
-        markup,
-        font=TYPE_FONT,
-        font_size=size,
-        color=color,
-        weight=weight,
-        line_spacing=line_spacing,
-        disable_ligatures=True,
-    )
+    rows = []
+    for raw_line in body.split("\n"):
+        words = [token for token in raw_line.split(" ") if token]
+        if not words:
+            continue
+        parts = [_word(token, size, weight, color) for token in words]
+        row = parts[0] if len(parts) == 1 else VGroup(*parts).arrange(RIGHT, buff=size * WORD_SPACE)
+        rows.append(row)
+    if not rows:
+        return VGroup(_word("", size, weight, color))
+    if len(rows) == 1:
+        return VGroup(rows[0])
+    return VGroup(*rows).arrange(DOWN, buff=size * LINE_GAP * line_spacing, aligned_edge=LEFT)
 
 
-def heading(body: str) -> MarkupText:
+def heading(body: str) -> VGroup:
     """Section heading pinned to the top of the frame."""
     text = ink_text(body, "heading")
     text.to_edge(UP, buff=0.34)
     return text
 
 
-def heading_rule(head: MarkupText) -> Line:
+def heading_rule(head: VGroup) -> Line:
     """Hairline under a heading — same cue as docs h2 borders."""
-    rule = Line(head.get_left() + DOWN * 0.14, head.get_right() + DOWN * 0.14)
-    rule.set_stroke(GRID_EDGE, 1.35)
+    y = head.get_bottom()[1] - 0.12
+    rule = Line([head.get_left()[0], y, 0], [head.get_right()[0], y, 0])
+    rule.set_stroke("#9ca3af", 1.8)
     return rule
 
 
-def caption(body: str) -> MarkupText:
+def caption(body: str) -> VGroup:
     """Muted line sitting on a fixed baseline under the heading rule."""
     text = ink_text(body, "caption", MUTED)
-    text.to_edge(UP, buff=1.08)
+    text.to_edge(UP, buff=1.12)
     return text
 
 
@@ -115,8 +129,8 @@ def pill(label: str) -> VGroup:
     """Action chip — Medium Inter, room to breathe."""
     text = ink_text(label, "chip")
     box = RoundedRectangle(
-        width=text.width + 0.56,
-        height=0.52,
+        width=text.width + 0.58,
+        height=0.56,
         corner_radius=0.16,
     )
     box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.25)
@@ -176,7 +190,7 @@ def agent_dot(color: str, radius: float = 0.17) -> Circle:
     return dot
 
 
-def arrow_mark() -> MarkupText:
+def arrow_mark() -> VGroup:
     return ink_text("→", "label", MUTED)
 
 
@@ -197,7 +211,7 @@ class IntroExplainer(Scene):
         if lingering:
             self.play(*[FadeOut(mob) for mob in lingering], run_time=run_time, rate_func=smooth)
 
-    def _open_section(self, title: str, subtitle: str) -> tuple[MarkupText, MarkupText]:
+    def _open_section(self, title: str, subtitle: str) -> tuple[VGroup, VGroup]:
         head = heading(title)
         rule = heading_rule(head)
         sub = caption(subtitle)
@@ -215,7 +229,7 @@ class IntroExplainer(Scene):
         line = ink_text("Many agents share the food.", "lead", MUTED)
         line.next_to(title, DOWN, buff=0.26)
         rule = Line(LEFT * 0.48, RIGHT * 0.48)
-        rule.set_stroke(GRID_EDGE, 1.3)
+        rule.set_stroke("#9ca3af", 1.8)
         rule.next_to(line, DOWN, buff=0.40)
         question = ink_text(
             "What mix of helpfulness\nand self-interest actually works?",
