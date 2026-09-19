@@ -15,7 +15,7 @@ variants:
   - id: chromosome
     title: Chromosome attachment
     note: 2026-04
-  - id: 10k
+  - id: development-run
     title: 10,000-step development run
   - id: resource-buffer
     title: Resource-buffer comparison
@@ -86,7 +86,7 @@ This variant established that the chromosome is live in the loop — priors
 move, lineages exist, ecology can in principle select. It did not yet
 separate drift from selection or single-seed noise from a result.
 
-## 10,000-step development run {#10k}
+## 10,000-step development run {#development-run}
 
 One development-profile run, seed 42, crossover on, `low` pressure, 10,000
 logged steps. [RESULTS](../experiments/intrinsic_evolution/RESULTS.md).

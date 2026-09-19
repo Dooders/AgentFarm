@@ -7,12 +7,15 @@ on that page, not as a stack of separate posts.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
 _REPO = Path(__file__).resolve().parents[2]
+if str(_REPO) not in sys.path:
+    sys.path.insert(0, str(_REPO))
 _WRITEUPS = _REPO / "docs" / "research" / "writeups"
 _INDEX = _WRITEUPS / "index.md"
 _CATALOG = _REPO / "docs" / "research" / "experiments-catalog.md"
@@ -74,6 +77,10 @@ def test_each_writeup_is_a_whole_experiment_with_variant_runs() -> None:
         for variant in variants:
             assert "id" in variant and "title" in variant, f"{path.name} variant is missing id/title"
             variant_id = str(variant["id"])
+            assert re.fullmatch(r"[a-z][a-z0-9-]*", variant_id), (
+                f"{path.name} variant id {variant_id!r} must be a kramdown HTML id "
+                "(start with a letter; digits-only prefixes like 10k are left as literal text)"
+            )
             ids.append(variant_id)
             heading_pattern = r"^## .+\{#" + re.escape(variant_id) + r"\}\s*$"
             heading = re.search(heading_pattern, body, re.MULTILINE)
@@ -84,3 +91,13 @@ def test_each_writeup_is_a_whole_experiment_with_variant_runs() -> None:
 
         assert len(ids) == len(set(ids)), f"{path.name} has duplicate variant ids"
         assert f"writeups/{path.stem}.md" in catalog, f"catalog does not link to writeups/{path.stem}.md"
+
+
+@pytest.mark.unit
+def test_docs_link_checker_skips_jekyll_vendor() -> None:
+    from scripts.check_docs_links import SKIP_DIR_PARTS, iter_markdown_files
+
+    assert "vendor" in SKIP_DIR_PARTS
+    scanned = [path.as_posix() for path in iter_markdown_files()]
+    assert not any("/vendor/" in path or "/_site/" in path for path in scanned)
+
