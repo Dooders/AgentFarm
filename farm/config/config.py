@@ -962,6 +962,10 @@ class SimulationConfig:
     # simulation or via the intrinsic-evolution runner's defaults).
     initial_diversity: InitialDiversityConfig = field(default_factory=InitialDiversityConfig)
 
+    # Exclusive pair-bonds (Layer C). Off by default so bond/leave stay out of
+    # the default action space and agent action lists.
+    union_enabled: bool = False
+
     # Analysis configurations
     spatial_analysis: SpatialAnalysisConfig = field(default_factory=SpatialAnalysisConfig)
     genesis_analysis: GenesisAnalysisConfig = field(default_factory=GenesisAnalysisConfig)

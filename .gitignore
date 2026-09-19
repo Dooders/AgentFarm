@@ -179,6 +179,10 @@ simulations/
 !/experiments/veil_ceiling/
 !/experiments/veil_ceiling/results/
 !/experiments/veil_ceiling/results/**
+!/experiments/union_emergence/
+!/experiments/union_emergence/**
+experiments/union_emergence/**/__pycache__/
+experiments/union_emergence/layer_c/*_s*/
 
 # Generated experiment outputs (regenerate via run_experiment.py / runners)
 /results/
