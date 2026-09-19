@@ -106,6 +106,21 @@ agent type ultimately thrives.
   - [Reproduction](experiments/one_of_a_kind/Reproduction.md)
   - [Dominance dynamics](experiments/one_of_a_kind/Dominance.md)
 
+### Union emergence
+
+Asks whether an exclusive, costly-to-exit pair-bond is a selected *unit*
+(superadditive energy, split reproductive cost, accumulated bond strength)
+that promiscuous `share` cannot fake. Standalone intrinsic-evolution arena
+plus a compact threshold grid over courtship delay, bonding cost, exit tax,
+and neighborhood size. AgentFarm chromosome / action wiring is specified,
+not yet merged.
+
+- **Status:** Design + standalone pilot and threshold grid; platform port outlined.
+- **Standalone runner:** Working-artifact reference `experiments/union_emergence/union_intrinsic_evolution.py` (not checked in on this branch).
+- **Docs:** [Devlog 2026-09-18](devlog/2026-09-18-union-as-emergent-property.md)
+- **Grid summary:** Working-artifact reference `experiments/union_emergence/compact_threshold_summary.json` (not checked in on this branch).
+- **Related:** Intrinsic goals (`reward_share_bonus`), One of a Kind / Cooperation
+
 ### Rabbit's Foot
 
 Introduces a singular, non-consumable artifact that grants its holder a
