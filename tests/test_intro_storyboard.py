@@ -28,16 +28,13 @@ from farm.core.intro_storyboard import (
     NOTE_ENV,
     TURNS,
     TYPE_FONT,
+    TYPE_MIN_SIZE,
     TYPE_SCALE,
-    TYPE_SPACE,
-    TYPE_STACK_BUFF,
     WORLD_CHANGES,
     hold_for,
     in_bounds,
     kind_color,
     line_span,
-    open_words,
-    stack_buff,
     type_role,
     validate_storyboard,
 )
@@ -79,8 +76,6 @@ def test_kind_color_and_bounds():
 
 def test_type_system_matches_docs_inter():
     assert TYPE_FONT == "Inter"
-    assert TYPE_SPACE == "\u2002"
-    assert set(TYPE_SCALE) == set(TYPE_STACK_BUFF)
     assert set(TYPE_SCALE) == {
         "display",
         "heading",
@@ -100,13 +95,13 @@ def test_type_system_matches_docs_inter():
     assert heading["weight"] == "SEMIBOLD"
     assert type_role("label")["weight"] == "MEDIUM"
     assert caption["size"] < body["size"] < heading["size"] < display["size"]
-    assert stack_buff("caption") > stack_buff("meta")
-    assert " " not in open_words("one two")
-    assert open_words("one two").count(TYPE_SPACE) == 1
+    # Reading copy gets looser leading than display type, as in the docs CSS.
+    assert caption["leading"] > heading["leading"] > display["leading"]
+    for role, spec in TYPE_SCALE.items():
+        assert spec["size"] >= TYPE_MIN_SIZE, role
+        assert spec["leading"] > 0, role
     with pytest.raises(KeyError):
         type_role("unknown")
-    with pytest.raises(KeyError):
-        stack_buff("unknown")
 
 
 def test_stacked_copy_is_evenly_wrapped():

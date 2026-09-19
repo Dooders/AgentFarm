@@ -12,6 +12,9 @@ Or:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+import numpy as np
 from manim import (
     DOWN,
     LEFT,
@@ -25,7 +28,9 @@ from manim import (
     GrowFromCenter,
     LaggedStart,
     Line,
+    Mobject,
     MoveAlongPath,
+    Paragraph,
     RoundedRectangle,
     Scene,
     Square,
@@ -35,6 +40,16 @@ from manim import (
     smooth,
 )
 
+from farm.core.intro_layout import (
+    GAP_HEADING,
+    MARGIN_BOTTOM,
+    banner_top,
+    fit_cell,
+    frame_bottom,
+    safe_width,
+    stage_bounds,
+    stage_center,
+)
 from farm.core.intro_storyboard import (
     ACTIONS,
     AGENT_KINDS,
@@ -78,22 +93,18 @@ from farm.core.intro_storyboard import (
     as_lines,
     hold_for,
     kind_color,
-    open_words,
-    stack_buff,
     type_role,
 )
 
-CELL = 0.58
-SAFE_WIDTH = 12.4
-KIND_X = (-3.55, 0.0, 3.55)
-RULE_HALF = 0.35
+# Columns for the three agent kinds, so the row does not drift with label widths.
+KIND_X = (-3.60, 0.0, 3.60)
 
 
 def ink_text(body: str, role: str = "body", color: str = INK) -> Text:
-    """Single Inter line with open word spacing. Avoids LaTeX."""
+    """One Inter line at a named type role. Avoids LaTeX."""
     spec = type_role(role)
     return Text(
-        open_words(body),
+        body,
         font=TYPE_FONT,
         font_size=float(spec["size"]),
         color=color,
@@ -102,66 +113,128 @@ def ink_text(body: str, role: str = "body", color: str = INK) -> Text:
     )
 
 
-def stack_lines(
-    copy: str | tuple[str, ...],
-    role: str,
-    color: str = INK,
-    *,
-    buff: float | None = None,
-) -> VGroup:
-    """Each Inter line centered on the same axis."""
-    gap = stack_buff(role) if buff is None else buff
-    parts = [ink_text(line, role, color) for line in as_lines(copy)]
-    if len(parts) == 1:
-        stacked = VGroup(parts[0])
-    else:
-        stacked = VGroup(*parts).arrange(DOWN, buff=gap)
-    stacked.set_x(0)
-    return stacked
+def copy_block(copy: str | tuple[str, ...], role: str = "body", color: str = INK) -> Mobject:
+    """Centered copy at a named type role.
+
+    Multi-line copy comes from a single Pango layout, so the baselines are evenly
+    spaced no matter which lines carry ascenders or descenders. Each line is then
+    centered on the block, which centers on the frame axis.
+    """
+    lines = as_lines(copy)
+    if len(lines) == 1:
+        return ink_text(lines[0], role, color)
+    spec = type_role(role)
+    block = Paragraph(
+        *lines,
+        font=TYPE_FONT,
+        font_size=float(spec["size"]),
+        color=color,
+        weight=str(spec["weight"]),
+        line_spacing=float(spec["leading"]),
+        alignment="center",
+        disable_ligatures=True,
+    )
+    block.set_x(0)
+    return block
 
 
-def accent_rule() -> Line:
-    """Short rule that always sits on the frame center."""
-    rule = Line(LEFT * RULE_HALF, RIGHT * RULE_HALF)
-    rule.set_stroke("#9ca3af", 1.6)
-    rule.set_x(0)
-    return rule
+@dataclass
+class Banner:
+    """Section heading with a caption that can be swapped in place."""
+
+    group: VGroup
+    heading: Text
+    caption: Mobject
+    caption_top: float
+
+    @property
+    def height(self) -> float:
+        return float(self.group.height)
+
+    def swap(self, copy: tuple[str, ...]) -> Mobject:
+        """Build a replacement caption on the same top edge and center line."""
+        caption = copy_block(copy, "caption", MUTED)
+        caption.set_x(0)
+        caption.shift(UP * (self.caption_top - caption.get_top()[1]))
+        return caption
 
 
-def section_banner(title: str, lines: tuple[str, ...]) -> tuple[VGroup, VGroup]:
-    """Centered heading, short rule, and caption — each on the frame axis."""
-    head = ink_text(title, "heading")
-    head.set_x(0)
-    rule = accent_rule()
-    rule.next_to(head, DOWN, buff=0.16)
-    rule.set_x(0)
-    cap = stack_lines(lines, "caption", MUTED)
-    cap.next_to(rule, DOWN, buff=0.24)
-    cap.set_x(0)
-    banner = VGroup(head, rule, cap)
-    banner.to_edge(UP, buff=0.40)
-    head.set_x(0)
-    rule.set_x(0)
-    cap.set_x(0)
-    return banner, cap
+def section_banner(title: str, copy: tuple[str, ...]) -> Banner:
+    """Centered heading and caption, parked in the top margin."""
+    heading = ink_text(title, "heading")
+    heading.set_x(0)
+    heading.shift(UP * (banner_top() - heading.get_top()[1]))
+    caption = copy_block(copy, "caption", MUTED)
+    caption.set_x(0)
+    caption_top = heading.get_bottom()[1] - GAP_HEADING
+    caption.shift(UP * (caption_top - caption.get_top()[1]))
+    return Banner(VGroup(heading, caption), heading, caption, caption_top)
 
 
-def place_caption(copy: tuple[str, ...], banner: VGroup) -> VGroup:
-    """Replacement caption centered under the section rule."""
-    cap = stack_lines(copy, "caption", MUTED)
-    cap.next_to(banner[1], DOWN, buff=0.24)
-    cap.set_x(0)
-    return cap
+@dataclass
+class GridStage:
+    """Square teaching grid sized to the room left between banner and footer."""
+
+    cell: float
+    center_y: float
+
+    @classmethod
+    def between(cls, top: float, bottom: float, size: int = GRID_SIZE) -> GridStage:
+        return cls(fit_cell(top, bottom, size), stage_center(top, bottom))
+
+    @property
+    def span(self) -> float:
+        return self.cell * GRID_SIZE
+
+    def point(self, grid_x: int, grid_y: int) -> np.ndarray:
+        """Manim point for a cell, y increasing upward."""
+        offset = (GRID_SIZE - 1) / 2
+        return np.array(
+            [
+                (grid_x - offset) * self.cell,
+                (grid_y - offset) * self.cell + self.center_y,
+                0.0,
+            ]
+        )
+
+    def board(self) -> VGroup:
+        cells = VGroup()
+        for grid_y in range(GRID_SIZE):
+            for grid_x in range(GRID_SIZE):
+                square = Square(self.cell)
+                square.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.1)
+                square.move_to(self.point(grid_x, grid_y))
+                cells.add(square)
+        return cells
+
+    def patch(self, grid_x: int, grid_y: int) -> RoundedRectangle:
+        side = self.cell * 0.68
+        patch = RoundedRectangle(width=side, height=side, corner_radius=0.08)
+        patch.set_fill(FOOD, 0.88).set_stroke(width=0)
+        patch.move_to(self.point(grid_x, grid_y))
+        return patch
+
+    def dot_radius(self) -> float:
+        return self.cell * 0.30
+
+
+def card_box(content: Mobject, pad_x: float, pad_y: float, min_width: float = 0.0) -> VGroup:
+    """Rounded card sized around centered content."""
+    box = RoundedRectangle(
+        width=max(content.width + pad_x, min_width),
+        height=content.height + pad_y,
+        corner_radius=0.16,
+    )
+    box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.25)
+    box.set_x(0)
+    content.move_to(box.get_center())
+    return VGroup(box, content)
 
 
 def pill(label: str) -> VGroup:
     """Action chip — Medium Inter, room to breathe."""
     text = ink_text(label, "chip")
-    box = RoundedRectangle(
-        width=text.width + 0.58,
-        height=0.56,
-        corner_radius=0.16,
-    )
+    box = RoundedRectangle(width=text.width + 0.62, height=0.58, corner_radius=0.16)
     box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.25)
     text.move_to(box.get_center())
     return VGroup(box, text)
@@ -179,37 +252,10 @@ def step_card(label: str) -> VGroup:
 def trait_chip(label: str) -> VGroup:
     """Small card used around the single-agent diagram."""
     text = ink_text(label, "chip", MUTED)
-    box = RoundedRectangle(width=text.width + 0.46, height=0.48, corner_radius=0.14)
+    box = RoundedRectangle(width=text.width + 0.50, height=0.50, corner_radius=0.14)
     box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.15)
     text.move_to(box.get_center())
     return VGroup(box, text)
-
-
-def cell_point(grid_x: int, grid_y: int, origin=ORIGIN):
-    """Manim point for a grid cell, y increasing upward."""
-    shift_x = (grid_x - (GRID_SIZE - 1) / 2) * CELL
-    shift_y = (grid_y - (GRID_SIZE - 1) / 2) * CELL
-    return origin + [shift_x, shift_y, 0]
-
-
-def make_grid(origin=ORIGIN) -> VGroup:
-    """Empty teaching grid."""
-    cells = VGroup()
-    for grid_y in range(GRID_SIZE):
-        for grid_x in range(GRID_SIZE):
-            square = Square(CELL)
-            square.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.1)
-            square.move_to(cell_point(grid_x, grid_y, origin))
-            cells.add(square)
-    return cells
-
-
-def food_patch(grid_x: int, grid_y: int, origin=ORIGIN) -> RoundedRectangle:
-    """Green rounded square sitting inside a cell."""
-    patch = RoundedRectangle(width=CELL * 0.68, height=CELL * 0.68, corner_radius=0.08)
-    patch.set_fill(FOOD, 0.88).set_stroke(width=0)
-    patch.move_to(cell_point(grid_x, grid_y, origin))
-    return patch
 
 
 def agent_dot(color: str, radius: float = 0.17) -> Circle:
@@ -219,8 +265,78 @@ def agent_dot(color: str, radius: float = 0.17) -> Circle:
     return dot
 
 
-def arrow_mark() -> Text:
-    return ink_text("→", "label", MUTED)
+def kind_columns() -> VGroup:
+    """Dot, name, and hint for each agent kind, on fixed columns."""
+    columns = VGroup()
+    for item, x_pos in zip(AGENT_KINDS, KIND_X):
+        dot = agent_dot(item["color"], 0.24)
+        label = ink_text(item["label"], "label")
+        hint = copy_block(item["hint"], "meta", MUTED)
+        column = VGroup(dot, label, hint).arrange(DOWN, buff=0.22)
+        column.set_x(x_pos)
+        columns.add(column)
+    return columns
+
+
+def loop_row() -> tuple[VGroup, VGroup]:
+    """Look → Decide → Act cards with arrows between them."""
+    cards = VGroup(*[step_card(step) for step in LOOP_STEPS])
+    cards.arrange(RIGHT, buff=1.05)
+    cards.set_x(0)
+    arrows = VGroup()
+    for left, right in zip(cards, cards[1:]):
+        mark = ink_text("→", "label", MUTED)
+        mark.move_to((left.get_right() + right.get_left()) / 2)
+        arrows.add(mark)
+    return cards, arrows
+
+
+def action_rows() -> VGroup:
+    """Every action, in two centered rows that fit the safe width."""
+    top = VGroup(*[pill(name) for name in ACTIONS[:4]]).arrange(RIGHT, buff=0.30)
+    bottom = VGroup(*[pill(name) for name in ACTIONS[4:]]).arrange(RIGHT, buff=0.30)
+    rows = VGroup(top, bottom).arrange(DOWN, buff=0.26)
+    if rows.width > safe_width():
+        rows.scale_to_fit_width(safe_width())
+    rows.set_x(0)
+    return rows
+
+
+def legend_row() -> VGroup:
+    """Colour key for the grid example."""
+    row = VGroup(
+        _legend_item(COOPERATIVE, "Cooperative"),
+        _legend_item(SELF_INTERESTED, "Self-interested"),
+        _legend_item(BALANCED, "Balanced"),
+        _legend_item(FOOD, "Food", square=True),
+    )
+    row.arrange(RIGHT, buff=0.58)
+    row.set_x(0)
+    return row
+
+
+def _legend_item(color: str, label: str, square: bool = False) -> VGroup:
+    if square:
+        mark = Square(0.18).set_fill(color, 0.9).set_stroke(width=0)
+    else:
+        mark = Circle(radius=0.09).set_fill(color, 1).set_stroke(INK, 1.0)
+    text = ink_text(label, "meta", MUTED)
+    text.next_to(mark, RIGHT, buff=0.14)
+    return VGroup(mark, text)
+
+
+def seat_on_bottom(block: Mobject) -> Mobject:
+    """Place a block on the bottom margin, centered."""
+    block.set_x(0)
+    block.shift(UP * (frame_bottom() + MARGIN_BOTTOM - block.get_bottom()[1]))
+    return block
+
+
+def seat_in_stage(block: Mobject, top: float, bottom: float) -> Mobject:
+    """Center a block in a stage span."""
+    block.set_x(0)
+    block.shift(UP * (stage_center(top, bottom) - block.get_center()[1]))
+    return block
 
 
 class IntroExplainer(Scene):
@@ -240,101 +356,71 @@ class IntroExplainer(Scene):
         if lingering:
             self.play(*[FadeOut(mob) for mob in lingering], run_time=run_time, rate_func=smooth)
 
-    def _open_section(self, title: str, lines: tuple[str, ...]) -> tuple[VGroup, VGroup]:
-        banner, cap = section_banner(title, lines)
-        self.play(FadeIn(banner, shift=UP * 0.04), run_time=0.55, rate_func=smooth)
+    def _open_section(self, title: str, copy: tuple[str, ...]) -> Banner:
+        banner = section_banner(title, copy)
+        self.play(FadeIn(banner.group, shift=UP * 0.04), run_time=0.55, rate_func=smooth)
         self.wait(HOLD_LINE)
-        return banner, cap
+        return banner
 
     def _hook(self) -> None:
-        title = ink_text(HOOK_TITLE, "display")
-        line = ink_text(HOOK_LINE, "lead", MUTED)
-        title.set_x(0)
-        line.next_to(title, DOWN, buff=stack_buff("lead") + 0.08)
-        line.set_x(0)
-        rule = accent_rule()
-        rule.next_to(line, DOWN, buff=0.34)
-        rule.set_x(0)
-        question = stack_lines(HOOK_QUESTION, "lead")
-        box = RoundedRectangle(
-            width=max(question.width + 1.20, 8.4),
-            height=question.height + 0.90,
-            corner_radius=0.18,
-        )
-        box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.25)
-        box.set_x(0)
-        question.move_to(box.get_center())
-        card_group = VGroup(box, question)
-        card_group.next_to(rule, DOWN, buff=0.42)
-        card_group.set_x(0)
-        lockup = VGroup(title, line, rule, card_group)
+        title = copy_block(HOOK_TITLE, "display")
+        line = copy_block(HOOK_LINE, "lead", MUTED)
+        question = copy_block(HOOK_QUESTION, "lead")
+        card = card_box(question, pad_x=1.30, pad_y=0.92, min_width=8.0)
+
+        line.next_to(title, DOWN, buff=0.26)
+        card.next_to(line, DOWN, buff=0.70)
+        lockup = VGroup(title, line, card)
         lockup.move_to(ORIGIN)
-        title.set_x(0)
-        line.set_x(0)
-        rule.set_x(0)
-        card_group.set_x(0)
+        for part in (title, line, card):
+            part.set_x(0)
 
         self.play(FadeIn(title, shift=UP * 0.06), run_time=0.7, rate_func=smooth)
         self.play(FadeIn(line, shift=DOWN * 0.08), run_time=0.5, rate_func=smooth)
         self.wait(hold_for(HOOK_TITLE, HOOK_LINE))
-        self.play(
-            FadeIn(rule),
-            FadeIn(card_group, shift=UP * 0.06),
-            run_time=0.7,
-            rate_func=smooth,
-        )
+        self.play(FadeIn(card, shift=UP * 0.06), run_time=0.7, rate_func=smooth)
         self.wait(hold_for(HOOK_QUESTION))
         self._fade_all()
 
     def _what_is_an_agent(self) -> None:
-        banner, sub = self._open_section(SECTION_AGENT, CAPTION_AGENT)
+        banner = self._open_section(SECTION_AGENT, CAPTION_AGENT)
+        top, bottom = stage_bounds(banner.height)
 
         dot = agent_dot("#6b7280", 0.30)
-        dot.shift(DOWN * 0.10)
+        seat_in_stage(dot, top, bottom)
         self.play(GrowFromCenter(dot), run_time=0.45, rate_func=smooth)
 
         chips = [trait_chip(label) for label in AGENT_TRAITS]
-        chips[0].next_to(dot, UP, buff=0.44)
-        chips[1].next_to(dot, RIGHT, buff=0.50)
-        chips[2].next_to(dot, DOWN, buff=0.44)
-        chips[3].next_to(dot, LEFT, buff=0.50)
-        trait_mobs = VGroup(*chips)
+        chips[0].next_to(dot, UP, buff=0.46)
+        chips[1].next_to(dot, RIGHT, buff=0.52)
+        chips[2].next_to(dot, DOWN, buff=0.46)
+        chips[3].next_to(dot, LEFT, buff=0.52)
+        traits = VGroup(*chips)
         self.play(
-            LaggedStart(*[FadeIn(mob, shift=DOWN * 0.08) for mob in trait_mobs], lag_ratio=0.16),
+            LaggedStart(*[FadeIn(mob, shift=DOWN * 0.08) for mob in traits], lag_ratio=0.16),
             run_time=1.15,
         )
         self.wait(hold_for(*AGENT_TRAITS, minimum=HOLD_READ))
 
-        self.play(FadeOut(trait_mobs), FadeOut(sub), run_time=0.35, rate_func=smooth)
-        kinds_title = place_caption(CAPTION_KINDS, banner)
-        self.play(FadeIn(kinds_title), run_time=0.35)
+        kinds_caption = banner.swap(CAPTION_KINDS)
+        self.play(FadeOut(traits), FadeOut(banner.caption), run_time=0.35, rate_func=smooth)
+        self.play(FadeIn(kinds_caption), run_time=0.35)
         self.wait(HOLD_LINE)
 
-        kind_group = VGroup()
-        for item in AGENT_KINDS:
-            circle = agent_dot(item["color"], 0.24)
-            label = ink_text(item["label"], "label")
-            hint = stack_lines(item["hint"], "meta", MUTED)
-            col = VGroup(circle, label, hint).arrange(DOWN, buff=0.20)
-            kind_group.add(col)
-        kind_group.arrange(RIGHT, buff=1.05)
-        kind_group.next_to(banner, DOWN, buff=0.72)
-        kind_group.set_x(0)
-        for column, x_pos in zip(kind_group, KIND_X):
-            column.set_x(x_pos)
-
+        columns = kind_columns()
+        seat_in_stage(columns, top, bottom)
         self.play(
-            dot.animate.move_to(kind_group[0][0].get_center()).set_fill(COOPERATIVE, 1),
+            dot.animate.move_to(columns[0][0].get_center()).set_fill(COOPERATIVE, 1),
             run_time=0.65,
             rate_func=smooth,
         )
         self.remove(dot)
-        self.add(kind_group[0][0])
+        self.add(columns[0][0])
         self.play(
-            FadeIn(kind_group[0][1]),
-            FadeIn(kind_group[0][2]),
-            FadeIn(kind_group[1], shift=UP * 0.08),
-            FadeIn(kind_group[2], shift=UP * 0.08),
+            FadeIn(columns[0][1]),
+            FadeIn(columns[0][2]),
+            FadeIn(columns[1], shift=UP * 0.08),
+            FadeIn(columns[2], shift=UP * 0.08),
             run_time=0.75,
             rate_func=smooth,
         )
@@ -342,16 +428,15 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _what_is_the_environment(self) -> None:
-        self._open_section(SECTION_ENV, CAPTION_ENV)
+        banner = self._open_section(SECTION_ENV, CAPTION_ENV)
+        note = seat_on_bottom(copy_block(NOTE_ENV, "caption", MUTED))
+        top, bottom = stage_bounds(banner.height, note.height)
+        stage = GridStage.between(top, bottom)
 
-        origin = DOWN * 0.28
-        grid = make_grid(origin)
-        self.play(Create(grid, lag_ratio=0.012), run_time=1.5, rate_func=smooth)
+        board = stage.board()
+        self.play(Create(board, lag_ratio=0.012), run_time=1.5, rate_func=smooth)
 
-        food = VGroup(*[food_patch(x, y, origin) for x, y in FOOD_START])
-        note = stack_lines(NOTE_ENV, "caption", MUTED)
-        note.to_edge(DOWN, buff=0.38)
-        note.set_x(0)
+        food = VGroup(*[stage.patch(x, y) for x, y in FOOD_START])
         self.play(
             LaggedStart(*[FadeIn(patch, scale=0.75) for patch in food], lag_ratio=0.14),
             FadeIn(note),
@@ -361,16 +446,20 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _what_do_agents_do(self) -> None:
-        self._open_section(SECTION_DO, CAPTION_DO)
+        banner = self._open_section(SECTION_DO, CAPTION_DO)
+        top, bottom = stage_bounds(banner.height)
 
-        cards = VGroup(*[step_card(step) for step in LOOP_STEPS])
-        cards.arrange(RIGHT, buff=1.05)
-        cards.shift(UP * 0.38)
-        arrows = VGroup()
-        for left, right in zip(cards, cards[1:]):
-            mark = arrow_mark()
+        cards, arrows = loop_row()
+        world = copy_block(WORLD_CHANGES, "lead")
+        rows = action_rows()
+        world.next_to(cards, DOWN, buff=0.52)
+        rows.next_to(world, DOWN, buff=0.56)
+        column = VGroup(cards, world, rows)
+        seat_in_stage(column, top, bottom)
+        for part in (cards, world, rows):
+            part.set_x(0)
+        for left, right, mark in zip(cards, cards[1:], arrows):
             mark.move_to((left.get_right() + right.get_left()) / 2)
-            arrows.add(mark)
 
         self.play(
             LaggedStart(*[FadeIn(mob, shift=RIGHT * 0.12) for mob in cards], lag_ratio=0.18),
@@ -382,75 +471,59 @@ class IntroExplainer(Scene):
             self.play(box.animate.set_stroke(INK, 2.0), run_time=0.32, rate_func=smooth)
             self.play(box.animate.set_stroke(GRID_EDGE, 1.4), run_time=0.26, rate_func=smooth)
 
-        world = stack_lines(WORLD_CHANGES, "lead")
-        world.next_to(cards, DOWN, buff=0.48)
-        world.set_x(0)
         self.play(FadeIn(world, shift=DOWN * 0.08), run_time=0.4, rate_func=smooth)
         self.wait(hold_for(WORLD_CHANGES))
-
-        top = VGroup(*[pill(name) for name in ACTIONS[:4]])
-        bottom = VGroup(*[pill(name) for name in ACTIONS[4:]])
-        top.arrange(RIGHT, buff=0.30)
-        bottom.arrange(RIGHT, buff=0.30)
-        action_pills = VGroup(top, bottom).arrange(DOWN, buff=0.26)
-        action_pills.next_to(world, DOWN, buff=0.52)
-        if action_pills.width > SAFE_WIDTH:
-            action_pills.scale_to_fit_width(SAFE_WIDTH)
         self.play(
-            LaggedStart(*[FadeIn(mob, shift=DOWN * 0.08) for mob in (*top, *bottom)], lag_ratio=0.07),
+            LaggedStart(
+                *[FadeIn(mob, shift=DOWN * 0.08) for row in rows for mob in row],
+                lag_ratio=0.07,
+            ),
             run_time=0.95,
         )
         self.wait(HOLD_READ)
         self._fade_all()
 
     def _grid_example(self) -> None:
-        banner, sub = self._open_section(SECTION_GRID, CAPTION_GRID)
+        banner = self._open_section(SECTION_GRID, CAPTION_GRID)
+        legend = seat_on_bottom(legend_row())
+        top, bottom = stage_bounds(banner.height, legend.height)
+        stage = GridStage.between(top, bottom)
 
-        origin = DOWN * 0.36
-        grid = make_grid(origin)
-        self.play(FadeIn(grid), run_time=0.45, rate_func=smooth)
+        board = stage.board()
+        self.play(FadeIn(board), run_time=0.45, rate_func=smooth)
 
-        food = {cell: food_patch(*cell, origin) for cell in FOOD_START}
+        food = {cell: stage.patch(*cell) for cell in FOOD_START}
         self.play(
             LaggedStart(*[FadeIn(patch, scale=0.8) for patch in food.values()], lag_ratio=0.08),
             run_time=0.7,
         )
 
         dots = {}
-        intro_anims = []
+        arrivals = []
         for agent_id, spec in AGENTS.items():
-            dot = agent_dot(kind_color(spec["kind"]))
-            dot.move_to(cell_point(*spec["start"], origin))
+            dot = agent_dot(kind_color(spec["kind"]), stage.dot_radius())
+            dot.move_to(stage.point(*spec["start"]))
             dots[agent_id] = dot
-            intro_anims.append(GrowFromCenter(dot))
-        self.play(LaggedStart(*intro_anims, lag_ratio=0.07), run_time=0.75)
-
-        legend = VGroup(
-            _legend_item(COOPERATIVE, "Cooperative"),
-            _legend_item(SELF_INTERESTED, "Self-interested"),
-            _legend_item(BALANCED, "Balanced"),
-            _legend_item(FOOD, "Food", square=True),
-        )
-        legend.arrange(RIGHT, buff=0.58)
-        legend.to_edge(DOWN, buff=0.30)
+            arrivals.append(GrowFromCenter(dot))
+        self.play(LaggedStart(*arrivals, lag_ratio=0.07), run_time=0.75)
         self.play(FadeIn(legend), run_time=0.35, rate_func=smooth)
 
-        beat = place_caption(CAPTION_WALK, banner)
-        self.play(FadeOut(sub), FadeIn(beat), run_time=0.4, rate_func=smooth)
+        beat = banner.swap(CAPTION_WALK)
+        self.play(FadeOut(banner.caption), FadeIn(beat), run_time=0.4, rate_func=smooth)
         self.wait(hold_for(CAPTION_WALK))
 
         for turn in TURNS:
-            animations = []
+            walks = []
             for agent_id, cell in turn["moves"].items():
-                dest = cell_point(*cell, origin)
+                dest = stage.point(*cell)
                 start = dots[agent_id].get_center()
                 if abs(start[0] - dest[0]) + abs(start[1] - dest[1]) < 1e-6:
                     continue
                 path = Line(start, dest)
                 path.set_opacity(0)
-                animations.append(MoveAlongPath(dots[agent_id], path))
-            if animations:
-                self.play(*animations, run_time=WALK_TIME, rate_func=smooth)
+                walks.append(MoveAlongPath(dots[agent_id], path))
+            if walks:
+                self.play(*walks, run_time=WALK_TIME, rate_func=smooth)
             eaten = []
             for cell in turn["eat"]:
                 patch = food.get(cell)
@@ -463,7 +536,7 @@ class IntroExplainer(Scene):
                 self.wait(0.12)
 
         cluster = VGroup(dots["blue_a"], dots["blue_b"], dots["red_a"], dots["red_b"])
-        closer = place_caption(CAPTION_CLUSTER, banner)
+        closer = banner.swap(CAPTION_CLUSTER)
         halo = SurroundingRectangle(cluster, color=INK, buff=0.20, stroke_width=2.0)
         self.play(FadeOut(beat), FadeIn(closer), run_time=0.4, rate_func=smooth)
         self.play(FadeIn(halo), run_time=0.45, rate_func=smooth)
@@ -471,11 +544,12 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _close(self) -> None:
-        title = stack_lines(CLOSE_TITLE, "heading")
-        question = stack_lines(CLOSE_QUESTION, "caption", MUTED)
-        title.move_to(ORIGIN).shift(UP * 0.42)
+        title = copy_block(CLOSE_TITLE, "heading")
+        question = copy_block(CLOSE_QUESTION, "caption", MUTED)
+        question.next_to(title, DOWN, buff=0.52)
+        lockup = VGroup(title, question)
+        lockup.move_to(ORIGIN)
         title.set_x(0)
-        question.next_to(title, DOWN, buff=0.42)
         question.set_x(0)
         self.play(FadeIn(title, shift=UP * 0.05), run_time=0.7, rate_func=smooth)
         self.play(FadeIn(question, shift=DOWN * 0.04), run_time=0.6, rate_func=smooth)
@@ -484,11 +558,43 @@ class IntroExplainer(Scene):
         self.wait(0.15)
 
 
-def _legend_item(color: str, label: str, square: bool = False) -> VGroup:
-    if square:
-        mark = Square(0.18).set_fill(color, 0.9).set_stroke(width=0)
-    else:
-        mark = Circle(radius=0.09).set_fill(color, 1).set_stroke(INK, 1.0)
-    text = ink_text(label, "meta", MUTED)
-    text.next_to(mark, RIGHT, buff=0.14)
-    return VGroup(mark, text)
+SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("agent", SECTION_AGENT, CAPTION_AGENT),
+    ("environment", SECTION_ENV, CAPTION_ENV),
+    ("actions", SECTION_DO, CAPTION_DO),
+    ("grid", SECTION_GRID, CAPTION_GRID),
+)
+
+
+def section_stage(name: str) -> tuple[float, float]:
+    """Top and bottom Y of a section's stage, as the scene computes it."""
+    for key, title, caption in SECTIONS:
+        if key != name:
+            continue
+        banner = section_banner(title, caption)
+        if key == "environment":
+            footer = float(copy_block(NOTE_ENV, "caption", MUTED).height)
+        elif key == "grid":
+            footer = float(legend_row().height)
+        else:
+            footer = 0.0
+        return stage_bounds(banner.height, footer)
+    raise KeyError(name)
+
+
+__all__ = [
+    "SECTIONS",
+    "Banner",
+    "GridStage",
+    "IntroExplainer",
+    "action_rows",
+    "copy_block",
+    "ink_text",
+    "kind_columns",
+    "legend_row",
+    "loop_row",
+    "seat_in_stage",
+    "seat_on_bottom",
+    "section_banner",
+    "section_stage",
+]

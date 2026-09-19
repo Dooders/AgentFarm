@@ -16,52 +16,29 @@ FOOD = "#16a34a"
 
 # Inter, same family as the docs site. Sizes are Manim font_size points.
 TYPE_FONT = "Inter"
-# En space is a hair wider than Inter's default word space, so 720p still reads.
-TYPE_SPACE = "\u2002"
-TYPE_SCALE: dict[str, dict[str, int | str]] = {
-    "display": {"size": 46, "weight": "SEMIBOLD"},
-    "heading": {"size": 34, "weight": "SEMIBOLD"},
-    "lead": {"size": 24, "weight": "MEDIUM"},
-    "body": {"size": 25, "weight": "NORMAL"},
-    "caption": {"size": 22, "weight": "NORMAL"},
-    "label": {"size": 22, "weight": "MEDIUM"},
-    "step": {"size": 26, "weight": "SEMIBOLD"},
-    "chip": {"size": 20, "weight": "MEDIUM"},
-    "meta": {"size": 18, "weight": "NORMAL"},
+# ``leading`` is Manim's Pango line_spacing, solved so baseline pitch matches the
+# em multiples the docs CSS uses: tight for display type, open for reading copy.
+TYPE_SCALE: dict[str, dict[str, float | int | str]] = {
+    "display": {"size": 46, "weight": "SEMIBOLD", "leading": 0.235},
+    "heading": {"size": 34, "weight": "SEMIBOLD", "leading": 0.289},
+    "lead": {"size": 24, "weight": "MEDIUM", "leading": 0.611},
+    "body": {"size": 25, "weight": "NORMAL", "leading": 0.665},
+    "caption": {"size": 22, "weight": "NORMAL", "leading": 0.697},
+    "label": {"size": 22, "weight": "MEDIUM", "leading": 0.450},
+    "step": {"size": 26, "weight": "SEMIBOLD", "leading": 0.343},
+    # 20pt is the floor where Inter's word space still separates words at 720p.
+    "chip": {"size": 21, "weight": "MEDIUM", "leading": 0.450},
+    "meta": {"size": 20, "weight": "NORMAL", "leading": 0.559},
 }
-# Vertical gaps between stacked lines, in Manim units.
-TYPE_STACK_BUFF: dict[str, float] = {
-    "display": 0.22,
-    "heading": 0.16,
-    "lead": 0.16,
-    "body": 0.16,
-    "caption": 0.18,
-    "label": 0.12,
-    "step": 0.12,
-    "chip": 0.10,
-    "meta": 0.08,
-}
+TYPE_MIN_SIZE = 20
 
 
-def type_role(name: str) -> dict[str, int | str]:
+def type_role(name: str) -> dict[str, float | int | str]:
     """Return a copy of a named type-scale role."""
     try:
         return dict(TYPE_SCALE[name])
     except KeyError as exc:
         raise KeyError(name) from exc
-
-
-def stack_buff(name: str) -> float:
-    """Return the vertical gap for a stacked type role."""
-    try:
-        return TYPE_STACK_BUFF[name]
-    except KeyError as exc:
-        raise KeyError(name) from exc
-
-
-def open_words(body: str) -> str:
-    """Replace ordinary spaces with the type system's word space."""
-    return body.replace(" ", TYPE_SPACE)
 
 
 def line_span(lines: tuple[str, ...]) -> int:
