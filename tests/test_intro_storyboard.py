@@ -13,6 +13,7 @@ from farm.core.intro_storyboard import (
     GRID_SIZE,
     LOOP_STEPS,
     TURNS,
+    WORLD_CHANGES,
     in_bounds,
     kind_color,
     validate_storyboard,
@@ -28,7 +29,8 @@ def test_storyboard_is_internally_consistent():
 def test_copy_covers_the_four_intro_beats():
     assert len(AGENT_TRAITS) == 4
     assert {item["key"] for item in AGENT_KINDS} == {"cooperative", "self_interested", "balanced"}
-    assert LOOP_STEPS[0] == "Look"
+    assert tuple(LOOP_STEPS) == ("Look", "Decide", "Act")
+    assert WORLD_CHANGES.startswith("Then")
     assert "Eat" in ACTIONS
     assert "Walk" in ACTIONS
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 INK = "#111827"
-MUTED = "#4b5563"
+MUTED = "#374151"
 BG = "#f7f7f8"
 CARD = "#ffffff"
 GRID_EDGE = "#d4d4d8"
@@ -47,8 +47,9 @@ LOOP_STEPS = (
     "Look",
     "Decide",
     "Act",
-    "The world changes",
 )
+
+WORLD_CHANGES = "Then the world changes."
 
 # Starting cells (x, y) with origin at bottom-left, y up.
 AGENTS: dict[str, dict[str, Any]] = {
@@ -67,15 +68,14 @@ FOOD_START = (
 )
 
 # Each turn: optional new cell per agent, optional food cells that shrink.
+# Every move is one orthogonal step so walks read as slides, not teleports.
 TURNS: tuple[dict[str, Any], ...] = (
     {"moves": {"blue_a": (2, 6), "blue_b": (3, 7), "red_a": (7, 3), "orange_a": (3, 3)}, "eat": ()},
-    {"moves": {"blue_a": (3, 6), "blue_b": (4, 6), "red_a": (6, 4), "red_b": (6, 6)}, "eat": ()},
-    {"moves": {"blue_a": (4, 5), "blue_b": (4, 6), "red_a": (6, 5), "orange_a": (4, 3)}, "eat": ()},
-    {"moves": {"blue_a": (5, 5), "blue_b": (5, 6), "red_a": (5, 4)}, "eat": ((5, 5),)},
-    {
-        "moves": {"blue_a": (5, 5), "blue_b": (5, 6), "red_a": (6, 5), "red_b": (6, 6), "orange_a": (4, 4)},
-        "eat": ((5, 6),),
-    },
+    {"moves": {"blue_a": (3, 6), "blue_b": (4, 7), "red_a": (7, 4), "red_b": (6, 6)}, "eat": ()},
+    {"moves": {"blue_a": (4, 6), "blue_b": (5, 7), "red_a": (6, 4), "orange_a": (4, 3)}, "eat": ()},
+    {"moves": {"blue_a": (4, 5), "blue_b": (5, 6), "red_a": (6, 5)}, "eat": ()},
+    {"moves": {"blue_a": (5, 5), "orange_a": (4, 4)}, "eat": ((5, 5),)},
+    {"moves": {"red_a": (6, 5), "red_b": (6, 6)}, "eat": ((5, 6),)},
 )
 
 
@@ -96,11 +96,13 @@ def in_bounds(cell: tuple[int, int], size: int = GRID_SIZE) -> bool:
 def validate_storyboard() -> None:
     """Raise if the scripted example leaves the grid or names unknown agents."""
     known = set(AGENTS)
+    positions = {}
     for agent_id, spec in AGENTS.items():
         if spec["kind"] not in {item["key"] for item in AGENT_KINDS}:
             raise ValueError(f"Unknown kind for {agent_id}: {spec['kind']}")
         if not in_bounds(spec["start"]):
             raise ValueError(f"Start out of bounds for {agent_id}: {spec['start']}")
+        positions[agent_id] = spec["start"]
     for cell in FOOD_START:
         if not in_bounds(cell):
             raise ValueError(f"Food out of bounds: {cell}")
@@ -110,6 +112,11 @@ def validate_storyboard() -> None:
                 raise ValueError(f"Turn {index} names unknown agent {agent_id}")
             if not in_bounds(cell):
                 raise ValueError(f"Turn {index} moves {agent_id} out of bounds: {cell}")
+            origin = positions[agent_id]
+            step = abs(cell[0] - origin[0]) + abs(cell[1] - origin[1])
+            if step > 1:
+                raise ValueError(f"Turn {index} teleports {agent_id} from {origin} to {cell}")
+            positions[agent_id] = cell
         for cell in turn["eat"]:
             if not in_bounds(cell):
                 raise ValueError(f"Turn {index} eats out of bounds: {cell}")
