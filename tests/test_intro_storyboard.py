@@ -10,6 +10,11 @@ from farm.core.intro_storyboard import (
     AGENT_TRAITS,
     AGENTS,
     CAPTION_AGENT,
+    CAPTION_CLUSTER,
+    CAPTION_DO,
+    CAPTION_ENV,
+    CAPTION_WALK,
+    CLOSE_QUESTION,
     CLOSE_TITLE,
     FOOD_START,
     GRID_SIZE,
@@ -20,13 +25,19 @@ from farm.core.intro_storyboard import (
     HOOK_QUESTION,
     HOOK_TITLE,
     LOOP_STEPS,
+    NOTE_ENV,
     TURNS,
     TYPE_FONT,
     TYPE_SCALE,
+    TYPE_SPACE,
+    TYPE_STACK_BUFF,
     WORLD_CHANGES,
     hold_for,
     in_bounds,
     kind_color,
+    line_span,
+    open_words,
+    stack_buff,
     type_role,
     validate_storyboard,
 )
@@ -68,6 +79,8 @@ def test_kind_color_and_bounds():
 
 def test_type_system_matches_docs_inter():
     assert TYPE_FONT == "Inter"
+    assert TYPE_SPACE == "\u2002"
+    assert set(TYPE_SCALE) == set(TYPE_STACK_BUFF)
     assert set(TYPE_SCALE) == {
         "display",
         "heading",
@@ -87,8 +100,32 @@ def test_type_system_matches_docs_inter():
     assert heading["weight"] == "SEMIBOLD"
     assert type_role("label")["weight"] == "MEDIUM"
     assert caption["size"] < body["size"] < heading["size"] < display["size"]
+    assert stack_buff("caption") > stack_buff("meta")
+    assert " " not in open_words("one two")
+    assert open_words("one two").count(TYPE_SPACE) == 1
     with pytest.raises(KeyError):
         type_role("unknown")
+    with pytest.raises(KeyError):
+        stack_buff("unknown")
+
+
+def test_stacked_copy_is_evenly_wrapped():
+    pairs = (
+        HOOK_QUESTION,
+        CAPTION_ENV,
+        NOTE_ENV,
+        CAPTION_DO,
+        CAPTION_WALK,
+        CAPTION_CLUSTER,
+        WORLD_CHANGES,
+        CLOSE_TITLE,
+        CLOSE_QUESTION,
+    )
+    for lines in pairs:
+        assert line_span(lines) <= 12, lines
+    for item in AGENT_KINDS:
+        assert isinstance(item["hint"], tuple)
+        assert line_span(item["hint"]) <= 4
 
 
 def test_example_uses_every_agent_and_some_food():

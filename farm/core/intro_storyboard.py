@@ -16,6 +16,8 @@ FOOD = "#16a34a"
 
 # Inter, same family as the docs site. Sizes are Manim font_size points.
 TYPE_FONT = "Inter"
+# En space is a hair wider than Inter's default word space, so 720p still reads.
+TYPE_SPACE = "\u2002"
 TYPE_SCALE: dict[str, dict[str, int | str]] = {
     "display": {"size": 46, "weight": "SEMIBOLD"},
     "heading": {"size": 34, "weight": "SEMIBOLD"},
@@ -27,6 +29,18 @@ TYPE_SCALE: dict[str, dict[str, int | str]] = {
     "chip": {"size": 20, "weight": "MEDIUM"},
     "meta": {"size": 18, "weight": "NORMAL"},
 }
+# Vertical gaps between stacked lines, in Manim units.
+TYPE_STACK_BUFF: dict[str, float] = {
+    "display": 0.22,
+    "heading": 0.16,
+    "lead": 0.16,
+    "body": 0.16,
+    "caption": 0.18,
+    "label": 0.12,
+    "step": 0.12,
+    "chip": 0.10,
+    "meta": 0.08,
+}
 
 
 def type_role(name: str) -> dict[str, int | str]:
@@ -35,6 +49,26 @@ def type_role(name: str) -> dict[str, int | str]:
         return dict(TYPE_SCALE[name])
     except KeyError as exc:
         raise KeyError(name) from exc
+
+
+def stack_buff(name: str) -> float:
+    """Return the vertical gap for a stacked type role."""
+    try:
+        return TYPE_STACK_BUFF[name]
+    except KeyError as exc:
+        raise KeyError(name) from exc
+
+
+def open_words(body: str) -> str:
+    """Replace ordinary spaces with the type system's word space."""
+    return body.replace(" ", TYPE_SPACE)
+
+
+def line_span(lines: tuple[str, ...]) -> int:
+    """Character-count gap between the longest and shortest stacked line."""
+    lengths = [len(line) for line in lines]
+    return max(lengths) - min(lengths)
+
 
 COOPERATIVE = "#2563eb"
 SELF_INTERESTED = "#dc2626"
@@ -50,30 +84,45 @@ AGENT_TRAITS = (
 )
 
 AGENT_KINDS = (
-    {"key": "cooperative", "label": "Cooperative", "color": COOPERATIVE, "hint": "Shares more, fights less"},
-    {"key": "self_interested", "label": "Self-interested", "color": SELF_INTERESTED, "hint": "Keeps food, competes more"},
-    {"key": "balanced", "label": "Balanced", "color": BALANCED, "hint": "A middle path, for comparison"},
+    {
+        "key": "cooperative",
+        "label": "Cooperative",
+        "color": COOPERATIVE,
+        "hint": ("Shares more,", "fights less"),
+    },
+    {
+        "key": "self_interested",
+        "label": "Self-interested",
+        "color": SELF_INTERESTED,
+        "hint": ("Keeps food,", "competes more"),
+    },
+    {
+        "key": "balanced",
+        "label": "Balanced",
+        "color": BALANCED,
+        "hint": ("A middle path,", "for comparison"),
+    },
 )
 
 HOOK_TITLE = "A limited world."
 HOOK_LINE = "Many individuals have to share the food."
-HOOK_QUESTION = ("What mix of helpfulness", "and self-interest actually works?")
+HOOK_QUESTION = ("What mix of helpfulness and", "self-interest actually works?")
 
 SECTION_AGENT = "What is an agent?"
 CAPTION_AGENT = ("One actor in the world.", "Nobody tells it what to do.")
 CAPTION_KINDS = ("They lean in different directions.", "These are tendencies, not personalities.")
 
 SECTION_ENV = "What is the environment?"
-CAPTION_ENV = ("The world they share.", "Here it is a grid, like a board-game board.")
-NOTE_ENV = ("Some squares hold food.", "One meal is food someone else cannot eat.")
+CAPTION_ENV = ("The world they share is a grid,", "like a board-game board.")
+NOTE_ENV = ("Some of the squares hold food.", "One meal is food someone else cannot eat.")
 
 SECTION_DO = "What do agents do?"
-CAPTION_DO = ("On every turn,", "each living agent does the same three things.")
+CAPTION_DO = ("On every turn, each living agent", "does the same three things.")
 
 SECTION_GRID = "An example on a grid"
 CAPTION_GRID = ("A short run on a small map —", "a postcard, not the experiment.")
-CAPTION_WALK = ("They walk toward food.", "A green patch shrinks when someone eats.")
-CAPTION_CLUSTER = ("The blue agents gathered on their own.", "Nobody programmed that.")
+CAPTION_WALK = ("They walk toward the food.", "A patch shrinks when someone eats.")
+CAPTION_CLUSTER = ("The blue agents gathered on their own.", "Nobody programmed them to do that.")
 
 CLOSE_TITLE = ("The research measures", "the patterns that appear.")
 CLOSE_QUESTION = ("Does a mix last longer than a world", "of only helpers — or only competitors?")
@@ -126,7 +175,7 @@ LOOP_STEPS = (
     "Act",
 )
 
-WORLD_CHANGES = ("After everyone has acted,", "the map updates and the next turn begins.")
+WORLD_CHANGES = ("After everyone has acted, the map", "updates and the next turn begins.")
 
 # Starting cells (x, y) with origin at bottom-left, y up.
 AGENTS: dict[str, dict[str, Any]] = {

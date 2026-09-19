@@ -78,22 +78,27 @@ from farm.core.intro_storyboard import (
     as_lines,
     hold_for,
     kind_color,
+    open_words,
+    stack_buff,
     type_role,
 )
 
 CELL = 0.58
 SAFE_WIDTH = 12.4
+KIND_X = (-3.55, 0.0, 3.55)
+RULE_HALF = 0.35
 
 
 def ink_text(body: str, role: str = "body", color: str = INK) -> Text:
-    """Single Inter line. Avoids LaTeX."""
+    """Single Inter line with open word spacing. Avoids LaTeX."""
     spec = type_role(role)
     return Text(
-        body,
+        open_words(body),
         font=TYPE_FONT,
         font_size=float(spec["size"]),
         color=color,
         weight=str(spec["weight"]),
+        disable_ligatures=True,
     )
 
 
@@ -102,36 +107,50 @@ def stack_lines(
     role: str,
     color: str = INK,
     *,
-    buff: float = 0.10,
+    buff: float | None = None,
 ) -> VGroup:
-    """Left-aligned stack of Inter lines, then centered as a group by the caller."""
+    """Each Inter line centered on the same axis."""
+    gap = stack_buff(role) if buff is None else buff
     parts = [ink_text(line, role, color) for line in as_lines(copy)]
     if len(parts) == 1:
-        return VGroup(parts[0])
-    return VGroup(*parts).arrange(DOWN, buff=buff, aligned_edge=LEFT)
+        stacked = VGroup(parts[0])
+    else:
+        stacked = VGroup(*parts).arrange(DOWN, buff=gap)
+    stacked.set_x(0)
+    return stacked
+
+
+def accent_rule() -> Line:
+    """Short rule that always sits on the frame center."""
+    rule = Line(LEFT * RULE_HALF, RIGHT * RULE_HALF)
+    rule.set_stroke("#9ca3af", 1.6)
+    rule.set_x(0)
+    return rule
 
 
 def section_banner(title: str, lines: tuple[str, ...]) -> tuple[VGroup, VGroup]:
-    """Heading + short rule + caption, left-aligned, parked at the top center."""
+    """Centered heading, short rule, and caption — each on the frame axis."""
     head = ink_text(title, "heading")
-    cap = stack_lines(lines, "caption", MUTED, buff=0.08)
-    rule = Line(ORIGIN, RIGHT * 0.70)
-    rule.set_stroke("#9ca3af", 1.6)
-    rule.next_to(head, DOWN, buff=0.14)
-    rule.align_to(head, LEFT)
-    cap.next_to(rule, DOWN, buff=0.20)
-    cap.align_to(head, LEFT)
+    head.set_x(0)
+    rule = accent_rule()
+    rule.next_to(head, DOWN, buff=0.16)
+    rule.set_x(0)
+    cap = stack_lines(lines, "caption", MUTED)
+    cap.next_to(rule, DOWN, buff=0.24)
+    cap.set_x(0)
     banner = VGroup(head, rule, cap)
-    banner.to_edge(UP, buff=0.36)
-    banner.set_x(0)
+    banner.to_edge(UP, buff=0.40)
+    head.set_x(0)
+    rule.set_x(0)
+    cap.set_x(0)
     return banner, cap
 
 
 def place_caption(copy: tuple[str, ...], banner: VGroup) -> VGroup:
-    """Replacement caption that keeps the section lockup's left edge."""
-    cap = stack_lines(copy, "caption", MUTED, buff=0.08)
-    cap.next_to(banner[1], DOWN, buff=0.20)
-    cap.align_to(banner[0], LEFT)
+    """Replacement caption centered under the section rule."""
+    cap = stack_lines(copy, "caption", MUTED)
+    cap.next_to(banner[1], DOWN, buff=0.24)
+    cap.set_x(0)
     return cap
 
 
@@ -230,24 +249,24 @@ class IntroExplainer(Scene):
     def _hook(self) -> None:
         title = ink_text(HOOK_TITLE, "display")
         line = ink_text(HOOK_LINE, "lead", MUTED)
-        lede = VGroup(title, line).arrange(DOWN, buff=0.22, aligned_edge=LEFT)
-        rule = Line(ORIGIN, RIGHT * 0.70)
-        rule.set_stroke("#9ca3af", 1.6)
-        rule.next_to(lede, DOWN, buff=0.32)
-        rule.align_to(lede, LEFT)
-        question = stack_lines(HOOK_QUESTION, "lead", buff=0.12)
+        title.set_x(0)
+        line.next_to(title, DOWN, buff=stack_buff("lead") + 0.08)
+        line.set_x(0)
+        rule = accent_rule()
+        rule.next_to(line, DOWN, buff=0.34)
+        rule.set_x(0)
+        question = stack_lines(HOOK_QUESTION, "lead")
         box = RoundedRectangle(
-            width=question.width + 1.05,
-            height=question.height + 0.82,
+            width=max(question.width + 1.20, 8.4),
+            height=question.height + 0.90,
             corner_radius=0.18,
         )
         box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.25)
+        box.set_x(0)
         question.move_to(box.get_center())
         card_group = VGroup(box, question)
-        card_group.next_to(rule, DOWN, buff=0.40)
-        card_group.align_to(lede, LEFT)
-        lockup = VGroup(lede, rule, card_group)
-        lockup.move_to(ORIGIN)
+        card_group.next_to(rule, DOWN, buff=0.42)
+        card_group.set_x(0)
 
         self.play(FadeIn(title, shift=UP * 0.06), run_time=0.7, rate_func=smooth)
         self.play(FadeIn(line, shift=DOWN * 0.08), run_time=0.5, rate_func=smooth)
@@ -289,11 +308,14 @@ class IntroExplainer(Scene):
         for item in AGENT_KINDS:
             circle = agent_dot(item["color"], 0.24)
             label = ink_text(item["label"], "label")
-            hint = ink_text(item["hint"], "meta", MUTED)
-            col = VGroup(circle, label, hint).arrange(DOWN, buff=0.18)
+            hint = stack_lines(item["hint"], "meta", MUTED)
+            col = VGroup(circle, label, hint).arrange(DOWN, buff=0.20)
             kind_group.add(col)
-        kind_group.arrange(RIGHT, buff=1.15)
-        kind_group.next_to(banner, DOWN, buff=0.70)
+        kind_group.arrange(RIGHT, buff=1.05)
+        kind_group.next_to(banner, DOWN, buff=0.72)
+        kind_group.set_x(0)
+        for column, x_pos in zip(kind_group, KIND_X):
+            column.set_x(x_pos)
 
         self.play(
             dot.animate.move_to(kind_group[0][0].get_center()).set_fill(COOPERATIVE, 1),
@@ -321,8 +343,9 @@ class IntroExplainer(Scene):
         self.play(Create(grid, lag_ratio=0.012), run_time=1.5, rate_func=smooth)
 
         food = VGroup(*[food_patch(x, y, origin) for x, y in FOOD_START])
-        note = stack_lines(NOTE_ENV, "caption", MUTED, buff=0.08)
-        note.to_edge(DOWN, buff=0.36)
+        note = stack_lines(NOTE_ENV, "caption", MUTED)
+        note.to_edge(DOWN, buff=0.38)
+        note.set_x(0)
         self.play(
             LaggedStart(*[FadeIn(patch, scale=0.75) for patch in food], lag_ratio=0.14),
             FadeIn(note),
@@ -353,8 +376,9 @@ class IntroExplainer(Scene):
             self.play(box.animate.set_stroke(INK, 2.0), run_time=0.32, rate_func=smooth)
             self.play(box.animate.set_stroke(GRID_EDGE, 1.4), run_time=0.26, rate_func=smooth)
 
-        world = stack_lines(WORLD_CHANGES, "lead", buff=0.10)
-        world.next_to(cards, DOWN, buff=0.42)
+        world = stack_lines(WORLD_CHANGES, "lead")
+        world.next_to(cards, DOWN, buff=0.48)
+        world.set_x(0)
         self.play(FadeIn(world, shift=DOWN * 0.08), run_time=0.4, rate_func=smooth)
         self.wait(hold_for(WORLD_CHANGES))
 
@@ -441,10 +465,12 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _close(self) -> None:
-        title = stack_lines(CLOSE_TITLE, "heading", buff=0.10)
-        question = stack_lines(CLOSE_QUESTION, "caption", MUTED, buff=0.10)
-        group = VGroup(title, question).arrange(DOWN, buff=0.36, aligned_edge=LEFT)
-        group.move_to(ORIGIN)
+        title = stack_lines(CLOSE_TITLE, "heading")
+        question = stack_lines(CLOSE_QUESTION, "caption", MUTED)
+        title.move_to(ORIGIN).shift(UP * 0.42)
+        title.set_x(0)
+        question.next_to(title, DOWN, buff=0.42)
+        question.set_x(0)
         self.play(FadeIn(title, shift=UP * 0.05), run_time=0.7, rate_func=smooth)
         self.play(FadeIn(question, shift=DOWN * 0.04), run_time=0.6, rate_func=smooth)
         self.wait(hold_for(CLOSE_TITLE, CLOSE_QUESTION))
