@@ -267,6 +267,12 @@ class IntroExplainer(Scene):
         card_group = VGroup(box, question)
         card_group.next_to(rule, DOWN, buff=0.42)
         card_group.set_x(0)
+        lockup = VGroup(title, line, rule, card_group)
+        lockup.move_to(ORIGIN)
+        title.set_x(0)
+        line.set_x(0)
+        rule.set_x(0)
+        card_group.set_x(0)
 
         self.play(FadeIn(title, shift=UP * 0.06), run_time=0.7, rate_func=smooth)
         self.play(FadeIn(line, shift=DOWN * 0.08), run_time=0.5, rate_func=smooth)
@@ -338,7 +344,7 @@ class IntroExplainer(Scene):
     def _what_is_the_environment(self) -> None:
         self._open_section(SECTION_ENV, CAPTION_ENV)
 
-        origin = DOWN * 0.22
+        origin = DOWN * 0.28
         grid = make_grid(origin)
         self.play(Create(grid, lag_ratio=0.012), run_time=1.5, rate_func=smooth)
 
@@ -400,7 +406,7 @@ class IntroExplainer(Scene):
     def _grid_example(self) -> None:
         banner, sub = self._open_section(SECTION_GRID, CAPTION_GRID)
 
-        origin = DOWN * 0.08
+        origin = DOWN * 0.36
         grid = make_grid(origin)
         self.play(FadeIn(grid), run_time=0.45, rate_func=smooth)
 
