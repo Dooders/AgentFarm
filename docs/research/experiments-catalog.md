@@ -112,11 +112,12 @@ Asks whether an exclusive, costly-to-exit pair-bond is a selected *unit*
 (superadditive energy, split reproductive cost, accumulated bond strength)
 that promiscuous `share` cannot fake. Standalone intrinsic-evolution arena
 plus a compact threshold grid over courtship delay, bonding cost, exit tax,
-and neighborhood size. AgentFarm chromosome / action wiring is specified,
-not yet merged.
+and neighborhood size. Layer C wires the same genes and `bond` / `leave`
+actions onto the AgentFarm chromosome.
 
-- **Status:** Design + standalone pilot and threshold grid; platform port outlined.
+- **Status:** Standalone pilot + threshold grid; AgentFarm port wired (`UnionEmergenceExperiment`).
 - **Standalone runner:** [`experiments/union_emergence/union_intrinsic_evolution.py`](../../experiments/union_emergence/union_intrinsic_evolution.py)
+- **Port runner:** [`scripts/run_union_emergence.py`](../../scripts/run_union_emergence.py)
 - **Docs:** [Devlog 2026-09-18](devlog/2026-09-18-union-as-emergent-property.md)
 - **Grid summary:** [`experiments/union_emergence/compact_threshold_summary.json`](../../experiments/union_emergence/compact_threshold_summary.json)
 - **Related:** Intrinsic goals (`reward_share_bonus`), One of a Kind / Cooperation

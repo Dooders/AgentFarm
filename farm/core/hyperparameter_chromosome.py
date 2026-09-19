@@ -419,6 +419,10 @@ DEFAULT_GENE_ENCODINGS: Dict[str, GeneEncodingSpec] = {
     "reward_share_bonus": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
     "reward_attack_bonus": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
     "reward_reproduce_bonus": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    # ── Union emergence (Layer C): exclusive pair-bond loci ──────────────────
+    "pair_commitment": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "fidelity": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
+    "specialize": GeneEncodingSpec(scale=GeneEncodingScale.LINEAR, bit_width=8),
 }
 
 # Smallest positive IEEE-754 binary64; mirrors DecisionConfig allowing any (0, 1].
@@ -816,6 +820,33 @@ DEFAULT_HYPERPARAMETER_GENES: Tuple[HyperparameterGene, ...] = (
         min_value=0.0,
         max_value=2.0,
         default=0.0,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="pair_commitment",
+        value_type=GeneValueType.REAL,
+        value=0.5,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.5,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="fidelity",
+        value_type=GeneValueType.REAL,
+        value=0.5,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.5,
+        evolvable=True,
+    ),
+    HyperparameterGene(
+        name="specialize",
+        value_type=GeneValueType.REAL,
+        value=0.5,
+        min_value=0.0,
+        max_value=1.0,
+        default=0.5,
         evolvable=True,
     ),
 )
