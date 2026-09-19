@@ -75,6 +75,7 @@ from farm.core.intro_storyboard import (
     TYPE_FONT,
     WALK_TIME,
     WORLD_CHANGES,
+    as_lines,
     hold_for,
     kind_color,
     type_role,
@@ -84,14 +85,8 @@ CELL = 0.58
 SAFE_WIDTH = 12.4
 
 
-def ink_text(
-    body: str,
-    role: str = "body",
-    color: str = INK,
-    *,
-    line_spacing: float = -1,
-) -> Text:
-    """Inter lockup as a single line (or wrapped lines). Avoids LaTeX."""
+def ink_text(body: str, role: str = "body", color: str = INK) -> Text:
+    """Single Inter line. Avoids LaTeX."""
     spec = type_role(role)
     return Text(
         body,
@@ -99,30 +94,45 @@ def ink_text(
         font_size=float(spec["size"]),
         color=color,
         weight=str(spec["weight"]),
-        line_spacing=line_spacing,
     )
 
 
-def heading(body: str) -> Text:
-    """Section heading pinned to the top of the frame."""
-    text = ink_text(body, "heading")
-    text.to_edge(UP, buff=0.34)
-    return text
+def stack_lines(
+    copy: str | tuple[str, ...],
+    role: str,
+    color: str = INK,
+    *,
+    buff: float = 0.10,
+) -> VGroup:
+    """Left-aligned stack of Inter lines, then centered as a group by the caller."""
+    parts = [ink_text(line, role, color) for line in as_lines(copy)]
+    if len(parts) == 1:
+        return VGroup(parts[0])
+    return VGroup(*parts).arrange(DOWN, buff=buff, aligned_edge=LEFT)
 
 
-def heading_rule(head: Text) -> Line:
-    """Hairline under a heading — same cue as docs h2 borders."""
-    y = head.get_bottom()[1] - 0.12
-    rule = Line([head.get_left()[0], y, 0], [head.get_right()[0], y, 0])
-    rule.set_stroke("#9ca3af", 1.8)
-    return rule
+def section_banner(title: str, lines: tuple[str, ...]) -> tuple[VGroup, VGroup]:
+    """Heading + short rule + caption, left-aligned, parked at the top center."""
+    head = ink_text(title, "heading")
+    cap = stack_lines(lines, "caption", MUTED, buff=0.08)
+    rule = Line(ORIGIN, RIGHT * 0.70)
+    rule.set_stroke("#9ca3af", 1.6)
+    rule.next_to(head, DOWN, buff=0.14)
+    rule.align_to(head, LEFT)
+    cap.next_to(rule, DOWN, buff=0.20)
+    cap.align_to(head, LEFT)
+    banner = VGroup(head, rule, cap)
+    banner.to_edge(UP, buff=0.36)
+    banner.set_x(0)
+    return banner, cap
 
 
-def caption(body: str) -> Text:
-    """Muted line sitting on a fixed baseline under the heading rule."""
-    text = ink_text(body, "caption", MUTED)
-    text.to_edge(UP, buff=1.12)
-    return text
+def place_caption(copy: tuple[str, ...], banner: VGroup) -> VGroup:
+    """Replacement caption that keeps the section lockup's left edge."""
+    cap = stack_lines(copy, "caption", MUTED, buff=0.08)
+    cap.next_to(banner[1], DOWN, buff=0.20)
+    cap.align_to(banner[0], LEFT)
+    return cap
 
 
 def pill(label: str) -> VGroup:
@@ -211,28 +221,21 @@ class IntroExplainer(Scene):
         if lingering:
             self.play(*[FadeOut(mob) for mob in lingering], run_time=run_time, rate_func=smooth)
 
-    def _open_section(self, title: str, subtitle: str) -> tuple[Text, Text]:
-        head = heading(title)
-        rule = heading_rule(head)
-        sub = caption(subtitle)
-        self.play(
-            FadeIn(head, shift=UP * 0.05),
-            FadeIn(rule),
-            FadeIn(sub, shift=UP * 0.03),
-            run_time=0.55,
-            rate_func=smooth,
-        )
+    def _open_section(self, title: str, lines: tuple[str, ...]) -> tuple[VGroup, VGroup]:
+        banner, cap = section_banner(title, lines)
+        self.play(FadeIn(banner, shift=UP * 0.04), run_time=0.55, rate_func=smooth)
         self.wait(HOLD_LINE)
-        return head, sub
+        return banner, cap
 
     def _hook(self) -> None:
         title = ink_text(HOOK_TITLE, "display")
         line = ink_text(HOOK_LINE, "lead", MUTED)
-        line.next_to(title, DOWN, buff=0.26)
-        rule = Line(LEFT * 0.48, RIGHT * 0.48)
-        rule.set_stroke("#9ca3af", 1.8)
-        rule.next_to(line, DOWN, buff=0.40)
-        question = ink_text(HOOK_QUESTION, "lead", line_spacing=0.88)
+        lede = VGroup(title, line).arrange(DOWN, buff=0.22, aligned_edge=LEFT)
+        rule = Line(ORIGIN, RIGHT * 0.70)
+        rule.set_stroke("#9ca3af", 1.6)
+        rule.next_to(lede, DOWN, buff=0.32)
+        rule.align_to(lede, LEFT)
+        question = stack_lines(HOOK_QUESTION, "lead", buff=0.12)
         box = RoundedRectangle(
             width=question.width + 1.05,
             height=question.height + 0.82,
@@ -241,8 +244,9 @@ class IntroExplainer(Scene):
         box.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.25)
         question.move_to(box.get_center())
         card_group = VGroup(box, question)
-        card_group.next_to(rule, DOWN, buff=0.42)
-        lockup = VGroup(title, line, rule, card_group)
+        card_group.next_to(rule, DOWN, buff=0.40)
+        card_group.align_to(lede, LEFT)
+        lockup = VGroup(lede, rule, card_group)
         lockup.move_to(ORIGIN)
 
         self.play(FadeIn(title, shift=UP * 0.06), run_time=0.7, rate_func=smooth)
@@ -258,7 +262,7 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _what_is_an_agent(self) -> None:
-        _title, sub = self._open_section(SECTION_AGENT, CAPTION_AGENT)
+        banner, sub = self._open_section(SECTION_AGENT, CAPTION_AGENT)
 
         dot = agent_dot("#6b7280", 0.30)
         dot.shift(DOWN * 0.10)
@@ -277,7 +281,7 @@ class IntroExplainer(Scene):
         self.wait(hold_for(*AGENT_TRAITS, minimum=HOLD_READ))
 
         self.play(FadeOut(trait_mobs), FadeOut(sub), run_time=0.35, rate_func=smooth)
-        kinds_title = caption(CAPTION_KINDS)
+        kinds_title = place_caption(CAPTION_KINDS, banner)
         self.play(FadeIn(kinds_title), run_time=0.35)
         self.wait(HOLD_LINE)
 
@@ -285,12 +289,11 @@ class IntroExplainer(Scene):
         for item in AGENT_KINDS:
             circle = agent_dot(item["color"], 0.24)
             label = ink_text(item["label"], "label")
-            hint = ink_text(item["hint"], "meta", MUTED, line_spacing=0.9)
-            label.next_to(circle, DOWN, buff=0.26)
-            hint.next_to(label, DOWN, buff=0.10)
-            kind_group.add(VGroup(circle, label, hint))
-        kind_group.arrange(RIGHT, buff=1.25)
-        kind_group.next_to(kinds_title, DOWN, buff=0.88)
+            hint = ink_text(item["hint"], "meta", MUTED)
+            col = VGroup(circle, label, hint).arrange(DOWN, buff=0.18)
+            kind_group.add(col)
+        kind_group.arrange(RIGHT, buff=1.15)
+        kind_group.next_to(banner, DOWN, buff=0.70)
 
         self.play(
             dot.animate.move_to(kind_group[0][0].get_center()).set_fill(COOPERATIVE, 1),
@@ -318,8 +321,8 @@ class IntroExplainer(Scene):
         self.play(Create(grid, lag_ratio=0.012), run_time=1.5, rate_func=smooth)
 
         food = VGroup(*[food_patch(x, y, origin) for x, y in FOOD_START])
-        note = ink_text(NOTE_ENV, "caption", MUTED)
-        note.to_edge(DOWN, buff=0.40)
+        note = stack_lines(NOTE_ENV, "caption", MUTED, buff=0.08)
+        note.to_edge(DOWN, buff=0.36)
         self.play(
             LaggedStart(*[FadeIn(patch, scale=0.75) for patch in food], lag_ratio=0.14),
             FadeIn(note),
@@ -350,8 +353,8 @@ class IntroExplainer(Scene):
             self.play(box.animate.set_stroke(INK, 2.0), run_time=0.32, rate_func=smooth)
             self.play(box.animate.set_stroke(GRID_EDGE, 1.4), run_time=0.26, rate_func=smooth)
 
-        world = ink_text(WORLD_CHANGES, "lead", line_spacing=0.9)
-        world.next_to(cards, DOWN, buff=0.46)
+        world = stack_lines(WORLD_CHANGES, "lead", buff=0.10)
+        world.next_to(cards, DOWN, buff=0.42)
         self.play(FadeIn(world, shift=DOWN * 0.08), run_time=0.4, rate_func=smooth)
         self.wait(hold_for(WORLD_CHANGES))
 
@@ -371,7 +374,7 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _grid_example(self) -> None:
-        _title, sub = self._open_section(SECTION_GRID, CAPTION_GRID)
+        banner, sub = self._open_section(SECTION_GRID, CAPTION_GRID)
 
         origin = DOWN * 0.08
         grid = make_grid(origin)
@@ -402,7 +405,7 @@ class IntroExplainer(Scene):
         legend.to_edge(DOWN, buff=0.30)
         self.play(FadeIn(legend), run_time=0.35, rate_func=smooth)
 
-        beat = caption(CAPTION_WALK)
+        beat = place_caption(CAPTION_WALK, banner)
         self.play(FadeOut(sub), FadeIn(beat), run_time=0.4, rate_func=smooth)
         self.wait(hold_for(CAPTION_WALK))
 
@@ -430,7 +433,7 @@ class IntroExplainer(Scene):
                 self.wait(0.12)
 
         cluster = VGroup(dots["blue_a"], dots["blue_b"], dots["red_a"], dots["red_b"])
-        closer = caption(CAPTION_CLUSTER)
+        closer = place_caption(CAPTION_CLUSTER, banner)
         halo = SurroundingRectangle(cluster, color=INK, buff=0.20, stroke_width=2.0)
         self.play(FadeOut(beat), FadeIn(closer), run_time=0.4, rate_func=smooth)
         self.play(FadeIn(halo), run_time=0.45, rate_func=smooth)
@@ -438,10 +441,9 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _close(self) -> None:
-        title = ink_text(CLOSE_TITLE, "heading", line_spacing=0.88)
-        question = ink_text(CLOSE_QUESTION, "caption", MUTED, line_spacing=0.92)
-        question.next_to(title, DOWN, buff=0.40)
-        group = VGroup(title, question)
+        title = stack_lines(CLOSE_TITLE, "heading", buff=0.10)
+        question = stack_lines(CLOSE_QUESTION, "caption", MUTED, buff=0.10)
+        group = VGroup(title, question).arrange(DOWN, buff=0.36, aligned_edge=LEFT)
         group.move_to(ORIGIN)
         self.play(FadeIn(title, shift=UP * 0.05), run_time=0.7, rate_func=smooth)
         self.play(FadeIn(question, shift=DOWN * 0.04), run_time=0.6, rate_func=smooth)

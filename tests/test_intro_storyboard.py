@@ -42,14 +42,14 @@ def test_copy_covers_the_four_intro_beats():
     assert len(AGENT_TRAITS) == 4
     assert {item["key"] for item in AGENT_KINDS} == {"cooperative", "self_interested", "balanced"}
     assert tuple(LOOP_STEPS) == ("Look", "Decide", "Act")
-    assert "map updates" in WORLD_CHANGES.lower()
+    assert "map updates" in " ".join(WORLD_CHANGES).lower()
     assert "Eat" in ACTIONS
     assert "Walk" in ACTIONS
-    assert "helpfulness" in HOOK_QUESTION.lower()
-    assert "self-interest" in HOOK_QUESTION.lower()
-    assert "actor" in CAPTION_AGENT.lower()
+    assert "helpfulness" in " ".join(HOOK_QUESTION).lower()
+    assert "self-interest" in " ".join(HOOK_QUESTION).lower()
+    assert "actor" in " ".join(CAPTION_AGENT).lower()
     assert "share" in HOOK_LINE.lower() or "share" in HOOK_TITLE.lower()
-    assert CLOSE_TITLE.endswith(".")
+    assert CLOSE_TITLE[-1].endswith(".")
     assert HOLD_READ >= 3.5
     assert HOLD_LONG > HOLD_READ
     assert hold_for(HOOK_QUESTION) >= 4.0

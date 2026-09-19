@@ -15,14 +15,13 @@ GRID_EDGE = "#d4d4d8"
 FOOD = "#16a34a"
 
 # Inter, same family as the docs site. Sizes are Manim font_size points.
-# Word spacing is applied in the scene (Manim space glyphs are unreliable).
 TYPE_FONT = "Inter"
 TYPE_SCALE: dict[str, dict[str, int | str]] = {
     "display": {"size": 46, "weight": "SEMIBOLD"},
-    "heading": {"size": 32, "weight": "SEMIBOLD"},
+    "heading": {"size": 34, "weight": "SEMIBOLD"},
     "lead": {"size": 24, "weight": "MEDIUM"},
     "body": {"size": 25, "weight": "NORMAL"},
-    "caption": {"size": 20, "weight": "NORMAL"},
+    "caption": {"size": 22, "weight": "NORMAL"},
     "label": {"size": 22, "weight": "MEDIUM"},
     "step": {"size": 26, "weight": "SEMIBOLD"},
     "chip": {"size": 20, "weight": "MEDIUM"},
@@ -51,33 +50,33 @@ AGENT_TRAITS = (
 )
 
 AGENT_KINDS = (
-    {"key": "cooperative", "label": "Cooperative", "color": COOPERATIVE, "hint": "Shares more,\nfights less"},
-    {"key": "self_interested", "label": "Self-interested", "color": SELF_INTERESTED, "hint": "Keeps food,\ncompetes more"},
-    {"key": "balanced", "label": "Balanced", "color": BALANCED, "hint": "A middle path,\nfor comparison"},
+    {"key": "cooperative", "label": "Cooperative", "color": COOPERATIVE, "hint": "Shares more, fights less"},
+    {"key": "self_interested", "label": "Self-interested", "color": SELF_INTERESTED, "hint": "Keeps food, competes more"},
+    {"key": "balanced", "label": "Balanced", "color": BALANCED, "hint": "A middle path, for comparison"},
 )
 
 HOOK_TITLE = "A limited world."
 HOOK_LINE = "Many individuals have to share the food."
-HOOK_QUESTION = "What mix of helpfulness\nand self-interest actually works?"
+HOOK_QUESTION = ("What mix of helpfulness", "and self-interest actually works?")
 
 SECTION_AGENT = "What is an agent?"
-CAPTION_AGENT = "One actor in the world. Nobody tells it what to do."
-CAPTION_KINDS = "They lean in different directions. These are tendencies, not personalities."
+CAPTION_AGENT = ("One actor in the world.", "Nobody tells it what to do.")
+CAPTION_KINDS = ("They lean in different directions.", "These are tendencies, not personalities.")
 
 SECTION_ENV = "What is the environment?"
-CAPTION_ENV = "The world they share. Here it is a grid, like a board-game board."
-NOTE_ENV = "Some squares hold food. One meal is food someone else cannot eat."
+CAPTION_ENV = ("The world they share.", "Here it is a grid, like a board-game board.")
+NOTE_ENV = ("Some squares hold food.", "One meal is food someone else cannot eat.")
 
 SECTION_DO = "What do agents do?"
-CAPTION_DO = "On every turn, each living agent does the same three things."
+CAPTION_DO = ("On every turn,", "each living agent does the same three things.")
 
 SECTION_GRID = "An example on a grid"
-CAPTION_GRID = "A short run on a small map — a postcard, not the experiment."
-CAPTION_WALK = "They walk toward food. A green patch shrinks when someone eats."
-CAPTION_CLUSTER = "The blue agents gathered on their own. Nobody programmed that."
+CAPTION_GRID = ("A short run on a small map —", "a postcard, not the experiment.")
+CAPTION_WALK = ("They walk toward food.", "A green patch shrinks when someone eats.")
+CAPTION_CLUSTER = ("The blue agents gathered on their own.", "Nobody programmed that.")
 
-CLOSE_TITLE = "The research measures\nthe patterns that appear."
-CLOSE_QUESTION = "Does a mix last longer than a world\nof only helpers — or only competitors?"
+CLOSE_TITLE = ("The research measures", "the patterns that appear.")
+CLOSE_QUESTION = ("Does a mix last longer than a world", "of only helpers — or only competitors?")
 
 # On-screen reading: ~180 wpm plus a rest so the last words are not cut off.
 SECONDS_PER_WORD = 0.33
@@ -88,15 +87,26 @@ HOLD_LONG = 5.2
 WALK_TIME = 1.0
 
 
-def word_count(*texts: str) -> int:
+def as_lines(*texts: str | tuple[str, ...]) -> tuple[str, ...]:
+    """Flatten copy strings or line-tuples into a single tuple of lines."""
+    lines: list[str] = []
+    for text in texts:
+        if isinstance(text, tuple):
+            lines.extend(text)
+        else:
+            lines.extend(part for part in text.split("\n") if part)
+    return tuple(lines)
+
+
+def word_count(*texts: str | tuple[str, ...]) -> int:
     """Count whitespace-separated tokens across one or more copy strings."""
     total = 0
-    for text in texts:
-        total += sum(1 for token in text.replace("\n", " ").split() if token)
+    for line in as_lines(*texts):
+        total += sum(1 for token in line.split() if token)
     return total
 
 
-def hold_for(*texts: str, minimum: float = HOLD_LINE) -> float:
+def hold_for(*texts: str | tuple[str, ...], minimum: float = HOLD_LINE) -> float:
     """Seconds to leave copy up for a first-time viewer."""
     return max(minimum, word_count(*texts) * SECONDS_PER_WORD + HOLD_REST)
 
@@ -116,7 +126,7 @@ LOOP_STEPS = (
     "Act",
 )
 
-WORLD_CHANGES = "After everyone has acted,\nthe map updates and the next turn begins."
+WORLD_CHANGES = ("After everyone has acted,", "the map updates and the next turn begins.")
 
 # Starting cells (x, y) with origin at bottom-left, y up.
 AGENTS: dict[str, dict[str, Any]] = {
