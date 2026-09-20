@@ -97,12 +97,25 @@ SECTION_DO = "What do agents do?"
 CAPTION_DO = ("On every turn, each living agent", "does the same three things.")
 
 SECTION_GRID = "An example on a grid"
-CAPTION_GRID = ("A short run on a small map —", "a postcard, not the experiment.")
+CAPTION_GRID = ("A short run on a small map.", "A postcard, not the experiment.")
 CAPTION_WALK = ("They walk toward the food.", "A patch shrinks when someone eats.")
 CAPTION_CLUSTER = ("The blue agents gathered on their own.", "Nobody programmed them to do that.")
 
 CLOSE_TITLE = ("The research measures", "the patterns that appear.")
 CLOSE_QUESTION = ("Does a mix last longer than a world", "of only helpers — or only competitors?")
+
+CREDIT_NAME = "AgentFarm"
+CREDIT_LINK = "dooders.github.io/AgentFarm"
+
+# The four questions the explainer answers, in order, for the step label.
+SECTION_COUNT = 4
+
+
+def step_label(index: int) -> str:
+    """Quiet orientation label above a section heading, e.g. ``2 of 4``."""
+    if not 1 <= index <= SECTION_COUNT:
+        raise ValueError(f"Section {index} is outside 1..{SECTION_COUNT}")
+    return f"{index} of {SECTION_COUNT}"
 
 # On-screen reading: ~180 wpm plus a rest so the last words are not cut off.
 SECONDS_PER_WORD = 0.33
@@ -152,7 +165,7 @@ LOOP_STEPS = (
     "Act",
 )
 
-WORLD_CHANGES = ("After everyone has acted, the map", "updates and the next turn begins.")
+WORLD_CHANGES = ("After everyone acts, the map updates", "and the next turn begins.")
 
 # Starting cells (x, y) with origin at bottom-left, y up.
 AGENTS: dict[str, dict[str, Any]] = {

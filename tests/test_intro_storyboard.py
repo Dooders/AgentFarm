@@ -13,9 +13,12 @@ from farm.core.intro_storyboard import (
     CAPTION_CLUSTER,
     CAPTION_DO,
     CAPTION_ENV,
+    CAPTION_GRID,
     CAPTION_WALK,
     CLOSE_QUESTION,
     CLOSE_TITLE,
+    CREDIT_LINK,
+    CREDIT_NAME,
     FOOD_START,
     GRID_SIZE,
     HOLD_LINE,
@@ -26,6 +29,7 @@ from farm.core.intro_storyboard import (
     HOOK_TITLE,
     LOOP_STEPS,
     NOTE_ENV,
+    SECTION_COUNT,
     TURNS,
     TYPE_FONT,
     TYPE_MIN_SIZE,
@@ -35,6 +39,7 @@ from farm.core.intro_storyboard import (
     in_bounds,
     kind_color,
     line_span,
+    step_label,
     type_role,
     validate_storyboard,
 )
@@ -62,6 +67,28 @@ def test_copy_covers_the_four_intro_beats():
     assert HOLD_LONG > HOLD_READ
     assert hold_for(HOOK_QUESTION) >= 4.0
     assert hold_for("one two three") >= HOLD_LINE
+
+
+def test_step_labels_cover_the_four_questions():
+    assert SECTION_COUNT == 4
+    assert step_label(1) == "1 of 4"
+    assert step_label(SECTION_COUNT) == "4 of 4"
+    for bad in (0, SECTION_COUNT + 1):
+        with pytest.raises(ValueError):
+            step_label(bad)
+
+
+def test_credit_points_at_the_docs_site():
+    assert CREDIT_NAME == "AgentFarm"
+    assert CREDIT_LINK == "dooders.github.io/AgentFarm"
+    assert " " not in CREDIT_LINK
+
+
+def test_stacked_copy_avoids_dangling_punctuation():
+    """A line should not end on an em dash or a bare conjunction-free fragment."""
+    for lines in (CAPTION_GRID, CAPTION_ENV, NOTE_ENV, CAPTION_WALK, WORLD_CHANGES):
+        for line in lines[:-1]:
+            assert not line.rstrip().endswith("—"), line
 
 
 def test_kind_color_and_bounds():

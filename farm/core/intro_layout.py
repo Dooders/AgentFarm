@@ -9,18 +9,23 @@ from __future__ import annotations
 FRAME_WIDTH = 14.222222
 FRAME_HEIGHT = 8.0
 
-MARGIN_TOP = 0.44
+MARGIN_TOP = 0.38
 MARGIN_BOTTOM = 0.40
 MARGIN_SIDE = 0.60
 
 # Space between the top banner and the stage, and between the stage and a footer.
-GAP_BANNER = 0.52
+GAP_BANNER = 0.46
 GAP_FOOTER = 0.46
 
-# Space between a section heading and its caption.
+# Space above a section heading (step label) and below it (caption).
+GAP_EYEBROW = 0.18
 GAP_HEADING = 0.30
 
 MAX_CELL = 0.56
+
+# Blocks sit a little above the middle of their stage: an even split reads low
+# because the eye centers on the mass above, not the empty room below.
+STAGE_BIAS = 0.46
 
 
 def frame_top() -> float:
@@ -54,6 +59,18 @@ def stage_bounds(banner_height: float, footer_height: float = 0.0) -> tuple[floa
 def stage_center(top: float, bottom: float) -> float:
     """Y coordinate of the middle of a stage span."""
     return (top + bottom) / 2
+
+
+def seat_y(top: float, bottom: float, height: float, bias: float = STAGE_BIAS) -> float:
+    """Center Y for a block of ``height`` seated in a stage, biased upward.
+
+    ``bias`` is the share of the leftover room placed above the block, so 0.5 is
+    a plain centre and smaller values lift the block toward the caption.
+    """
+    span = top - bottom
+    if height >= span:
+        return stage_center(top, bottom)
+    return top - (span - height) * bias - height / 2
 
 
 def fit_cell(top: float, bottom: float, cells: int, max_cell: float = MAX_CELL) -> float:

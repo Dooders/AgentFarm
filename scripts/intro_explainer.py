@@ -21,8 +21,8 @@ from manim import (
     ORIGIN,
     RIGHT,
     UP,
+    Arrow,
     Circle,
-    Create,
     FadeIn,
     FadeOut,
     GrowFromCenter,
@@ -33,20 +33,20 @@ from manim import (
     Paragraph,
     RoundedRectangle,
     Scene,
-    Square,
-    SurroundingRectangle,
     Text,
     VGroup,
     smooth,
 )
 
 from farm.core.intro_layout import (
+    GAP_EYEBROW,
     GAP_HEADING,
     MARGIN_BOTTOM,
     banner_top,
     fit_cell,
     frame_bottom,
     safe_width,
+    seat_y,
     stage_bounds,
     stage_center,
 )
@@ -68,6 +68,8 @@ from farm.core.intro_storyboard import (
     CLOSE_QUESTION,
     CLOSE_TITLE,
     COOPERATIVE,
+    CREDIT_LINK,
+    CREDIT_NAME,
     FOOD,
     FOOD_START,
     GRID_EDGE,
@@ -93,6 +95,7 @@ from farm.core.intro_storyboard import (
     as_lines,
     hold_for,
     kind_color,
+    step_label,
     type_role,
 )
 
@@ -140,9 +143,10 @@ def copy_block(copy: str | tuple[str, ...], role: str = "body", color: str = INK
 
 @dataclass
 class Banner:
-    """Section heading with a caption that can be swapped in place."""
+    """Step label, section heading, and a caption that can be swapped in place."""
 
     group: VGroup
+    eyebrow: Text
     heading: Text
     caption: Mobject
     caption_top: float
@@ -159,16 +163,19 @@ class Banner:
         return caption
 
 
-def section_banner(title: str, copy: tuple[str, ...]) -> Banner:
-    """Centered heading and caption, parked in the top margin."""
+def section_banner(title: str, copy: tuple[str, ...], step: int = 1) -> Banner:
+    """Centered step label, heading, and caption, parked in the top margin."""
+    eyebrow = ink_text(step_label(step), "meta", MUTED)
+    eyebrow.set_x(0)
+    eyebrow.shift(UP * (banner_top() - eyebrow.get_top()[1]))
     heading = ink_text(title, "heading")
     heading.set_x(0)
-    heading.shift(UP * (banner_top() - heading.get_top()[1]))
+    heading.shift(UP * (eyebrow.get_bottom()[1] - GAP_EYEBROW - heading.get_top()[1]))
     caption = copy_block(copy, "caption", MUTED)
     caption.set_x(0)
     caption_top = heading.get_bottom()[1] - GAP_HEADING
     caption.shift(UP * (caption_top - caption.get_top()[1]))
-    return Banner(VGroup(heading, caption), heading, caption, caption_top)
+    return Banner(VGroup(eyebrow, heading, caption), eyebrow, heading, caption, caption_top)
 
 
 @dataclass
@@ -198,18 +205,40 @@ class GridStage:
         )
 
     def board(self) -> VGroup:
-        cells = VGroup()
-        for grid_y in range(GRID_SIZE):
-            for grid_x in range(GRID_SIZE):
-                square = Square(self.cell)
-                square.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.1)
-                square.move_to(self.point(grid_x, grid_y))
-                cells.add(square)
-        return cells
+        """One panel plus interior hairlines.
+
+        Drawing 64 squares double-struck every shared edge, so interior lines came
+        out heavier and unevenly wide. A single panel keeps one weight throughout.
+        """
+        panel = RoundedRectangle(
+            width=self.span,
+            height=self.span,
+            corner_radius=self.cell * 0.18,
+        )
+        panel.set_fill(CARD, 1).set_stroke(GRID_EDGE, 1.4)
+        panel.move_to(np.array([0.0, self.center_y, 0.0]))
+        lines = VGroup()
+        half = self.span / 2
+        for step in range(1, GRID_SIZE):
+            offset = -half + step * self.cell
+            lines.add(
+                Line(
+                    np.array([offset, self.center_y - half, 0.0]),
+                    np.array([offset, self.center_y + half, 0.0]),
+                )
+            )
+            lines.add(
+                Line(
+                    np.array([-half, self.center_y + offset, 0.0]),
+                    np.array([half, self.center_y + offset, 0.0]),
+                )
+            )
+        lines.set_stroke(GRID_EDGE, 1.1)
+        return VGroup(panel, lines)
 
     def patch(self, grid_x: int, grid_y: int) -> RoundedRectangle:
         side = self.cell * 0.68
-        patch = RoundedRectangle(width=side, height=side, corner_radius=0.08)
+        patch = RoundedRectangle(width=side, height=side, corner_radius=side * 0.22)
         patch.set_fill(FOOD, 0.88).set_stroke(width=0)
         patch.move_to(self.point(grid_x, grid_y))
         return patch
@@ -288,6 +317,19 @@ def kind_columns() -> VGroup:
     return columns
 
 
+def loop_arrow() -> Arrow:
+    """Drawn arrow, so the connector keeps one weight instead of a glyph's."""
+    arrow = Arrow(
+        LEFT * 0.22,
+        RIGHT * 0.22,
+        buff=0,
+        stroke_width=2.4,
+        tip_length=0.16,
+        color=MUTED,
+    )
+    return arrow
+
+
 def loop_row() -> tuple[VGroup, VGroup]:
     """Look → Decide → Act cards with arrows between them."""
     cards = VGroup(*[step_card(step) for step in LOOP_STEPS])
@@ -295,7 +337,7 @@ def loop_row() -> tuple[VGroup, VGroup]:
     cards.set_x(0)
     arrows = VGroup()
     for left, right in zip(cards, cards[1:]):
-        mark = ink_text("→", "label", MUTED)
+        mark = loop_arrow()
         mark.move_to((left.get_right() + right.get_left()) / 2)
         arrows.add(mark)
     return cards, arrows
@@ -327,11 +369,15 @@ def legend_row() -> VGroup:
 
 def _legend_item(color: str, label: str, square: bool = False) -> VGroup:
     if square:
-        mark = Square(0.18).set_fill(color, 0.9).set_stroke(width=0)
+        # A square reads heavier than a circle of the same size, so it runs smaller,
+        # and it is rounded like the food patches on the board.
+        side = 0.19
+        mark = RoundedRectangle(width=side, height=side, corner_radius=side * 0.22)
+        mark.set_fill(color, 0.9).set_stroke(width=0)
     else:
-        mark = Circle(radius=0.09).set_fill(color, 1).set_stroke(INK, 1.0)
+        mark = Circle(radius=0.11).set_fill(color, 1).set_stroke(INK, 1.0)
     text = ink_text(label, "meta", MUTED)
-    text.next_to(mark, RIGHT, buff=0.14)
+    text.next_to(mark, RIGHT, buff=0.16)
     return VGroup(mark, text)
 
 
@@ -343,9 +389,10 @@ def seat_on_bottom(block: Mobject) -> Mobject:
 
 
 def seat_in_stage(block: Mobject, top: float, bottom: float) -> Mobject:
-    """Center a block in a stage span."""
+    """Seat a block in a stage span, slightly above the mathematical centre."""
     block.set_x(0)
-    block.shift(UP * (stage_center(top, bottom) - block.get_center()[1]))
+    target = seat_y(top, bottom, float(block.height))
+    block.shift(UP * (target - block.get_center()[1]))
     return block
 
 
@@ -366,8 +413,8 @@ class IntroExplainer(Scene):
         if lingering:
             self.play(*[FadeOut(mob) for mob in lingering], run_time=run_time, rate_func=smooth)
 
-    def _open_section(self, title: str, copy: tuple[str, ...]) -> Banner:
-        banner = section_banner(title, copy)
+    def _open_section(self, title: str, copy: tuple[str, ...], step: int) -> Banner:
+        banner = section_banner(title, copy, step)
         self.play(FadeIn(banner.group, shift=UP * 0.04), run_time=0.55, rate_func=smooth)
         self.wait(HOLD_LINE)
         return banner
@@ -393,7 +440,7 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _what_is_an_agent(self) -> None:
-        banner = self._open_section(SECTION_AGENT, CAPTION_AGENT)
+        banner = self._open_section(SECTION_AGENT, CAPTION_AGENT, 1)
         top, bottom = stage_bounds(banner.height)
 
         dot = agent_dot("#6b7280", 0.30)
@@ -437,13 +484,13 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _what_is_the_environment(self) -> None:
-        banner = self._open_section(SECTION_ENV, CAPTION_ENV)
+        banner = self._open_section(SECTION_ENV, CAPTION_ENV, 2)
         note = seat_on_bottom(copy_block(NOTE_ENV, "caption", MUTED))
         top, bottom = stage_bounds(banner.height, note.height)
         stage = GridStage.between(top, bottom)
 
         board = stage.board()
-        self.play(Create(board, lag_ratio=0.012), run_time=1.5, rate_func=smooth)
+        self.play(FadeIn(board), run_time=0.55, rate_func=smooth)
 
         food = VGroup(*[stage.patch(x, y) for x, y in FOOD_START])
         self.play(
@@ -455,7 +502,7 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _what_do_agents_do(self) -> None:
-        banner = self._open_section(SECTION_DO, CAPTION_DO)
+        banner = self._open_section(SECTION_DO, CAPTION_DO, 3)
         top, bottom = stage_bounds(banner.height)
 
         cards, arrows = loop_row()
@@ -475,6 +522,8 @@ class IntroExplainer(Scene):
             run_time=1.15,
         )
         self.play(FadeIn(arrows), run_time=0.35)
+        # Pulse the box only, one card at a time. LaggedStart(Succession(...)) on the
+        # box mobject replaces the parent VGroup and drops the labels.
         for card in cards:
             box = card[0]
             self.play(box.animate.set_stroke(INK, 2.0), run_time=0.32, rate_func=smooth)
@@ -493,7 +542,7 @@ class IntroExplainer(Scene):
         self._fade_all()
 
     def _grid_example(self) -> None:
-        banner = self._open_section(SECTION_GRID, CAPTION_GRID)
+        banner = self._open_section(SECTION_GRID, CAPTION_GRID, 4)
         legend = seat_on_bottom(legend_row())
         top, bottom = stage_bounds(banner.height, legend.height)
         stage = GridStage.between(top, bottom)
@@ -546,7 +595,13 @@ class IntroExplainer(Scene):
 
         cluster = VGroup(dots["blue_a"], dots["blue_b"], dots["red_a"], dots["red_b"])
         closer = banner.swap(CAPTION_CLUSTER)
-        halo = SurroundingRectangle(cluster, color=INK, buff=0.20, stroke_width=2.0)
+        halo = RoundedRectangle(
+            width=cluster.width + 0.48,
+            height=cluster.height + 0.48,
+            corner_radius=0.22,
+        )
+        halo.set_stroke(INK, 2.0).set_fill(opacity=0)
+        halo.move_to(cluster.get_center())
         self.play(FadeOut(beat), FadeIn(closer), run_time=0.4, rate_func=smooth)
         self.play(FadeIn(halo), run_time=0.45, rate_func=smooth)
         self.wait(hold_for(CAPTION_CLUSTER))
@@ -564,23 +619,37 @@ class IntroExplainer(Scene):
         self.play(FadeIn(question, shift=DOWN * 0.04), run_time=0.6, rate_func=smooth)
         self.wait(hold_for(CLOSE_TITLE, CLOSE_QUESTION))
         self._fade_all(run_time=0.55)
-        self.wait(0.15)
+        self._credit()
+
+    def _credit(self) -> None:
+        """Quiet sign-off so a viewer who was sent the file knows where to read more."""
+        name = ink_text(CREDIT_NAME, "label")
+        link = ink_text(CREDIT_LINK, "meta", MUTED)
+        link.next_to(name, DOWN, buff=0.26)
+        credit = VGroup(name, link)
+        credit.move_to(ORIGIN)
+        name.set_x(0)
+        link.set_x(0)
+        self.play(FadeIn(credit, shift=UP * 0.04), run_time=0.6, rate_func=smooth)
+        self.wait(2.2)
+        self.play(FadeOut(credit), run_time=0.6, rate_func=smooth)
+        self.wait(0.2)
 
 
-SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    ("agent", SECTION_AGENT, CAPTION_AGENT),
-    ("environment", SECTION_ENV, CAPTION_ENV),
-    ("actions", SECTION_DO, CAPTION_DO),
-    ("grid", SECTION_GRID, CAPTION_GRID),
+SECTIONS: tuple[tuple[str, str, tuple[str, ...], int], ...] = (
+    ("agent", SECTION_AGENT, CAPTION_AGENT, 1),
+    ("environment", SECTION_ENV, CAPTION_ENV, 2),
+    ("actions", SECTION_DO, CAPTION_DO, 3),
+    ("grid", SECTION_GRID, CAPTION_GRID, 4),
 )
 
 
 def section_stage(name: str) -> tuple[float, float]:
     """Top and bottom Y of a section's stage, as the scene computes it."""
-    for key, title, caption in SECTIONS:
+    for key, title, caption, step in SECTIONS:
         if key != name:
             continue
-        banner = section_banner(title, caption)
+        banner = section_banner(title, caption, step)
         if key == "environment":
             footer = float(copy_block(NOTE_ENV, "caption", MUTED).height)
         elif key == "grid":
@@ -601,6 +670,7 @@ __all__ = [
     "ink_text",
     "kind_columns",
     "legend_row",
+    "loop_arrow",
     "loop_row",
     "seat_in_stage",
     "seat_on_bottom",

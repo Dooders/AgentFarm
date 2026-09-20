@@ -14,12 +14,14 @@ from farm.core.intro_layout import (
     GAP_FOOTER,
     MARGIN_BOTTOM,
     MARGIN_TOP,
+    STAGE_BIAS,
     banner_top,
     fit_cell,
     fits_frame,
     frame_bottom,
     frame_top,
     safe_width,
+    seat_y,
     stage_bounds,
     stage_center,
 )
@@ -63,6 +65,21 @@ def test_fit_cell_keeps_the_grid_inside_the_stage():
         fit_cell(1.0, 2.0, GRID_SIZE)
     with pytest.raises(ValueError):
         fit_cell(1.0, -1.0, 0)
+
+
+def test_seat_y_lifts_short_blocks_above_the_middle():
+    top, bottom = 2.0, -2.0
+    middle = stage_center(top, bottom)
+    assert STAGE_BIAS < 0.5
+    seated = seat_y(top, bottom, 1.0)
+    assert seated > middle
+    above = top - (seated + 0.5)
+    below = (seated - 0.5) - bottom
+    assert above < below
+    assert above + below == pytest.approx(top - bottom - 1.0)
+    # A plain centre is still available, and oversized blocks just centre.
+    assert seat_y(top, bottom, 1.0, bias=0.5) == pytest.approx(middle)
+    assert seat_y(top, bottom, 9.0) == pytest.approx(middle)
 
 
 def test_stage_center_and_frame_fit():
@@ -114,8 +131,10 @@ def test_multi_line_copy_has_even_baselines():
 
 
 def test_section_banner_sits_in_the_top_margin_and_centers():
-    banner = explainer.section_banner("What is an agent?", ("One line.", "Two lines."))
-    assert banner.heading.get_top()[1] == pytest.approx(banner_top())
+    banner = explainer.section_banner("What is an agent?", ("One line.", "Two lines."), 2)
+    assert banner.eyebrow.get_top()[1] == pytest.approx(banner_top())
+    assert abs(banner.eyebrow.get_center()[0]) < CENTER_TOLERANCE
+    assert banner.heading.get_top()[1] < banner.eyebrow.get_bottom()[1]
     assert abs(banner.heading.get_center()[0]) < CENTER_TOLERANCE
     assert abs(banner.caption.get_center()[0]) < CENTER_TOLERANCE
     assert banner.caption.get_top()[1] < banner.heading.get_bottom()[1]
@@ -167,12 +186,46 @@ def test_stage_blocks_fit_their_sections():
         assert block.width <= safe_width()
 
 
+def test_the_whole_actions_column_fits_its_stage():
+    """Cards, the turn sentence, and both chip rows are the tightest stack."""
+    cards, _ = explainer.loop_row()
+    world = explainer.copy_block(("After everyone acts, the map updates", "and the next turn begins."), "lead")
+    rows = explainer.action_rows()
+    world.next_to(cards, manim.DOWN, buff=0.52)
+    rows.next_to(world, manim.DOWN, buff=0.56)
+    column = manim.VGroup(cards, world, rows)
+    top, bottom = explainer.section_stage("actions")
+    assert column.height <= top - bottom
+    explainer.seat_in_stage(column, top, bottom)
+    assert column.get_top()[1] <= top + 1e-6
+    assert column.get_bottom()[1] >= bottom - 1e-6
+    assert world.get_top()[1] < cards.get_bottom()[1]
+    assert rows.get_top()[1] < world.get_bottom()[1]
+
+
+def test_board_is_one_panel_with_evenly_spaced_hairlines():
+    top, bottom = explainer.section_stage("grid")
+    stage = explainer.GridStage.between(top, bottom)
+    panel, lines = stage.board()
+    assert panel.width == pytest.approx(stage.span)
+    assert panel.height == pytest.approx(stage.span)
+    # Seven interior lines each way, none doubled up on a shared cell edge.
+    assert len(lines) == 2 * (7)
+    verticals = sorted(float(line.get_center()[0]) for line in lines if line.height > line.width)
+    gaps = [b - a for a, b in zip(verticals, verticals[1:])]
+    assert gaps == pytest.approx([stage.cell] * len(gaps), abs=1e-6)
+
+
 def test_action_loop_row_is_centered_with_arrows_between_cards():
     cards, arrows = explainer.loop_row()
     assert abs(cards.get_center()[0]) < CENTER_TOLERANCE
     assert len(arrows) == len(cards) - 1
     for left, right, mark in zip(cards, cards[1:], arrows):
         assert left.get_right()[0] < mark.get_center()[0] < right.get_left()[0]
+    for card in cards:
+        box, text = card
+        assert text.width > 0.4
+        assert box.width > text.width
 
 
 def test_trait_chips_are_equal_width_so_the_ring_is_symmetric():
