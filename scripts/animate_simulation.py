@@ -7,6 +7,7 @@ move and interact over time. The output is an MP4 video that can be easily serve
 
 Usage:
     python animate_simulation.py [iteration_number] [--gif]
+    python animate_simulation.py --db-path path/to/simulation.db --style grid --gif
 """
 
 import argparse
@@ -30,29 +31,12 @@ import pandas as pd
 from matplotlib.patches import Circle
 from tqdm import tqdm  # Import tqdm for better progress tracking if available
 
-
-def get_state_at_step(conn, step_number):
-    """
-    Extract positions of agents and resources at a specific step.
-    """
-    # Get agents at this step
-    agents_query = """
-    SELECT a.agent_id, ag.agent_type, a.position_x, a.position_y, a.resource_level as resources
-    FROM agent_states a
-    JOIN agents ag ON a.agent_id = ag.agent_id
-    WHERE a.step_number = ?
-    """
-    agents = pd.read_sql_query(agents_query, conn, params=(step_number,))
-
-    # Get resources at this step
-    resources_query = """
-    SELECT resource_id, position_x, position_y, amount
-    FROM resource_states
-    WHERE step_number = ?
-    """
-    resources = pd.read_sql_query(resources_query, conn, params=(step_number,))
-
-    return agents, resources
+from farm.core.animation import (
+    agent_style,
+    get_state_at_step,
+    world_size_from_config,
+    write_grid_gif,
+)
 
 
 def create_frame(
@@ -95,12 +79,10 @@ def create_frame(
         label="Resources",
     )
 
-    # Plot agents with different colors by type
-    agent_colors = {
-        "SystemAgent": "blue",
-        "IndependentAgent": "red",
-        "ControlAgent": "orange",
-    }
+    # Plot agents with different colors by type (DB may store "system" or "SystemAgent")
+    agent_colors = {}
+    for agent_type in agents["agent_type"].unique() if not agents.empty else []:
+        agent_colors[agent_type] = agent_style(agent_type)["color"]
 
     # Track when agents first appear
     agent_first_seen = {}
@@ -373,7 +355,13 @@ def create_simulation_video(
 def main():
     # Create argument parser
     parser = argparse.ArgumentParser(description="Animate simulation results.")
-    parser.add_argument("iteration", type=int, help="Iteration number to animate")
+    parser.add_argument(
+        "iteration",
+        type=int,
+        nargs="?",
+        default=None,
+        help="Iteration number to animate (experiment-folder mode)",
+    )
     parser.add_argument("--gif", action="store_true", help="Also create a GIF version")
     parser.add_argument(
         "--experiment-path",
@@ -381,8 +369,46 @@ def main():
         default="results/one_of_a_kind_500x3000/experiments/data/one_of_a_kind_20250320_192845",
         help="Path to experiment directory",
     )
+    parser.add_argument(
+        "--db-path",
+        type=str,
+        default=None,
+        help="Animate a standalone simulation.db instead of an experiment iteration",
+    )
+    parser.add_argument(
+        "--style",
+        choices=("scatter", "grid"),
+        default="scatter",
+        help="scatter is the original continuous plot; grid is the teaching view",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output path for --style grid (GIF)",
+    )
+    parser.add_argument("--width", type=int, default=None, help="Grid width override")
+    parser.add_argument("--height", type=int, default=None, help="Grid height override")
 
     args = parser.parse_args()
+
+    if args.db_path and args.style == "grid":
+        config = {}
+        config_candidate = Path(args.db_path).with_name("config.json")
+        if config_candidate.exists():
+            with open(config_candidate, "r", encoding="utf-8") as handle:
+                config = json.load(handle)
+        width, height = world_size_from_config(config)
+        if args.width is not None:
+            width = args.width
+        if args.height is not None:
+            height = args.height
+        output = args.output or str(Path(args.db_path).with_suffix(".gif"))
+        write_grid_gif(args.db_path, output, width, height)
+        return
+
+    if args.iteration is None:
+        parser.error("iteration is required unless --db-path is used with --style grid")
 
     # Create video with optimized parameters
     create_simulation_video(

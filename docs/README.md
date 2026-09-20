@@ -4,9 +4,10 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 
 ## New here?
 
-1. [Installation](getting-started/installation.md)
-2. [First simulation](getting-started/first-simulation.md)
-3. [Architecture overview](concepts/architecture.md)
+1. [A gentle introduction](getting-started/a-gentle-introduction.md) — what an agent is, what the environment is, and a grid example (shareable file: [intro-explainer.mp4](assets/intro-explainer.mp4))
+2. [Installation](getting-started/installation.md)
+3. [First simulation](getting-started/first-simulation.md)
+4. [Architecture overview](concepts/architecture.md)
 
 ## By role
 
@@ -19,6 +20,7 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 
 ## Getting started
 
+- [A gentle introduction](getting-started/a-gentle-introduction.md)
 - [Installation](getting-started/installation.md)
 - [First simulation](getting-started/first-simulation.md)
 - [Experiment quickstart](getting-started/experiments-quickstart.md)
@@ -36,6 +38,7 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 
 ## Concepts
 
+- [A gentle introduction](getting-started/a-gentle-introduction.md)
 - [Architecture](concepts/architecture.md)
 - [Agents and decisions](concepts/agents-and-decisions.md)
 - [Actions](concepts/actions.md) · [Observation channels](concepts/observation-channels.md)
@@ -51,6 +54,7 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 
 ## Research
 
+- [A gentle introduction](getting-started/a-gentle-introduction.md)
 - [Experiments catalog](research/experiments-catalog.md)
 - [Devlog](research/devlog/index.md)
 - [Consensus paradigms](research/experiments/consensus_paradigms.md)

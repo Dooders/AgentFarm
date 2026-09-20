@@ -41,5 +41,6 @@ pytest -q
 
 ## Next steps
 
+- [A gentle introduction](a-gentle-introduction.md) — what an agent, environment, and grid run look like
 - [Run your first simulation](first-simulation.md)
 - [Contributing](../../CONTRIBUTING.md)

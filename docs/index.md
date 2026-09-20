@@ -16,7 +16,8 @@ description: A Python-first platform for agent-based simulation, reinforcement l
         and persist structured data for reproducible analysis.
       </p>
       <div class="hero__cta">
-        <a class="btn btn--primary" href="{{ '/README/' | relative_url }}">Documentation</a>
+        <a class="btn btn--primary" href="{{ '/getting-started/a-gentle-introduction/' | relative_url }}">Gentle introduction</a>
+        <a class="btn" href="{{ '/README/' | relative_url }}">Documentation</a>
         <a class="btn" href="https://github.com/Dooders/AgentFarm" target="_blank" rel="noopener">GitHub</a>
         <a class="btn btn--ghost" href="#quickstart">Quick start</a>
       </div>

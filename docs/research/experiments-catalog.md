@@ -1,5 +1,7 @@
 # Experiments
 
+New to the project? [A gentle introduction](../getting-started/a-gentle-introduction.md) explains agents, the grid environment, and what a run looks like.
+
 AgentFarm ships with a growing set of **defined experiments** — concrete
 research designs, runners, and case studies that exercise the simulation
 framework against a specific question. Each experiment below has its own

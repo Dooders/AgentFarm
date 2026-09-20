@@ -27,6 +27,7 @@ SKIP_SUBSTRINGS = (
     ".png",
     ".gif",
     ".jpg",
+    ".mp4",
     ".csv",
     ".db",
     ".html",

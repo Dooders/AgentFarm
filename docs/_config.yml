@@ -56,6 +56,8 @@ collections:
 # Top navigation links shown in the site header. URLs use the trailing-slash
 # permalinks Jekyll generates from optional-front-matter pages.
 nav_links:
+  - title: Introduction
+    url: /getting-started/a-gentle-introduction/
   - title: Getting Started
     url: /getting-started/installation/
   - title: Guides
