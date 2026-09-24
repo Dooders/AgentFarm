@@ -12,7 +12,7 @@ license-files = ["LICENSE"]
 
 [project.optional-dependencies]
 notary = [
-    "farm-notary @ git+https://github.com/Dooders/FarmNotary.git@v0.1.0",
+    "farm-notary>=1.0,<2.0",
 ]
 
 [tool.setuptools.packages.find]
