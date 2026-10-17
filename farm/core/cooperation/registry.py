@@ -406,7 +406,18 @@ class CooperationRegistry:
         if blocked_by_price:
             ledger.trapped_steps += steps
 
-    def leave(self, unit_id: str, agent_id: str, step: int, holdings: float = 0.0) -> ExitResult:
+    def veto_exit(self, unit_id: str, agent_id: str, step: int) -> bool:
+        """Draw the parent veto on ``agent_id`` leaving ``unit_id``; record it if it falls."""
+        veto_p = self.veto_probability(unit_id, agent_id)
+        if veto_p > 0.0 and self.rng.random() < veto_p:
+            self._emit(step, "exit_vetoed", unit_id, agent_id, parent=self.get(unit_id).parent_id)
+            self.vetoed_unit_ids.add(unit_id)
+            return True
+        return False
+
+    def leave(
+        self, unit_id: str, agent_id: str, step: int, holdings: float = 0.0, *, check_veto: bool = True
+    ) -> ExitResult:
         """Exit ``agent_id`` from ``unit_id``, paying the enforced exit cost.
 
         Order of checks: a parent veto (only when the exit would dissolve the
@@ -415,15 +426,13 @@ class CooperationRegistry:
         leaver forfeits ``exit_cost * holdings`` into the unit pool. The
         leaver also forfeits any claim on the pool. ``ExitResult.payouts``
         lists dissolution payouts to remaining members, which the caller must
-        credit.
+        credit. Pass ``check_veto=False`` when the veto was already drawn with
+        :meth:`veto_exit` (so several exits can be vetoed before any happens).
         """
         unit = self.get(unit_id)
         if agent_id not in unit.members:
             raise KeyError(f"{agent_id!r} is not a member of {unit_id}")
-        veto_p = self.veto_probability(unit_id, agent_id)
-        if veto_p > 0.0 and self.rng.random() < veto_p:
-            self._emit(step, "exit_vetoed", unit_id, agent_id, parent=unit.parent_id)
-            self.vetoed_unit_ids.add(unit_id)
+        if check_veto and self.veto_exit(unit_id, agent_id, step):
             return ExitResult(left=False, vetoed=True)
         enforced = bool(unit.settings.exit_cost > 0.0 and self.rng.random() < unit.settings.recognition)
         paid = unit.settings.exit_cost * max(0.0, float(holdings)) if enforced else 0.0

@@ -255,7 +255,9 @@ class CooperationService:
 
     def on_agent_removed(self, agent: Any, reason: str = "death") -> None:
         """Drop a dead agent from every unit; survivors split any dissolved pool."""
-        agent_id = str(agent.agent_id)
+        self._forget(str(agent.agent_id), reason)
+
+    def _forget(self, agent_id: str, reason: str) -> None:
         self._open_until.pop(agent_id, None)
         self._pending_income.pop(agent_id, None)
         self._pending_reward.pop(agent_id, None)
@@ -309,8 +311,8 @@ class CooperationService:
         """End-of-step pool dynamics, membership rewards, diagnostics and telemetry."""
         step = self.current_step()
         self._update_income_estimates()
+        self._purge_dead()
         if self.active:
-            self._purge_dead()
             holdings = {
                 aid: float(self._agents[aid].resource_level)
                 for aid in self.registry.members_in_any_unit()
@@ -329,13 +331,11 @@ class CooperationService:
             del self._open_until[aid]
 
     def _purge_dead(self) -> None:
-        """Remove members whose death never reached :meth:`on_agent_removed`."""
-        for agent_id in sorted(self.registry.members_in_any_unit()):
-            agent = self._agents.get(agent_id)
-            if agent is None or not self._alive(agent):
-                payouts = self.registry.remove_agent(agent_id, self.current_step(), reason="death")
-                self._count("member_deaths")
-                self._credit(payouts, "dissolution")
+        """Forget agents whose death never reached :meth:`on_agent_removed`."""
+        dead = {aid for aid, agent in self._agents.items() if not self._alive(agent)}
+        dead.update(aid for aid in self.registry.members_in_any_unit() if aid not in self._agents)
+        for agent_id in sorted(dead):
+            self._forget(agent_id, "death")
 
     def _update_income_estimates(self) -> None:
         a = INCOME_EMA_ALPHA
@@ -467,9 +467,9 @@ class CooperationService:
         gross = pooled + self.registry.economics.surplus(pooled, n)
         return share * gross - settings.scope * y_self
 
-    def _leave_unit(self, agent: Any, unit: CooperativeUnit, step: int, reason: str) -> Any:
+    def _leave_unit(self, agent: Any, unit: CooperativeUnit, step: int, reason: str, *, check_veto: bool = True) -> Any:
         holdings = max(0.0, float(agent.resource_level))
-        result = self.registry.leave(unit.unit_id, agent.agent_id, step, holdings)
+        result = self.registry.leave(unit.unit_id, agent.agent_id, step, holdings, check_veto=check_veto)
         if result.vetoed:
             self._count("exit_vetoed")
             return result
@@ -561,11 +561,14 @@ class CooperationService:
             if self.registry.offer_blocked(party.agent_id, self.kind, step):
                 self._count("offers_blocked")
                 return {"success": False, "error": "offer_blocked", "details": {"blocked": party.agent_id}}
-        for party, units in movers:
-            for unit in units:
-                result = self._leave_unit(party, unit, step, reason="switch")
-                if result.vetoed:
-                    return {"success": False, "error": "switch_vetoed", "details": {"unit_id": unit.unit_id}}
+        exits = [(party, unit) for party, units in movers for unit in units]
+        # Draw every veto before any exit so a refused switch leaves all memberships intact.
+        for party, unit in exits:
+            if self.registry.veto_exit(unit.unit_id, party.agent_id, step):
+                self._count("exit_vetoed")
+                return {"success": False, "error": "switch_vetoed", "details": {"unit_id": unit.unit_id}}
+        for party, unit in exits:
+            self._leave_unit(party, unit, step, reason="switch", check_veto=False)
         a_id, o_id = agent.agent_id, other.agent_id
         if how == "form":
             settings: CooperationSettings = target
