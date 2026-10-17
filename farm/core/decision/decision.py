@@ -105,6 +105,8 @@ class DecisionModule:
 
         # Use provided action space
         self.action_space = action_space
+        # The policy's own action distribution at the last decision (telemetry).
+        self.last_policy_probs: Optional[np.ndarray] = None
         # Get number of actions directly from action space
         if hasattr(action_space, "n"):
             self.num_actions = int(action_space.n)
@@ -640,6 +642,9 @@ class DecisionModule:
         """
         state_np = self._normalize_state_for_algorithm(state)
         policy_probs = self._policy_probs(state_np)
+        # Kept for telemetry: the policy's own distribution before priors and
+        # curriculum masks, so a learned preference can be told from an innate one.
+        self.last_policy_probs = np.asarray(policy_probs, dtype=np.float64).copy()
         mask = self._create_action_mask(enabled_actions)
 
         if action_weights is not None and len(action_weights) == self.num_actions:

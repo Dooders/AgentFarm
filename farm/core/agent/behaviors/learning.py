@@ -42,6 +42,10 @@ class LearningAgentBehavior(IAgentBehavior):
         self.decision_module = decision_module
         self.last_action_index = None
         self.action_registry = action_registry
+        # Names of ``core.actions`` in order, captured at decision time. The
+        # decision module's output ``i`` selects ``core.actions[i]``, so the
+        # same position must be credited when the experience is stored.
+        self._decision_action_names: Optional[list[str]] = None
     
     def decide_action(
         self,
@@ -64,6 +68,8 @@ class LearningAgentBehavior(IAgentBehavior):
         
         if not actions:
             raise ValueError("No actions available to choose from")
+
+        self._decision_action_names = [action.name for action in core.actions]
         
         # Get enabled action indices if curriculum is used
         if enabled_actions:
@@ -147,8 +153,11 @@ class LearningAgentBehavior(IAgentBehavior):
             train_now: Whether to execute training immediately after storing experience
         """
         try:
-            # Convert action to index
-            action_index = action_name_to_index(action.name)
+            # Credit the policy output that selected this action: its
+            # position in ``core.actions`` (the order decide_action samples
+            # in), not its ActionType value -- the registry order and the
+            # enum order differ.
+            action_index = self.policy_index(action)
             
             # Update decision module
             self.decision_module.update(
@@ -163,6 +172,17 @@ class LearningAgentBehavior(IAgentBehavior):
             # Log but don't crash on update failure
             logger.warning(f"Failed to update decision module: {e}", exc_info=True)
     
+    def policy_index(self, action: Action) -> int:
+        """Index of the policy output that corresponds to ``action``.
+
+        Falls back to :func:`action_name_to_index` only when no decision has
+        been made yet (so the action order is unknown).
+        """
+        names = self._decision_action_names
+        if names and action.name in names:
+            return names.index(action.name)
+        return action_name_to_index(action.name)
+
     def reset(self) -> None:
         """Reset behavior state."""
         self.last_action_index = None

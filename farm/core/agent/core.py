@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import torch
 
 from farm.core.action import Action, action_registry
+from farm.core.cooperation.actions import cooperation_service_of, filter_cooperation_actions
 from farm.core.population import is_population_at_cap
 from farm.core.agent.behaviors.base import IAgentBehavior
 from farm.core.agent.components.base import AgentComponent
@@ -233,8 +234,9 @@ class AgentCore:
         else:
             self.device = create_device_from_config(config)
 
-        # Actions - get base actions from registry
-        base_actions = action_registry.get_all(normalized=False)
+        # Actions - get base actions from registry (the opt-in cooperation
+        # actions only when the environment has cooperation enabled)
+        base_actions = filter_cooperation_actions(action_registry.get_all(normalized=False), environment)
         
         # Customize action weights based on agent type
         self.actions = self._customize_action_weights(base_actions, agent_type, environment)
@@ -470,12 +472,16 @@ class AgentCore:
         if not getattr(self, "actions", None):
             return
         overrides = self._action_weight_overrides_from_decision_config()
-        if not overrides:
-            return
-        for action in self.actions:
-            if action.name in overrides:
-                action.weight = overrides[action.name]
-        self._normalize_action_weights(self.actions)
+        if overrides:
+            for action in self.actions:
+                if action.name in overrides:
+                    action.weight = overrides[action.name]
+            self._normalize_action_weights(self.actions)
+        # Cooperation propensity genes (bond_weight / leave_weight) set the
+        # prior weights of the two cooperation actions.
+        cooperation = cooperation_service_of(getattr(self, "environment", None))
+        if cooperation is not None:
+            cooperation.refresh_action_weights(self)
 
     def attach_component(self, component: AgentComponent) -> None:
         """
@@ -829,6 +835,18 @@ class AgentCore:
         if action_bonus_gene is not None:
             reward += weights[action_bonus_gene]
 
+        # Cooperation: add the motive-driven membership reward. Payouts, aid
+        # and dissolution shares need no extra credit: they land in the
+        # resource component between actions, and ``pre_state`` is the state
+        # synced after the previous action, so ``resource_delta`` already
+        # includes them. With ``credit_payouts`` off they are taken back out.
+        cooperation = cooperation_service_of(getattr(self, "environment", None))
+        if cooperation is not None:
+            income, membership = cooperation.consume_pending(self.agent_id)
+            reward += membership
+            if not cooperation.config.credit_payouts:
+                reward -= income * weights["reward_resource_weight"]
+
         return reward
 
     def _update_state_snapshot(self) -> None:
@@ -1094,6 +1112,13 @@ class AgentCore:
 
         if not candidates:
             return None
+
+        # Members of a cooperative unit reproduce with a partner when one is eligible.
+        cooperation = cooperation_service_of(self.environment)
+        if cooperation is not None:
+            partner = cooperation.preferred_coparent(self, candidates)
+            if partner is not None:
+                return partner
 
         if policy.coparent_strategy == "nearest_alive_same_type":
             return min(candidates, key=lambda a: math.dist(a.position, self.position))
