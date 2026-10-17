@@ -150,8 +150,10 @@ unit instead.
 
 **What members feel.** `gather` pools `scope` of what was gathered, so the
 agent's resource gain, and so its reward, is smaller. Payouts, aid and
-dissolution shares arrive between actions and are credited to the next
-reward at the agent's own `reward_resource_weight`. Members also receive a
+dissolution shares are added to its resources between actions, and the
+reward's resource term spans everything since the agent's previous action,
+so they count once, at the agent's own `reward_resource_weight`
+(`credit_payouts=False` hides them from the reward). Members also receive a
 per-step membership reward from their motives: `fit_scale · fit(settings) +
 affinity_scale · w_affinity · like-mindedness`, divided by the horizon.
 Enforced exits forfeit `exit_cost` of the leaver's resources; recognition

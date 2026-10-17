@@ -26,8 +26,10 @@ What the institution enforces
 
 What the agent feels
     Pooling shows up as a smaller resource gain on ``gather``. Payouts, aid
-    and dissolution shares arrive between actions, so they are credited to
-    the agent's next reward at its own ``reward_resource_weight``. Members
+    and dissolution shares are added to the agent's resources between its
+    actions; the reward's resource term spans everything since the agent's
+    previous action, so they count once, at the agent's own
+    ``reward_resource_weight``. Members
     also receive a per-step membership reward from their motive loci: how
     well the unit's settings fit their motives, and how like-minded their
     partners are.
@@ -255,16 +257,19 @@ class CooperationService:
 
     def on_agent_removed(self, agent: Any, reason: str = "death") -> None:
         """Drop a dead agent from every unit; survivors split any dissolved pool."""
-        agent_id = str(agent.agent_id)
+        self._drop(str(agent.agent_id), reason)
+
+    def _drop(self, agent_id: str, reason: str = "death") -> None:
+        """Forget ``agent_id`` everywhere: units, offers, pending credit, caches."""
         self._open_until.pop(agent_id, None)
         self._pending_income.pop(agent_id, None)
         self._pending_reward.pop(agent_id, None)
         self._income_step.pop(agent_id, None)
+        self._agents.pop(agent_id, None)
         if self.active and self.registry.is_member(agent_id):
             payouts = self.registry.remove_agent(agent_id, self.current_step(), reason=reason)
             self._count("member_deaths")
             self._credit(payouts, "dissolution")
-        self._agents.pop(agent_id, None)
         self._genes.pop(agent_id, None)
         self._income_ema.pop(agent_id, None)
 
@@ -291,15 +296,19 @@ class CooperationService:
                 self._count("unclaimed", amount)
                 continue
             agent.resource_level = float(agent.resource_level) + float(amount)
-            if self.config.credit_payouts:
-                self._pending_income[agent_id] += float(amount)
+            self._pending_income[agent_id] += float(amount)
             credited += float(amount)
         if credited:
             self._count(f"credited_{source}", credited)
         return credited
 
     def consume_pending(self, agent_id: str) -> tuple[float, float]:
-        """``(income, membership_reward)`` accrued since the agent's last reward."""
+        """``(income, membership_reward)`` accrued since the agent's last reward.
+
+        ``income`` (payouts, aid, dissolution shares) is already part of the
+        agent's resource change over that interval; it is returned so the
+        reward can remove it when ``credit_payouts`` is off.
+        """
         return (
             float(self._pending_income.pop(agent_id, 0.0)),
             float(self._pending_reward.pop(agent_id, 0.0)),
@@ -329,13 +338,11 @@ class CooperationService:
             del self._open_until[aid]
 
     def _purge_dead(self) -> None:
-        """Remove members whose death never reached :meth:`on_agent_removed`."""
-        for agent_id in sorted(self.registry.members_in_any_unit()):
-            agent = self._agents.get(agent_id)
-            if agent is None or not self._alive(agent):
-                payouts = self.registry.remove_agent(agent_id, self.current_step(), reason="death")
-                self._count("member_deaths")
-                self._credit(payouts, "dissolution")
+        """Forget agents whose death never reached :meth:`on_agent_removed`."""
+        dead = {aid for aid, agent in self._agents.items() if not self._alive(agent)}
+        dead |= {aid for aid in self.registry.members_in_any_unit() if aid not in self._agents}
+        for agent_id in sorted(dead):
+            self._drop(agent_id, "death")
 
     def _update_income_estimates(self) -> None:
         a = INCOME_EMA_ALPHA
@@ -467,9 +474,24 @@ class CooperationService:
         gross = pooled + self.registry.economics.surplus(pooled, n)
         return share * gross - settings.scope * y_self
 
-    def _leave_unit(self, agent: Any, unit: CooperativeUnit, step: int, reason: str) -> Any:
+    def _can_join_after(self, agent_id: str, target: Any, vacate: Sequence[CooperativeUnit]) -> bool:
+        """Whether ``agent_id`` could enter ``target`` once it has left ``vacate``."""
+        if isinstance(target, CooperativeUnit):
+            if not target.is_active or agent_id in target.members or not target.has_capacity():
+                return False
+            settings = target.settings
+        else:
+            settings = target
+        gone = {u.unit_id for u in vacate}
+        held = [u for u in self.registry.units_of(agent_id) if u.kind == settings.kind and u.unit_id not in gone]
+        limit = 1 if any(u.settings.exclusive for u in held) else settings.max_memberships
+        return len(held) < limit
+
+    def _leave_unit(
+        self, agent: Any, unit: CooperativeUnit, step: int, reason: str, *, veto_checked: bool = False
+    ) -> Any:
         holdings = max(0.0, float(agent.resource_level))
-        result = self.registry.leave(unit.unit_id, agent.agent_id, step, holdings)
+        result = self.registry.leave(unit.unit_id, agent.agent_id, step, holdings, veto_checked=veto_checked)
         if result.vetoed:
             self._count("exit_vetoed")
             return result
@@ -557,15 +579,24 @@ class CooperationService:
             self._count("bond_infeasible")
             return {"success": False, "error": "infeasible", "details": {}}
         how, target, movers = plan
+        # Everything that can stop the match is decided before anyone leaves
+        # a unit, so a failed bond never breaks up existing units.
         for party, _ in movers:
             if self.registry.offer_blocked(party.agent_id, self.kind, step):
                 self._count("offers_blocked")
                 return {"success": False, "error": "offer_blocked", "details": {"blocked": party.agent_id}}
         for party, units in movers:
+            if not self._can_join_after(party.agent_id, target, units):
+                self._count("bond_infeasible")
+                return {"success": False, "error": "infeasible", "details": {}}
+        for party, units in movers:
             for unit in units:
-                result = self._leave_unit(party, unit, step, reason="switch")
-                if result.vetoed:
+                if self.registry.draw_veto(unit.unit_id, party.agent_id, step):
+                    self._count("exit_vetoed")
                     return {"success": False, "error": "switch_vetoed", "details": {"unit_id": unit.unit_id}}
+        for party, units in movers:
+            for unit in units:
+                self._leave_unit(party, unit, step, reason="switch", veto_checked=True)
         a_id, o_id = agent.agent_id, other.agent_id
         if how == "form":
             settings: CooperationSettings = target

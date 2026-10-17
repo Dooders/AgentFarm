@@ -455,6 +455,33 @@ def test_dead_members_unknown_to_the_service_are_purged_at_settlement():
     a.alive = False  # died without on_agent_removed
     world.end_step()
     assert not world.cooperation.registry.is_member("b")
+    assert world.cooperation.agent("a") is None
+    assert "a" not in world.cooperation._income_ema
+    # A corpse can no longer be treated as a parent.
+    world.add("c", (0, 0), values=PAIR_VALUES, parent="a")
+    assert world.cooperation.counters["born_in"] == 0
+
+
+def test_a_vetoed_switch_leaves_every_existing_unit_intact():
+    free_exit = {**PAIR_VALUES, "coop_recognition": 0.0, "coop_exit_cost": 0.0}
+    cfg = _config(family_on_birth=True, family_settings={"recognition": 1.0})
+    world = FakeWorld(cfg)
+    a = world.add("a", (0, 0), values=free_exit)
+    b = world.add("b", (1, 0), values=free_exit)
+    world.cooperation.bond(a)
+    world.cooperation.bond(b)
+    world.add("kid", (0, 0), values=free_exit, parent="a")  # the a-b bond now sits in a family
+    d = world.add("d", (0, 2), values=free_exit)
+    e = world.add("e", (0, 3), values=free_exit)
+    world.cooperation.bond(d)
+    world.cooperation.bond(e)
+    world.cooperation.bond(d)  # d is open again, ready to switch
+    before = {u.unit_id for u in world.cooperation.registry.active_units()}
+    result = world.cooperation.bond(a)  # needs d to leave d-e and a to leave a-b; the family vetoes a
+    assert result["success"] is False
+    assert result["details"]["reasons"] == {"switch_vetoed": 1}
+    assert {u.unit_id for u in world.cooperation.registry.active_units()} == before
+    assert world.cooperation.is_partner("a", "b") and world.cooperation.is_partner("d", "e")
 
 
 def test_family_on_birth_nests_the_parents_unit():

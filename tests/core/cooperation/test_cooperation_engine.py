@@ -132,3 +132,34 @@ def test_cooperation_config_survives_simulation_config_round_trip():
     assert again.cooperation == cfg.cooperation
     assert SimulationConfig.from_dict({}).cooperation == CooperationConfig()
     assert len(COOPERATION_GENE_NAMES) == 13
+
+
+def _reward_for(env, agent, credit_payouts: bool) -> tuple[float, float]:
+    """Reward for a ``pass`` after a payout of 5 lands between actions."""
+    from dataclasses import replace
+
+    from farm.core.action import action_registry
+
+    service = env.cooperation
+    service.config = replace(service.config, credit_payouts=credit_payouts)
+    service.consume_pending(agent.agent_id)  # start from a clean slate
+    agent._update_state_snapshot()
+    pre = agent.state.snapshot(env.time)
+    service._credit({agent.agent_id: 5.0}, "payout")  # settlement between actions
+    service._pending_reward[agent.agent_id] = 0.25  # membership reward this step
+    agent._update_state_snapshot()
+    post = agent.state.snapshot(env.time)
+    reward = agent._calculate_reward(pre, post, action_registry.get("pass"))
+    weights = agent._reward_weights()
+    base = weights["reward_survival_weight"]
+    return reward - base, weights["reward_resource_weight"]
+
+
+def test_payouts_count_once_in_the_reward():
+    with tempfile.TemporaryDirectory() as out:
+        env = run_simulation(num_steps=2, config=_config(_active(out)), path=out, save_config=False, seed=5)
+        agent = next(a for a in env.alive_agent_objects)
+        extra, w = _reward_for(env, agent, credit_payouts=True)
+        assert extra == pytest.approx(5.0 * w + 0.25)  # the delta carries the payout; no second credit
+        extra, w = _reward_for(env, agent, credit_payouts=False)
+        assert extra == pytest.approx(0.25)  # payout hidden from the reward

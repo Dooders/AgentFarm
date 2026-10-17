@@ -54,9 +54,12 @@ class CooperationConfig:
         uniformly within bounds; otherwise founders start from the defaults
         overridden by ``founder_gene_values``.
     Rewards
-        Payouts, aid and dissolution shares reach an agent between its
-        actions, so they are credited to its next reward at its own
-        ``reward_resource_weight`` (``credit_payouts``). Members also get a
+        Payouts, aid and dissolution shares are added to an agent's
+        resources between its actions. The reward's resource term measures
+        the change since the agent's previous action, so they count once, at
+        the agent's own ``reward_resource_weight``. ``credit_payouts=False``
+        removes them from the reward (an ablation: the resources still
+        arrive, but the policy is not told). Members also get a
         per-step membership reward from their motives:
         ``membership_reward_scale * (fit_scale * fit + affinity_scale *
         w_affinity * like_mindedness) / horizon``.

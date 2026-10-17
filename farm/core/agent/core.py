@@ -835,13 +835,17 @@ class AgentCore:
         if action_bonus_gene is not None:
             reward += weights[action_bonus_gene]
 
-        # Cooperation: payouts, aid and dissolution shares arrive between the
-        # agent's actions, so credit them here at the agent's own resource
-        # weight, plus the motive-driven membership reward.
+        # Cooperation: add the motive-driven membership reward. Payouts, aid
+        # and dissolution shares need no extra credit: they land in the
+        # resource component between actions, and ``pre_state`` is the state
+        # synced after the previous action, so ``resource_delta`` already
+        # includes them. With ``credit_payouts`` off they are taken back out.
         cooperation = cooperation_service_of(getattr(self, "environment", None))
         if cooperation is not None:
             income, membership = cooperation.consume_pending(self.agent_id)
-            reward += income * weights["reward_resource_weight"] + membership
+            reward += membership
+            if not cooperation.config.credit_payouts:
+                reward -= income * weights["reward_resource_weight"]
 
         return reward
 
