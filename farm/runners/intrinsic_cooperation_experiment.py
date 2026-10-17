@@ -8,7 +8,7 @@ genetic inheritance, and each offspring learns with its own brain) and asks:
     emerge, which institutions does selection favour, and what does it do to
     the population?**
 
-Three arms share every seed and every other setting:
+Four arms share every seed and every other setting:
 
 - ``baseline``    -- the unmodified world: eight actions, no cooperation loci.
 - ``placebo``     -- the ``bond``/``leave`` actions and the cooperation loci
@@ -16,13 +16,18 @@ Three arms share every seed and every other setting:
   two extra actions and twelve extra genes (a larger policy output, extra
   mutation load, wasted actions) from the effect of the institution itself.
 - ``cooperation`` -- units form, pool, pay out, insure and enforce.
+- ``cooperation_no_motive`` -- the same, with the motive-driven membership
+  reward switched off, so the institution has to pay for itself through
+  pooling, surplus, aid and enforcement alone.
 
-Per arm the runner records population, births and deaths, the action mix
-(including ``bond`` and ``leave``), the population means of the cooperation
-loci, and the cooperation service's own telemetry (coverage, units, failure
-modes). With several paired replicates it reports seed-paired contrasts with
-Wilcoxon signed-rank tests and a Holm correction over the registered family
-(see ``docs/research/experiments/cooperation/SpatialDesign.md``).
+Per arm the runner records population, births, deaths and lifespans, the
+action mix (including ``bond`` and ``leave``), the policies' own probability
+of choosing ``bond`` (before innate priors), the population means of the
+cooperation loci and their change over the run, and the cooperation
+service's own telemetry (coverage, units, failure modes). With several
+paired replicates it reports seed-paired contrasts with Wilcoxon signed-rank
+tests and a Holm correction over the registered family (see
+``docs/research/experiments/cooperation/SpatialDesign.md``).
 """
 
 from __future__ import annotations
@@ -41,7 +46,7 @@ from scipy import stats as scipy_stats
 from farm.config import SimulationConfig
 from farm.core.cooperation import CooperationConfig
 from farm.core.cooperation.actions import COOPERATION_ACTION_NAMES, cooperation_service_of
-from farm.core.cooperation.genes import COOPERATION_GENE_NAMES, gene_values
+from farm.core.cooperation.genes import COOPERATION_GENE_NAMES, SETTING_GENE_NAMES, gene_values
 from farm.core.hyperparameter_chromosome import BoundaryMode, CrossoverMode, MutationMode
 from farm.core.initial_diversity import InitialDiversityConfig, SeedingMode
 from farm.core.simulation import run_simulation
@@ -50,12 +55,14 @@ from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-ARM_NAMES: tuple[str, ...] = ("baseline", "placebo", "cooperation")
+ARM_NAMES: tuple[str, ...] = ("baseline", "placebo", "cooperation", "cooperation_no_motive")
 BASELINE_ARM: str = "baseline"
 
 #: Seed-paired contrasts, ``name -> (baseline arm, treatment arm)``.
 ARM_CONTRASTS: dict[str, tuple[str, str]] = {
     "cooperation_minus_placebo": ("placebo", "cooperation"),
+    "no_motive_minus_placebo": ("placebo", "cooperation_no_motive"),
+    "cooperation_minus_no_motive": ("cooperation_no_motive", "cooperation"),
     "cooperation_minus_baseline": ("baseline", "cooperation"),
     "placebo_minus_baseline": ("baseline", "placebo"),
 }
@@ -70,23 +77,16 @@ TRACKED_ACTIONS: tuple[str, ...] = (
     "pass",
 ) + COOPERATION_ACTION_NAMES
 
-#: The registered one-sided hypotheses: ``key -> (metric, contrast, direction, statement)``.
-#: Tested across replicates with a Wilcoxon signed-rank test, Holm-corrected as one family.
+#: The registered hypotheses: ``key -> (metric, contrast, direction, statement)``.
+#: All are seed-paired tests of ``cooperation - placebo`` across replicates,
+#: Holm-corrected as one family.
 HYPOTHESES: dict[str, tuple[str, str, str, str]] = {
-    "S1": (
-        "mean_coverage",
-        "cooperation_minus_placebo",
-        "greater",
-        "Cooperation takes hold: the share of agents in a unit exceeds the placebo's (which is zero by construction).",
-    ),
     "S2": (
-        "bond_share_late",
+        "policy_bond_prob_late",
         "cooperation_minus_placebo",
         "greater",
-        (
-            "The brain learns to bond: in the last quarter of the run, bond is chosen more often in the cooperation arm "
-            "than in the placebo, where it never pays."
-        ),
+        "The brain learns to bond: in the last quarter of the run the policies' own probability of choosing "
+        "bond (before innate priors) is higher in the cooperation arm than in the placebo, where it never pays.",
     ),
     "S3": (
         "mean_population",
@@ -94,20 +94,38 @@ HYPOTHESES: dict[str, tuple[str, str, str, str]] = {
         "greater",
         "Cooperation sustains a larger population than the same world without working units.",
     ),
-    "S4": (
-        "coop_gene_drift",
-        "cooperation_minus_placebo",
-        "greater",
-        (
-            "Selection acts on the institution: the settings loci move further from their founding means in the "
-            "cooperation arm than under neutral drift in the placebo."
-        ),
-    ),
+    **{
+        f"S4_{name[5:]}": (
+            f"change_{name}",
+            "cooperation_minus_placebo",
+            "two-sided",
+            f"Selection acts on {name[5:]}: the run-long change in the population mean of {name} differs from "
+            "its neutral drift in the placebo.",
+        )
+        for name in SETTING_GENE_NAMES
+    },
     "S5": (
-        "mean_coop_exit_cost_end",
+        "change_expected_exit_payment",
         "cooperation_minus_placebo",
         "greater",
-        "Selection favours binding terms: the population mean exit-cost locus ends higher than under neutral drift.",
+        "Selection favours binding terms: the population mean of recognition x exit cost (the enforced exit "
+        "payment per unit of holdings) rises more than under neutral drift.",
+    ),
+}
+
+#: Manipulation checks reported beside the family (not corrected with it).
+MANIPULATION_CHECKS: dict[str, tuple[str, str, str, str]] = {
+    "M1": (
+        "mean_coverage",
+        "cooperation_minus_placebo",
+        "greater",
+        "Units form at all: coverage in the cooperation arm exceeds the placebo's, which is zero by construction.",
+    ),
+    "M2": (
+        "mean_population",
+        "placebo_minus_baseline",
+        "two-sided",
+        "The cost of carrying two extra actions and twelve extra loci without a working institution.",
     ),
 }
 
@@ -148,7 +166,7 @@ def holm(results: list[dict[str, Any]], alpha: float = 0.05) -> None:
 class IntrinsicCooperationExperimentConfig:
     """Configuration for :class:`IntrinsicCooperationExperiment`."""
 
-    num_steps: int = 1000
+    num_steps: int = 3000
     seed: int = 101
     num_replicates: int = 1
     output_dir: str = "experiments/intrinsic_cooperation"
@@ -172,7 +190,10 @@ class IntrinsicCooperationExperimentConfig:
     # Startup conditions (same knobs as the intrinsic-goals experiment).
     initial_agent_resource_level: float | None = 12.0
     initial_resource_count: int | None = 60
-    max_population: int | None = None
+    # The development environment caps the population at 50, which pins
+    # every arm against the ceiling and leaves selection nothing to act on;
+    # density-dependent reproduction cost (selection_pressure) regulates instead.
+    max_population: int | None = 300
     initial_diversity_scale: float = 0.2
 
     alpha: float = 0.05
@@ -207,6 +228,15 @@ class ArmResult:
     units_active: list[int] = field(default_factory=list)
     action_mix: dict[str, list[float]] = field(default_factory=dict)
     gene_means: dict[str, list[float]] = field(default_factory=dict)
+    #: Per step, the mean over alive learning agents of their policy's own
+    #: probability of ``bond`` (before priors); NaN when the action is absent.
+    policy_bond_prob: list[float] = field(default_factory=list)
+    #: Per step, the mean over alive agents of ``recognition x exit_cost`` loci.
+    expected_exit_payment: list[float] = field(default_factory=list)
+    #: Lifespan (steps) of every agent that died during the run, and the
+    #: maximum generation seen.
+    lifespans: list[int] = field(default_factory=list)
+    max_generation: int = 0
     final_population: int = 0
     cooperation_summary: dict[str, Any] = field(default_factory=dict)
 
@@ -220,8 +250,9 @@ class ArmResult:
         action_share_late = {a: (statistics.mean(self._late(v)) if v else 0.0) for a, v in self.action_mix.items()}
         gene_start = {g: (v[0] if v else float("nan")) for g, v in self.gene_means.items()}
         gene_end = {g: (v[-1] if v else float("nan")) for g, v in self.gene_means.items()}
-        drift = [abs(gene_end[g] - gene_start[g]) for g in self.gene_means if g.startswith("coop_")]
-        drift = [d for d in drift if not np.isnan(d)]
+        gene_change = {g: gene_end[g] - gene_start[g] for g in self.gene_means}
+        eep = [x for x in self.expected_exit_payment if not np.isnan(x)]
+        pbp_late = [x for x in self._late(self.policy_bond_prob) if not np.isnan(x)]
         failure = self.cooperation_summary.get("failure_modes", {}) if self.cooperation_summary else {}
         return {
             "arm": self.arm,
@@ -236,9 +267,15 @@ class ArmResult:
             "mean_action_share": action_share,
             "late_action_share": action_share_late,
             "bond_share_late": action_share_late.get("bond", 0.0),
+            "policy_bond_prob_late": statistics.mean(pbp_late) if pbp_late else 0.0,
+            "mean_lifespan_at_death": statistics.mean(self.lifespans) if self.lifespans else 0.0,
+            "max_generation": self.max_generation,
             "gene_mean_start": gene_start,
             "gene_mean_end": gene_end,
-            "coop_gene_drift": statistics.mean(drift) if drift else 0.0,
+            "gene_mean_change": gene_change,
+            "expected_exit_payment_start": eep[0] if eep else float("nan"),
+            "expected_exit_payment_end": eep[-1] if eep else float("nan"),
+            "change_expected_exit_payment": (eep[-1] - eep[0]) if eep else float("nan"),
             "units_formed": self.cooperation_summary.get("units_formed", 0),
             "mean_unit_lifetime": self.cooperation_summary.get("mean_unit_lifetime", 0.0),
             "failure_modes": failure,
@@ -350,6 +387,7 @@ class IntrinsicCooperationExperiment:
                     **coop.to_dict(),
                     "enabled": True,
                     "mode": "placebo" if arm == "placebo" else "active",
+                    "membership_reward_scale": 0.0 if arm == "cooperation_no_motive" else coop.membership_reward_scale,
                     "seed": seed if coop.seed is None else coop.seed,
                     "output_dir": out_dir,
                     "record_interval": self.config.record_interval,
@@ -383,26 +421,35 @@ class IntrinsicCooperationExperiment:
         for gene in COOPERATION_GENE_NAMES:
             result.gene_means[gene] = []
         prev_ids: set = set()
+        birth_step: dict[str, int] = {}
 
         def _on_environment_ready(environment: Any) -> None:
             nonlocal prev_ids
             environment.intrinsic_evolution_policy = policy
             environment.intrinsic_evolution_rng = random.Random(seed)
             prev_ids = {a.agent_id for a in environment.alive_agent_objects}
+            birth_step.update(dict.fromkeys(prev_ids, 0))
 
         def _on_step_end(environment: Any, step: int) -> None:
             nonlocal prev_ids
-            if step % self.config.record_interval != 0:
-                return
             alive = list(environment.alive_agent_objects)
             current = {a.agent_id for a in alive}
+            for agent_id in current - prev_ids:
+                birth_step[agent_id] = step
+            for agent_id in prev_ids - current:
+                result.lifespans.append(step - birth_step.pop(agent_id, step))
+            if step % self.config.record_interval != 0:
+                prev_ids = current
+                return
             result.steps.append(step)
             result.population.append(len(alive))
             result.births.append(len(current - prev_ids))
             result.deaths.append(len(prev_ids - current))
             prev_ids = current
+            result.max_generation = max([result.max_generation] + [int(getattr(a, "generation", 0)) for a in alive])
             self._record_action_mix(result, alive)
             self._record_gene_means(result, alive)
+            self._record_policy_bond_prob(result, alive)
             service = cooperation_service_of(environment)
             if service is not None and service.timeseries:
                 row = service.timeseries[-1]
@@ -440,6 +487,7 @@ class IntrinsicCooperationExperiment:
     @staticmethod
     def _record_gene_means(result: ArmResult, alive: Sequence[Any]) -> None:
         per_gene: dict[str, list[float]] = {g: [] for g in COOPERATION_GENE_NAMES}
+        eep: list[float] = []
         for agent in alive:
             chromosome = getattr(agent, "hyperparameter_chromosome", None)
             if chromosome is None or chromosome.get_gene("coop_scope") is None:
@@ -447,9 +495,27 @@ class IntrinsicCooperationExperiment:
             values = gene_values(chromosome)
             for g in COOPERATION_GENE_NAMES:
                 per_gene[g].append(values[g])
+            eep.append(values["coop_recognition"] * values["coop_exit_cost"])
         for g in COOPERATION_GENE_NAMES:
             vals = per_gene[g]
             result.gene_means[g].append(statistics.mean(vals) if vals else float("nan"))
+        result.expected_exit_payment.append(statistics.mean(eep) if eep else float("nan"))
+
+    @staticmethod
+    def _record_policy_bond_prob(result: ArmResult, alive: Sequence[Any]) -> None:
+        """Mean over agents of the policy's own probability of ``bond`` at its last decision."""
+        probs: list[float] = []
+        for agent in alive:
+            actions = getattr(agent, "actions", None) or []
+            names = [a.name for a in actions]
+            if "bond" not in names:
+                continue
+            module = getattr(getattr(agent, "behavior", None), "decision_module", None)
+            dist = getattr(module, "last_policy_probs", None)
+            if dist is None or len(dist) <= names.index("bond"):
+                continue
+            probs.append(float(dist[names.index("bond")]))
+        result.policy_bond_prob.append(statistics.mean(probs) if probs else float("nan"))
 
     # ------------------------------------------------------- aggregation
     @staticmethod
@@ -466,12 +532,17 @@ class IntrinsicCooperationExperiment:
             "units_formed": float(summary["units_formed"]),
             "mean_unit_lifetime": float(summary["mean_unit_lifetime"]),
             "bond_share_late": float(summary["bond_share_late"]),
-            "coop_gene_drift": float(summary["coop_gene_drift"]),
+            "policy_bond_prob_late": float(summary["policy_bond_prob_late"]),
+            "mean_lifespan_at_death": float(summary["mean_lifespan_at_death"]),
+            "max_generation": float(summary["max_generation"]),
+            "change_expected_exit_payment": float(summary["change_expected_exit_payment"]),
         }
         for action, share in summary["mean_action_share"].items():
             metrics[f"action_share[{action}]"] = float(share)
         for gene, value in summary["gene_mean_end"].items():
             metrics[f"mean_{gene}_end"] = float(value)
+        for gene, value in summary["gene_mean_change"].items():
+            metrics[f"change_{gene}"] = float(value)
         return metrics
 
     def _metric_arrays(self, replicates: Sequence[ReplicateResult]) -> dict[str, dict[str, np.ndarray]]:
@@ -517,9 +588,20 @@ class IntrinsicCooperationExperiment:
         }
 
     def _test_hypotheses(self, replicates: Sequence[ReplicateResult]) -> list[dict[str, Any]]:
+        """The registered family (Holm-corrected) followed by the uncorrected manipulation checks."""
         arrays = self._metric_arrays(replicates)
+        results = self._tests(arrays, HYPOTHESES)
+        holm(results, self.config.alpha)
+        checks = self._tests(arrays, MANIPULATION_CHECKS)
+        for check in checks:
+            check["p_holm"] = None
+            check["significant"] = check["p_value"] <= self.config.alpha
+            check["manipulation_check"] = True
+        return results + checks
+
+    def _tests(self, arrays: dict[str, dict[str, np.ndarray]], family: dict) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
-        for key, (metric, contrast, direction, statement) in HYPOTHESES.items():
+        for key, (metric, contrast, direction, statement) in family.items():
             b, t = ARM_CONTRASTS[contrast]
             if b not in arrays or t not in arrays or metric not in arrays[t]:
                 continue
@@ -541,7 +623,6 @@ class IntrinsicCooperationExperiment:
                     "p_value": _wilcoxon(diff, direction),
                 }
             )
-        holm(results, self.config.alpha)
         return results
 
     # ------------------------------------------------------------- plots
@@ -553,7 +634,12 @@ class IntrinsicCooperationExperiment:
             import matplotlib.pyplot as plt
         except ImportError:
             return None
-        colors = {"baseline": "#7a7a7a", "placebo": "#c08a2e", "cooperation": "#2b6cb0"}
+        colors = {
+            "baseline": "#7a7a7a",
+            "placebo": "#c08a2e",
+            "cooperation": "#2b6cb0",
+            "cooperation_no_motive": "#7fb3e6",
+        }
         fig, axes = plt.subplots(2, 2, figsize=(12, 8))
         ax_pop, ax_cov, ax_bond, ax_genes = axes.ravel()
         for arm in self.config.arms:
@@ -566,15 +652,15 @@ class IntrinsicCooperationExperiment:
             ax_pop.plot(steps, pop, color=colors[arm], label=arm)
             cov = np.mean([s.coverage[:length] for s in series], axis=0)
             ax_cov.plot(steps, cov, color=colors[arm], label=arm)
-            bond = np.mean([s.action_mix["bond"][:length] for s in series], axis=0)
-            ax_bond.plot(steps, bond, color=colors[arm], label=arm)
             if arm != "baseline":
+                bond = np.nanmean([s.policy_bond_prob[:length] for s in series], axis=0)
+                ax_bond.plot(steps, bond, color=colors[arm], label=arm)
                 for gene, style in (("coop_exit_cost", "-"), ("coop_scope", "--"), ("coop_recognition", ":")):
                     vals = np.nanmean([s.gene_means[gene][:length] for s in series], axis=0)
                     ax_genes.plot(steps, vals, style, color=colors[arm], label=f"{arm}: {gene[5:]}")
         ax_pop.set_title("Population")
         ax_cov.set_title("Share of agents in a unit")
-        ax_bond.set_title("Share of agents choosing bond")
+        ax_bond.set_title("Policies' own probability of bond (before priors)")
         ax_genes.set_title("Population mean of settings loci")
         for ax in axes.ravel():
             ax.set_xlabel("step")
@@ -590,6 +676,7 @@ __all__ = [
     "ARM_CONTRASTS",
     "ARM_NAMES",
     "HYPOTHESES",
+    "MANIPULATION_CHECKS",
     "TRACKED_ACTIONS",
     "ArmResult",
     "IntrinsicCooperationExperiment",

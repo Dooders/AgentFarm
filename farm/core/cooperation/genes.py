@@ -15,7 +15,9 @@ groups of loci are added when cooperation is switched on:
   how much it values like-minded partners.
 * **Propensities** -- ``bond_weight`` and ``leave_weight``: the innate prior
   weights of the ``bond`` and ``leave`` actions, which the learned policy
-  then reshapes.
+  then reshapes. They are bounded at 0.3 (against other action weights that
+  sum to 1) so the prior cannot do the policy's work: at the bound an agent
+  bonds on at most a fifth of its steps before learning anything.
 
 The loci are appended to a chromosome only in runs with cooperation enabled
 (:func:`extend_chromosome`), so runs without cooperation keep exactly the
@@ -66,8 +68,8 @@ GENE_BOUNDS: dict[str, tuple[float, float, float]] = {
     "coop_exclusivity": (1.0, 0.0, 1.0),
     "coop_max_members": (2.0, 2.0, 6.0),
     **{name: (0.5, 0.0, 1.0) for name in MOTIVE_GENE_NAMES},
-    "bond_weight": (0.1, 0.0, 1.0),
-    "leave_weight": (0.05, 0.0, 1.0),
+    "bond_weight": (0.05, 0.0, 0.3),
+    "leave_weight": (0.03, 0.0, 0.3),
 }
 
 

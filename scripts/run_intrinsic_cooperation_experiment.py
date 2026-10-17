@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """CLI entrypoint for the intrinsic cooperation experiment.
 
-Runs three simulations per seed that differ only in whether agents can form
+Runs four simulations per seed that differ only in whether agents can form
 cooperative units:
 
 - ``baseline``    -- the unmodified intrinsic-evolution world.
 - ``placebo``     -- bond/leave actions and cooperation loci exist, bonds never form.
 - ``cooperation`` -- units form, pool gathered resources, pay out and enforce
   their heritable terms.
+- ``cooperation_no_motive`` -- the same without the motive-driven membership
+  reward (the institution must pay for itself).
 
 Writes ``intrinsic_cooperation_summary.json`` and (when matplotlib is
 available) ``intrinsic_cooperation_comparison.png`` to the output directory,
@@ -17,7 +19,7 @@ plus each arm's simulation artifacts and cooperation telemetry under
 Registered run (seeds 101-120)::
 
     python scripts/run_intrinsic_cooperation_experiment.py \\
-        --num-steps 1000 --seed 101 --num-replicates 20 \\
+        --num-steps 3000 --seed 101 --num-replicates 20 \\
         --output-dir experiments/intrinsic_cooperation
 
 Quick smoke test::
@@ -52,7 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--environment", type=str, default="development")
     p.add_argument("--profile", type=str, default=None)
-    p.add_argument("--num-steps", type=int, default=1000)
+    p.add_argument("--num-steps", type=int, default=3000)
     p.add_argument("--seed", type=int, default=101)
     p.add_argument("--num-replicates", type=int, default=1, help="Paired replicates; replicate r uses seed+r.")
     p.add_argument("--arms", nargs="+", default=list(ARM_NAMES), choices=list(ARM_NAMES))
@@ -66,7 +68,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--selection-pressure", type=str, default="low")
     p.add_argument("--initial-agent-resource-level", type=float, default=12.0)
     p.add_argument("--initial-resource-count", type=int, default=60)
-    p.add_argument("--max-population", type=int, default=None)
+    p.add_argument("--max-population", type=int, default=300)
     # Cooperation knobs
     p.add_argument("--bond-range", type=float, default=6.0)
     p.add_argument("--offer-window", type=int, default=10)

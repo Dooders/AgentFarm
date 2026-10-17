@@ -271,11 +271,11 @@ def test_fixed_genes_when_evolution_is_off():
 
 def test_action_weights_follow_propensity_genes_idempotently():
     world = FakeWorld(_config())
-    a = world.add("a", (0, 0), values={"bond_weight": 0.5, "leave_weight": 0.25})
+    a = world.add("a", (0, 0), values={"bond_weight": 0.3, "leave_weight": 0.15})
     weights = {x.name: x.weight for x in a.actions}
     assert sum(weights.values()) == pytest.approx(1.0)
-    assert weights["bond"] == pytest.approx(0.5 / 1.75)
-    assert weights["leave"] == pytest.approx(0.25 / 1.75)
+    assert weights["bond"] == pytest.approx(0.3 / 1.45)
+    assert weights["leave"] == pytest.approx(0.15 / 1.45)
     assert weights["move"] / weights["gather"] == pytest.approx(0.4 / 0.3)
     world.cooperation.refresh_action_weights(a)
     assert {x.name: x.weight for x in a.actions} == pytest.approx(weights)

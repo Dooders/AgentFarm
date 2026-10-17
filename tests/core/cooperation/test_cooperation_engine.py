@@ -51,7 +51,7 @@ def _active(out: str) -> CooperationConfig:
         enabled=True,
         bond_range=50.0,
         randomize_founder_genes=False,
-        founder_gene_values={"bond_weight": 1.0, "leave_weight": 0.05, "coop_scope": 0.5},
+        founder_gene_values={"bond_weight": 0.3, "leave_weight": 0.03, "coop_scope": 0.5},
         output_dir=out,
     )
 
@@ -81,7 +81,7 @@ def test_active_cooperation_runs_end_to_end():
             assert names[-2:] == ["bond", "leave"]
             assert len(names) == env.action_space().n
             assert has_cooperation_genes(agent.hyperparameter_chromosome)
-            assert agent.hyperparameter_chromosome.get_value("bond_weight") == pytest.approx(1.0, abs=0.5)
+            assert agent.hyperparameter_chromosome.get_value("bond_weight") == pytest.approx(0.3, abs=0.15)
             assert sum(a.weight for a in agent.actions) == pytest.approx(1.0)
             assert agent.behavior.decision_module.num_actions == 10
 
@@ -119,10 +119,17 @@ def test_partners_are_allies_in_observations():
         )
         # The membership marker sits on the agent's own cell.
         assert (int(agent.position[1]), int(agent.position[0]), 1.0) in allies
+        # Partners are allies whatever their type; same-type agents stay allies too.
         partner_ids = service.partner_ids(agent.agent_id)
         others = [a for a in env.alive_agent_objects if a is not agent]
-        assert len(allies) - 1 <= len([a for a in others if a.agent_id in partner_ids])
-        del enemies
+        ally_cells = {(y, x) for y, x, _ in allies}
+        for other in others:
+            if other.agent_id in partner_ids or other.agent_type == agent.agent_type:
+                cell = (int(other.position[1]), int(other.position[0]))
+                if cell in ally_cells:
+                    continue
+                enemy_cells = {(y, x) for y, x, _ in enemies}
+                assert cell not in enemy_cells, "an ally was listed as an enemy"
 
 
 def test_cooperation_config_survives_simulation_config_round_trip():

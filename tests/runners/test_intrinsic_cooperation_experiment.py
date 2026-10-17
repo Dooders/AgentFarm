@@ -21,6 +21,7 @@ from farm.core.hyperparameter_chromosome import default_hyperparameter_chromosom
 from farm.runners.intrinsic_cooperation_experiment import (
     ARM_NAMES,
     HYPOTHESES,
+    MANIPULATION_CHECKS,
     IntrinsicCooperationExperiment,
     IntrinsicCooperationExperimentConfig,
     holm,
@@ -90,6 +91,9 @@ def test_arms_get_the_right_cooperation_config():
     assert not base.cooperation.enabled
     assert placebo.cooperation.enabled and placebo.cooperation.mode == "placebo"
     assert coop.cooperation.active and coop.cooperation.bond_range == 3.0
+    no_motive = exp._build_run_config("cooperation_no_motive", 5, "/tmp/x")
+    assert no_motive.cooperation.active and no_motive.cooperation.membership_reward_scale == 0.0
+    assert coop.cooperation.membership_reward_scale == 1.0
     assert coop.cooperation.seed == 5 and coop.cooperation.output_dir == "/tmp/x"
     assert exp._make_policy(5).crossover_enabled
 
@@ -106,6 +110,12 @@ def test_run_records_arms_and_writes_summary():
         assert coop.deaths[2] == 1
         assert coop.action_mix["bond"][-1] == pytest.approx(1 / 5)
         assert result.arms["baseline"].action_mix["bond"] == [0.0] * 5
+        assert coop.lifespans == [2]
+        assert np.isnan(coop.policy_bond_prob[0])  # fake agents carry no decision module
+        assert not np.isnan(coop.expected_exit_payment[0])
+        assert np.isnan(result.arms["baseline"].expected_exit_payment[0])
+        no_motive = result.arms["cooperation_no_motive"].cooperation_summary["config"]
+        assert no_motive["membership_reward_scale"] == 0.0
         assert not np.isnan(coop.gene_means["coop_exit_cost"][0])
         assert np.isnan(result.arms["baseline"].gene_means["coop_exit_cost"][0])
         with open(result.summary_path, encoding="utf-8") as handle:
@@ -113,8 +123,10 @@ def test_run_records_arms_and_writes_summary():
         assert len(payload["replicates"]) == 2
         assert payload["aggregate"]["num_replicates"] == 2
         keys = {h["key"] for h in payload["hypotheses"]}
-        assert keys == set(HYPOTHESES)
-        assert all("p_holm" in h for h in payload["hypotheses"])
+        assert keys == set(HYPOTHESES) | set(MANIPULATION_CHECKS)
+        family = [h for h in payload["hypotheses"] if not h.get("manipulation_check")]
+        assert {h["key"] for h in family} == set(HYPOTHESES) and all(h["p_holm"] is not None for h in family)
+        assert {h["key"] for h in payload["hypotheses"] if h.get("manipulation_check")} == set(MANIPULATION_CHECKS)
         assert os.path.exists(os.path.join(out, "rep_00", "cooperation", "cooperation_summary.json"))
 
 

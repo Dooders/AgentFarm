@@ -157,9 +157,10 @@ so they count once, at the agent's own `reward_resource_weight`
 per-step membership reward from their motives: `fit_scale · fit(settings) +
 affinity_scale · w_affinity · like-mindedness`, divided by the horizon.
 Enforced exits forfeit `exit_cost` of the leaver's resources; recognition
-blocks outside offers to members of exclusive units. Partners are the
-agent's allies in its observation, and a member sees its own cell marked in
-the allies channel. With crossover on, a member's partner is its co-parent.
+blocks outside offers to members of exclusive units. Partners join the
+agent's allies in its observation (same-type agents remain allies, so the
+channel is unchanged for anyone not in a unit), and a member sees its own
+cell marked in the allies channel. With crossover on, a member's partner is its co-parent.
 Children can be born into a family unit around the parents' bond
 (`family_on_birth`).
 

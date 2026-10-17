@@ -1409,9 +1409,11 @@ class AgentObservation:
         computed_enemies: List[Tuple[int, int, float]] = []
         agent_type = getattr(agent_object, "agent_type", type(agent_object).__name__)
 
-        # With cooperation enabled, allies are the agent's unit partners (and
-        # only them); a member also sees its own cell marked in the allies
+        # With cooperation enabled, unit partners are allies too (whatever
+        # their type), and a member sees its own cell marked in the allies
         # channel, so membership is observable even with no partner in view.
+        # Same-type agents stay allies, so the channel reads the same as it
+        # does without cooperation for everyone who is not in a unit.
         partner_ids: Optional[Set[str]] = None
         cooperation = cooperation_service_of(getattr(agent_object, "environment", None))
         if cooperation is not None and cooperation.config.partners_as_allies:
@@ -1458,12 +1460,11 @@ class AgentObservation:
 
             other_agent_type = getattr(other, "agent_type", type(other).__name__)
 
-            # Consider agents of the same type as allies, different types as
-            # enemies -- or, with cooperation, unit partners as allies.
-            if partner_ids is not None:
-                is_ally = getattr(other, "agent_id", None) in partner_ids
-            else:
-                is_ally = other_agent_type == agent_type
+            # Same type = ally, different type = enemy; with cooperation a
+            # unit partner is an ally whatever its type.
+            is_ally = other_agent_type == agent_type
+            if partner_ids is not None and getattr(other, "agent_id", None) in partner_ids:
+                is_ally = True
             if is_ally:
                 computed_allies.append((ny, nx, hp01))
             else:
