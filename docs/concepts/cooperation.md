@@ -119,3 +119,62 @@ registry.register_birth("a", "c", step=50)            # c joins the family
 result = registry.leave(couple.unit_id, "a", step=51, holdings=10.0)  # may be vetoed by the family
 print(diagnose_unit(couple, 52).primary)
 ```
+
+## In the spatial world
+
+The registry above is engine-agnostic. In the spatial AgentFarm world
+(`farm.core.environment`, where agents gather, reproduce with genetic
+inheritance and learn with their own brains) it is driven by
+`farm.core.cooperation.service.CooperationService`, switched on with
+`SimulationConfig.cooperation = CooperationConfig(enabled=True)`. Runs with
+it off are byte-for-byte the historical world.
+
+**The brain decides.** Two actions are appended to the action space
+(`bond` = 8, `leave` = 9). `bond` opens the agent to a unit for
+`offer_window` steps and looks for another open agent within `bond_range`;
+two open agents near each other form a unit, or one joins the other's unit
+when it has room. `leave` exits the agent's lowest-benefit unit. Whether and
+when to take either is learned like every other action; the innate prior
+weights are the `bond_weight` and `leave_weight` genes.
+
+**The genes set the terms.** Twelve loci (Chromosome D) are appended to each
+founder's `HyperparameterChromosome` and inherited, mutated and crossed over
+with the rest: six settings loci (`coop_scope`, `coop_exit_cost`,
+`coop_recognition`, `coop_symmetry`, `coop_exclusivity`, `coop_max_members`)
+that define the institution an agent offers, five motive loci
+(`motive_political` … `motive_religious`) that are its `MemberGoals`
+mixture, and the two propensities. A new unit's settings are the mean of its
+founders' settings loci (`terms="mean"`) or the standing offer's
+(`terms="initiator"`); `fixed_settings` imposes one institution on every
+unit instead.
+
+**What members feel.** `gather` pools `scope` of what was gathered, so the
+agent's resource gain, and so its reward, is smaller. Payouts, aid and
+dissolution shares arrive between actions and are credited to the next
+reward at the agent's own `reward_resource_weight`. Members also receive a
+per-step membership reward from their motives: `fit_scale · fit(settings) +
+affinity_scale · w_affinity · like-mindedness`, divided by the horizon.
+Enforced exits forfeit `exit_cost` of the leaver's resources; recognition
+blocks outside offers to members of exclusive units. Partners are the
+agent's allies in its observation, and a member sees its own cell marked in
+the allies channel. With crossover on, a member's partner is its co-parent.
+Children can be born into a family unit around the parents' bond
+(`family_on_birth`).
+
+**Placebo.** `mode="placebo"` keeps the two actions and the twelve loci but
+lets no unit form. It is the control for the
+[spatial experiment](../research/experiments/cooperation/SpatialDesign.md):
+it carries the same action space, chromosome and mutation load as the
+active world, so any difference from it is due to the institution, and its
+loci drift without selection.
+
+```python
+from farm.config import SimulationConfig
+from farm.core.cooperation import CooperationConfig
+from farm.core.simulation import run_simulation
+
+config = SimulationConfig.from_centralized_config(environment="development")
+config.cooperation = CooperationConfig(enabled=True, bond_range=6.0, family_on_birth=True)
+env = run_simulation(num_steps=500, config=config, path="out", seed=1)
+print(env.cooperation.summary())      # units, coverage, failure modes
+```

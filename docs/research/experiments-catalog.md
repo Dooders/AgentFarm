@@ -194,6 +194,22 @@ families that anchor or arrange matches.
   [package README](../../farm/experiments/cooperation/README.md)
 - **Raw record:** [`experiments/cooperation/results/REPORT.md`](../../experiments/cooperation/results/REPORT.md)
 
+### Cooperation in the Spatial World
+
+The same institution inside the intrinsic-evolution world: agents gather,
+reproduce with genetic inheritance and learn with their own brains, and
+cooperation is available only as two learned actions (`bond`, `leave`) whose
+terms come from twelve heritable loci (settings, motives, propensities).
+Three paired arms per seed — the unmodified world, a placebo that carries the
+actions and loci but forms no units, and the working institution — test
+whether brains learn to bond, whether units change the population's fate,
+and whether selection moves the settings loci.
+
+- **Status:** Registered, not yet run (`farm.runners.intrinsic_cooperation_experiment`, service in `farm.core.cooperation.service`).
+- **CLI:** [`scripts/run_intrinsic_cooperation_experiment.py`](../../scripts/run_intrinsic_cooperation_experiment.py)
+- **Docs:** [Registered design and Appendix A](experiments/cooperation/SpatialDesign.md),
+  [model concept page](../concepts/cooperation.md#in-the-spatial-world)
+
 ## Adding a new experiment
 
 When introducing a new experiment, follow the structure used by the

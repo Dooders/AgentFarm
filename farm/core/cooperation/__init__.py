@@ -14,11 +14,28 @@ arrangement develops goals none of them had alone. This package provides:
 * :mod:`~farm.core.cooperation.diagnostics` -- healthy vs. drift, capture,
   hollow, override, trap and fragility.
 
-The package is engine-agnostic (participants are string ids) and has no
-dependency on the main :class:`~farm.core.environment.Environment`. See
-``docs/concepts/cooperation.md``.
+The modules above are engine-agnostic (participants are string ids). The
+spatial AgentFarm world uses them through:
+
+* :mod:`~farm.core.cooperation.config` -- :class:`CooperationConfig`, carried on
+  ``SimulationConfig.cooperation`` (off by default).
+* :mod:`~farm.core.cooperation.genes` -- heritable settings, motive and
+  propensity loci appended to each agent's hyperparameter chromosome.
+* :mod:`~farm.core.cooperation.actions` -- the learned ``bond`` and ``leave``
+  actions.
+* :mod:`~farm.core.cooperation.service` -- :class:`CooperationService`, the
+  environment hooks (pooling on gather, settlement, births, deaths, rewards,
+  perception, telemetry).
+
+None of these import torch. See ``docs/concepts/cooperation.md``.
 """
 
+from farm.core.cooperation.actions import (
+    COOPERATION_ACTION_NAMES,
+    CooperationActionType,
+    cooperation_service_of,
+)
+from farm.core.cooperation.config import CooperationConfig
 from farm.core.cooperation.diagnostics import (
     FAILURE_MODES,
     DiagnosticThresholds,
@@ -40,6 +57,7 @@ from farm.core.cooperation.goals import (
     value_of_membership,
 )
 from farm.core.cooperation.registry import CooperationEvent, CooperationRegistry
+from farm.core.cooperation.service import CooperationService
 from farm.core.cooperation.settings import (
     PRESETS,
     SETTING_NAMES,
@@ -51,13 +69,17 @@ from farm.core.cooperation.settings import (
 from farm.core.cooperation.unit import CooperativeUnit, ExitResult, MemberLedger, UnitEconomics, UnitStepRecord
 
 __all__ = [
+    "COOPERATION_ACTION_NAMES",
     "FAILURE_MODES",
     "MOTIVES",
     "MOTIVE_SETTING_PREFERENCES",
     "PRESETS",
     "SETTING_NAMES",
+    "CooperationActionType",
+    "CooperationConfig",
     "CooperationEvent",
     "CooperationRegistry",
+    "CooperationService",
     "CooperationSettings",
     "CooperativeUnit",
     "DiagnosticThresholds",
@@ -73,6 +95,7 @@ __all__ = [
     "UnitGoals",
     "UnitStepRecord",
     "ValuationScales",
+    "cooperation_service_of",
     "diagnose_all",
     "diagnose_unit",
     "mode_prevalence",
