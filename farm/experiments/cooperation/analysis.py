@@ -38,7 +38,7 @@ BOOTSTRAP_SEED: int = 20261016
 
 
 @dataclass
-class TestResult:
+class ContrastResult:
     key: str
     statement: str
     metric: str
@@ -57,9 +57,9 @@ class TestResult:
 
 @dataclass
 class AnalysisResult:
-    confirmatory: list[TestResult]
+    confirmatory: list[ContrastResult]
     verdicts: dict[str, str]
-    manipulation_checks: list[TestResult]
+    manipulation_checks: list[ContrastResult]
     grid: pd.DataFrame
     conditions: pd.DataFrame
     who_benefits: pd.DataFrame
@@ -92,7 +92,7 @@ def _bootstrap_ci(diff: np.ndarray, rng: np.random.Generator) -> tuple[float, fl
     return float(np.quantile(means, 0.025)), float(np.quantile(means, 0.975))
 
 
-def paired_test(key: str, statement: str, metric: str, diff: pd.Series, alternative: str = "greater") -> TestResult:
+def paired_test(key: str, statement: str, metric: str, diff: pd.Series, alternative: str = "greater") -> ContrastResult:
     d = diff.dropna().to_numpy(dtype=float)
     rng = np.random.default_rng(BOOTSTRAP_SEED)
     lo, hi = _bootstrap_ci(d, rng)
@@ -100,7 +100,7 @@ def paired_test(key: str, statement: str, metric: str, diff: pd.Series, alternat
         p = 1.0
     else:
         p = float(stats.wilcoxon(d, alternative=alternative, zero_method="wilcox").pvalue)
-    return TestResult(
+    return ContrastResult(
         key=key,
         statement=statement,
         metric=metric,
@@ -113,7 +113,7 @@ def paired_test(key: str, statement: str, metric: str, diff: pd.Series, alternat
     )
 
 
-def holm(results: list[TestResult], alpha: float = ALPHA) -> None:
+def holm(results: list[ContrastResult], alpha: float = ALPHA) -> None:
     """Holm step-down correction, in place."""
     order = sorted(range(len(results)), key=lambda i: results[i].p_value)
     m = len(results)
@@ -140,7 +140,7 @@ HYPOTHESES: dict[str, str] = {
 }
 
 
-def confirmatory_tests(runs: pd.DataFrame) -> list[TestResult]:
+def confirmatory_tests(runs: pd.DataFrame) -> list[ContrastResult]:
     rmst = _pivot(runs, "bond_rmst")
     welfare = _pivot(runs, "welfare_d_lifespan")
     trap = _pivot(runs, "trap_rate")
@@ -179,7 +179,7 @@ def confirmatory_tests(runs: pd.DataFrame) -> list[TestResult]:
     return tests
 
 
-def manipulation_checks(runs: pd.DataFrame) -> list[TestResult]:
+def manipulation_checks(runs: pd.DataFrame) -> list[ContrastResult]:
     """Checks that the settings do what they claim (not part of the family)."""
     rmst = _pivot(runs, "bond_rmst")
     trap = _pivot(runs, "trap_rate")
@@ -203,7 +203,7 @@ def manipulation_checks(runs: pd.DataFrame) -> list[TestResult]:
     ]
 
 
-def verdicts(tests: list[TestResult]) -> dict[str, str]:
+def verdicts(tests: list[ContrastResult]) -> dict[str, str]:
     by_key = {t.key: t for t in tests}
 
     def word(ok: bool) -> str:

@@ -169,6 +169,31 @@ inheritance on 30 seed-matched runs per cell.
   [`VALIDITY_FOLLOWUP.md`](../../experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md)
   (with per-cell ledgers and analysis tables alongside)
 
+## Cooperation and institutions
+
+Experiments that treat cooperative institutions as configurable units and
+measure when they persist, whom they help, and how they fail.
+
+### Cooperative Units
+
+Every cooperative institution is one object, a cooperative unit, configured
+by seven settings (members, scope, exit cost, recognition, exclusivity,
+entry, symmetry). Agents with heterogeneous skill, private motives and
+idiosyncratic bad luck form, keep and leave units; each run is paired with a
+solo twin in which the same founders face the same shocks with cooperation
+off. A 27-cell grid sweeps scope, exit cost and recognition for a pair
+institution; secondary cells compare named presets, rank-ordered payouts and
+families that anchor or arrange matches.
+
+- **Status:** Registered and run (`farm.experiments.cooperation`, model in `farm.core.cooperation`).
+- **CLI:** [`scripts/run_cooperation.py`](../../scripts/run_cooperation.py),
+  [`scripts/run_cooperation_m1_followup.py`](../../scripts/run_cooperation_m1_followup.py)
+- **Docs:** [Registered design and Appendix A](experiments/cooperation/Design.md),
+  [Results](experiments/cooperation/RESULTS.md),
+  [model concept page](../concepts/cooperation.md),
+  [package README](../../farm/experiments/cooperation/README.md)
+- **Raw record:** [`experiments/cooperation/results/REPORT.md`](../../experiments/cooperation/results/REPORT.md)
+
 ## Adding a new experiment
 
 When introducing a new experiment, follow the structure used by the

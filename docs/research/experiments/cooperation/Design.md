@@ -1,6 +1,7 @@
 # Cooperative Units: Which Institutional Settings Make Cooperation Persist and Pay?
 
-**Status:** Registered; implemented in `farm.experiments.cooperation` on top of `farm.core.cooperation`
+**Status:** Registered and run (`farm.experiments.cooperation`, model in `farm.core.cooperation`)
+**Results:** [RESULTS.md](RESULTS.md)
 **CLI:** [`scripts/run_cooperation.py`](../../../../scripts/run_cooperation.py)
 **Model:** [Cooperative units](../../../concepts/cooperation.md)
 **Package README:** [`farm/experiments/cooperation/README.md`](../../../../farm/experiments/cooperation/README.md)

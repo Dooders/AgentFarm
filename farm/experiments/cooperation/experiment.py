@@ -171,7 +171,8 @@ def run_matrix(
     """Simulate solo twins and every cooperative cell; persist raw outputs."""
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
-    manifest = matrix_manifest(matrix)
+    # Round-trip through JSON so a fresh manifest compares equal to one read back from disk.
+    manifest = json.loads(json.dumps(matrix_manifest(matrix), default=str))
     manifest_path = out / MANIFEST_FILENAME
     if resume and manifest_path.exists():
         existing = json.loads(manifest_path.read_text(encoding="utf-8"))
