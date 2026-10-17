@@ -15,8 +15,8 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from farm.core.action import Action, ActionType, action_registry
-from farm.core.agent.behaviors.learning import LearningAgentBehavior
+from farm.core.action import Action, ActionType, action_registry  # noqa: E402
+from farm.core.agent.behaviors.learning import LearningAgentBehavior  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
