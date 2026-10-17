@@ -318,8 +318,8 @@ class CooperationService:
         """End-of-step pool dynamics, membership rewards, diagnostics and telemetry."""
         step = self.current_step()
         self._update_income_estimates()
+        self._purge_dead()
         if self.active:
-            self._purge_dead()
             holdings = {
                 aid: float(self._agents[aid].resource_level)
                 for aid in self.registry.members_in_any_unit()

@@ -570,3 +570,11 @@ def test_telemetry_and_outputs(tmp_path):
     assert (tmp_path / TIMESERIES_FILE).read_text().startswith("step,")
     units_csv = (tmp_path / UNITS_FILE).read_text().splitlines()
     assert units_csv[0].startswith("unit_id,") and len(units_csv) == 1 + len(service.registry.units)
+
+
+def test_placebo_also_forgets_agents_that_died_unannounced():
+    world = FakeWorld(_config(mode="placebo"))
+    a = world.add("a", (0, 0), values=PAIR_VALUES)
+    a.alive = False
+    world.end_step()
+    assert world.cooperation.agent("a") is None
