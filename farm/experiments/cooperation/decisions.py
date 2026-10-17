@@ -159,6 +159,19 @@ def appraise_prospect(
     return value_of_membership(agent.goals, settings, appraisal, scales_for(decisions)), net
 
 
+def parent_is_own(agent_id: str, unit: CooperativeUnit, parent: CooperativeUnit) -> bool:
+    """Whether ``parent`` is ``agent_id``'s own higher-level unit.
+
+    True when the agent is a direct member of the parent (the kin side of an
+    arranged match) or the parent was founded around ``unit`` (the family a
+    couple anchors); false for an outsider married into someone else's family.
+    """
+    if agent_id in parent.members:
+        return True
+    ledger = parent.children.get(unit.unit_id)
+    return ledger is not None and ledger.joined_step == parent.founded_step
+
+
 def appraise_current(
     agent: CoopAgent,
     unit: CooperativeUnit,
@@ -177,8 +190,12 @@ def appraise_current(
         parent = registry.units[unit.parent_id]
         if parent.is_active:
             parent_scope = parent.settings.scope
-            recent = unit.history[-10:]
-            parent_gain = float(np.mean([r.upward for r in recent])) if recent else 0.0
+            # Dues are charged to every member, but only count as belonging
+            # for members whose own family the parent is (as in
+            # appraise_prospect's ``parent_is_own``).
+            if parent_is_own(agent.agent_id, unit, parent):
+                recent = unit.history[-10:]
+                parent_gain = float(np.mean([r.upward for r in recent])) if recent else 0.0
     insurance = (
         world.shock_prob * unit.settings.scope * share * sum(p.income_ema for p in partners) * (1.0 - parent_scope)
     )

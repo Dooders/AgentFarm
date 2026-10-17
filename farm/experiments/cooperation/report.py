@@ -49,6 +49,8 @@ def _fmt_p(p: float) -> str:
 def plot_grid(conditions: pd.DataFrame, metric: str, title: str, cmap: str, path: Path) -> None:
     plt = _pyplot()
     grid = conditions[conditions["family"] == "grid"]
+    if grid.empty or grid[metric].dropna().empty:
+        return
     fig, axes = plt.subplots(1, len(PRIMARY_RECOGNITION), figsize=(4.2 * len(PRIMARY_RECOGNITION), 3.6), sharey=True)
     values = grid[metric].to_numpy(dtype=float)
     vmin, vmax = np.nanmin(values), np.nanmax(values)

@@ -229,3 +229,49 @@ def test_tiny_matrix_runs_analyses_reports_and_resumes(tmp_path):
     assert any("3 cells resumed" in line for line in progress)
     with pytest.raises(ValueError):
         run_matrix(replace(matrix, seeds=(1, 2, 3)), tmp_path)
+
+
+def test_resume_rejects_changed_condition_definitions(tmp_path, monkeypatch):
+    import farm.experiments.cooperation.experiment as experiment
+
+    name = grid_cell_name(0.5, 0.0, 0.0)
+    matrix = MatrixConfig(seeds=(1,), condition_names=(name,), world=SMALL_WORLD, workers=1)
+    run_matrix(matrix, tmp_path)
+    original = experiment.CONDITIONS[name]
+    changed = replace(original, bond=original.bond.with_changes(scope=0.9))
+    monkeypatch.setitem(experiment.CONDITIONS, name, changed)
+    with pytest.raises(ValueError, match="condition definitions changed"):
+        run_matrix(matrix, tmp_path)
+
+
+def test_a_fresh_subset_run_does_not_mix_in_stale_cells(tmp_path):
+    first = (grid_cell_name(0.5, 0.0, 0.0), "preset_marriage")
+    run_matrix(MatrixConfig(seeds=(1,), condition_names=first, world=SMALL_WORLD, workers=1), tmp_path)
+    second = MatrixConfig(seeds=(2,), condition_names=("preset_marriage",), world=SMALL_WORLD, workers=1)
+    outputs = run_matrix(second, tmp_path, resume=False)
+    assert set(outputs.runs["condition"]) == {"preset_marriage"}
+    reloaded = load_outputs(tmp_path)  # --analyze-only path
+    assert set(reloaded.runs["condition"]) == {"preset_marriage"}
+    assert set(reloaded.runs["seed"]) == {2}
+
+
+def test_preset_only_run_still_writes_a_report(tmp_path):
+    matrix = MatrixConfig(seeds=(1, 2), condition_names=("preset_marriage",), world=SMALL_WORLD, workers=1)
+    outputs = run_matrix(matrix, tmp_path)
+    report = write_report(outputs, analyze(outputs), tmp_path)
+    assert report.exists()
+    assert not (tmp_path / "figures" / "grid_bond_rmst.png").exists()
+
+
+def test_only_an_agents_own_family_counts_as_belonging():
+    from farm.core.cooperation import CooperationRegistry, preset
+    from farm.experiments.cooperation.decisions import parent_is_own
+
+    reg = CooperationRegistry(rng=np.random.default_rng(0))
+    kin_family = reg.form(preset("family"), ["kin"], step=0)
+    arranged = reg.form(preset("marriage"), ["kin", "outsider"], step=5, parent_id=kin_family.unit_id)
+    assert parent_is_own("kin", arranged, kin_family)
+    assert not parent_is_own("outsider", arranged, kin_family)
+    couple = reg.form(preset("marriage"), ["x", "y"], step=0)
+    anchored = reg.form(preset("family"), [], step=3, children=[couple.unit_id])
+    assert parent_is_own("x", couple, anchored) and parent_is_own("y", couple, anchored)
