@@ -1,6 +1,6 @@
 # Cooperation experiment: report
 
-Generated 2026-10-17 02:48 UTC from 780 cooperative runs and 20 solo twins (seeds 101-120; commit 7649080318d95d48ad417d12bd34986488f6ce88).
+Generated 2026-10-17 05:30 UTC from 780 cooperative runs and 20 solo twins (seeds 101-120; commit fd02b6420c0dfbd923829da4a8cecbd46e076a9f).
 
 ## Confirmatory tests
 
@@ -64,7 +64,7 @@ Verdicts: H1 supported, H2 supported, H3 supported, H5 not supported, H4 not sup
 
 | Condition | RMST | Coverage | Welfare gain | Starved (coop / solo) | Trap rate | Healthy | Override | Capture | Drift |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| marriage_arranged | 76.3 | 0.75 | 21.7 | 0.58 / 0.60 | 0.145 | 0.02 | 0.61 | 0.01 | 0.05 |
+| marriage_arranged | 74.8 | 0.75 | 21.6 | 0.58 / 0.60 | 0.180 | 0.02 | 0.62 | 0.01 | 0.04 |
 | marriage_economic | 98.7 | 0.63 | 21.6 | 0.51 / 0.60 | 0.195 | 0.07 | 0.00 | 0.03 | 0.02 |
 | marriage_emotional | 105.4 | 0.79 | 49.8 | 0.40 / 0.60 | 0.054 | 0.20 | 0.00 | 0.02 | 0.03 |
 | marriage_hedonist | 123.1 | 0.30 | 5.9 | 0.56 / 0.60 | 0.427 | 0.00 | 0.00 | 0.00 | 0.01 |

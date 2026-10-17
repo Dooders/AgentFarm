@@ -73,7 +73,7 @@ outlive their first review: 85–87% of classified units fail by fragility.
 | Business partnership preset | 108.9 | 0.62 | 44.6 | 0.43 | 0.30 | Trap 0.57 |
 | Marriage, ranked payouts | 81.6 | 0.65 | 30.9 | 0.52 | 0.14 | Trap 0.34, capture 0.28 |
 | Marriage with families | 97.6 | 0.69 | 32.5 | 0.49 | 0.14 | Trap 0.42 |
-| Marriage, families arrange | 76.3 | 0.75 | 21.7 | 0.59 | 0.15 | Override 0.62 |
+| Marriage, families arrange | 74.8 | 0.75 | 21.6 | 0.58 | 0.18 | Override 0.62 |
 | Marriage, all emotional | 105.4 | 0.79 | 49.8 | 0.40 | 0.05 | Unclassified 0.52, healthy 0.20, trap 0.20 |
 | Marriage, all religious | 101.8 | 0.77 | 49.9 | 0.39 | 0.18 | Trap 0.62 |
 | Marriage, all political | 98.7 | 0.73 | 35.2 | 0.47 | 0.16 | Trap 0.63 |
@@ -92,10 +92,10 @@ Mean lifespan change against the solo twin, by founder skill tercile:
 | Marriage preset | +73.6 | +41.3 | −2.4 |
 | Business partnership preset | +106.9 | +30.6 | −3.7 |
 | Marriage, ranked payouts | +82.5 | +22.1 | −11.9 |
-| Marriage, families arrange | +66.4 | +18.0 | −19.3 |
+| Marriage, families arrange | +65.5 | +18.6 | −19.3 |
 
 Arranged matches were the costliest institution for high-skill founders:
-24% of them starved, against 3% alone. Families pick the most productive
+25% of them starved, against 3% alone. Families pick the most productive
 outsider as a partner for their own adult child, and that partner's income
 then flows into the match and, as dues, into the arranging family.
 
@@ -108,3 +108,18 @@ trapped (83% of units).
 
 None from the registered protocol. M1's failure and its follow-up are
 reported above; the follow-up is exploratory.
+
+## Correction (post-publication)
+
+Code review found that a member's appraisal of its *current* unit credited
+dues paid to a parent unit as belonging even when that parent was the other
+spouse's family, while the appraisal of a *prospective* unit did not. Only
+the outsider in an arranged match was affected. The fix (commit `ba5b6361`)
+counts belonging only for a member's own family. The full matrix was re-run
+on the registered seeds with that code: 38 of 39 cells reproduce the
+original record exactly, and the arranged-match cell changes slightly (unit
+life 76.3 → 74.8, trap rate 0.15 → 0.18, high-skill founders starved 24% →
+25%; tables above updated). No confirmatory test involves that cell, so no
+verdict changes. The raw record under `experiments/cooperation/results/` is
+the re-run. Its manifest records commit `fd02b642`; the code that ran was
+`ba5b6361`, whose changes were not yet committed when the re-run started.
