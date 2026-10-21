@@ -2,7 +2,7 @@
 
 **Runs:** the registered experiment in [SpatialDesign.md](SpatialDesign.md) — four arms × seeds 101–120 × 3,000 steps, population cap 300
 **Driver:** [`scripts/run_intrinsic_cooperation_experiment.py`](../../../../scripts/run_intrinsic_cooperation_experiment.py)
-**Tooling added for this runbook:** [`scripts/gcp/intrinsic_cooperation_fleet.sh`](../../../../scripts/gcp/intrinsic_cooperation_fleet.sh), [`scripts/gcp/intrinsic_cooperation_startup.sh`](../../../../scripts/gcp/intrinsic_cooperation_startup.sh), [`scripts/merge_intrinsic_cooperation_runs.py`](../../../../scripts/merge_intrinsic_cooperation_runs.py)
+**Tooling added for this runbook:** [`scripts/gcp/intrinsic_cooperation_fleet.sh`](../../../../scripts/gcp/intrinsic_cooperation_fleet.sh), [`scripts/gcp/intrinsic_cooperation_startup.sh`](../../../../scripts/gcp/intrinsic_cooperation_startup.sh), [`scripts/merge_intrinsic_cooperation_runs.py`](../../../../scripts/merge_intrinsic_cooperation_runs.py), [`scripts/calibrate_intrinsic_cooperation.py`](../../../../scripts/calibrate_intrinsic_cooperation.py)
 
 The experiment is CPU-bound, memory-hungry and embarrassingly parallel across
 seeds, so the recommended shape is **one Compute Engine VM per seed** (all
@@ -22,47 +22,57 @@ the pilot ([§5](#5-step-2-pilot-one-seed-at-full-parameters)).
 
 | Quantity | Measured | Implication at the registered settings |
 | --- | --- | --- |
-| Resident memory per living agent | 45–68 MB (CNN DQN per agent; hidden size is heritable, up to 512) | 14–20 GB at the cap of 300 before any growth; budget **≥ 32 GB**, prefer 64 GB |
+| Resident memory per living agent | 45–68 MB (CNN DQN per agent; measured with the hidden size and replay size free to evolve — they are now pinned at their defaults, so treat this as an upper bound) | 14–20 GB at the cap of 300 before any growth; budget **≥ 32 GB**, prefer 64 GB |
 | Wall time per step | 0.36 s at 60 agents, 0.81 s at 180 agents (≈ 4.5–6 ms per agent-step) | ≈ 1.5–2 s/step at the cap → **1.3–1.7 h per arm**, **5–7 h per seed** (arms run one after another in the same process) |
 | Population | reaches the cap within ~60 steps and stays there | the memory peak is reached early; a VM that survives step 100 at full population survives the run |
 | Output per seed | ~20–60 MB (summary JSON, per-arm CSV/JSON, one PNG) | negligible storage cost |
 
-The runner writes `intrinsic_cooperation_summary.json` **only when all its
-replicates finish** and has **no resume**: an interrupted shard restarts from
-step 0. That is why Spot VMs are not the default below.
+The runner writes each arm's `arm_result.json` as it finishes and a
+`replicate_summary.json` per seed; `intrinsic_cooperation_summary.json`
+follows when every replicate is done. A restart with the same command line
+**resumes at the granularity of a finished arm** (an interrupted arm is
+re-run from its start). A pre-empted Spot VM is stopped, not deleted, and
+the startup script re-runs the same command in the same `results/` directory
+on the next start, so a pre-emption costs the interrupted arm (up to ~1.7 h)
+plus the restart you have to issue by hand. The 10-minute bucket sync also
+keeps the finished arms off the VM. Spot stays off by default because the
+restart is manual and a shard pre-empted twice has cost more than on-demand.
 
 Fleet cost (`n2-highmem-8`, 8 vCPU / 64 GB, us-central1 on-demand ≈ $0.47/h):
-20 VMs × ~7 h ≈ **$65–70**; Spot ≈ $20–25 but with the restart risk above.
+20 VMs × ~7 h ≈ **$65–70**; Spot ≈ $20–25 with the caveat above.
 Storage, egress and the pilot add a few dollars.
 
 ## 2. Pre-flight gate
 
-Do not launch the fleet until each of these holds. They are the open issues
-from the methodology review of this branch; the fleet is cheap, but a result
-that cannot be interpreted is not.
+Do not launch the fleet until each of these holds. The first three are the
+calibration gates of [SpatialDesign.md §8](SpatialDesign.md#8-calibration);
+`scripts/calibrate_intrinsic_cooperation.py` evaluates them from a merged
+summary. The fleet is cheap, but a result that cannot be interpreted is not.
 
-1. **Learning premise.** `S2` asks whether *the brain* learns to bond. In a
-   400-step local probe the policies' softmax-over-Q stayed near uniform
-   (mean max probability 0.17 vs 0.125 uniform) when the learning rate kept
-   its default, so the action mix tracked the innate priors; with the
-   platform's initial-diversity mutation the heritable learning rate drifted
-   to a median of 0.2 and the Q-values became peaked but not meaningfully
-   trained. Run the smoke test in §4 and compare `policy_bond_prob_late`
-   between the cooperation and placebo arms; if they are indistinguishable at
-   100 steps *and* at the pilot's 3,000 steps, the experiment measures
-   selection on priors, not learning, and the design text should say so
-   before the seeds are spent.
-2. **Memory and time budget confirmed on the target machine type** by the
+1. **Learning premise (L1, L2).** `S2` asks whether *the brain* learns to
+   bond. The design now pins Chromosomes A and C, turns the initial-diversity
+   layer off and sharpens the policy softmax (temperature 0.1); the reduced
+   local pilot in §8 of the design passes both positive controls under that
+   regime. The full-length pilot (§5) must pass them too: run the
+   calibration report on its summary merged with at least one more seed, or
+   read `policy_gather_lift_late` and `gather_share_over_prior_late` off its
+   `replicate_summary.json` for the baseline arm — both must be positive. If
+   they are not, do not launch; the experiment would measure selection on
+   priors, not learning.
+2. **Regime.** The same report's `units_form`, `generations`, `not_pinned`
+   and `exit_cost_bounded` gates must pass on the full-length pilot. If
+   `not_pinned` fails (an arm's mean population ≥ 95% of the cap), raise
+   `--max-population` (memory scales with it — re-run the pilot) or raise
+   `--selection-pressure` to `high` before registering the fleet's
+   `EXTRA_ARGS`.
+3. **Memory and time budget confirmed on the target machine type** by the
    pilot (§5): `resources.log` peak `mem_used_mb` < 80% of the VM, and
    `status.json` says `ok` with a wall time you are willing to pay 20× for.
-3. **Population cap.** With the cap pinned from step ~60, `mean_population`
-   (`S3`, `M2`) has almost no room to differ between arms. Either accept
-   that `S3`/`M2` are tests of *time-to-cap* and *deaths*, or raise
-   `--max-population` (memory scales with it — re-run the pilot) before
-   registering the fleet's `EXTRA_ARGS`.
 4. **Pinned commit.** The fleet runs whatever `GIT_REF` resolves to on the
    VMs. Push the branch first; the launcher refuses a HEAD that is not on
-   any remote branch.
+   any remote branch. Every summary and `run_manifest.json` records the
+   commit it ran from, and the merge refuses shards whose configuration
+   (including the commit) differs.
 
 ## 3. Prerequisites
 
@@ -159,6 +169,21 @@ Decide from the pilot:
 | peak < 40% of RAM | `n2-highmem-4` (32 GB) is enough; halves the bill |
 | wall time per seed | sets the fleet's expected duration; 20 VMs run in parallel so the fleet takes about as long as the pilot |
 | `status.json` not `ok` | read `stderr.log`; fix on the branch, push, re-pilot with the new commit |
+| a calibration gate fails (below) | do not launch; see §2 |
+
+Run the calibration gates on the pilot. The report needs two or more
+replicates for its paired statistics, so pilot two seeds (`SEEDS=101,102`)
+or merge the pilot with a second shard; with a single seed, read the two
+learning numbers directly:
+
+```bash
+RUN_ID=coop-pilot BUCKET=$BUCKET RESULTS_DIR=results/pilot scripts/gcp/intrinsic_cooperation_fleet.sh collect
+python scripts/merge_intrinsic_cooperation_runs.py "results/pilot/seed_*/intrinsic_cooperation_summary.json" --output-dir results/pilot/merged
+python scripts/calibrate_intrinsic_cooperation.py results/pilot/merged/intrinsic_cooperation_summary.json
+# single seed:
+python -c "import json; b=json.load(open('results/pilot/seed_101/replicate_summary.json'))['baseline']; \
+  print('L1', b['policy_gather_lift_late'], 'L2', b['gather_share_over_prior_late'])"
+```
 
 Keep the pilot's `host_manifest.json` (git commit, machine type, package
 versions): it is the provenance record for the registered settings. Then
@@ -177,6 +202,14 @@ export RUN_ID=coop-$(git rev-parse --short HEAD)        # lowercase letters, dig
 export EXTRA_ARGS=""                                      # anything decided in §2/§5, e.g. "--max-population 200"
 scripts/gcp/intrinsic_cooperation_fleet.sh launch         # SEEDS defaults to 101 ... 120
 ```
+
+The registered regime (temperature 0.1, frozen Chromosomes A/C, selection
+`medium`, exit cost on the received base, masking, partner protection) is the
+CLI's default, so `EXTRA_ARGS` stays empty unless the pilot forced a change.
+To add the optional fifth arm, set
+`EXTRA_ARGS="--arms baseline placebo cooperation cooperation_no_motive cooperation_zero_synergy"`
+(about 25% more wall time per seed; every shard must use the same list or the
+merge refuses them).
 
 The launcher prints the resolved commit, machine type and the bucket prefix,
 then creates one VM per seed named `<RUN_ID>-s<seed>`, labelled
@@ -203,10 +236,11 @@ SEEDS="105 106 107 108" scripts/gcp/intrinsic_cooperation_fleet.sh launch
 ```
 
 Spot: `PROVISIONING=SPOT` cuts the price by ~65%. A preempted VM is
-*stopped*, and its startup script re-runs the shard from scratch on the next
-start (`gcloud compute instances start <name>`); you must restart it
-yourself, and a shard that is preempted twice has cost more than on-demand.
-Use it for exploratory runs, not the registered one.
+*stopped*; on the next start (`gcloud compute instances start <name>`) its
+startup script re-runs the shard in the same `results/` directory, so the
+runner loads the arms that finished and re-runs only the interrupted one.
+You must restart it yourself, and a shard that is preempted twice has cost
+more than on-demand. Use it for exploratory runs, not the registered one.
 
 ## 7. Monitor
 
@@ -248,9 +282,11 @@ downloads the whole prefix to `results/gcp/<RUN_ID>/`, lists any shard whose
 - `intrinsic_cooperation_summary.json` — the same shape the runner writes
   for `--num-replicates 20`: `config` (with `seeds`), `replicates`
   (re-indexed, sorted by seed), `aggregate` (per-arm descriptives and every
-  seed-paired contrast), `hypotheses` (the nine-test Holm family S2, S3,
-  S4×6, S5 followed by the uncorrected checks M1, M2), plus `sources`;
-- `hypotheses.md` — that family as a table.
+  seed-paired contrast), `hypotheses` (the seven-test Holm family S2, S3,
+  S3b, S4×3, S5 followed by the uncorrected manipulation checks M1, M2, the
+  learning checks L1, L2 and the exploratory contrasts, each flagged), plus
+  `sources`;
+- `hypotheses.md` — that table, with every out-of-family entry labelled.
 
 The merge refuses shards whose run configuration differs (other than seed,
 replicate count and output paths) and duplicate seeds; it does **not**
@@ -269,7 +305,8 @@ Verification checklist before anything is written up:
 - [ ] every `host_manifest.json` has the same `git_commit`, `machine_type` and `extra_args`.
 - [ ] every `run_manifest.json` shows the registered arguments (Appendix A of the design).
 - [ ] no shard's `resources.log` shows `swap_used_mb > 0` (swapping changes nothing numerically but is the sign of a run at the edge of memory).
-- [ ] `hypotheses` has 11 entries: 9 with `p_holm`, 2 flagged `manipulation_check`.
+- [ ] `hypotheses` has 7 entries with `p_holm` (S2, S3, S3b, S4_scope, S4_exit_cost, S4_recognition, S5); the rest are flagged `manipulation_check`, `learning_check` or `exploratory` and have `p_holm: null`.
+- [ ] L1 and L2 are positive in the merged run, not just in the pilot (`scripts/calibrate_intrinsic_cooperation.py merged/intrinsic_cooperation_summary.json`).
 - [ ] a re-run of one seed (same commit, same VM type) reproduces its `replicates[0]` — `PYTHONHASHSEED=0` is set, so it should be bit-identical.
 
 Then record the result in `RESULTS.md` next to [SpatialDesign.md](SpatialDesign.md),
