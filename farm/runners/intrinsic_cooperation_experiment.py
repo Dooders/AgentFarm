@@ -38,7 +38,7 @@ import random
 import statistics
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 from scipy import stats as scipy_stats
@@ -160,6 +160,136 @@ def holm(results: list[dict[str, Any]], alpha: float = 0.05) -> None:
         else:
             stop = True
             results[i]["significant"] = False
+
+
+# ----------------------------------------------------------- aggregation
+# These work on the per-replicate summary dicts that the summary JSON stores
+# (``{"index", "seed", <arm>: ArmResult.summary(), ...}``), so replicates run
+# in separate processes (see ``scripts/merge_intrinsic_cooperation_runs.py``)
+# are aggregated and tested exactly as replicates run in one process.
+
+
+def replicate_summary(index: int, seed: int, arm_summaries: Mapping[str, dict[str, Any]]) -> dict[str, Any]:
+    """One replicate's record in the summary JSON."""
+    return {"index": index, "seed": seed, **dict(arm_summaries)}
+
+
+def scalar_metrics(summary: dict[str, Any]) -> dict[str, float]:
+    """The scalar metrics of one arm summary that enter the paired contrasts."""
+    metrics: dict[str, float] = {
+        "mean_population": float(summary["mean_population"]),
+        "final_population": float(summary["final_population"]),
+        "peak_population": float(summary["peak_population"]),
+        "total_births": float(summary["total_births"]),
+        "total_deaths": float(summary["total_deaths"]),
+        "mean_coverage": float(summary["mean_coverage"]),
+        "final_coverage": float(summary["final_coverage"]),
+        "mean_units_active": float(summary["mean_units_active"]),
+        "units_formed": float(summary["units_formed"]),
+        "mean_unit_lifetime": float(summary["mean_unit_lifetime"]),
+        "bond_share_late": float(summary["bond_share_late"]),
+        "policy_bond_prob_late": float(summary["policy_bond_prob_late"]),
+        "mean_lifespan_at_death": float(summary["mean_lifespan_at_death"]),
+        "max_generation": float(summary["max_generation"]),
+        "change_expected_exit_payment": float(summary["change_expected_exit_payment"]),
+    }
+    for action, share in summary["mean_action_share"].items():
+        metrics[f"action_share[{action}]"] = float(share)
+    for gene, value in summary["gene_mean_end"].items():
+        metrics[f"mean_{gene}_end"] = float(value)
+    for gene, value in summary["gene_mean_change"].items():
+        metrics[f"change_{gene}"] = float(value)
+    return metrics
+
+
+def metric_arrays(
+    replicate_summaries: Sequence[Mapping[str, Any]], arms: Sequence[str]
+) -> dict[str, dict[str, np.ndarray]]:
+    """``arm -> metric -> array over replicates`` (replicate order preserved)."""
+    arms = list(arms)
+    per_arm = {arm: [scalar_metrics(r[arm]) for r in replicate_summaries] for arm in arms}
+    names = list(per_arm[arms[0]][0].keys())
+    return {arm: {n: np.array([m[n] for m in per_arm[arm]], dtype=float) for n in names} for arm in arms}
+
+
+def aggregate_summaries(replicate_summaries: Sequence[Mapping[str, Any]], arms: Sequence[str]) -> dict[str, Any]:
+    """Per-arm descriptives and every seed-paired contrast, for every scalar metric."""
+    arms = list(arms)
+    arrays = metric_arrays(replicate_summaries, arms)
+    names = list(arrays[arms[0]].keys())
+
+    def describe(v: np.ndarray) -> dict[str, float]:
+        v = v[~np.isnan(v)]
+        if v.size == 0:
+            return {"mean": float("nan"), "std": float("nan"), "sem": float("nan")}
+        std = float(np.std(v, ddof=1)) if v.size > 1 else 0.0
+        return {"mean": float(np.mean(v)), "std": std, "sem": std / np.sqrt(v.size) if v.size > 1 else 0.0}
+
+    paired: dict[str, dict[str, Any]] = {}
+    for contrast, (b, t) in ARM_CONTRASTS.items():
+        if b not in arms or t not in arms:
+            continue
+        paired[contrast] = {}
+        for n in names:
+            diff = arrays[t][n] - arrays[b][n]
+            diff = diff[~np.isnan(diff)]
+            lo, hi = _bootstrap_ci(diff)
+            paired[contrast][n] = {
+                "mean_diff": float(np.mean(diff)) if diff.size else float("nan"),
+                "ci_low": lo,
+                "ci_high": hi,
+                "positive_seeds": int((diff > 0).sum()),
+                "n": int(diff.size),
+                "p_two_sided": _wilcoxon(diff, "two-sided"),
+            }
+    return {
+        "num_replicates": len(replicate_summaries),
+        "seeds": [int(r["seed"]) for r in replicate_summaries],
+        "per_arm": {arm: {n: describe(arrays[arm][n]) for n in names} for arm in arms},
+        "paired_deltas": paired,
+    }
+
+
+def _run_tests(arrays: dict[str, dict[str, np.ndarray]], family: Mapping[str, tuple]) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for key, (metric, contrast, direction, statement) in family.items():
+        b, t = ARM_CONTRASTS[contrast]
+        if b not in arrays or t not in arrays or metric not in arrays[t]:
+            continue
+        diff = arrays[t][metric] - arrays[b][metric]
+        diff = diff[~np.isnan(diff)]
+        lo, hi = _bootstrap_ci(diff)
+        results.append(
+            {
+                "key": key,
+                "statement": statement,
+                "metric": metric,
+                "contrast": contrast,
+                "direction": direction,
+                "n": int(diff.size),
+                "mean_diff": float(np.mean(diff)) if diff.size else float("nan"),
+                "ci_low": lo,
+                "ci_high": hi,
+                "positive_seeds": int((diff > 0).sum()),
+                "p_value": _wilcoxon(diff, direction),
+            }
+        )
+    return results
+
+
+def test_hypotheses(
+    replicate_summaries: Sequence[Mapping[str, Any]], arms: Sequence[str], alpha: float = 0.05
+) -> list[dict[str, Any]]:
+    """The registered family (Holm-corrected) followed by the uncorrected manipulation checks."""
+    arrays = metric_arrays(replicate_summaries, arms)
+    results = _run_tests(arrays, HYPOTHESES)
+    holm(results, alpha)
+    checks = _run_tests(arrays, MANIPULATION_CHECKS)
+    for check in checks:
+        check["p_holm"] = None
+        check["significant"] = check["p_value"] <= alpha
+        check["manipulation_check"] = True
+    return results + checks
 
 
 @dataclass(frozen=True)
@@ -338,9 +468,7 @@ class IntrinsicCooperationExperiment:
                 "max_population": self.config.max_population,
                 "alpha": self.config.alpha,
             },
-            "replicates": [
-                {"index": r.index, "seed": r.seed, **{arm: r.arms[arm].summary() for arm in r.arms}} for r in replicates
-            ],
+            "replicates": self._replicate_summaries(replicates),
             "aggregate": aggregate,
             "hypotheses": hypotheses,
         }
@@ -519,111 +647,14 @@ class IntrinsicCooperationExperiment:
 
     # ------------------------------------------------------- aggregation
     @staticmethod
-    def _scalar_metrics(summary: dict[str, Any]) -> dict[str, float]:
-        metrics: dict[str, float] = {
-            "mean_population": float(summary["mean_population"]),
-            "final_population": float(summary["final_population"]),
-            "peak_population": float(summary["peak_population"]),
-            "total_births": float(summary["total_births"]),
-            "total_deaths": float(summary["total_deaths"]),
-            "mean_coverage": float(summary["mean_coverage"]),
-            "final_coverage": float(summary["final_coverage"]),
-            "mean_units_active": float(summary["mean_units_active"]),
-            "units_formed": float(summary["units_formed"]),
-            "mean_unit_lifetime": float(summary["mean_unit_lifetime"]),
-            "bond_share_late": float(summary["bond_share_late"]),
-            "policy_bond_prob_late": float(summary["policy_bond_prob_late"]),
-            "mean_lifespan_at_death": float(summary["mean_lifespan_at_death"]),
-            "max_generation": float(summary["max_generation"]),
-            "change_expected_exit_payment": float(summary["change_expected_exit_payment"]),
-        }
-        for action, share in summary["mean_action_share"].items():
-            metrics[f"action_share[{action}]"] = float(share)
-        for gene, value in summary["gene_mean_end"].items():
-            metrics[f"mean_{gene}_end"] = float(value)
-        for gene, value in summary["gene_mean_change"].items():
-            metrics[f"change_{gene}"] = float(value)
-        return metrics
-
-    def _metric_arrays(self, replicates: Sequence[ReplicateResult]) -> dict[str, dict[str, np.ndarray]]:
-        arms = list(self.config.arms)
-        per_arm = {arm: [self._scalar_metrics(r.arms[arm].summary()) for r in replicates] for arm in arms}
-        names = list(per_arm[arms[0]][0].keys())
-        return {arm: {n: np.array([m[n] for m in per_arm[arm]], dtype=float) for n in names} for arm in arms}
+    def _replicate_summaries(replicates: Sequence[ReplicateResult]) -> list[dict[str, Any]]:
+        return [replicate_summary(r.index, r.seed, {arm: r.arms[arm].summary() for arm in r.arms}) for r in replicates]
 
     def _aggregate(self, replicates: Sequence[ReplicateResult]) -> dict[str, Any]:
-        arrays = self._metric_arrays(replicates)
-        arms = list(self.config.arms)
-        names = list(arrays[arms[0]].keys())
-
-        def describe(v: np.ndarray) -> dict[str, float]:
-            v = v[~np.isnan(v)]
-            if v.size == 0:
-                return {"mean": float("nan"), "std": float("nan"), "sem": float("nan")}
-            std = float(np.std(v, ddof=1)) if v.size > 1 else 0.0
-            return {"mean": float(np.mean(v)), "std": std, "sem": std / np.sqrt(v.size) if v.size > 1 else 0.0}
-
-        paired: dict[str, dict[str, Any]] = {}
-        for contrast, (b, t) in ARM_CONTRASTS.items():
-            if b not in arms or t not in arms:
-                continue
-            paired[contrast] = {}
-            for n in names:
-                diff = arrays[t][n] - arrays[b][n]
-                diff = diff[~np.isnan(diff)]
-                lo, hi = _bootstrap_ci(diff)
-                paired[contrast][n] = {
-                    "mean_diff": float(np.mean(diff)) if diff.size else float("nan"),
-                    "ci_low": lo,
-                    "ci_high": hi,
-                    "positive_seeds": int((diff > 0).sum()),
-                    "n": int(diff.size),
-                    "p_two_sided": _wilcoxon(diff, "two-sided"),
-                }
-        return {
-            "num_replicates": len(replicates),
-            "seeds": [r.seed for r in replicates],
-            "per_arm": {arm: {n: describe(arrays[arm][n]) for n in names} for arm in arms},
-            "paired_deltas": paired,
-        }
+        return aggregate_summaries(self._replicate_summaries(replicates), self.config.arms)
 
     def _test_hypotheses(self, replicates: Sequence[ReplicateResult]) -> list[dict[str, Any]]:
-        """The registered family (Holm-corrected) followed by the uncorrected manipulation checks."""
-        arrays = self._metric_arrays(replicates)
-        results = self._tests(arrays, HYPOTHESES)
-        holm(results, self.config.alpha)
-        checks = self._tests(arrays, MANIPULATION_CHECKS)
-        for check in checks:
-            check["p_holm"] = None
-            check["significant"] = check["p_value"] <= self.config.alpha
-            check["manipulation_check"] = True
-        return results + checks
-
-    def _tests(self, arrays: dict[str, dict[str, np.ndarray]], family: dict) -> list[dict[str, Any]]:
-        results: list[dict[str, Any]] = []
-        for key, (metric, contrast, direction, statement) in family.items():
-            b, t = ARM_CONTRASTS[contrast]
-            if b not in arrays or t not in arrays or metric not in arrays[t]:
-                continue
-            diff = arrays[t][metric] - arrays[b][metric]
-            diff = diff[~np.isnan(diff)]
-            lo, hi = _bootstrap_ci(diff)
-            results.append(
-                {
-                    "key": key,
-                    "statement": statement,
-                    "metric": metric,
-                    "contrast": contrast,
-                    "direction": direction,
-                    "n": int(diff.size),
-                    "mean_diff": float(np.mean(diff)) if diff.size else float("nan"),
-                    "ci_low": lo,
-                    "ci_high": hi,
-                    "positive_seeds": int((diff > 0).sum()),
-                    "p_value": _wilcoxon(diff, direction),
-                }
-            )
-        return results
+        return test_hypotheses(self._replicate_summaries(replicates), self.config.arms, self.config.alpha)
 
     # ------------------------------------------------------------- plots
     def _maybe_plot(self, replicates: Sequence[ReplicateResult]) -> str | None:
@@ -683,5 +714,10 @@ __all__ = [
     "IntrinsicCooperationExperimentConfig",
     "IntrinsicCooperationResult",
     "ReplicateResult",
+    "aggregate_summaries",
     "holm",
+    "metric_arrays",
+    "replicate_summary",
+    "scalar_metrics",
+    "test_hypotheses",
 ]
