@@ -21,6 +21,7 @@
 #   PROVISIONING    STANDARD or SPOT                    [STANDARD]
 #   NUM_REPLICATES  replicates per VM (seed..seed+n-1)  [1]
 #   EXTRA_ARGS      extra runner flags, e.g. "--max-population 200"
+#   OMP_THREADS     OMP_NUM_THREADS on the VMs            [torch default]
 #   KEEP_VM         "true" leaves VMs running after the run (for debugging)
 #   RESULTS_DIR     where `collect` downloads to        [results/gcp/<RUN_ID>]
 #
@@ -42,6 +43,7 @@ DISK_GB=${DISK_GB:-50}
 PROVISIONING=${PROVISIONING:-STANDARD}
 NUM_REPLICATES=${NUM_REPLICATES:-1}
 EXTRA_ARGS=${EXTRA_ARGS:-}
+OMP_THREADS=${OMP_THREADS:-}
 KEEP_VM=${KEEP_VM:-false}
 RESULTS_DIR=${RESULTS_DIR:-$REPO_ROOT/results/gcp/$RUN_ID}
 REMOTE_PREFIX="${BUCKET%/}/intrinsic_cooperation/$RUN_ID"
@@ -109,7 +111,7 @@ cmd_launch() {
       --labels="$LABELS" \
       "${provisioning_flags[@]}" \
       --metadata-from-file=startup-script="$STARTUP_SCRIPT" \
-      --metadata="^;^coop-seed=$seed;coop-bucket=$BUCKET;coop-run-id=$RUN_ID;coop-git-ref=$ref;coop-num-replicates=$NUM_REPLICATES;coop-shutdown=$shutdown;coop-extra-args=$EXTRA_ARGS" \
+      --metadata="^;^coop-seed=$seed;coop-bucket=$BUCKET;coop-run-id=$RUN_ID;coop-git-ref=$ref;coop-num-replicates=$NUM_REPLICATES;coop-shutdown=$shutdown;coop-omp-threads=$OMP_THREADS;coop-extra-args=$EXTRA_ARGS" \
       --quiet >/dev/null
   done
   echo

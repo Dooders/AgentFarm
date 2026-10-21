@@ -12,6 +12,7 @@
 #   coop-repo-url        git URL (default: https://github.com/Dooders/AgentFarm.git)
 #   coop-num-replicates  replicates in this shard, seeds seed..seed+n-1 (default: 1)
 #   coop-extra-args      extra flags for scripts/run_intrinsic_cooperation_experiment.py
+#   coop-omp-threads     OMP_NUM_THREADS for torch (default: leave torch's default)
 #   coop-shutdown        "false" keeps the VM up after the run (default: true)
 #
 # Results land in  <coop-bucket>/intrinsic_cooperation/<coop-run-id>/seed_<coop-seed>/
@@ -51,6 +52,7 @@ GIT_REF=$(metadata coop-git-ref feature/cooperation-model)
 REPO_URL=$(metadata coop-repo-url https://github.com/Dooders/AgentFarm.git)
 NUM_REPLICATES=$(metadata coop-num-replicates 1)
 EXTRA_ARGS=$(metadata coop-extra-args "")
+OMP_THREADS=$(metadata coop-omp-threads "")
 SHUTDOWN=$(metadata coop-shutdown true)
 
 for required in SEED BUCKET RUN_ID; do
@@ -142,7 +144,7 @@ cat > "$RESULTS_DIR/host_manifest.json" <<EOF
  "git_ref": "$GIT_REF", "git_commit": "$GIT_COMMIT", "repo_url": "$REPO_URL",
  "hostname": "$(hostname)", "machine_type": "$MACHINE_TYPE", "vcpus": $(nproc),
  "memory_mb": $(free -m | awk '/^Mem:/ {print $2}'), "python": "$(python --version 2>&1)",
- "extra_args": "$EXTRA_ARGS", "started_at": "$STARTED_AT"}
+ "extra_args": "$EXTRA_ARGS", "omp_threads": "$OMP_THREADS", "started_at": "$STARTED_AT"}
 EOF
 
 # --- background: resource samples every minute, partial sync every 10 min ---
@@ -162,6 +164,9 @@ SYNC_PID=$!
 # The experiment script does not set PYTHONHASHSEED itself (run_simulation.py
 # does); without it two runs of the same seed are not bit-identical.
 export PYTHONHASHSEED=0
+if [[ -n "$OMP_THREADS" ]]; then
+  export OMP_NUM_THREADS="$OMP_THREADS"
+fi
 set +e
 # shellcheck disable=SC2086
 python scripts/run_intrinsic_cooperation_experiment.py \
