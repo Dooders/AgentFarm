@@ -37,7 +37,7 @@ Notes
 import math
 import random
 import time as _time
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
@@ -1189,6 +1189,19 @@ class Environment(AECEnv):
             - Spatial index state
         """
         return EnvironmentState.from_environment(self)
+
+    def unavailable_actions(self, agent: Any) -> Set[str]:
+        """Names of actions ``agent`` may not choose this step.
+
+        Agents consult this before deciding so that actions the world makes
+        pointless right now are masked rather than wasted. Cooperation is the
+        only contributor at present (see
+        :meth:`CooperationService.unavailable_actions`).
+        """
+        cooperation = getattr(self, "cooperation", None)
+        if cooperation is None:
+            return set()
+        return cooperation.unavailable_actions(agent)
 
     def is_valid_position(self, position: Tuple[float, float]) -> bool:
         """Check if a position is valid within the environment bounds.
