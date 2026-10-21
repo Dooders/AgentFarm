@@ -366,6 +366,9 @@ class LearningConfig:
     training_frequency: int = 4
     dqn_hidden_size: int = 24
     tau: float = 0.005
+    # Temperature of the policy's action distribution before innate priors
+    # are applied (1.0 = the algorithm's own softmax over Q; <1 sharpens).
+    policy_temperature: float = 1.0
 
     # Caching settings
     dqn_state_cache_size: int = 100  # Maximum size of DQN state tensor cache
@@ -1336,6 +1339,7 @@ class SimulationConfig:
                     "training_frequency",
                     "dqn_hidden_size",
                     "tau",
+                    "policy_temperature",
                     "dqn_state_cache_size",
                     "gradient_clip_norm",
                     "enable_gradient_clipping",
