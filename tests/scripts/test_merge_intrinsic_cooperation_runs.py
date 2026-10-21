@@ -21,11 +21,14 @@ if _repo_root not in sys.path:
 
 from farm.runners import intrinsic_cooperation_experiment as runner
 from farm.runners.intrinsic_cooperation_experiment import (
-    ARM_NAMES,
+    DEFAULT_ARMS,
+    EXPLORATORY,
     HYPOTHESES,
+    LEARNING_CHECKS,
     MANIPULATION_CHECKS,
     SETTING_GENE_NAMES,
     aggregate_summaries,
+    expected_test_keys,
 )
 from scripts.merge_intrinsic_cooperation_runs import (
     HYPOTHESES_TABLE_FILE,
@@ -51,9 +54,18 @@ _SCALARS = (
     "mean_unit_lifetime",
     "bond_share_late",
     "policy_bond_prob_late",
+    "acting_bond_prob_late",
+    "bond_rank_late",
+    "policy_gather_prob_late",
+    "policy_gather_lift_late",
+    "gather_share_over_prior_late",
+    "policy_peak_late",
     "mean_lifespan_at_death",
+    "starvation_deaths",
+    "combat_deaths",
     "max_generation",
     "change_expected_exit_payment",
+    "forfeits_per_enforced_exit",
 )
 
 
@@ -67,7 +79,7 @@ def _arm_summary(offset: float) -> dict:
 
 
 def _config(seed: int, **overrides) -> dict:
-    cfg = {"num_steps": 50, "seed": seed, "num_replicates": 1, "arms": list(ARM_NAMES), "alpha": 0.05,
+    cfg = {"num_steps": 50, "seed": seed, "num_replicates": 1, "arms": list(DEFAULT_ARMS), "alpha": 0.05,
            "max_population": 60, "cooperation": {"seed": seed, "output_dir": f"/out/seed_{seed}", "bond_range": 2.0}}
     cfg.update(overrides)
     return cfg
@@ -98,12 +110,14 @@ def test_merge_reindexes_sorts_and_recomputes_like_one_run():
     assert [r["index"] for r in merged["replicates"]] == [0, 1, 2]
     assert merged["sources"] == ["shard_105.json", "shard_101.json", "shard_103.json"]
 
-    expected_aggregate = aggregate_summaries(merged["replicates"], ARM_NAMES)
-    expected_tests = runner.test_hypotheses(merged["replicates"], ARM_NAMES, 0.05)
+    expected_aggregate = aggregate_summaries(merged["replicates"], DEFAULT_ARMS)
+    expected_tests = runner.test_hypotheses(merged["replicates"], DEFAULT_ARMS, 0.05)
     assert merged["aggregate"] == expected_aggregate
     assert merged["hypotheses"] == expected_tests
-    assert {h["key"] for h in merged["hypotheses"]} == set(HYPOTHESES) | set(MANIPULATION_CHECKS)
+    assert {h["key"] for h in merged["hypotheses"]} == expected_test_keys(DEFAULT_ARMS)
     assert all(h["p_holm"] is None for h in merged["hypotheses"] if h.get("manipulation_check"))
+    # The optional fifth arm was not run, so its exploratory contrasts are absent.
+    assert "X_zero_synergy_population" not in {h["key"] for h in merged["hypotheses"]}
 
 
 def test_single_shard_has_no_tests():
@@ -138,6 +152,11 @@ def test_hypotheses_table_lists_every_test():
         assert f"| {key} |" in table
     for key in MANIPULATION_CHECKS:
         assert f"| {key} (check) |" in table
+    for key in LEARNING_CHECKS:
+        assert f"| {key} (learning check) |" in table
+    for key in ("X_starvation", "X_births"):
+        assert f"| {key} (exploratory) |" in table
+    assert "X_zero_synergy_population" not in table and key in EXPLORATORY
 
 
 def test_main_writes_summary_and_table():
@@ -159,7 +178,7 @@ def test_main_writes_summary_and_table():
             payload = json.load(handle)
         assert payload["config"]["seeds"] == [101, 102]
         assert payload["sources"] == paths
-        assert len(payload["hypotheses"]) == len(HYPOTHESES) + len(MANIPULATION_CHECKS)
+        assert len(payload["hypotheses"]) == len(expected_test_keys(DEFAULT_ARMS))
         with open(os.path.join(out, HYPOTHESES_TABLE_FILE), encoding="utf-8") as handle:
             assert "| S2 |" in handle.read()
 

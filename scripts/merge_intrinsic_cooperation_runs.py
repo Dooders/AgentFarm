@@ -34,8 +34,11 @@ if _repo_root not in sys.path:
 
 from farm.runners.intrinsic_cooperation_experiment import (
     aggregate_summaries,
+    hypothesis_kind,
     test_hypotheses,
 )
+
+_KIND_LABELS = {"manipulation_check": " (check)", "learning_check": " (learning check)", "exploratory": " (exploratory)"}
 
 #: Config keys that legitimately differ between shards of one run.
 SHARD_SPECIFIC_CONFIG_KEYS: frozenset[str] = frozenset({"seed", "num_replicates"})
@@ -108,7 +111,7 @@ def hypotheses_table(hypotheses: list[dict[str, Any]] | None) -> str:
     ]
     for h in hypotheses:
         p_holm = "—" if h.get("p_holm") is None else f"{h['p_holm']:.4f}"
-        key = h["key"] + (" (check)" if h.get("manipulation_check") else "")
+        key = h["key"] + _KIND_LABELS.get(hypothesis_kind(h), "")
         lines.append(
             f"| {key} | `{h['metric']}` | {h['contrast']} | {h['n']} | "
             f"{h['mean_diff']:+.4g} [{h['ci_low']:.4g}, {h['ci_high']:.4g}] | {h['positive_seeds']} | "
