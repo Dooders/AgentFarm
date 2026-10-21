@@ -209,6 +209,7 @@ whether selection moves the settings loci.
 - **Status:** Registered, not yet run (`farm.runners.intrinsic_cooperation_experiment`, service in `farm.core.cooperation.service`).
 - **CLI:** [`scripts/run_intrinsic_cooperation_experiment.py`](../../scripts/run_intrinsic_cooperation_experiment.py)
 - **Docs:** [Registered design and Appendix A](experiments/cooperation/SpatialDesign.md),
+  [GCP runbook for the confirmatory seeds](experiments/cooperation/GcpRunbook.md),
   [model concept page](../concepts/cooperation.md#in-the-spatial-world)
 
 ## Adding a new experiment

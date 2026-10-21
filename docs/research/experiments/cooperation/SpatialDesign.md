@@ -2,6 +2,7 @@
 
 **Status:** Registered, not yet run (`farm.runners.intrinsic_cooperation_experiment`, service in `farm.core.cooperation.service`)
 **CLI:** [`scripts/run_intrinsic_cooperation_experiment.py`](../../../../scripts/run_intrinsic_cooperation_experiment.py)
+**Running the seeds:** [GCP runbook](GcpRunbook.md) (one VM per seed, merge with `scripts/merge_intrinsic_cooperation_runs.py`)
 **Model:** [Cooperative units, "In the spatial world"](../../../concepts/cooperation.md#in-the-spatial-world)
 **Builds on:** [Intrinsic evolution](../intrinsic_evolution/intrinsic_evolution.md)
 **Precursor:** [the non-spatial registered run](Design.md) and its [results](RESULTS.md)
