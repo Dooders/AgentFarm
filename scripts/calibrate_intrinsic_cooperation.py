@@ -91,16 +91,26 @@ GATES: dict[str, str] = {
 
 
 # ------------------------------------------------------------------ power
+def _finite(x: float) -> float:
+    # scipy's non-central t underflows to nan far in a tail; that mass is zero.
+    return float(x) if np.isfinite(x) else 0.0
+
+
 def power_paired(dz: float, n: int, alpha: float, direction: str) -> float:
-    """Power of a paired test at standardised effect ``dz`` and ``n`` pairs."""
+    """Power of a paired test at ``n`` pairs for a standardised effect ``dz``.
+
+    ``dz`` is signed in the hypothesised direction for one-sided tests, so a
+    pilot effect that points the wrong way gets the power it deserves.
+    """
     n_eff = max(2.0, WILCOXON_ARE * n)
     df = n_eff - 1
-    nc = abs(dz) * math.sqrt(n_eff)
     if direction == "two-sided":
+        nc = abs(dz) * math.sqrt(n_eff)
         crit = scipy_stats.t.ppf(1 - alpha / 2, df)
-        return float(scipy_stats.nct.sf(crit, df, nc) + scipy_stats.nct.cdf(-crit, df, nc))
+        return _finite(scipy_stats.nct.sf(crit, df, nc)) + _finite(scipy_stats.nct.cdf(-crit, df, nc))
+    nc = dz * math.sqrt(n_eff)
     crit = scipy_stats.t.ppf(1 - alpha, df)
-    return float(scipy_stats.nct.sf(crit, df, nc))
+    return _finite(scipy_stats.nct.sf(crit, df, nc))
 
 
 def mde_paired(n: int, alpha: float, direction: str, power: float = 0.8) -> float:
@@ -116,7 +126,8 @@ def mde_paired(n: int, alpha: float, direction: str, power: float = 0.8) -> floa
 
 
 def n_for_power(dz: float, alpha: float, direction: str, power: float = 0.8, n_max: int = 1000) -> int | None:
-    if not np.isfinite(dz) or dz == 0.0:
+    """Pairs needed for ``power``; ``None`` when no ``n <= n_max`` reaches it."""
+    if not np.isfinite(dz) or dz == 0.0 or (direction != "two-sided" and dz < 0.0):
         return None
     for n in range(3, n_max + 1):
         if power_paired(dz, n, alpha, direction) >= power:
@@ -359,7 +370,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             f"family of {report['family_size']})"
         ),
         "",
-        "| Key | Metric | Direction | Pilot mean diff | Pilot sd | dz | Power | MDE dz | n for 80% |",
+        "| Key | Metric | Direction | Pilot mean diff | Pilot sd | dz (toward hypothesis) | Power | MDE dz | n for 80% |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for key, h in report["hypotheses"].items():

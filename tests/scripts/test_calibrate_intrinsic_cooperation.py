@@ -111,6 +111,12 @@ def test_power_model_is_monotone_and_consistent():
         0.8, n - 1, 0.05, "two-sided"
     )
     assert n_for_power(0.0, 0.05, "greater") is None
+    # A pilot effect pointing against a one-sided hypothesis has (almost) no power and no n.
+    assert power_paired(-1.5, 20, 0.05, "greater") < 0.001
+    assert n_for_power(-1.5, 0.05, "greater") is None
+    # Two-sided power is symmetric in the sign and finite far out in the tail.
+    assert power_paired(-2.0, 20, 0.007, "two-sided") == pytest.approx(power_paired(2.0, 20, 0.007, "two-sided"))
+    assert power_paired(5.0, 20, 0.007, "two-sided") == pytest.approx(1.0, abs=1e-6)
 
 
 def test_report_covers_gates_learning_drift_and_every_hypothesis():
