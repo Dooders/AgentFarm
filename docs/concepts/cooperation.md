@@ -156,13 +156,20 @@ so they count once, at the agent's own `reward_resource_weight`
 (`credit_payouts=False` hides them from the reward). Members also receive a
 per-step membership reward from their motives: `fit_scale · fit(settings) +
 affinity_scale · w_affinity · like-mindedness`, divided by the horizon.
-Enforced exits forfeit `exit_cost` of the leaver's resources; recognition
-blocks outside offers to members of exclusive units. Partners join the
-agent's allies in its observation (same-type agents remain allies, so the
-channel is unchanged for anyone not in a unit), and a member sees its own
-cell marked in the allies channel. With crossover on, a member's partner is its co-parent.
-Children can be born into a family unit around the parents' bond
-(`family_on_birth`).
+Enforced exits forfeit `exit_cost` of the leaver's holdings
+(`exit_cost_base="holdings"`) or, with `exit_cost_base="received"`, of what
+the unit has paid the leaver so far (payouts plus aid, capped by holdings);
+recognition blocks outside offers to members of exclusive units. Partners
+join the agent's allies in its observation (same-type agents remain allies,
+so the channel is unchanged for anyone not in a unit), a member sees its own
+cell marked in the allies channel, and `attack` never targets a partner
+(`protect_partners`). With `mask_pointless_actions` (the default) `leave` is
+offered only to members and `bond` only when someone is within
+`bond_range`; the environment reports them unavailable and the agent's
+decision module leaves them out for that step. With crossover on, a
+member's partner is its co-parent (crossover needs a same-type co-parent,
+so only same-type partners qualify). Children can be born into a family
+unit around the parents' bond (`family_on_birth`).
 
 **Placebo.** `mode="placebo"` keeps the two actions and the twelve loci but
 lets no unit form. It is the control for the

@@ -148,13 +148,16 @@ def test_config_is_off_by_default_and_round_trips():
     cfg = CooperationConfig()
     assert not cfg.enabled and not cfg.active
     assert CooperationConfig(enabled=True, mode="placebo").active is False
+    assert cfg.exit_cost_base == "holdings" and cfg.mask_pointless_actions and cfg.protect_partners
     custom = CooperationConfig(
         enabled=True,
         fixed_settings={"scope": 0.7, "exit_cost": 0.5, "recognition": 0.9},
         founder_gene_values={"coop_scope": 0.2},
+        exit_cost_base="received",
+        protect_partners=False,
     )
     again = CooperationConfig.from_dict(json.loads(json.dumps(custom.to_dict())))
-    assert again == custom
+    assert again == custom and again.exit_cost_base == "received" and not again.protect_partners
     assert again.unit_settings().scope == 0.7 and again.unit_settings().kind == "bond"
     assert CooperationConfig.from_dict(None) == CooperationConfig()
 
@@ -169,6 +172,7 @@ def test_config_is_off_by_default_and_round_trips():
         {"horizon": 0.0},
         {"synergy": -0.1},
         {"fixed_settings": {"scope": 2.0}},
+        {"exit_cost_base": "wealth"},
     ],
 )
 def test_config_rejects_invalid_values(bad):
@@ -428,6 +432,65 @@ def test_unenforced_exit_is_free():
     world, a, _b = _bonded_pair(values={"coop_exit_cost": 1.0, "coop_recognition": 0.0})
     assert world.cooperation.leave(a)["details"]["paid"] == 0.0
     assert a.resource_level == pytest.approx(10.0)
+
+
+def test_exit_cost_on_received_base_is_capped_by_what_the_unit_paid():
+    binding = {"coop_exit_cost": 0.5, "coop_recognition": 1.0}
+    cfg = _config(exit_cost_base="received")
+    world, a, b = _bonded_pair(config=cfg, values=binding)
+    # Nothing received yet: an enforced exit costs nothing.
+    assert world.cooperation.leave(a)["details"]["paid"] == 0.0
+    assert a.resource_level == pytest.approx(10.0)
+
+    world2, c, d = _bonded_pair(config=cfg, values=binding)
+    world2.cooperation.on_income(d, 4.0)  # pool 2 -> c receives 1 at settlement
+    world2.end_step()
+    assert c.resource_level == pytest.approx(11.0)
+    assert world2.cooperation.leave(c)["details"]["paid"] == pytest.approx(0.5)
+    assert c.resource_level == pytest.approx(10.5)
+    del b
+
+
+def test_exit_cost_on_received_base_never_exceeds_holdings():
+    cfg = _config(exit_cost_base="received")
+    world, a, b = _bonded_pair(config=cfg, values={"coop_exit_cost": 1.0, "coop_recognition": 1.0})
+    world.cooperation.on_income(b, 20.0)  # a receives 10
+    world.end_step()
+    a.resource_level = 3.0  # spent most of it
+    assert world.cooperation.leave(a)["details"]["paid"] == pytest.approx(3.0)
+    assert a.resource_level == 0.0
+
+
+def test_partners_are_protected_from_attack_unless_configured():
+    world, _a, _b = _bonded_pair()
+    world.add("z", (2, 0), values=PAIR_VALUES)
+    assert not world.cooperation.may_attack("a", "b")
+    assert world.cooperation.may_attack("a", "z") and world.cooperation.may_attack("z", "a")
+    open_season, c, d = _bonded_pair(config=_config(protect_partners=False))
+    assert open_season.cooperation.may_attack(c.agent_id, d.agent_id)
+
+
+def test_pointless_cooperation_actions_are_masked():
+    world = FakeWorld(_config())
+    alone = world.add("alone", (50, 50), values=PAIR_VALUES)
+    assert world.cooperation.unavailable_actions(alone) == {"leave", "bond"}
+    a = world.add("a", (0, 0), values=PAIR_VALUES)
+    b = world.add("b", (1, 0), values=PAIR_VALUES)
+    assert world.cooperation.unavailable_actions(a) == {"leave"}  # b is in range, a is in no unit
+    world.cooperation.bond(a)
+    world.cooperation.bond(b)
+    assert world.cooperation.unavailable_actions(a) == set()
+    world.kill("b")  # the unit dissolves and nobody is in range
+    assert world.cooperation.unavailable_actions(a) == {"leave", "bond"}
+
+    placebo = FakeWorld(_config(mode="placebo"))
+    p = placebo.add("p", (0, 0), values=PAIR_VALUES)
+    placebo.add("q", (1, 0), values=PAIR_VALUES)
+    assert placebo.cooperation.unavailable_actions(p) == {"leave"}
+
+    unmasked = FakeWorld(_config(mask_pointless_actions=False))
+    u = unmasked.add("u", (50, 50), values=PAIR_VALUES)
+    assert unmasked.cooperation.unavailable_actions(u) == set()
 
 
 def test_aid_reaches_a_member_below_the_threshold():

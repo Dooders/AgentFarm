@@ -490,8 +490,8 @@ class CooperationService:
     def _leave_unit(
         self, agent: Any, unit: CooperativeUnit, step: int, reason: str, *, veto_checked: bool = False
     ) -> Any:
-        holdings = max(0.0, float(agent.resource_level))
-        result = self.registry.leave(unit.unit_id, agent.agent_id, step, holdings, veto_checked=veto_checked)
+        base = self._exit_cost_base(agent, unit)
+        result = self.registry.leave(unit.unit_id, agent.agent_id, step, base, veto_checked=veto_checked)
         if result.vetoed:
             self._count("exit_vetoed")
             return result
@@ -505,6 +505,15 @@ class CooperationService:
             self._count("dissolved_by_exit")
         self._credit(result.payouts, "dissolution")
         return result
+
+    def _exit_cost_base(self, agent: Any, unit: CooperativeUnit) -> float:
+        """What an enforced exit forfeits a fraction of (see ``CooperationConfig.exit_cost_base``)."""
+        holdings = max(0.0, float(agent.resource_level))
+        if self.config.exit_cost_base == "received":
+            ledger = unit.members.get(agent.agent_id)
+            received = float(ledger.received + ledger.aid_received) if ledger is not None else 0.0
+            return min(holdings, max(0.0, received))
+        return holdings
 
     def _plan(self, agent: Any, other: Any) -> tuple[str, Any, list[tuple[Any, list[CooperativeUnit]]]] | None:
         """How ``agent`` and the open ``other`` would cooperate, or ``None``.
@@ -675,6 +684,40 @@ class CooperationService:
 
     def is_member(self, agent_id: str) -> bool:
         return self.active and self.registry.is_member(agent_id)
+
+    def may_attack(self, agent_id: str, other_id: str) -> bool:
+        """Whether ``agent_id`` may target ``other_id`` (partners are protected when configured)."""
+        return not (self.config.protect_partners and self.is_partner(agent_id, other_id))
+
+    # --------------------------------------------------------- availability
+    def unavailable_actions(self, agent: Any) -> set[str]:
+        """Cooperation actions that could only forfeit ``agent``'s turn right now.
+
+        ``leave`` while in no unit; ``bond`` with nobody else within
+        ``bond_range``. Empty unless ``mask_pointless_actions`` is on. The
+        same rule applies in the placebo, where no unit ever forms, so the
+        placebo's agents simply never see ``leave``.
+        """
+        if not self.config.mask_pointless_actions:
+            return set()
+        out: set[str] = set()
+        if not (self.active and self.registry.is_member(agent.agent_id)):
+            out.add("leave")
+        if not self._anyone_in_bond_range(agent):
+            out.add("bond")
+        return out
+
+    def _anyone_in_bond_range(self, agent: Any) -> bool:
+        spatial = getattr(agent, "spatial_service", None)
+        if spatial is None:
+            return True
+        try:
+            nearby = spatial.get_nearby(agent.position, self.config.bond_range, ["agents"]).get("agents", [])
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            return True
+        return any(
+            getattr(other, "agent_id", None) not in (None, agent.agent_id) and self._alive(other) for other in nearby
+        )
 
     def preferred_coparent(self, agent: Any, candidates: Sequence[Any]) -> Any:
         """The nearest partner among ``candidates`` (``None`` when there is none)."""

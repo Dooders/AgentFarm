@@ -837,6 +837,35 @@ INTRINSIC_REWARD_GENE_NAMES: Tuple[str, ...] = (
     "reward_reproduce_bonus",
 )
 
+# Ordered names of the Chromosome B genes: the innate action priors (base
+# weights, state-based multipliers and thresholds on ``DecisionConfig``).
+ACTION_PRIOR_GENE_NAMES: Tuple[str, ...] = (
+    "move_weight",
+    "gather_weight",
+    "share_weight",
+    "attack_weight",
+    "reproduce_weight",
+    "move_mult_no_resources",
+    "gather_mult_low_resources",
+    "share_mult_wealthy",
+    "share_mult_poor",
+    "attack_mult_desperate",
+    "attack_mult_stable",
+    "reproduce_mult_wealthy",
+    "reproduce_mult_poor",
+    "attack_starvation_threshold",
+    "attack_defense_threshold",
+    "reproduce_resource_threshold",
+)
+
+# Ordered names of the Chromosome A genes: the learning / RL hyperparameters,
+# i.e. every default locus that is neither an action prior nor a reward weight.
+LEARNING_GENE_NAMES: Tuple[str, ...] = tuple(
+    gene.name
+    for gene in DEFAULT_HYPERPARAMETER_GENES
+    if gene.name not in ACTION_PRIOR_GENE_NAMES and gene.name not in INTRINSIC_REWARD_GENE_NAMES
+)
+
 # Maps an executed action name to the per-action intrinsic-bonus gene awarded
 # when that action is taken.  Used by ``AgentCore._calculate_reward``.
 INTRINSIC_REWARD_ACTION_BONUS_GENES: Dict[str, str] = {
