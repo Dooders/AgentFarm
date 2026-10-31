@@ -1,37 +1,48 @@
 name: Evolution Regression
 
 # Run threshold-based regression checks for the evolution optimizer.
-# Triggered on every push and pull_request to main, but the job is path-
-# scoped so it only runs when evolution-related files actually change.
+# Triggered on every push and pull_request to dev and main, but the job is
+# path-scoped so it only runs when evolution-related files actually change.
+# dev is the integration branch (see CONTRIBUTING.md), so the checks must
+# run there to catch regressions on the PR that introduces them.
 #
 # Developers can run the same checks locally:
 #   pytest -v -m evolution_regression tests/runners/test_evolution_regression.py
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'farm/runners/evolution_experiment.py'
       - 'farm/runners/adaptive_mutation.py'
       - 'farm/core/simulation.py'
       - 'farm/core/hyperparameter_chromosome.py'
       - 'farm/core/genome.py'
+      - 'farm/core/decision/**'
+      - 'farm/config/**'
       - 'tests/runners/test_evolution_regression.py'
       - '.github/workflows/evolution-regression.yml'
       - 'pytest.ini'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
   pull_request:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'farm/runners/evolution_experiment.py'
       - 'farm/runners/adaptive_mutation.py'
       - 'farm/core/simulation.py'
       - 'farm/core/hyperparameter_chromosome.py'
       - 'farm/core/genome.py'
+      - 'farm/core/decision/**'
+      - 'farm/config/**'
       - 'tests/runners/test_evolution_regression.py'
       - '.github/workflows/evolution-regression.yml'
       - 'pytest.ini'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
   schedule:
     - cron: '0 8 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: read
