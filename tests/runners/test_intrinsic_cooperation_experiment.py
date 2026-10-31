@@ -125,6 +125,9 @@ def test_config_validation():
     assert cfg.initial_diversity_scale is None and cfg.freeze_platform_genes and cfg.resume
     assert "communicate" in TRACKED_ACTIONS
     assert cfg.to_dict()["policy_temperature"] == pytest.approx(0.1)
+    assert cfg.jobs == 1
+    with pytest.raises(ValueError):
+        IntrinsicCooperationExperimentConfig(jobs=0)
 
 
 def test_arms_get_the_right_cooperation_config():
@@ -221,6 +224,7 @@ def test_run_records_arms_and_writes_summary():
         assert len(payload["replicates"]) == 2
         assert payload["aggregate"]["num_replicates"] == 2
         assert "git_commit" in payload["config"] and payload["config"]["arms"] == list(DEFAULT_ARMS)
+        assert payload["config"]["jobs"] == 1
         keys = {h["key"] for h in payload["hypotheses"]}
         assert keys == expected_test_keys(DEFAULT_ARMS)
         family = [h for h in payload["hypotheses"] if hypothesis_kind(h) == "family"]

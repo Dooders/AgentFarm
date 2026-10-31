@@ -38,8 +38,11 @@ import os
 import random
 import statistics
 import subprocess
+import time
 from collections import Counter
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from multiprocessing import get_context
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
@@ -260,6 +263,20 @@ def _bootstrap_ci(diff: np.ndarray, resamples: int = 10_000, seed: int = 0) -> t
     idx = rng.integers(0, diff.size, size=(resamples, diff.size))
     means = diff[idx].mean(axis=1)
     return float(np.quantile(means, 0.025)), float(np.quantile(means, 0.975))
+
+
+def _run_replicate_worker(
+    base_config: SimulationConfig,
+    config: IntrinsicCooperationExperimentConfig,
+    index: int,
+    seed: int,
+) -> ReplicateResult:
+    """Spawned worker: one seed, all arms. Thread pools stay pinned to 1."""
+    for thread_var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+        os.environ.setdefault(thread_var, "1")
+    os.environ.setdefault("PYTHONHASHSEED", "0")
+    logger.info("intrinsic_cooperation_replicate_start", replicate=index, seed=seed, worker=os.getpid())
+    return IntrinsicCooperationExperiment(base_config, config)._run_replicate(index, seed)
 
 
 def holm(results: list[dict[str, Any]], alpha: float = 0.05) -> None:
@@ -544,6 +561,9 @@ class IntrinsicCooperationExperimentConfig:
     resume: bool = True
 
     alpha: float = 0.05
+    #: Independent seeds can run concurrently. Each worker still runs the four
+    #: arms of its seed in series. 1 keeps the historical sequential path.
+    jobs: int = 1
 
     def __post_init__(self) -> None:
         if self.num_steps <= 0:
@@ -552,6 +572,8 @@ class IntrinsicCooperationExperimentConfig:
             raise ValueError("record_interval must be positive.")
         if self.num_replicates <= 0:
             raise ValueError("num_replicates must be positive.")
+        if self.jobs < 1:
+            raise ValueError("jobs must be at least 1.")
         unknown = set(self.arms) - set(ARM_NAMES)
         if unknown or not self.arms:
             raise ValueError(f"arms must be drawn from {ARM_NAMES}, got {self.arms!r}")
@@ -571,6 +593,7 @@ class IntrinsicCooperationExperimentConfig:
             "num_steps": self.num_steps,
             "seed": self.seed,
             "num_replicates": self.num_replicates,
+            "jobs": self.jobs,
             "arms": list(self.arms),
             "cooperation": self.cooperation.to_dict(),
             "mutation_rate": self.mutation_rate,
@@ -779,11 +802,7 @@ class IntrinsicCooperationExperiment:
     # ------------------------------------------------------------ public
     def run(self) -> IntrinsicCooperationResult:
         os.makedirs(self.config.output_dir, exist_ok=True)
-        replicates: list[ReplicateResult] = []
-        for index in range(self.config.num_replicates):
-            seed = self.config.seed + index
-            logger.info("intrinsic_cooperation_replicate_start", replicate=index, seed=seed)
-            replicates.append(self._run_replicate(index, seed))
+        replicates = self._run_replicates()
 
         aggregate = self._aggregate(replicates) if self.config.num_replicates > 1 else None
         hypotheses = self._test_hypotheses(replicates) if self.config.num_replicates > 1 else None
@@ -807,6 +826,57 @@ class IntrinsicCooperationExperiment:
         if self.config.num_replicates > 1:
             return os.path.join(self.config.output_dir, f"rep_{index:02d}")
         return self.config.output_dir
+
+    def _run_replicates(self) -> list[ReplicateResult]:
+        planned = [(index, self.config.seed + index) for index in range(self.config.num_replicates)]
+        workers = min(self.config.jobs, len(planned))
+        if workers <= 1:
+            replicates: list[ReplicateResult] = []
+            for index, seed in planned:
+                logger.info("intrinsic_cooperation_replicate_start", replicate=index, seed=seed)
+                replicates.append(self._run_replicate(index, seed))
+                self._write_progress(completed=len(replicates), total=len(planned), seed=seed)
+            return replicates
+
+        logger.info(
+            "intrinsic_cooperation_parallel_start",
+            jobs=workers,
+            num_replicates=len(planned),
+        )
+        ordered: list[ReplicateResult | None] = [None] * len(planned)
+        with ProcessPoolExecutor(max_workers=workers, mp_context=get_context("spawn")) as pool:
+            futures = {
+                pool.submit(_run_replicate_worker, self.base_config, self.config, index, seed): (index, seed)
+                for index, seed in planned
+            }
+            finished = 0
+            for future in as_completed(futures):
+                index, seed = futures[future]
+                ordered[index] = future.result()
+                finished += 1
+                logger.info(
+                    "intrinsic_cooperation_replicate_done",
+                    replicate=index,
+                    seed=seed,
+                    completed=finished,
+                    total=len(planned),
+                )
+                self._write_progress(completed=finished, total=len(planned), seed=seed)
+        missing = [index for index, result in enumerate(ordered) if result is None]
+        if missing:
+            raise RuntimeError(f"replicate workers returned no result for indices {missing}")
+        return [result for result in ordered if result is not None]
+
+    def _write_progress(self, completed: int, total: int, seed: int) -> None:
+        path = os.path.join(self.config.output_dir, "progress.json")
+        payload = {
+            "completed_replicates": completed,
+            "total_replicates": total,
+            "last_seed": seed,
+            "updated_at": time.time(),
+        }
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
 
     def _run_replicate(self, index: int, seed: int) -> ReplicateResult:
         rep_dir = self._replicate_dir(index)

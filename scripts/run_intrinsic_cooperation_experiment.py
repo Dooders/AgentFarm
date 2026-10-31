@@ -24,8 +24,8 @@ plus each arm's simulation artifacts and cooperation telemetry under
 
 Registered run (seeds 101-120)::
 
-    python scripts/run_intrinsic_cooperation_experiment.py \\
-        --num-steps 3000 --seed 101 --num-replicates 20 \\
+    PYTHONHASHSEED=0 python scripts/run_intrinsic_cooperation_experiment.py \\
+        --num-steps 3000 --seed 101 --num-replicates 20 --jobs 8 \\
         --output-dir experiments/intrinsic_cooperation
 
 Quick smoke test::
@@ -40,6 +40,16 @@ import json
 import os
 import sys
 import time
+
+# Many tiny per-agent DQNs: pin BLAS/OpenMP before numpy/torch import their pools.
+for _thread_var in (
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+):
+    os.environ.setdefault(_thread_var, "1")
+os.environ.setdefault("PYTHONHASHSEED", "0")
 
 _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _repo_root not in sys.path:
@@ -66,6 +76,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--num-steps", type=int, default=3000)
     p.add_argument("--seed", type=int, default=101)
     p.add_argument("--num-replicates", type=int, default=1, help="Paired replicates; replicate r uses seed+r.")
+    p.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Concurrent seeds. Each worker still runs that seed's four arms in series.",
+    )
+    p.add_argument(
+        "--device",
+        default="cpu",
+        help="PyTorch device preference (cpu is fastest for the tiny per-agent DQNs).",
+    )
     p.add_argument(
         "--arms",
         nargs="+",
@@ -137,6 +158,7 @@ def main() -> int:
     logger = get_logger(__name__)
 
     base_config = SimulationConfig.from_centralized_config(environment=args.environment, profile=args.profile)
+    base_config.device.device_preference = args.device
     cooperation = CooperationConfig(
         enabled=True,
         bond_range=args.bond_range,
@@ -175,6 +197,7 @@ def main() -> int:
         freeze_platform_genes=not args.no_freeze_platform_genes,
         policy_temperature=args.policy_temperature,
         resume=not args.no_resume,
+        jobs=args.jobs,
     )
     with open(os.path.join(args.output_dir, "run_manifest.json"), "w", encoding="utf-8") as handle:
         json.dump(
