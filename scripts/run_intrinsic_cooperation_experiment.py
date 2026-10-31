@@ -10,6 +10,12 @@ cooperative units:
   their heritable terms.
 - ``cooperation_no_motive`` -- the same without the motive-driven membership
   reward (the institution must pay for itself).
+- ``cooperation_zero_synergy`` (optional, ``--arms ... cooperation_zero_synergy``)
+  -- the working institution with no pooling surplus.
+
+Arms whose ``arm_result.json`` already exists under the output directory are
+loaded instead of re-run (``--no-resume`` to override), so an interrupted
+run can be restarted with the same command line.
 
 Writes ``intrinsic_cooperation_summary.json`` and (when matplotlib is
 available) ``intrinsic_cooperation_comparison.png`` to the output directory,
@@ -39,15 +45,18 @@ _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from farm.config import SimulationConfig  # noqa: E402
-from farm.core.cooperation import CooperationConfig  # noqa: E402
-from farm.core.hyperparameter_chromosome import BoundaryMode, MutationMode  # noqa: E402
-from farm.runners.intrinsic_cooperation_experiment import (  # noqa: E402
+from farm.config import SimulationConfig
+from farm.core.cooperation import CooperationConfig
+from farm.core.cooperation.config import EXIT_COST_BASES
+from farm.core.hyperparameter_chromosome import BoundaryMode, MutationMode
+from farm.runners.intrinsic_cooperation_experiment import (
     ARM_NAMES,
+    DEFAULT_ARMS,
     IntrinsicCooperationExperiment,
     IntrinsicCooperationExperimentConfig,
+    git_commit,
 )
-from farm.utils.logging import configure_logging, get_logger  # noqa: E402
+from farm.utils.logging import configure_logging, get_logger
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -57,19 +66,47 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--num-steps", type=int, default=3000)
     p.add_argument("--seed", type=int, default=101)
     p.add_argument("--num-replicates", type=int, default=1, help="Paired replicates; replicate r uses seed+r.")
-    p.add_argument("--arms", nargs="+", default=list(ARM_NAMES), choices=list(ARM_NAMES))
+    p.add_argument(
+        "--arms",
+        nargs="+",
+        default=list(DEFAULT_ARMS),
+        choices=list(ARM_NAMES),
+        help="Arms to run; add cooperation_zero_synergy for the optional fifth arm.",
+    )
     p.add_argument("--output-dir", type=str, default="experiments/intrinsic_cooperation")
     p.add_argument("--record-interval", type=int, default=1)
+    p.add_argument("--no-resume", action="store_true", help="Re-run arms even if their arm_result.json exists.")
     p.add_argument("--mutation-rate", type=float, default=0.1)
     p.add_argument("--mutation-scale", type=float, default=0.1)
     p.add_argument("--mutation-mode", default=MutationMode.GAUSSIAN.value, choices=[m.value for m in MutationMode])
     p.add_argument("--boundary-mode", default=BoundaryMode.REFLECT.value, choices=[m.value for m in BoundaryMode])
     p.add_argument("--no-crossover", action="store_true", help="Disable crossover (and so partner co-parenting).")
-    p.add_argument("--selection-pressure", type=str, default="low")
+    p.add_argument("--selection-pressure", type=str, default="medium")
     p.add_argument("--initial-agent-resource-level", type=float, default=12.0)
     p.add_argument("--initial-resource-count", type=int, default=60)
     p.add_argument("--max-population", type=int, default=300)
+    # Learning / evolution regime
+    p.add_argument(
+        "--policy-temperature",
+        type=float,
+        default=0.1,
+        help="Softmax temperature of the policies' action distribution before innate priors.",
+    )
+    p.add_argument(
+        "--initial-diversity-scale",
+        type=float,
+        default=None,
+        help="Turn the platform's initial-diversity layer on with this mutation scale (default: off).",
+    )
+    p.add_argument(
+        "--no-freeze-platform-genes",
+        action="store_true",
+        help="Let the learning hyperparameters and reward weights (Chromosomes A and C) evolve too.",
+    )
     # Cooperation knobs
+    p.add_argument("--exit-cost-base", default="received", choices=list(EXIT_COST_BASES))
+    p.add_argument("--no-mask-pointless-actions", action="store_true", help="Offer leave/bond even when they cannot act.")
+    p.add_argument("--no-protect-partners", action="store_true", help="Let members attack their own partners.")
     p.add_argument("--bond-range", type=float, default=6.0)
     p.add_argument("--offer-window", type=int, default=10)
     p.add_argument("--terms", default="mean", choices=["mean", "initiator"])
@@ -112,6 +149,9 @@ def main() -> int:
         partners_as_allies=not args.no_partners_as_allies,
         family_on_birth=args.family_on_birth,
         synergy=args.synergy,
+        exit_cost_base=args.exit_cost_base,
+        mask_pointless_actions=not args.no_mask_pointless_actions,
+        protect_partners=not args.no_protect_partners,
         record_interval=args.record_interval,
     )
     config = IntrinsicCooperationExperimentConfig(
@@ -131,9 +171,21 @@ def main() -> int:
         initial_agent_resource_level=args.initial_agent_resource_level,
         initial_resource_count=args.initial_resource_count,
         max_population=args.max_population,
+        initial_diversity_scale=args.initial_diversity_scale,
+        freeze_platform_genes=not args.no_freeze_platform_genes,
+        policy_temperature=args.policy_temperature,
+        resume=not args.no_resume,
     )
     with open(os.path.join(args.output_dir, "run_manifest.json"), "w", encoding="utf-8") as handle:
-        json.dump({"script": "scripts/run_intrinsic_cooperation_experiment.py", "args": vars(args)}, handle, indent=2)
+        json.dump(
+            {
+                "script": "scripts/run_intrinsic_cooperation_experiment.py",
+                "git_commit": git_commit(),
+                "args": vars(args),
+            },
+            handle,
+            indent=2,
+        )
 
     logger.info("intrinsic_cooperation_cli_start", num_steps=args.num_steps, seed=args.seed, arms=args.arms)
     start = time.time()

@@ -29,6 +29,7 @@ from farm.core.cooperation.unit import UnitEconomics
 
 COOPERATION_MODES: tuple[str, ...] = ("active", "placebo")
 TERMS_RULES: tuple[str, ...] = ("mean", "initiator")
+EXIT_COST_BASES: tuple[str, ...] = ("holdings", "received")
 
 
 @dataclass(frozen=True)
@@ -63,10 +64,22 @@ class CooperationConfig:
         per-step membership reward from their motives:
         ``membership_reward_scale * (fit_scale * fit + affinity_scale *
         w_affinity * like_mindedness) / horizon``.
+    Exit
+        ``exit_cost_base`` is what the enforced forfeit is a fraction of:
+        ``"holdings"`` (the leaver's whole resource level) or ``"received"``
+        (capped at what the unit has paid the leaver, so a unit can take
+        back no more than it gave).
+    Availability
+        With ``mask_pointless_actions`` an agent cannot choose ``leave``
+        while it is in no unit, nor ``bond`` with no other agent within
+        ``bond_range``; both would only forfeit the turn. The rule is the
+        same in the placebo, where it removes ``leave`` outright.
     Perception
         ``partners_as_allies`` makes unit partners (and only partners) the
         agent's allies in its observation; ``membership_marker`` marks the
-        agent's own cell in the allies channel while it is in a unit.
+        agent's own cell in the allies channel while it is in a unit;
+        ``protect_partners`` keeps partners out of each other's ``attack``
+        targets, so allies are allies in deed as well as in view.
     Reproduction
         ``partner_coparent`` makes a member's partner its co-parent when the
         evolution policy uses crossover. ``family_on_birth`` founds a family
@@ -102,8 +115,12 @@ class CooperationConfig:
     fit_scale: float = 2.0
     affinity_scale: float = 4.0
 
+    exit_cost_base: str = "holdings"
+    mask_pointless_actions: bool = True
+
     partners_as_allies: bool = True
     membership_marker: bool = True
+    protect_partners: bool = True
 
     partner_coparent: bool = True
     family_on_birth: bool = False
@@ -120,6 +137,8 @@ class CooperationConfig:
             raise ValueError(f"mode must be one of {COOPERATION_MODES}, got {self.mode!r}")
         if self.terms not in TERMS_RULES:
             raise ValueError(f"terms must be one of {TERMS_RULES}, got {self.terms!r}")
+        if self.exit_cost_base not in EXIT_COST_BASES:
+            raise ValueError(f"exit_cost_base must be one of {EXIT_COST_BASES}, got {self.exit_cost_base!r}")
         if self.bond_range < 0.0:
             raise ValueError("bond_range must be non-negative")
         for name in ("offer_window", "max_candidates", "review_interval", "record_interval"):
@@ -194,4 +213,4 @@ class CooperationConfig:
         return cls(**dict(data))
 
 
-__all__ = ["COOPERATION_MODES", "TERMS_RULES", "CooperationConfig"]
+__all__ = ["COOPERATION_MODES", "EXIT_COST_BASES", "TERMS_RULES", "CooperationConfig"]

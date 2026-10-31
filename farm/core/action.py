@@ -583,8 +583,12 @@ def attack_action(agent: "AgentCore") -> dict:
         nearby = agent.spatial_service.get_nearby(agent.position, attack_range, ["agents"])
         nearby_agents = nearby.get("agents", [])
 
-        # Filter out self and find valid targets
+        # Filter out self and find valid targets; unit partners are off limits
+        # when cooperation protects them (CooperationConfig.protect_partners).
         valid_targets = [target for target in nearby_agents if target.agent_id != agent.agent_id and target.alive]
+        cooperation = cooperation_service_of(getattr(agent, "environment", None))
+        if cooperation is not None:
+            valid_targets = [t for t in valid_targets if cooperation.may_attack(agent.agent_id, t.agent_id)]
 
         if not valid_targets:
             logger.debug(f"Agent {agent.agent_id} found no valid targets within range {attack_range}")

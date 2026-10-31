@@ -213,6 +213,9 @@ class AgentCore:
         self.config = config
         self.environment = environment
         self.alive = True
+        # Why the agent died (``"starvation"``, ``"combat"``, ...); read by the
+        # environment when it logs the removal.
+        self.death_cause: Optional[str] = None
         self.total_reward = 0.0
         self.generation = generation
 
@@ -536,7 +539,7 @@ class AgentCore:
         # Check if agent should die from starvation
         resource_comp = self.get_component("resource")
         if resource_comp and resource_comp.starvation_counter >= resource_comp.config.starvation_threshold:
-            self.terminate()
+            self.terminate(cause="starvation")
             return
 
         # Get current state and decision
@@ -640,6 +643,22 @@ class AgentCore:
         return result
 
     def _get_enabled_actions(self) -> Optional[list[Action]]:
+        """Actions the agent may choose this step, or ``None`` for all of them.
+
+        Combines the curriculum phase (if configured) with whatever the
+        environment declares unavailable right now (``unavailable_actions``).
+        """
+        enabled = self._curriculum_actions()
+        unavailable = self._environment_unavailable_actions()
+        if unavailable:
+            pool = self.actions if enabled is None else enabled
+            masked = [a for a in pool if a.name not in unavailable]
+            # Never mask everything away; an empty list would mean "no choice".
+            if masked:
+                enabled = masked
+        return enabled
+
+    def _curriculum_actions(self) -> Optional[list[Action]]:
         """Get list of enabled actions based on curriculum learning if configured."""
         if not self.config.decision.curriculum_phases:
             return None
@@ -653,6 +672,16 @@ class AgentCore:
                 return [a for a in self.actions if a.name in enabled_action_names]
 
         return None
+
+    def _environment_unavailable_actions(self) -> set:
+        query = getattr(self.environment, "unavailable_actions", None)
+        if not callable(query):
+            return set()
+        try:
+            return set(query(self) or ())
+        except Exception as exc:
+            logger.debug("unavailable_actions_query_failed", agent_id=self.agent_id, error=str(exc))
+            return set()
 
     def _execute_action(self, action: Action, state_tensor: torch.Tensor) -> None:
         """
@@ -865,15 +894,20 @@ class AgentCore:
         if movement_comp:
             self.state.update_position(movement_comp.position)
 
-    def terminate(self) -> None:
+    def terminate(self, cause: Optional[str] = None) -> None:
         """
         Terminate the agent.
 
         Calls on_terminate on all components and marks agent as dead.
+
+        Args:
+            cause: Why the agent died, kept on ``death_cause`` for telemetry.
         """
         if not self.alive:
             return
 
+        if cause is not None:
+            self.death_cause = cause
         self.alive = False
         self.state.set_dead(self.services.get_current_time())
 

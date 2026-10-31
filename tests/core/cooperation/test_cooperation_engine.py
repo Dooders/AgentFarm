@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from unittest.mock import patch
 
 import pytest
 
@@ -160,6 +161,74 @@ def _reward_for(env, agent, credit_payouts: bool) -> tuple[float, float]:
     weights = agent._reward_weights()
     base = weights["reward_survival_weight"]
     return reward - base, weights["reward_resource_weight"]
+
+
+def test_pointless_cooperation_actions_are_masked_for_real_agents():
+    with tempfile.TemporaryDirectory() as out:
+        env = run_simulation(num_steps=2, config=_config(_active(out)), path=out, save_config=False, seed=5)
+        service = env.cooperation
+        for agent in env.alive_agent_objects:
+            enabled = agent._get_enabled_actions()
+            names = {a.name for a in agent.actions} if enabled is None else {a.name for a in enabled}
+            expected_hidden = service.unavailable_actions(agent)
+            assert env.unavailable_actions(agent) == expected_hidden
+            assert not (expected_hidden & names)
+            if service.is_member(agent.agent_id):
+                assert "leave" in names
+            else:
+                assert "leave" not in names
+
+    placebo = CooperationConfig(enabled=True, mode="placebo", bond_range=50.0, output_dir="")
+    with tempfile.TemporaryDirectory() as out:
+        env = run_simulation(num_steps=2, config=_config(placebo), path=out, save_config=False, seed=5)
+        for agent in env.alive_agent_objects:
+            names = {a.name for a in agent._get_enabled_actions()}
+            assert "leave" not in names and "bond" in names  # everyone is in range, nobody is ever a member
+
+
+def test_members_never_attack_their_partners():
+    from farm.core.action import attack_action
+
+    with tempfile.TemporaryDirectory() as out:
+        env = run_simulation(num_steps=STEPS, config=_config(_active(out)), path=out, save_config=False, seed=5)
+        service = env.cooperation
+        members = [a for a in env.alive_agent_objects if service.is_member(a.agent_id)]
+        if not members:
+            pytest.skip("no live unit members at the end of this run")
+        agent = members[0]
+        partners = service.partner_ids(agent.agent_id)
+        assert partners
+        partner = next(a for a in env.alive_agent_objects if a.agent_id in partners)
+        stranger = next((a for a in env.alive_agent_objects if a is not agent and a.agent_id not in partners), None)
+        # Only the partner is in range: the attack finds no valid target.
+        nearby = {"agents": [agent, partner]}
+        with patch.object(agent.spatial_service, "get_nearby", lambda *a, **k: nearby):
+            before = partner.current_health
+            result = attack_action(agent)
+        assert result["success"] is False and "No valid targets" in result["error"]
+        assert partner.current_health == pytest.approx(before)
+        if stranger is not None:
+            # With a stranger also in range, the stranger is the one hit.
+            nearby = {"agents": [agent, partner, stranger]}
+            with patch.object(agent.spatial_service, "get_nearby", lambda *a, **k: nearby):
+                result = attack_action(agent)
+            assert result["details"]["target_id"] == stranger.agent_id
+
+
+def test_death_causes_are_recorded_on_the_agent():
+    with tempfile.TemporaryDirectory() as out:
+        env = run_simulation(num_steps=1, config=_config(CooperationConfig()), path=out, save_config=False, seed=5)
+        starving, fighter, other = env.alive_agent_objects[:3]
+        assert starving.death_cause is None
+        resource = starving.get_component("resource")
+        starving.resource_level = 0.0
+        resource.starvation_counter = resource.config.starvation_threshold - 1
+        resource._check_starvation()
+        assert not starving.alive and starving.death_cause == "starvation"
+        fighter.get_component("combat").take_damage(fighter.current_health * 10)
+        assert not fighter.alive and fighter.death_cause == "combat"
+        other.terminate()
+        assert not other.alive and other.death_cause is None
 
 
 def test_payouts_count_once_in_the_reward():
