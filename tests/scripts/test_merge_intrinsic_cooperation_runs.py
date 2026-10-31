@@ -19,8 +19,8 @@ _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from farm.runners import intrinsic_cooperation_experiment as runner
-from farm.runners.intrinsic_cooperation_experiment import (
+from farm.runners import intrinsic_cooperation_experiment as runner  # noqa: E402
+from farm.runners.intrinsic_cooperation_experiment import (  # noqa: E402
     DEFAULT_ARMS,
     EXPLORATORY,
     HYPOTHESES,
@@ -30,7 +30,7 @@ from farm.runners.intrinsic_cooperation_experiment import (
     aggregate_summaries,
     expected_test_keys,
 )
-from scripts.merge_intrinsic_cooperation_runs import (
+from scripts.merge_intrinsic_cooperation_runs import (  # noqa: E402
     HYPOTHESES_TABLE_FILE,
     MERGED_SUMMARY_FILE,
     hypotheses_table,

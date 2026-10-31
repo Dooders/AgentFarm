@@ -16,9 +16,13 @@ _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from farm.core.cooperation.genes import COOPERATION_GENE_NAMES
-from farm.runners.intrinsic_cooperation_experiment import DEFAULT_ARMS, HYPOTHESES, TRACKED_ACTIONS
-from scripts.calibrate_intrinsic_cooperation import (
+from farm.core.cooperation.genes import COOPERATION_GENE_NAMES  # noqa: E402
+from farm.runners.intrinsic_cooperation_experiment import (  # noqa: E402
+    DEFAULT_ARMS,
+    HYPOTHESES,
+    TRACKED_ACTIONS,
+)
+from scripts.calibrate_intrinsic_cooperation import (  # noqa: E402
     GATES,
     REPORT_FILE,
     REPORT_JSON,

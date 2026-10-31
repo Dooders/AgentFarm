@@ -39,8 +39,8 @@ _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from farm.core.cooperation.genes import COOPERATION_GENE_NAMES
-from farm.runners.intrinsic_cooperation_experiment import (
+from farm.core.cooperation.genes import COOPERATION_GENE_NAMES  # noqa: E402
+from farm.runners.intrinsic_cooperation_experiment import (  # noqa: E402
     ARM_CONTRASTS,
     HYPOTHESES,
     LEARNING_CHECKS,

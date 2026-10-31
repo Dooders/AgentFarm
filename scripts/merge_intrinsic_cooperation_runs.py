@@ -32,7 +32,7 @@ _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from farm.runners.intrinsic_cooperation_experiment import (
+from farm.runners.intrinsic_cooperation_experiment import (  # noqa: E402
     aggregate_summaries,
     hypothesis_kind,
     test_hypotheses,

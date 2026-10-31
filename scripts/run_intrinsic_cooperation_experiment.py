@@ -55,18 +55,18 @@ _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from farm.config import SimulationConfig
-from farm.core.cooperation import CooperationConfig
-from farm.core.cooperation.config import EXIT_COST_BASES
-from farm.core.hyperparameter_chromosome import BoundaryMode, MutationMode
-from farm.runners.intrinsic_cooperation_experiment import (
+from farm.config import SimulationConfig  # noqa: E402
+from farm.core.cooperation import CooperationConfig  # noqa: E402
+from farm.core.cooperation.config import EXIT_COST_BASES  # noqa: E402
+from farm.core.hyperparameter_chromosome import BoundaryMode, MutationMode  # noqa: E402
+from farm.runners.intrinsic_cooperation_experiment import (  # noqa: E402
     ARM_NAMES,
     DEFAULT_ARMS,
     IntrinsicCooperationExperiment,
     IntrinsicCooperationExperimentConfig,
     git_commit,
 )
-from farm.utils.logging import configure_logging, get_logger
+from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
 
 def _build_parser() -> argparse.ArgumentParser:
