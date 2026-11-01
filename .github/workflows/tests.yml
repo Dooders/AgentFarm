@@ -42,6 +42,9 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: requirements-lock.txt
+      - name: Install macOS OpenMP runtime
+        if: runner.os == 'macOS'
+        run: brew install libomp
       - name: Install locked dependencies and package
         run: |
           python -m pip install --upgrade pip
@@ -213,4 +216,3 @@ jobs:
         uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2
         with:
           args: --config .lychee.toml --no-progress docs README.md AGENTS.md CONTRIBUTING.md
-

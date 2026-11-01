@@ -24,6 +24,7 @@ from farm.core.decision.training.quantize_ptq import (
     PostTrainingQuantizer,
     QuantizationConfig,
     QuantizationResult,
+    _restore_quantized_engine,
     compare_outputs,
     load_quantized_checkpoint,
 )
@@ -92,6 +93,28 @@ class TestQuantizationConfig:
     def test_invalid_calibration_batch_size(self):
         with pytest.raises(ValueError, match="calibration_batch_size"):
             QuantizationConfig(calibration_batch_size=0)
+
+
+def test_restore_quantized_engine_skips_unsupported_none(monkeypatch):
+    class QuantizedBackend:
+        def __init__(self):
+            self._engine = "qnnpack"
+
+        @property
+        def engine(self):
+            return self._engine
+
+        @engine.setter
+        def engine(self, value):
+            if value == "none":
+                raise RuntimeError("quantized engine NoQEngine is not supported")
+            self._engine = value
+
+    monkeypatch.setattr(torch.backends, "quantized", QuantizedBackend())
+
+    _restore_quantized_engine("none", backend_changed=True)
+
+    assert torch.backends.quantized.engine == "qnnpack"
 
 
 # ---------------------------------------------------------------------------
