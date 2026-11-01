@@ -42,7 +42,7 @@ def plot_comparison_metrics(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
                     # Fallback for mocked environments or compatibility issues
                     simulation_ids = df["simulation_id"].unique()
                     values = [df[df["simulation_id"] == sim_id][col].values for sim_id in simulation_ids]
-                    ax.boxplot(values, labels=simulation_ids)
+                    ax.boxplot(values, tick_labels=simulation_ids)
             else:
                 df[col].plot(ax=ax, kind="bar")
             ax.set_title(f"{col} Comparison")
@@ -141,7 +141,7 @@ def plot_performance_comparison(df: pd.DataFrame, ctx: AnalysisContext, **kwargs
                 # Fallback for mocked environments or compatibility issues
                 simulation_ids = df["simulation_id"].unique()
                 values = [df[df["simulation_id"] == sim_id][col].values for sim_id in simulation_ids]
-                ax.boxplot(values, labels=simulation_ids)
+                ax.boxplot(values, tick_labels=simulation_ids)
         else:
             # Use matplotlib directly to avoid pandas plotting issues with mocks
             ax.bar(range(len(df)), df[col])

@@ -22,7 +22,7 @@ from farm.analysis.service import AnalysisService, AnalysisRequest
 from farm.core.services import EnvConfigService
 
 # Import analysis configuration
-from analysis_config import DATA_PATH, OUTPUT_PATH, safe_remove_directory, setup_logging
+from farm.analysis.analysis_config import DATA_PATH, OUTPUT_PATH, safe_remove_directory, setup_logging
 
 
 def main():

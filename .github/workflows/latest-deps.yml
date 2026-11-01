@@ -1,0 +1,49 @@
+name: latest-deps
+
+# Canary for upstream breakage. The regular workflows install the pinned
+# requirements-lock.txt so a new numpy/torch/pydantic release cannot turn
+# dev red without a code change. This job installs the *unpinned*
+# [project.dependencies] from pyproject.toml once a week and runs the fast
+# suite, so dependency breakage is detected and attributed separately.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unpinned:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Install latest dependencies (no lock file)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+          pip freeze > "$RUNNER_TEMP/resolved-versions.txt"
+      - name: Show resolved versions
+        run: cat "$RUNNER_TEMP/resolved-versions.txt"
+      - name: Run fast pytest suite
+        run: |
+          pytest -q --durations=25 --ignore=tests/test_deterministic_pytest.py -m "not slow and not integration"
+      - name: Upload resolved versions
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: resolved-versions
+          path: ${{ runner.temp }}/resolved-versions.txt
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/report-scheduled-failure
+        with:
+          token: ${{ github.token }}

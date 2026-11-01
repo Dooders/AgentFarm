@@ -19,7 +19,7 @@ from farm.analysis.advantage.compute import (
 from farm.analysis.core import BaseAnalysisModule
 from farm.analysis.dominance import get_orchestrator
 from farm.utils.logging import get_logger
-from scripts.analysis_config import setup_and_process_simulations
+from farm.analysis.analysis_config import setup_and_process_simulations
 
 logger = get_logger(__name__)
 
