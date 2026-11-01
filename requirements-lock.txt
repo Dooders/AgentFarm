@@ -165,7 +165,7 @@ sympy==1.14.0             # via torch
 tensorboard==2.20.0       # via tianshou
 tensorboard-data-server==0.7.2  # via tensorboard
 threadpoolctl==3.7.0      # via scikit-learn
-tianshou==0.4.11          # via agentfarm (pyproject.toml)
+tianshou==0.5.1          # via agentfarm (pyproject.toml)
 tomli==2.5.0 ; python_full_version < '3.11'  # via coverage, pytest
 torch==2.14.1 ; python_full_version < '3.11'  # via stable-baselines3, tianshou, agentfarm (pyproject.toml)
 torch==2.15.0 ; python_full_version >= '3.11'  # via stable-baselines3, tianshou, agentfarm (pyproject.toml)

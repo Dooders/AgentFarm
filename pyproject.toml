@@ -64,7 +64,7 @@ dependencies = [
     "statsmodels>=0.14.0",
     "pyarrow>=10.0.0",
     # Reinforcement learning
-    "tianshou>=0.4.11,<0.5.0",  # pinned due to NumPy compatibility
+    "tianshou>=0.4.11,<0.6.0",  # pinned due to NumPy compatibility
     "gymnasium>=0.28.0",
     "shimmy>=1.0.0",
     "stable-baselines3>=2.0.0",
