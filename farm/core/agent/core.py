@@ -44,6 +44,13 @@ from farm.core.policy_inheritance import (
     apply_p4_policy_warmstart,
 )
 from farm.core.state import AgentState, AgentStateManager
+from farm.core.union_bonds import (
+    UNION_ACTION_NAMES,
+    get_union_policy,
+    mature_bond_partner,
+    on_agent_terminate,
+    union_enabled,
+)
 from farm.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -233,9 +240,17 @@ class AgentCore:
         else:
             self.device = create_device_from_config(config)
 
+        # Exclusive pair-bond runtime state (not heritable).
+        self.partner_id: Optional[Any] = None
+        self.pair_age: int = 0
+        self.bond_strength: float = 0.0
+        self.role: str = "none"
+
         # Actions - get base actions from registry
         base_actions = action_registry.get_all(normalized=False)
-        
+        if not union_enabled(environment):
+            base_actions = [action for action in base_actions if action.name not in UNION_ACTION_NAMES]
+
         # Customize action weights based on agent type
         self.actions = self._customize_action_weights(base_actions, agent_type, environment)
 
@@ -858,6 +873,7 @@ class AgentCore:
 
         self.alive = False
         self.state.set_dead(self.services.get_current_time())
+        on_agent_terminate(self)
 
         # Notify all components
         for component in self._components.values():
@@ -1074,6 +1090,16 @@ class AgentCore:
         if self.environment is None:
             return None
 
+        mate = mature_bond_partner(self)
+        if mate is not None and getattr(mate, "hyperparameter_chromosome", None) is not None:
+            return mate
+
+        union_policy = get_union_policy(self)
+        if union_policy is not None and union_policy.pairing_enabled:
+            # Layer C: crossover only for mature bonds. Unpaired / courting
+            # agents fall back to asexual inheritance.
+            return None
+
         allow_cross_type = getattr(policy, "allow_cross_type_pollination", False)
 
         candidates: List["AgentCore"] = []
@@ -1139,19 +1165,39 @@ class AgentCore:
         resource_comp = self.get_component("resource")
         base_cost = repro_comp.config.offspring_cost
         offspring_cost = compute_effective_reproduction_cost(self, base_cost)
+        mate = mature_bond_partner(self)
+        if mate is not None:
+            offspring_cost = 0.5 * offspring_cost
 
         # Store initial resources for logging
         initial_resources = self.resource_level
 
         resource_deducted = False
+        mate_deducted = False
         offspring_id: Optional[str] = None
 
         try:
             # Deduct reproduction cost (remove() returns False if insufficient).
+            # Mature bonds split the cost with the partner.
             if resource_comp:
                 if not resource_comp.remove(offspring_cost):
                     return False
                 resource_deducted = True
+            if mate is not None:
+                mate_resources = mate.get_component("resource")
+                if mate_resources is not None:
+                    if not mate_resources.remove(offspring_cost):
+                        if resource_comp and resource_deducted:
+                            resource_comp.add(offspring_cost)
+                        return False
+                    mate_deducted = True
+                elif float(mate.resource_level) < offspring_cost:
+                    if resource_comp and resource_deducted:
+                        resource_comp.add(offspring_cost)
+                    return False
+                else:
+                    mate.resource_level = float(mate.resource_level) - offspring_cost
+                    mate_deducted = True
 
             # Get offspring initial resources from reproduction component config
             # This uses offspring_initial_resources (not initial_resource_level which is for initial population)
@@ -1202,7 +1248,10 @@ class AgentCore:
             offspring.hyperparameter_chromosome = child_chromosome
 
             # Set offspring parent IDs (genome_id will be generated in add_agent() using parent info)
-            offspring.state._state = offspring.state._state.model_copy(update={"parent_ids": [self.agent_id]})
+            parent_ids = [self.agent_id]
+            if mate is not None:
+                parent_ids.append(mate.agent_id)
+            offspring.state._state = offspring.state._state.model_copy(update={"parent_ids": parent_ids})
 
             # Optional Lamarckian step: copy parent policy weights into the
             # already-constructed offspring before the env sees the child, so
@@ -1238,6 +1287,17 @@ class AgentCore:
                             rollback_attempted=True,
                             rollback_ok=False,
                             suppression_reason="offspring_still_present_after_rollback_attempt",
+                        )
+            if mate_deducted:
+                mate_resources = mate.get_component("resource") if mate is not None else None
+                if mate_resources is not None:
+                    try:
+                        mate_resources.add(offspring_cost)
+                    except Exception:
+                        logger.exception(
+                            "agent_reproduction_partner_refund_failed",
+                            agent_id=self.agent_id,
+                            partner_id=getattr(mate, "agent_id", None),
                         )
             if should_refund and resource_comp:
                 try:

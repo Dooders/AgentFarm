@@ -24,9 +24,12 @@ def test_action_space_helpers_complete_and_consistent():
     names = get_action_names()
     count = get_action_count()
 
-    # Ensure names map matches enum ordering
+    # Ensure names map matches enum ordering. Bond/leave are union-only.
     assert set(space.keys()) == set(names)
-    assert count == len(ActionType)
+    assert count == len(space)
+    assert "bond" not in space
+    assert action_name_to_index("bond") == ActionType.BOND.value
+    assert action_name_to_index("leave") == ActionType.LEAVE.value
 
     # Spot check a couple indices
     assert action_name_to_index("move") == ActionType.MOVE.value

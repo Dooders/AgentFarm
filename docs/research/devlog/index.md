@@ -6,6 +6,46 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/research/devlog/2026-09-19-union-emergence-layer-c/' | relative_url }}">
+      <span class="post-card__date">2026-09-19</span>
+      <h3 class="post-card__title">The union on the chromosome</h3>
+      <p class="post-card__excerpt">
+        Layer C first-glance of the union-emergence port. Optional pairing is
+        superadditive in-world (synergy 1.12; standalone first-glance was 1.15).
+        Forced pairing is not (0.90). Courtship off inflates the index to 1.36;
+        cheap exit drops it to 0.91. Commitment stays flat. Promiscuous share
+        still cannot grow a partner_id. 5 of 8 direction checks pass. An
+        exclusive pair is a selected unit only as a chosen bond.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/research/devlog/2026-09-18-union-as-emergent-property/' | relative_url }}">Pre-register</a>,
+      <a href="{{ '/research/experiments-catalog/' | relative_url }}">Experiments catalog</a>.
+    </p>
+  </li>
+  <li>
+    <a class="post-card" href="{{ '/research/devlog/2026-09-18-union-as-emergent-property/' | relative_url }}">
+      <span class="post-card__date">2026-09-18</span>
+      <h3 class="post-card__title">The union as an emergent property</h3>
+      <p class="post-card__excerpt">
+        Exclusive pair-bonds versus promiscuous share. The pre-register, the
+        literature constraints (Song, Reynolds, Akçay, Leimar, Han), and the
+        compact threshold grid: optional synergy 1.30 on baseline, commitment
+        flat, fidelity up, courtship off inflates the index, cheap exit and
+        wide neighborhoods shrink the unit. Sharing is a transaction; a union
+        is an agent.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/research/devlog/2026-09-19-union-emergence-layer-c/' | relative_url }}">Layer C first-glance</a>,
+      <a href="{{ '/research/experiments-catalog/' | relative_url }}">Experiments catalog</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/research/devlog/2026-09-12-veil-ceiling-observation-collapse/' | relative_url }}">
       <span class="post-card__date">2026-09-12</span>
       <h3 class="post-card__title">The veil ceiling: a leaked cue inverts sealed-world evaluation</h3>

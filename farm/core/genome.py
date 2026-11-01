@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING, Any, List, Optional, Sequence, TypeVar, Union
 from farm.core.action import (
     Action,
     attack_action,
+    bond_action,
     defend_action,
     gather_action,
+    leave_action,
     move_action,
     pass_action,
     reproduce_action,
@@ -60,6 +62,8 @@ ACTION_FUNCTIONS = {
     "reproduce": reproduce_action,
     "defend": defend_action,
     "pass": pass_action,
+    "bond": bond_action,
+    "leave": leave_action,
 }
 
 

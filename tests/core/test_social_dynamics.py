@@ -89,6 +89,56 @@ def test_social_dynamics_per_step_rates(session):
     assert float(row2["competition_intensity"]) == pytest.approx(0.0)
 
 
+def test_social_dynamics_counts_bond_and_leave(session):
+    session.add(
+        AgentModel(
+            agent_id="a1",
+            birth_time=0,
+            agent_type="system",
+            position_x=0.0,
+            position_y=0.0,
+            initial_resources=1.0,
+            starting_health=1.0,
+        )
+    )
+    session.add(
+        AgentModel(
+            agent_id="a2",
+            birth_time=0,
+            agent_type="system",
+            position_x=1.0,
+            position_y=1.0,
+            initial_resources=1.0,
+            starting_health=1.0,
+        )
+    )
+    session.add(
+        ActionModel(
+            step_number=3,
+            agent_id="a1",
+            action_type="bond",
+            action_target_id="a2",
+        )
+    )
+    session.add(
+        ActionModel(
+            step_number=3,
+            agent_id="a1",
+            action_type="leave",
+            action_target_id="a2",
+        )
+    )
+    session.commit()
+
+    df = social_dynamics_per_step(session, simulation_id=None)
+    row = df.loc[df["step"] == 3].iloc[0]
+    assert int(row["cooperation_actions"]) == 1
+    assert int(row["dissolution_actions"]) == 1
+    assert int(row["total_social_interactions"]) == 2
+    assert float(row["cooperation_rate"]) == pytest.approx(0.5)
+    assert float(row["dissolution_rate"]) == pytest.approx(0.5)
+
+
 def test_social_dynamics_filters_simulation_id(session):
     session.add(
         AgentModel(
