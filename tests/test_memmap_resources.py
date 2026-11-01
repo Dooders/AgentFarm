@@ -37,8 +37,8 @@ class TestMemmapResources(unittest.TestCase):
 
     def tearDown(self):
         if hasattr(self, "env") and self.env:
-            # ensure memmap file is flushed but retained
             self.env.close()
+            self.env.resource_manager.cleanup_memmap(delete_file=True)
 
     def test_memmap_created_and_window_shape(self):
         rm = self.env.resource_manager
@@ -122,4 +122,3 @@ class TestMemmapResources(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -395,10 +395,10 @@ def write_outputs(
     allocations = allocation_means(trials)
     contrasts = paired_contrasts(trials, include_lambda_primary=include_lambda)
 
-    trials.to_csv(out_dir / "trials.csv", index=False)
-    summary.to_csv(out_dir / "summary.csv", index=False)
-    allocations.to_csv(out_dir / "allocation_means.csv", index=False)
-    contrasts.to_csv(out_dir / "contrasts.csv", index=False)
+    trials.to_csv(out_dir / "trials.csv", index=False, lineterminator="\n")
+    summary.to_csv(out_dir / "summary.csv", index=False, lineterminator="\n")
+    allocations.to_csv(out_dir / "allocation_means.csv", index=False, lineterminator="\n")
+    contrasts.to_csv(out_dir / "contrasts.csv", index=False, lineterminator="\n")
     (out_dir / "run_config.json").write_text(json.dumps(run_config, indent=2) + "\n")
 
     write_figures(trials, out_dir / "figures")
