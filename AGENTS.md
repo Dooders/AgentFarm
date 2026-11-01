@@ -36,6 +36,7 @@ Run these from the repository root unless noted.
 | Include slow or integration tests | `pytest -m ""` or `pytest -m integration` / `-m slow` as needed |
 | Editor Jest tests | `cd farm/editor && npm test -- --runInBand` |
 | Docs internal link check | `python scripts/check_docs_links.py` |
+| Refresh / verify the CI lock file | `make lock` / `make lock-check` (requires `pip install uv`) |
 | Regenerate docs URL redirects | `python scripts/generate_doc_redirects.py` |
 | Regenerate verified spatial benchmark artifacts | `PYTHONHASHSEED=0 python benchmarks/implementations/spatial/comprehensive_spatial_benchmark.py --verified` |
 
