@@ -17,7 +17,7 @@ pytest
 See [CONTRIBUTING](../../CONTRIBUTING.md) and [AGENTS](../../AGENTS.md) for branching, linting, and layout.
 
 - **Getting started:** [Installation](../getting-started/installation.md) · [First simulation](../getting-started/first-simulation.md)
-- **CI:** [`.github/workflows/tests.yml`](../../.github/workflows/tests.yml) (job `python`, Python 3.10) — full workflow inventory in [Continuous integration](continuous-integration.md)
+- **CI:** [`.github/workflows/tests.yml`](../../.github/workflows/tests.yml) (`pytest` matrix on Python 3.10 and 3.12, gated by the `python` job) — full workflow inventory in [Continuous integration](continuous-integration.md)
 
 ## Editor / JavaScript (`farm/editor/`)
 

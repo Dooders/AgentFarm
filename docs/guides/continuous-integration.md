@@ -1,49 +1,58 @@
 # Continuous integration
 
-How AgentFarm is tested and validated in GitHub Actions: what each workflow covers, what actually blocks a merge, and the known gaps with recommended fixes.
+How AgentFarm is tested and validated in GitHub Actions: what each workflow covers, what actually blocks a merge, and the remaining gaps.
 
 This page is the single reference for the CI suite. Keep it in sync when adding, removing, or re-scoping a workflow under [`.github/workflows/`](../../.github/workflows/).
 
 ## What CI is responsible for
 
-AgentFarm is a simulation and analysis platform whose headline claims are **deterministic, reproducible simulations**, a **tested RL/evolution stack**, and an **installable Python package** with a REST/WebSocket API. The CI suite should therefore prove, on every change:
+AgentFarm is a simulation and analysis platform whose headline claims are **deterministic, reproducible simulations**, a **tested RL/evolution stack**, and an **installable Python package** with a REST/WebSocket API. The CI suite proves, on every change:
 
-1. The fast test suite passes and the simulation core stays above the coverage gate.
+1. The fast test suite passes on the supported Python versions and the simulation core stays above the coverage gate.
 2. Determinism holds: same seed, same output, within and across processes.
 3. Reproducibility holds: recorded experiments re-run byte-identically in a pinned environment.
 4. Evolution-optimizer behaviour stays inside its regression thresholds.
-5. Code quality (lint, docs links) is maintained.
-6. The package builds, installs, and imports cleanly on the supported Python versions and platforms.
-7. Releases are cut from a verified `main` with matching version and changelog.
-
-Items 1 through 5 are covered today to varying degrees; item 6 is not covered; item 7 is covered at release time only. See [Gaps and recommendations](#gaps-and-recommendations).
+5. Code quality is maintained: Ruff passes, the dependency lock is in sync, internal docs links resolve.
+6. The package builds, passes `twine check`, installs into a clean environment from the wheel alone, imports, and runs a simulation.
+7. The API server starts as a real process and answers requests.
+8. Known vulnerabilities in the locked dependency set are surfaced (and new ones block).
+9. Releases are cut from a verified `main` with matching version and changelog.
 
 ## Workflow inventory
 
-All workflows live under [`.github/workflows/`](../../.github/workflows/). Runner is `ubuntu-latest` unless noted.
+All workflows live under [`.github/workflows/`](../../.github/workflows/). Runner is `ubuntu-latest` unless noted. Every PR-triggered workflow has a `concurrency` group that cancels superseded runs on the same ref, and every job has a `timeout-minutes`.
 
 | Workflow | File | Triggers | Purpose |
 |----------|------|----------|---------|
-| `tests` | `tests.yml` | push / PR to `main`, `dev` | Fast pytest suite with coverage gate, editor Jest tests, Ruff, docs link checks |
+| `tests` | `tests.yml` | push / PR to `main`, `dev` | Python/OS matrix, packaging smoke, API smoke, editor Jest, Ruff + lock check, mypy, docs links |
 | `Deterministic Simulation Check` | `deterministic-simulation.yml` | push / PR to `main`, `dev`; manual | Component, cross-process, and CLI determinism checks |
-| `Evolution Regression` | `evolution-regression.yml` | push / PR to `main` (path-scoped); weekly Mon 08:00 UTC | Threshold-based regression checks for the evolution optimizer |
+| `Evolution Regression` | `evolution-regression.yml` | push / PR to `main`, `dev` (path-scoped); weekly Mon 08:00 UTC; manual | Threshold-based regression checks for the evolution optimizer |
 | `Reproduce consensus experiment` | `reproduce-consensus.yml` | push / PR touching `farm/experiments/consensus/**`, `farm/provenance/**`, `run_experiment.py` | Run, notarize, re-run, and byte-compare the consensus experiment |
-| `nightly-heavy-tests` | `nightly-heavy-tests.yml` | daily 09:00 UTC; manual | Full pytest suite including `slow` and `integration` markers |
-| `Deploy Docs to GitHub Pages` | `pages.yml` | push to `main` touching `docs/**`; manual | Jekyll build and deploy of `docs/` |
-| `Release` | `release.yml` | manual (`main` only) | Verify version/tag/changelog, run fast suite, build, create GitHub Release, optional PyPI publish |
+| `security` | `security.yml` | push / PR touching dependency files; weekly Mon 06:00 UTC; manual | `pip-audit` on the lock (blocking), `npm audit` on the editor (informational) |
+| `CodeQL` | `codeql.yml` | push / PR to `main`, `dev`; weekly Mon 05:00 UTC; manual | Static security analysis for Python and JavaScript |
+| `nightly-heavy-tests` | `nightly-heavy-tests.yml` | daily 09:00 UTC; manual | Full pytest suite including `slow` and `integration`; benchmark smoke |
+| `latest-deps` | `latest-deps.yml` | weekly Mon 07:00 UTC; manual | Fast suite against the *unpinned* `[project.dependencies]` (upstream-breakage canary) |
+| `Deploy Docs to GitHub Pages` | `pages.yml` | push to `main` touching `docs/**`; PRs touching `docs/**` (build only); manual | Jekyll build and deploy of `docs/` |
+| `Release` | `release.yml` | manual (`main` only) | Verify version/tag/changelog, run fast suite, build + `twine check`, create GitHub Release, optional PyPI publish |
 | `Create release milestone` | `create-release-milestone.yml` | manual | Create or reuse a GitHub milestone and assign issues |
 | `Copilot docs task after merge` | `copilot-docs-after-merge.yml` | push to `main` | Open an issue assigned to Copilot to sync documentation |
 | `Copilot changelog task after merge` | `copilot-changelog-after-merge.yml` | push to `main` (ignores changelog/devlog-only pushes) | Open an issue assigned to Copilot to update `CHANGELOG.md` |
+
+Dependabot (`.github/dependabot.yml`) opens weekly grouped minor/patch PRs for pip, the `farm/editor` npm toolchain, and GitHub Actions.
 
 ### `tests` jobs
 
 | Job | What it runs | Blocking? |
 |-----|--------------|-----------|
-| `python` | `pytest -m "not slow and not integration" --ignore=tests/test_deterministic_pytest.py --cov=farm --cov-fail-under=90`, then two smoke tests (`test_simulation_repeatability_fixed_seed`, `test_simulation_id_generation`). Python 3.10. | Yes (required status check) |
-| `js-ui` | `npm ci && npm test -- --runInBand` in `farm/editor/`. Node 20. | Yes (required status check) |
-| `lint` | `ruff check . --output-format=github` with Ruff pinned to `0.15.18`. | **No** — `continue-on-error: true` |
-| `docs-links` | `python scripts/check_docs_links.py` (internal markdown links). | No (not in required checks) |
-| `docs-external-links` | `lychee` over `docs/`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md` using `.lychee.toml`. | **No** — `continue-on-error: true` |
+| `pytest (3.10, ubuntu-latest)`, `pytest (3.12, ubuntu-latest)` | `pytest -m "not slow and not integration" --ignore=tests/test_deterministic_pytest.py --cov=farm --cov-fail-under=90 --cov-report=xml`, two determinism/ID smoke tests, then `scripts/ci/api_smoke.sh` (starts `uvicorn farm.api.server:app`, probes `/openapi.json`, `/docs`, `/api/simulations`, `/api/analysis/modules`). Uploads `coverage.xml` as an artifact. | Yes, via `python` |
+| `pytest (3.13, ubuntu-latest)`, `pytest (3.12, windows-latest)`, `pytest (3.12, macos-latest)` | Same suite without the coverage gate. `continue-on-error: true`. | No (informational) |
+| `package` | `python -m build`, `twine check dist/*`, install the wheel into a fresh venv constrained by the lock, run `scripts/ci/package_smoke.py` from outside the checkout (imports the main subsystems, checks the bundled YAML config ships, runs a 5-step simulation). Uploads `dist/`. | Yes, via `python` |
+| `lint` | `ruff check . --output-format=github` (Ruff `0.15.18`) and `make lock-check`. | Yes, via `python` |
+| `docs-links` | `python scripts/check_docs_links.py` (internal markdown links). | Yes, via `python` |
+| `python` | Gate job: `needs: [pytest, lint, docs-links, package]`, fails if any of them did not succeed. This is the status-check name the branch ruleset requires. | **Required status check** |
+| `js-ui` | `npm ci && npm test -- --runInBand` in `farm/editor/`. Node 20. | **Required status check** |
+| `typecheck` | `mypy` scoped by `[tool.mypy]` in `pyproject.toml` to `farm/core`, `farm/api`, `farm/config`. | No — `continue-on-error: true` until the baseline (~400 errors) is cleared |
+| `docs-external-links` | `lychee` over `docs/`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md` using `.lychee.toml`. | No — `continue-on-error: true` (external links flake) |
 
 ### `Deterministic Simulation Check` steps
 
@@ -59,7 +68,10 @@ On failure, `simulations/` is uploaded as an artifact.
 
 ### `nightly-heavy-tests`
 
-Runs `pytest -m ""` (every marker, including `slow` and `integration`) with the same 90% coverage gate, then runs `tests/test_deterministic_pytest.py` again with `-m integration`. Recent runs take 10 to 30 minutes and report roughly 7,200 passed and 18 skipped (CUDA- and optional-dependency-gated tests).
+- `python-heavy`: `pytest -m ""` (every marker, including `slow` and `integration`) with the same 90% coverage gate. Recent runs take 10 to 30 minutes and report roughly 7,200 passed and 18 skipped (CUDA- and optional-dependency-gated tests).
+- `benchmark-smoke`: `python -m benchmarks.run_benchmarks --list`, then `--spec benchmarks/specs/ci_smoke.yaml` (a few-second `observation_flow` run). The results JSON is uploaded as an artifact so timings can be trended.
+
+Both jobs open or comment on a `ci-failure` issue when they fail (see [Scheduled-failure reporting](#scheduled-failure-reporting)).
 
 ### `Reproduce consensus experiment`
 
@@ -78,9 +90,32 @@ This is the machine check behind the "bitwise reproducible from the committed se
 Branch protection is enforced by the repository ruleset **Protect main and dev** on `refs/heads/main` and `refs/heads/dev`:
 
 - Deletions and non-fast-forward pushes are blocked.
-- Required status checks: **`python`** and **`js-ui`** only. `strict_required_status_checks_policy` is `false` (branches do not need to be up to date with the base before merging).
+- Required status checks: **`python`** and **`js-ui`**. `strict_required_status_checks_policy` is `false` (branches do not need to be up to date with the base before merging).
 
-Everything else, including `Deterministic Simulation Check`, `lint`, `docs-links`, `Evolution Regression`, and `Reproduce consensus experiment`, can fail without blocking a merge.
+Because `python` is a gate job, the required pytest legs, `lint`, `docs-links`, and `package` all block merges without a ruleset change. The following still do **not** block and should be added to the ruleset's required checks by a repository admin:
+
+- `deterministic-test` (from `Deterministic Simulation Check`)
+- `pip-audit (3.10)` and `pip-audit (3.12)` (from `security`, path-filtered so they only appear on dependency changes)
+
+```bash
+# Admin only. Adds deterministic-test to the required checks; keeps the existing ones.
+gh api -X PUT repos/Dooders/AgentFarm/rulesets/18047834 --input - <<'EOF'
+{
+  "rules": [
+    {"type": "deletion"},
+    {"type": "non_fast_forward"},
+    {"type": "required_status_checks", "parameters": {
+      "strict_required_status_checks_policy": false,
+      "do_not_enforce_on_create": false,
+      "required_status_checks": [
+        {"context": "python"},
+        {"context": "js-ui"},
+        {"context": "deterministic-test"}
+      ]}}
+  ]
+}
+EOF
+```
 
 ## Test selection and markers
 
@@ -88,7 +123,7 @@ Everything else, including `Deterministic Simulation Check`, `lint`, `docs-links
 
 | Marker | Default suite | Where it runs in CI |
 |--------|---------------|---------------------|
-| `unit`, `ml`, `db`, `analysis` | Yes | `tests` → `python`; nightly |
+| `unit`, `ml`, `db`, `analysis` | Yes | `tests` → `pytest` legs; nightly; `latest-deps` |
 | `determinism`, `determinism_regression` | Yes (unless also `slow`/`integration`) | `Deterministic Simulation Check`; `tests` smoke step; nightly |
 | `slow` | No | nightly only |
 | `integration` | No | nightly; `Deterministic Simulation Check` (explicit module) |
@@ -98,95 +133,46 @@ Local equivalents are listed in [AGENTS.md](../../AGENTS.md) and [Development se
 
 ## Coverage gate
 
-`--cov-fail-under=90` is enforced in `tests` and `nightly-heavy-tests`. The denominator is controlled by `.coveragerc`, which omits roughly 60 modules: matplotlib/plot pipelines, Tk GUI code, CUDA-only paths, optional-dependency wrappers (`tianshou`, `manim`, FAISS/ViT), and standalone analysis scripts. The gate therefore measures the simulation core, database, runners, API, and config layers rather than the whole package. The report is `term-missing` only; no coverage artifact or per-PR diff is produced.
+`--cov-fail-under=90` is enforced on the required `pytest` legs and in `nightly-heavy-tests`. The denominator is controlled by `.coveragerc`, which omits roughly 60 modules: matplotlib/plot pipelines, Tk GUI code, CUDA-only paths, optional-dependency wrappers (`tianshou`, `manim`, FAISS/ViT), and standalone analysis orchestration. The gate therefore measures the simulation core, database, runners, API, and config layers rather than the whole package. Each required leg uploads `coverage.xml` as the `coverage-<python>-<os>` artifact.
 
-## Environment pinning
+## Dependencies and environment pinning
+
+- **Source of truth:** `pyproject.toml` `[project.dependencies]` (runtime) and the `dev` extra (test tooling). `requirements.txt` only contains `-e .[dev]`. Optional extras: `media` (moviepy, for `scripts/animate_simulation.py`) and `notary`.
+- **Lock:** `requirements-lock.txt`, generated by `make lock` (`uv pip compile`, universal across platforms for Python >= 3.10). Without `--upgrade`, uv keeps existing pins, so the file only changes when `pyproject.toml` changes; `make lock-upgrade` moves every pin forward. `make lock-check` (run in the `lint` job) fails when the lock is stale.
+- **Who installs what:**
 
 | Workflow | Python | Dependency source |
 |----------|--------|-------------------|
-| `tests`, `nightly-heavy-tests`, `Deterministic Simulation Check`, `Evolution Regression`, `Release` | 3.10 | `requirements.txt` (unpinned lower bounds) |
+| `tests` (`pytest`, `package`, `typecheck`), `nightly-heavy-tests`, `Deterministic Simulation Check`, `Evolution Regression`, `Release` | 3.10 / 3.12 / 3.13 (matrix) or 3.10 | `requirements-lock.txt` + `pip install -e . --no-deps` |
+| `latest-deps` | 3.12 | unpinned `pip install -e .[dev]` |
 | `Reproduce consensus experiment` | 3.12 | `requirements-ci-lock.txt` (4 pins) + `--no-deps` |
 
-GitHub Actions are SHA-pinned in every workflow except `reproduce-consensus.yml`, which uses floating `@v4` / `@v5` tags. Pinned major versions are not consistent across files (`tests.yml` is on `checkout@v7` / `setup-python@v6`; others are on `v4` / `v5`).
+- **Python floor:** `requires-python = ">=3.10"`. Pillow forks in the lock (12.x on 3.10, 13 on 3.11+) because Pillow 13 fixes advisories but needs 3.11.
+- **Actions:** SHA-pinned in every workflow; Dependabot keeps them current.
 
-## Gaps and recommendations
+## Security scanning
 
-Ordered by impact. Each item is scoped to workflow or packaging-config changes; none require runtime code changes except clearing the Ruff baseline.
+- `security.yml` → `pip-audit` runs against `requirements-lock.txt` on Python 3.10 and 3.12 with `--strict`. Advisories that cannot be fixed under current constraints are ignored explicitly, with the reason, in the workflow: the `protobuf` 3.19 advisories pinned by `tianshou 0.4.11`, and the Pillow 12.x advisories on the 3.10 leg (fixed in Pillow 13, which needs 3.11+). Remove an ignore as soon as its constraint lifts.
+- `npm audit --audit-level=high` on `farm/editor` is informational; the Jest toolchain carries advisories whose fixes are major upgrades that Dependabot proposes separately.
+- `codeql.yml` analyzes Python and JavaScript; findings appear under Security → Code scanning.
 
-### 1. Lint is non-blocking and currently failing
+## Scheduled-failure reporting
 
-`lint` runs with `continue-on-error: true`, so Ruff failures show as a red job inside a green workflow. The PR template asks contributors to run `ruff check .`, but CI does not enforce it.
+`.github/actions/report-scheduled-failure` is a composite action that opens, or comments on, an open issue titled `Scheduled CI failure: <workflow>` labelled `ci-failure`. It is wired into `nightly-heavy-tests` (both jobs), `latest-deps`, and the scheduled run of `Evolution Regression`. Close the issue once the workflow is green again.
 
-**Recommendation:** clear the Ruff baseline once, remove `continue-on-error`, add `ruff format --check`, and add `lint` to the required status checks. If the baseline is too large to clear in one change, make a diff-scoped check blocking (`ruff check $(git diff --name-only origin/dev...HEAD -- '*.py')`) and keep the full-repo run informational.
+## Remaining gaps
 
-### 2. Required checks are too narrow
+Ordered by impact.
 
-Only `python` and `js-ui` gate merges. Determinism is the library's headline property and `Deterministic Simulation Check` can fail without blocking.
-
-**Recommendation:** add `deterministic-test`, `lint`, and `docs-links` to the ruleset's required status checks.
-
-### 3. Single Python version, single OS, unpinned dependencies
-
-Every job runs on Python 3.10 on Ubuntu (3.12 for the consensus job). The README advertises Python 3.8+, Ruff targets `py38`, and `pyproject.toml` has no `requires-python`. `requirements.txt` includes `pywin32` and the docs give Windows instructions, but no job runs on Windows or macOS. The main suite installs unpinned dependencies, so a new `torch`, `numpy`, `pydantic`, or `tianshou` release can break `dev` with no code change.
-
-**Recommendation:**
-
-- Matrix `{3.10, 3.12}` × `ubuntu-latest` as required legs; add `3.13`, `windows-latest`, and `macos-latest` as `continue-on-error` informational legs.
-- Generate a full lock file (`pip-compile` or `uv pip compile`) for the required legs.
-- Add a weekly "latest dependencies" job that installs from the unpinned `requirements.txt` so dependency breakage is detected and attributed separately from code changes.
-- Set `requires-python` in `pyproject.toml` and update the README to match what CI actually tests.
-
-### 4. Packaging is never validated
-
-`pyproject.toml` declares no `[project] dependencies`; the built wheel's metadata lists only the `notary` extra. A `pip install agentfarm` from a wheel installs zero runtime dependencies. CI never builds a wheel except in `Release`, never runs `twine check`, and never installs the wheel into a clean environment.
-
-**Recommendation:** add a `package` job on PRs that runs `python -m build`, `twine check dist/*`, installs the wheel into a fresh venv, imports `farm`, and runs a short simulation (`run_simulation.py --environment testing --steps 10`). Mirror runtime dependencies from `requirements.txt` into `[project] dependencies`.
-
-### 5. Evolution regression never runs on contributor PRs
-
-`evolution-regression.yml` triggers on `main` only, but [CONTRIBUTING.md](../../CONTRIBUTING.md) directs all PRs to `dev`. The threshold checks therefore run weekly on `dev` and on `dev → main` merges, never on the PR that introduces a regression. Its path filter also omits `farm/core/decision/**`.
-
-**Recommendation:** add `dev` to both `push.branches` and `pull_request.branches`; add `farm/core/decision/**` to the path filters.
-
-### 6. No type checking
-
-The codebase relies on Pydantic models, `typing.Protocol` interfaces (`farm/core/interfaces.py`), and `TYPE_CHECKING` blocks, but no `mypy` or `pyright` job exists.
-
-**Recommendation:** add an informational type-check job scoped to `farm/core`, `farm/api`, and `farm/config`; promote to blocking once the baseline is clean.
-
-### 7. No dependency or security scanning
-
-There is no `.github/dependabot.yml`, no CodeQL, no `pip-audit`, and no `npm audit`. The `overrides: js-yaml` entry in `farm/editor/package.json` indicates a vulnerability was patched by hand.
-
-**Recommendation:** enable Dependabot for the `pip`, `npm`, and `github-actions` ecosystems (the latter also normalizes action pinning), add a `pip-audit` step to `tests`, and enable CodeQL default setup.
-
-### 8. Workflow mechanics
-
-- No `concurrency` group on `tests.yml` or `deterministic-simulation.yml`; back-to-back pushes to a PR run in parallel. Add `concurrency: { group: ${{ github.workflow }}-${{ github.ref }}, cancel-in-progress: true }`.
-- No `timeout-minutes` on `tests.yml` or `nightly-heavy-tests.yml` (GitHub default is 6 hours).
-- `nightly-heavy-tests` runs `tests/test_deterministic_pytest.py` twice (once via `-m ""`, once explicitly).
-- Scheduled failures have no notification path. Add a `failure()` step that opens or updates a tracking issue.
-- Upload `coverage.xml` as an artifact and consider a patch-coverage comment (`diff-cover` or Codecov) so reviewers can see what a PR did to coverage.
-- `pages.yml` builds Jekyll only on `main`; a broken docs build on `dev` is discovered at release time. Run the build step (without deploy) on PRs touching `docs/**`.
-- `deterministic-simulation.yml` lists `setup.py` in `cache-dependency-path`; the file does not exist.
-
-### 9. Surfaces with no CI coverage
-
-- `benchmarks/` is never executed. `tests/benchmarks/test_spatial_benchmark_verified_artifact.py` checks committed artifacts, but nothing regenerates or trends them. A nightly benchmark smoke with timing artifacts would catch performance regressions in the spatial index.
-- The FastAPI server is exercised through `TestClient` only. Add a smoke step that starts `uvicorn farm.api.server:app`, polls a health endpoint, and shuts down, to catch import-time and lifespan failures that `TestClient` masks.
-- `farm/editor/` has one Jest file (`__tests__/explorer.test.js`) and no JS lint or build step.
-- `scripts/` has roughly 50 CLI entry points with 9 test files under `tests/scripts/`; the `Makefile` smoke target `crossover-search-smoke` is not run anywhere.
-
-## Suggested implementation order
-
-1. Make `lint` blocking; add `deterministic-test`, `lint`, and `docs-links` to required checks.
-2. Add `dev` to `evolution-regression.yml` triggers and broaden its path filter.
-3. Add a `package` job and fix `pyproject.toml` dependencies / `requires-python`.
-4. Lock the main test environment; add a weekly unpinned-dependencies job.
-5. Python version and OS matrix.
-6. Dependabot, `pip-audit`, CodeQL.
-7. `concurrency` and `timeout-minutes` on all PR workflows; nightly failure issue.
-8. Type checking, coverage artifact, Jekyll build on docs PRs, API startup smoke, benchmark smoke.
+1. **Ruleset still lists only `python` and `js-ui`.** `deterministic-test` and `pip-audit` can fail without blocking. Requires admin access; see [Merge gating](#merge-gating).
+2. **Type checking is informational.** The mypy baseline is roughly 400 errors across `farm/core`, `farm/api`, `farm/config`. Burn it down module by module, then drop `continue-on-error` from `typecheck`.
+3. **`ruff format --check` is not enforced.** Roughly 70% of files would be reformatted; adopt in one formatting commit, then add the check to `lint`.
+4. **Informational matrix legs have no history.** 3.13, Windows and macOS legs may fail silently behind `continue-on-error`; review them periodically and promote a leg to required once it is reliably green.
+5. **Coverage is an artifact, not a PR comment.** `coverage.xml` is uploaded but no patch-coverage diff is posted; add `diff-cover` or Codecov if reviewers want it inline.
+6. **Benchmark results are not trended.** The nightly smoke uploads results JSON but nothing compares runs over time. `benchmarks/run_benchmarks.py --compare` exists and could feed a scheduled report. The `spatial_comprehensive` spec in `benchmarks/specs/` references an experiment that is not registered with the runner.
+7. **Editor coverage is thin.** One Jest file, no JS lint, no build step.
+8. **`scripts/` has ~50 CLI entry points and 9 test files.** `scripts/ci/` is covered by the workflows; the research scripts are not.
+9. **`tianshou<0.5` holds `protobuf` on 3.19.** Upgrading tianshou (and revisiting the NumPy constraint) would remove two `pip-audit` ignores.
 
 ## Related
 
