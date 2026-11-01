@@ -21,7 +21,7 @@ pip install -e .
 ```
 
 - **Python:** 3.10+ (`requires-python` in `pyproject.toml`; CI runs 3.10 and 3.12).
-- **Dependencies:** runtime dependencies are declared in `pyproject.toml` `[project.dependencies]`; `requirements.txt` just installs `-e .[dev]`. Edit `pyproject.toml`, not `requirements.txt`, when adding a dependency.
+- **Dependencies:** runtime dependencies are declared in `pyproject.toml` `[project.dependencies]`; `requirements.txt` just installs `-e .[dev]`. Edit `pyproject.toml`, not `requirements.txt`, when adding a dependency, then run `make lock` (needs `uv`) to refresh `requirements-lock.txt`. CI installs from the lock and fails `make lock-check` if it is stale.
 - **Redis:** Optional; used for some memory features (see README).
 - **Editor UI:** From `farm/editor/`, use Node 20 and `npm ci` (or `npm install`) before running Jest.
 

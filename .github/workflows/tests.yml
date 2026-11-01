@@ -21,16 +21,14 @@ jobs:
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-lock.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-      - name: Install Python deps
+      - name: Install locked dependencies and package
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Install package
-        run: |
-          pip install -e .
+          pip install -r requirements-lock.txt
+          pip install -e . --no-deps
       - name: Run pytest
         run: |
           pytest -q -vv --durations=50 --ignore=tests/test_deterministic_pytest.py -m "not slow and not integration" --cov=farm --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=90
@@ -52,7 +50,7 @@ jobs:
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-lock.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
       - name: Build sdist and wheel
@@ -64,7 +62,7 @@ jobs:
         run: |
           python -m venv "$RUNNER_TEMP/wheel-venv"
           "$RUNNER_TEMP/wheel-venv/bin/pip" install --upgrade pip
-          "$RUNNER_TEMP/wheel-venv/bin/pip" install dist/*.whl
+          "$RUNNER_TEMP/wheel-venv/bin/pip" install -c requirements-lock.txt dist/*.whl
       - name: Smoke-test the installed package
         working-directory: ${{ runner.temp }}
         env:
@@ -106,10 +104,12 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.10'
-      - name: Install Ruff
-        run: pip install ruff==0.15.18
+      - name: Install Ruff and uv
+        run: pip install ruff==0.15.18 uv
       - name: Run Ruff
         run: ruff check . --output-format=github
+      - name: Check requirements-lock.txt is in sync with pyproject.toml
+        run: make lock-check
 
   docs-links:
     runs-on: ubuntu-latest
