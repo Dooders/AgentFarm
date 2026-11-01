@@ -1,0 +1,85 @@
+name: security
+
+# Dependency vulnerability scanning. Runs when the dependency set changes and
+# on a weekly schedule so newly published advisories are caught between
+# dependency changes.
+#
+# pip-audit is blocking. Advisories that cannot be fixed within the current
+# dependency constraints are listed explicitly in the --ignore-vuln flags
+# with the reason; remove an entry as soon as the constraint is lifted.
+#
+# npm audit is informational: the Jest toolchain under farm/editor carries
+# known advisories whose fixes require major upgrades, which Dependabot
+# proposes separately.
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - pyproject.toml
+      - requirements-lock.txt
+      - farm/editor/package.json
+      - farm/editor/package-lock.json
+      - .github/workflows/security.yml
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - pyproject.toml
+      - requirements-lock.txt
+      - farm/editor/package.json
+      - farm/editor/package-lock.json
+      - .github/workflows/security.yml
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pip-audit:
+    name: pip-audit (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Audit the locked dependency set
+        # protobuf 3.19.x: pinned by tianshou 0.4.11 (protobuf~=3.19.0); fix
+        #   needs tianshou>=0.5, which is held back for NumPy compatibility.
+        # pillow 12.x (Python 3.10 leg only): fixes landed in Pillow 13, which
+        #   requires Python 3.11+. The 3.12 leg runs Pillow 13 and is clean.
+        run: |
+          pip-audit -r requirements-lock.txt --no-deps --progress-spinner off --strict \
+            --ignore-vuln PYSEC-2026-1805 \
+            --ignore-vuln PYSEC-2026-1806 \
+            --ignore-vuln CVE-2026-96640 \
+            --ignore-vuln CVE-2026-96778 \
+            --ignore-vuln GHSA-78g4-xqwv-q3g8
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: farm/editor
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '20'
+      - name: Audit editor dev dependencies (informational)
+        run: npm audit --audit-level=high

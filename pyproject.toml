@@ -35,8 +35,10 @@ dependencies = [
     "pettingzoo>=1.24.0",
     # Database / memory
     "redis>=4.0.0",
-    # GUI
-    "pillow>=9.0.0",
+    # GUI. Pillow 13 fixes CVEs that 12.x does not but requires Python 3.11+,
+    # so the lock forks: 12.x on 3.10, 13+ elsewhere.
+    "pillow>=12.3.0; python_version < '3.11'",
+    "pillow>=13.0.0; python_version >= '3.11'",
     "pywin32>=228; sys_platform == 'win32'",
     # Visualization
     "snakeviz>=2.1.0",
@@ -74,8 +76,6 @@ dependencies = [
     # LLM integration
     "openai>=1.0.0",
     "pyscn>=0.1.0",
-    # Media
-    "moviepy>=1.0.3",
 ]
 
 [project.urls]
@@ -94,6 +94,12 @@ dev = [
 ]
 notary = [
     "farm-notary @ git+https://github.com/Dooders/FarmNotary.git@v0.1.0",
+]
+# Video export (scripts/animate_simulation.py). Kept optional because moviepy
+# 2.x caps Pillow below 12, which would hold the core install on a Pillow
+# line with known CVEs.
+media = [
+    "moviepy>=2.0",
 ]
 
 [tool.setuptools.packages.find]
