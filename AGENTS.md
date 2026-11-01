@@ -20,7 +20,8 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-- **Python:** 3.8+ (3.9+ recommended; CI uses 3.10).
+- **Python:** 3.10+ (`requires-python` in `pyproject.toml`; CI runs 3.10 and 3.12).
+- **Dependencies:** runtime dependencies are declared in `pyproject.toml` `[project.dependencies]`; `requirements.txt` just installs `-e .[dev]`. Edit `pyproject.toml`, not `requirements.txt`, when adding a dependency, then run `make lock` (needs `uv`) to refresh `requirements-lock.txt`. CI installs from the lock and fails `make lock-check` if it is stale.
 - **Redis:** Optional; used for some memory features (see README).
 - **Editor UI:** From `farm/editor/`, use Node 20 and `npm ci` (or `npm install`) before running Jest.
 
@@ -35,6 +36,7 @@ Run these from the repository root unless noted.
 | Include slow or integration tests | `pytest -m ""` or `pytest -m integration` / `-m slow` as needed |
 | Editor Jest tests | `cd farm/editor && npm test -- --runInBand` |
 | Docs internal link check | `python scripts/check_docs_links.py` |
+| Refresh / verify the CI lock file | `make lock` / `make lock-check` (requires `pip install uv`) |
 | Regenerate docs URL redirects | `python scripts/generate_doc_redirects.py` |
 | Regenerate verified spatial benchmark artifacts | `PYTHONHASHSEED=0 python benchmarks/implementations/spatial/comprehensive_spatial_benchmark.py --verified` |
 

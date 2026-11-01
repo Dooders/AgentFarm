@@ -223,7 +223,7 @@ def plot_damage_distribution(combat_df: pd.DataFrame, ctx: AnalysisContext, **kw
     successful = combat_df[combat_df["damage_dealt"] > 0]["damage_dealt"]
     failed = combat_df[combat_df["damage_dealt"] == 0]["damage_dealt"]
 
-    ax2.boxplot([successful, failed], labels=["Successful", "Failed"])
+    ax2.boxplot([successful, failed], tick_labels=["Successful", "Failed"])
     ax2.set_ylabel("Damage Dealt")
     ax2.set_title("Damage by Attack Success")
     ax2.grid(True, alpha=0.3)

@@ -1,0 +1,54 @@
+name: Report scheduled failure
+description: >
+  Open (or comment on) a tracking issue when a scheduled workflow fails, so
+  nightly/weekly breakage is visible outside the Actions tab. The calling
+  job needs `permissions: issues: write`.
+
+inputs:
+  token:
+    description: Token with issues:write (normally github.token)
+    required: true
+  label:
+    description: Label applied to the tracking issue
+    required: false
+    default: ci-failure
+
+runs:
+  using: composite
+  steps:
+    - name: Create or update tracking issue
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ github.repository }}
+        LABEL: ${{ inputs.label }}
+        WORKFLOW: ${{ github.workflow }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        REF_NAME: ${{ github.ref_name }}
+        SHA: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+        title="Scheduled CI failure: ${WORKFLOW}"
+        stamp=$(date -u +"%Y-%m-%d %H:%M UTC")
+        body=$(printf '%s\n' \
+          "The scheduled \`${WORKFLOW}\` workflow failed." \
+          "" \
+          "- Run: ${RUN_URL}" \
+          "- Branch: \`${REF_NAME}\` at \`${SHA:0:7}\`" \
+          "- Time: ${stamp}" \
+          "" \
+          "This issue is updated by \`.github/actions/report-scheduled-failure\` on each failure. Close it once the workflow is green again.")
+
+        gh label create "$LABEL" --color B60205 --force \
+          --description "Opened automatically when a scheduled workflow fails" >/dev/null
+
+        existing=$(gh issue list --state open --label "$LABEL" --search "in:title \"${title}\"" \
+          --json number,title --jq ".[] | select(.title == \"${title}\") | .number" | head -n 1)
+
+        if [ -n "$existing" ]; then
+          gh issue comment "$existing" --body "$body"
+          echo "Commented on existing issue #${existing}."
+        else
+          gh issue create --title "$title" --label "$LABEL" --body "$body"
+          echo "Opened a new tracking issue."
+        fi

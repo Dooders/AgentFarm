@@ -6,6 +6,27 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/research/devlog/2026-09-12-veil-ceiling-observation-collapse/' | relative_url }}">
+      <span class="post-card__date">2026-09-12</span>
+      <h3 class="post-card__title">The veil ceiling: a leaked cue inverts sealed-world evaluation</h3>
+      <p class="post-card__excerpt">
+        Hold enforcement fixed and vary only the fidelity of a cue that is
+        correlated with being watched. Divergence grows monotonically with
+        the leak (ρ = 1.0); Lamarckian agents with a perfect cue drop realised
+        enforcement from 0.48 to 0.14. The pre-registered oracle AUC does not
+        collapse, but an honest-calibrated evaluator — fitted where the veil
+        is intact — is at chance, and observed defection rate ranks agents
+        backwards. Concealment pays.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/research/experiments/veil_ceiling/Design/' | relative_url }}">Pre-registered design</a>,
+      <a href="{{ '/research/experiments/veil_ceiling/RESULTS/' | relative_url }}">Confirmatory results</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/research/devlog/2026-07-09-lowchurn-inheritance-still-loses/' | relative_url }}">
       <span class="post-card__date">2026-07-09</span>
       <h3 class="post-card__title">Sparse ecology doesn't save the ladder: warm-start still loses</h3>

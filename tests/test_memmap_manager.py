@@ -31,6 +31,11 @@ class TestMemmapManager(unittest.TestCase):
             default_dtype="float32",
         )
 
+    def test_normalizes_directory(self):
+        directory = self.tmpdir + os.sep * 2
+        manager = MemmapManager(directory=directory)
+        self.assertEqual(manager.directory, os.path.normpath(directory))
+
     def tearDown(self):
         self.mgr.close_all(delete_files=True)
         # tmpdir may still contain leftover files from failed tests; remove
@@ -112,12 +117,13 @@ class TestMemmapManager(unittest.TestCase):
         self.assertAlmostEqual(float(arr[2, 2]), 0.5)
 
     def test_close_removes_file_when_requested(self):
-        self.mgr.create("g", (2, 2))
+        arr = self.mgr.create("g", (2, 2))
         path = self.mgr.info("g").path
         self.assertTrue(os.path.exists(path))
         self.mgr.close("g", delete_file=True)
         self.assertFalse(os.path.exists(path))
         self.assertFalse(self.mgr.has("g"))
+        self.assertTrue(arr._mmap.closed)
 
     def test_close_keeps_file_by_default(self):
         self.mgr.create("g", (2, 2))

@@ -62,7 +62,7 @@ class ConfigCache:
         self.max_size = max_size
         self.max_memory_mb = max_memory_mb
         self.cache: Dict[str, Dict[str, Any]] = {}
-        self.access_times: Dict[str, float] = {}
+        self.access_times: Dict[str, int] = {}
         self.file_mtimes: Dict[str, float] = {}
         # Track file sizes alongside mtimes for robust change detection.
         # Rationale: Some filesystems only store modification times (mtime) with second-level granularity,
@@ -70,6 +70,7 @@ class ConfigCache:
         # Tracking file size helps detect changes that mtime alone might miss.
         self.file_sizes: Dict[str, int] = {}
         self.memory_usage = 0.0
+        self._access_sequence = 0
         self.lock = threading.RLock()
 
         # Metrics tracking
@@ -123,8 +124,8 @@ class ConfigCache:
                             self.misses += 1
                             return None
 
-            # Update access time and track hit
-            self.access_times[cache_key] = time.time()
+            # Update access order and track hit
+            self._mark_accessed(cache_key)
             self.hits += 1
 
             # Return cached config dict
@@ -213,7 +214,7 @@ class ConfigCache:
                 "file_mtimes": file_mtimes,
                 "file_sizes": sizes_map,
             }
-            self.access_times[cache_key] = time.time()
+            self._mark_accessed(cache_key)
             self.memory_usage += config_size
 
     def invalidate(self, cache_key: str) -> None:
@@ -268,6 +269,11 @@ class ConfigCache:
 
         self.access_times.pop(cache_key, None)
         self.file_mtimes.pop(cache_key, None)
+
+    def _mark_accessed(self, cache_key: str) -> None:
+        """Record a strictly increasing access order for LRU eviction."""
+        self._access_sequence += 1
+        self.access_times[cache_key] = self._access_sequence
 
     def _evict_lru(self) -> None:
         """Evict least recently used entries to make room."""

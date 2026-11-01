@@ -54,7 +54,7 @@ from farm.analysis.dominance.sqlalchemy_models import (
     init_db,
 )
 from farm.utils.logging import get_logger
-from scripts.analysis_config import setup_and_process_simulations
+from farm.analysis.analysis_config import setup_and_process_simulations
 
 logger = get_logger(__name__)
 

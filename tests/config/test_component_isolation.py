@@ -107,16 +107,17 @@ class TestConfigCacheIsolation(unittest.TestCase):
 
         cache = ConfigCache(max_size=2)
 
-        # Fill cache
-        cache.put("key1", SimulationConfig())
-        cache.put("key2", SimulationConfig())
-        self.assertEqual(cache.get_stats()["entries"], 2)
+        # Windows clocks can report the same timestamp for several accesses.
+        with patch("farm.config.cache.time.time", return_value=1000.0):
+            cache.put("key1", SimulationConfig())
+            cache.put("key2", SimulationConfig())
+            self.assertEqual(cache.get_stats()["entries"], 2)
 
-        # Access key1 to make it recently used
-        cache.get("key1")
+            # Access key1 to make it recently used
+            cache.get("key1")
 
-        # Add third item, should evict key2 (least recently used)
-        cache.put("key3", SimulationConfig())
+            # Add third item, should evict key2 (least recently used)
+            cache.put("key3", SimulationConfig())
         self.assertEqual(cache.get_stats()["entries"], 2)
 
         # key1 should still be there

@@ -40,7 +40,7 @@ gh workflow run create-release-milestone.yml \
 
 Before opening a release PR:
 
-1. **`dev` CI is green** — the [`tests` workflow](../.github/workflows/tests.yml) must pass on the latest `dev` commit.
+1. **`dev` CI is green** — the [`tests` workflow](../.github/workflows/tests.yml) must pass on the latest `dev` commit. See [Continuous integration](guides/continuous-integration.md) for the full workflow inventory and which jobs block a merge.
 2. **Heavy regressions** — for releases touching simulation core, RL, or evolution code, confirm the [nightly](../.github/workflows/nightly-heavy-tests.yml), [deterministic-simulation](../.github/workflows/deterministic-simulation.yml), and [evolution-regression](../.github/workflows/evolution-regression.yml) workflows are green (run manually or wait for the latest scheduled run).
 3. **Changelog is ready** — roll up recent dated entries into a version section (see below).
 4. **Version is bumped** — update `farm/_version.py` (the single source of truth).
