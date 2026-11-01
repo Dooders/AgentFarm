@@ -121,7 +121,7 @@ pillow==12.3.0 ; python_full_version < '3.11'  # via matplotlib, tensorboard, ag
 pillow==13.0.0 ; python_full_version >= '3.11'  # via matplotlib, tensorboard, agentfarm (pyproject.toml)
 plotly==7.1.0             # via dash, agentfarm (pyproject.toml)
 pluggy==1.7.0             # via pytest, pytest-cov
-protobuf==3.19.6          # via tensorboard, tianshou
+protobuf==7.36.2          # via tensorboard, tianshou
 psutil==7.2.2             # via agentfarm (pyproject.toml)
 pyarrow==25.0.1 ; python_full_version < '3.11'  # via agentfarm (pyproject.toml)
 pyarrow==26.0.0 ; python_full_version >= '3.11'  # via agentfarm (pyproject.toml)
