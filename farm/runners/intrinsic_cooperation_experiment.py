@@ -566,6 +566,10 @@ class IntrinsicCooperationExperimentConfig:
     # every arm against the ceiling and leaves selection nothing to act on;
     # density-dependent reproduction cost (selection_pressure) regulates instead.
     max_population: int | None = 300
+    # Reproduction economics; ``None`` keeps the environment's values. The
+    # reproduce action requires min_reproduction_resources + offspring_cost.
+    offspring_initial_resources: float | None = None
+    min_reproduction_resources: float | None = None
 
     # Which loci vary. The cooperation loci (Chromosome D) are drawn
     # uniformly per founder by the service and mutate at every birth. The
@@ -632,6 +636,8 @@ class IntrinsicCooperationExperimentConfig:
             "initial_agent_resource_level": self.initial_agent_resource_level,
             "initial_resource_count": self.initial_resource_count,
             "max_population": self.max_population,
+            "offspring_initial_resources": self.offspring_initial_resources,
+            "min_reproduction_resources": self.min_reproduction_resources,
             "initial_diversity_scale": self.initial_diversity_scale,
             "freeze_platform_genes": self.freeze_platform_genes,
             "policy_temperature": self.policy_temperature,
@@ -971,6 +977,10 @@ class IntrinsicCooperationExperiment:
             run_config.resources.initial_resources = int(self.config.initial_resource_count)
         if self.config.max_population is not None:
             run_config.population.max_population = int(self.config.max_population)
+        if self.config.offspring_initial_resources is not None:
+            run_config.agent_behavior.offspring_initial_resources = self.config.offspring_initial_resources
+        if self.config.min_reproduction_resources is not None:
+            run_config.agent_behavior.min_reproduction_resources = self.config.min_reproduction_resources
         coop = self.config.cooperation
         if arm == "baseline":
             run_config.cooperation = CooperationConfig(enabled=False)

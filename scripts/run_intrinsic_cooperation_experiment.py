@@ -120,6 +120,18 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--initial-agent-resource-level", type=float, default=12.0)
     p.add_argument("--initial-resource-count", type=int, default=60)
     p.add_argument("--max-population", type=int, default=300)
+    p.add_argument(
+        "--offspring-initial-resources",
+        type=float,
+        default=None,
+        help="Resources a newborn starts with (default: the environment's value).",
+    )
+    p.add_argument(
+        "--min-reproduction-resources",
+        type=float,
+        default=None,
+        help="Reserve required on top of the offspring cost to reproduce (default: the environment's value).",
+    )
     # Learning / evolution regime
     p.add_argument(
         "--policy-temperature",
@@ -207,6 +219,8 @@ def main() -> int:
         initial_agent_resource_level=args.initial_agent_resource_level,
         initial_resource_count=args.initial_resource_count,
         max_population=args.max_population,
+        offspring_initial_resources=args.offspring_initial_resources,
+        min_reproduction_resources=args.min_reproduction_resources,
         initial_diversity_scale=args.initial_diversity_scale,
         freeze_platform_genes=not args.no_freeze_platform_genes,
         policy_temperature=args.policy_temperature,

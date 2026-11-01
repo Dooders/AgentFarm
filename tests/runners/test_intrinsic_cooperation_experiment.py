@@ -165,6 +165,22 @@ def test_learning_regime_is_applied_to_every_arm():
     assert run_config.initial_diversity.seed == 5
 
 
+def test_reproduction_economics_reach_every_arm():
+    base = SimulationConfig.from_centralized_config(environment="testing")
+    untouched = IntrinsicCooperationExperiment(base, IntrinsicCooperationExperimentConfig())
+    run_config = untouched._build_run_config("baseline", 5, "/tmp/x")
+    assert run_config.agent_behavior.offspring_initial_resources == base.agent_behavior.offspring_initial_resources
+    assert run_config.agent_behavior.min_reproduction_resources == base.agent_behavior.min_reproduction_resources
+
+    cfg = IntrinsicCooperationExperimentConfig(offspring_initial_resources=8.0, min_reproduction_resources=5.0)
+    exp = IntrinsicCooperationExperiment(base, cfg)
+    for arm in ARM_NAMES:
+        run_config = exp._build_run_config(arm, 5, "/tmp/x")
+        assert run_config.agent_behavior.offspring_initial_resources == 8.0
+        assert run_config.agent_behavior.min_reproduction_resources == 5.0
+    assert cfg.to_dict()["offspring_initial_resources"] == 8.0
+
+
 def test_freeze_platform_genes_pins_chromosomes_a_and_c_only():
     chromosome = extend_chromosome(default_hyperparameter_chromosome())
     agent = SimpleNamespace(hyperparameter_chromosome=chromosome)
