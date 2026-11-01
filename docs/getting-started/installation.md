@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python 3.8 or higher (3.9+ recommended)
+- Python 3.10 or higher (CI runs 3.10 and 3.12)
 - pip and Git
 - Redis (optional, for enhanced agent memory)
 

@@ -20,7 +20,8 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-- **Python:** 3.8+ (3.9+ recommended; CI uses 3.10).
+- **Python:** 3.10+ (`requires-python` in `pyproject.toml`; CI runs 3.10 and 3.12).
+- **Dependencies:** runtime dependencies are declared in `pyproject.toml` `[project.dependencies]`; `requirements.txt` just installs `-e .[dev]`. Edit `pyproject.toml`, not `requirements.txt`, when adding a dependency.
 - **Redis:** Optional; used for some memory features (see README).
 - **Editor UI:** From `farm/editor/`, use Node 20 and `npm ci` (or `npm install`) before running Jest.
 

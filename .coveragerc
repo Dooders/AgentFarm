@@ -16,6 +16,10 @@ skip_covered = false
 omit =
     farm/**/test_*.py
     farm/analysis/__init__.py
+    # analysis_config.py: batch-analysis orchestration over experiment
+    # databases (moved from scripts/); omitted like the other analyze.py
+    # pipelines it drives.
+    farm/analysis/analysis_config.py
     farm/analysis/advantage/analyze.py
     farm/analysis/advantage/compute.py
     farm/analysis/advantage/import_csv_to_db.py

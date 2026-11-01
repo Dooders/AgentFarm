@@ -311,7 +311,7 @@ class TestDominanceAnalysis:
         exp_path = tmp_path / "experiment"
         exp_path.mkdir()
 
-        with patch("scripts.analysis_config.setup_and_process_simulations") as mock_setup, patch(
+        with patch("farm.analysis.analysis_config.setup_and_process_simulations") as mock_setup, patch(
             "farm.analysis.dominance.orchestrator.create_dominance_orchestrator"
         ) as mock_create_orch:
             mock_setup.return_value = [

@@ -11,7 +11,7 @@ This document explains recent refactors that introduce dependency injection (DI)
   - `farm/charts/llm_client.py` now accepts `config_service` and no longer reads `OPENAI_API_KEY` directly.
   - `farm/analysis/registry.register_modules` accepts `config_service` and no longer reads `FARM_ANALYSIS_MODULES` directly.
   - `farm/analysis/service.AnalysisService` injects `EnvConfigService` into `register_modules`.
-  - `scripts/analysis_config.py` injects `EnvConfigService` into `register_modules`.
+  - `farm/analysis/analysis_config.py` injects `EnvConfigService` into `register_modules`.
   - `farm/utils/run_analysis.setup_environment` uses `IConfigService` to validate existence of `OPENAI_API_KEY`.
 - A lightweight singleton `farm.analysis.null_module.null_module` was exposed to make testing the registry easier.
 
@@ -42,7 +42,7 @@ These changes align with SRP, DIP, and KISS principles and prefactor the codebas
     - Defaults to `EnvConfigService()` when not provided.
     - Will attempt to register all configured modules; if none successfully register, it falls back to the built-in dominance module.
 
-- `AnalysisService` and `scripts/analysis_config.py`
+- `AnalysisService` and `farm/analysis/analysis_config.py`
   - Both now call `register_modules(config_service=EnvConfigService())`.
 
 - `utils/run_analysis.setup_environment`
@@ -116,5 +116,5 @@ Note: The full test suite depends on additional packages (e.g., `pydantic`, `psu
 - `farm/analysis/registry.py`
 - `farm/analysis/service.py`
 - `farm/utils/run_analysis.py`
-- `scripts/analysis_config.py`
+- `farm/analysis/analysis_config.py`
 
