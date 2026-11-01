@@ -59,15 +59,79 @@ jobs:
       - name: Audit the locked dependency set
         # protobuf 3.19.x: pinned by tianshou 0.4.11 (protobuf~=3.19.0); fix
         #   needs tianshou>=0.5, which is held back for NumPy compatibility.
-        # pillow 12.x (Python 3.10 leg only): fixes landed in Pillow 13, which
-        #   requires Python 3.11+. The 3.12 leg runs Pillow 13 and is clean.
+        # Python 3.10-only exceptions: filelock 4.1.x, Pillow 12.x, and
+        #   tornado 6.5.x are the latest releases compatible with Python 3.10;
+        #   their audited fixes require Python 3.11+. Remove these exceptions
+        #   when Python 3.10 support is dropped. Python 3.12 uses fixed releases.
         run: |
-          pip-audit -r requirements-lock.txt --no-deps --progress-spinner off --strict \
-            --ignore-vuln PYSEC-2026-1805 \
-            --ignore-vuln PYSEC-2026-1806 \
-            --ignore-vuln CVE-2026-96640 \
-            --ignore-vuln CVE-2026-96778 \
+          ignores=(
+            --ignore-vuln PYSEC-2026-1805
+            --ignore-vuln PYSEC-2026-1806
+            --ignore-vuln CVE-2026-96640
+            --ignore-vuln CVE-2026-96778
             --ignore-vuln GHSA-78g4-xqwv-q3g8
+          )
+          if [[ "${{ matrix.python }}" == "3.10" ]]; then
+            ignores+=(
+              --ignore-vuln CVE-2026-112906
+              --ignore-vuln CVE-2026-112940
+              --ignore-vuln CVE-2026-112914
+              --ignore-vuln CVE-2026-112913
+              --ignore-vuln CVE-2026-112937
+              --ignore-vuln CVE-2026-112907
+              --ignore-vuln CVE-2026-112938
+              --ignore-vuln CVE-2026-112910
+              --ignore-vuln CVE-2026-112934
+              --ignore-vuln CVE-2026-112909
+              --ignore-vuln CVE-2026-112911
+              --ignore-vuln CVE-2026-112939
+              --ignore-vuln CVE-2026-112915
+              --ignore-vuln CVE-2026-112935
+              --ignore-vuln CVE-2026-112912
+              --ignore-vuln CVE-2026-112908
+              --ignore-vuln CVE-2026-112941
+              --ignore-vuln PYSEC-2026-4327
+              --ignore-vuln PYSEC-2026-4328
+              --ignore-vuln PYSEC-2026-4326
+              --ignore-vuln PYSEC-2026-4339
+              --ignore-vuln PYSEC-2026-4340
+              --ignore-vuln PYSEC-2026-4343
+              --ignore-vuln PYSEC-2026-4334
+              --ignore-vuln PYSEC-2026-4337
+              --ignore-vuln PYSEC-2026-4341
+              --ignore-vuln PYSEC-2026-4330
+              --ignore-vuln PYSEC-2026-4338
+              --ignore-vuln PYSEC-2026-4335
+              --ignore-vuln PYSEC-2026-4336
+              --ignore-vuln PYSEC-2026-4331
+              --ignore-vuln PYSEC-2026-4332
+              --ignore-vuln PYSEC-2026-4329
+              --ignore-vuln PYSEC-2026-4333
+              --ignore-vuln PYSEC-2026-4342
+              --ignore-vuln CVE-2026-112895
+              --ignore-vuln CVE-2026-112400
+              --ignore-vuln CVE-2026-112897
+              --ignore-vuln CVE-2026-112395
+              --ignore-vuln CVE-2026-112404
+              --ignore-vuln CVE-2026-112899
+              --ignore-vuln CVE-2026-112900
+              --ignore-vuln CVE-2026-112893
+              --ignore-vuln CVE-2026-112891
+              --ignore-vuln CVE-2026-112390
+              --ignore-vuln CVE-2026-112401
+              --ignore-vuln CVE-2026-112391
+              --ignore-vuln CVE-2026-112894
+              --ignore-vuln CVE-2026-112406
+              --ignore-vuln CVE-2026-112399
+              --ignore-vuln CVE-2026-112892
+              --ignore-vuln CVE-2026-112393
+              --ignore-vuln CVE-2026-96638
+              --ignore-vuln CVE-2026-116577
+              --ignore-vuln CVE-2026-115927
+              --ignore-vuln CVE-2026-116578
+            )
+          fi
+          pip-audit -r requirements-lock.txt --no-deps --progress-spinner off --strict "${ignores[@]}"
 
   npm-audit:
     runs-on: ubuntu-latest
