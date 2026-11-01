@@ -224,7 +224,7 @@ class TestStaticQuantization:
         states = _make_states(n=200)
         cfg = QuantizationConfig(
             mode="static",
-            backend="qnnpack",
+            backend="auto",
             calibration_batches=2,
             calibration_batch_size=32,
         )
@@ -241,7 +241,7 @@ class TestStaticQuantization:
         states = _make_states(n=300, seed=4)
         cfg = QuantizationConfig(
             mode="static",
-            backend="qnnpack",
+            backend="auto",
             calibration_batches=3,
             calibration_batch_size=64,
         )

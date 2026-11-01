@@ -23,6 +23,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     continue-on-error: ${{ !matrix.required }}
+    env:
+      PYTHONUTF8: "1"
     strategy:
       fail-fast: false
       matrix:
