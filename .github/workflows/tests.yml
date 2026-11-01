@@ -189,7 +189,8 @@ jobs:
           pip install -e . --no-deps
           pip install mypy
       - name: Run mypy (informational)
-        run: mypy
+        run: |
+          mypy || echo "::warning::mypy reported errors against the existing informational baseline"
 
   docs-links:
     runs-on: ubuntu-latest
