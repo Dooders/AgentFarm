@@ -29,7 +29,6 @@ All workflows live under [`.github/workflows/`](../../.github/workflows/). Runne
 | `Evolution Regression` | `evolution-regression.yml` | push / PR to `main`, `dev` (path-scoped); weekly Mon 08:00 UTC; manual | Threshold-based regression checks for the evolution optimizer |
 | `Reproduce consensus experiment` | `reproduce-consensus.yml` | push / PR touching `farm/experiments/consensus/**`, `farm/provenance/**`, `run_experiment.py` | Run, notarize, re-run, and byte-compare the consensus experiment |
 | `security` | `security.yml` | push / PR touching dependency files; weekly Mon 06:00 UTC; manual | `pip-audit` on the lock (blocking), `npm audit` on the editor (informational) |
-| `CodeQL` | `codeql.yml` | push / PR to `main`, `dev`; weekly Mon 05:00 UTC; manual | Static security analysis for Python and JavaScript |
 | `nightly-heavy-tests` | `nightly-heavy-tests.yml` | daily 09:00 UTC; manual | Full pytest suite including `slow` and `integration`; benchmark smoke |
 | `latest-deps` | `latest-deps.yml` | weekly Mon 07:00 UTC; manual | Fast suite against the *unpinned* `[project.dependencies]` (upstream-breakage canary) |
 | `Deploy Docs to GitHub Pages` | `pages.yml` | push to `main` touching `docs/**`; PRs touching `docs/**` (build only); manual | Jekyll build and deploy of `docs/` |
@@ -154,7 +153,7 @@ Local equivalents are listed in [AGENTS.md](../../AGENTS.md) and [Development se
 
 - `security.yml` → `pip-audit` runs against `requirements-lock.txt` on Python 3.10 and 3.12 with `--strict`. Advisories that cannot be fixed under current constraints are ignored explicitly, with the reason, in the workflow: the `protobuf` 3.19 advisories pinned by `tianshou 0.4.11`, and the Pillow 12.x advisories on the 3.10 leg (fixed in Pillow 13, which needs 3.11+). Remove an ignore as soon as its constraint lifts.
 - `npm audit --audit-level=high` on `farm/editor` is informational; the Jest toolchain carries advisories whose fixes are major upgrades that Dependabot proposes separately.
-- `codeql.yml` analyzes Python and JavaScript; findings appear under Security → Code scanning.
+- CodeQL is managed through the repository's default setup; findings appear under Security → Code scanning. Do not add a `codeql-action` workflow unless the default setup is disabled.
 
 ## Scheduled-failure reporting
 
