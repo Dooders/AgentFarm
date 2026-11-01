@@ -206,7 +206,7 @@ institution without its motive-driven membership reward — test whether
 brains learn to bond, whether units change the population's fate, and
 whether selection moves the settings loci.
 
-- **Status:** Registered and calibrated on a reduced local pilot, not yet run (`farm.runners.intrinsic_cooperation_experiment`, service in `farm.core.cooperation.service`).
+- **Status:** Registered; calibrated on a reduced and a full-length local pilot (all gates pass); confirmatory seeds not yet run (`farm.runners.intrinsic_cooperation_experiment`, service in `farm.core.cooperation.service`).
 - **CLI:** [`scripts/run_intrinsic_cooperation_experiment.py`](../../scripts/run_intrinsic_cooperation_experiment.py);
   calibration gates with [`scripts/calibrate_intrinsic_cooperation.py`](../../scripts/calibrate_intrinsic_cooperation.py)
 - **Docs:** [Registered design, calibration (§8) and Appendix A](experiments/cooperation/SpatialDesign.md),

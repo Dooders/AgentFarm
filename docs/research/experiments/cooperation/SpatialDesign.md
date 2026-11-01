@@ -1,6 +1,6 @@
 # Cooperation in the Spatial World: Does an Institution Evolve When the Brain Chooses It?
 
-**Status:** Registered and calibrated on a reduced local pilot (§8), not yet run (`farm.runners.intrinsic_cooperation_experiment`, service in `farm.core.cooperation.service`)
+**Status:** Registered; calibrated on a reduced and a full-length local pilot (§8), all gates pass; confirmatory seeds not yet run (`farm.runners.intrinsic_cooperation_experiment`, service in `farm.core.cooperation.service`)
 **CLI:** [`scripts/run_intrinsic_cooperation_experiment.py`](../../../../scripts/run_intrinsic_cooperation_experiment.py); calibration gates: [`scripts/calibrate_intrinsic_cooperation.py`](../../../../scripts/calibrate_intrinsic_cooperation.py)
 **Running the seeds:** [GCP runbook](GcpRunbook.md) (one VM per seed, merge with `scripts/merge_intrinsic_cooperation_runs.py`)
 **Model:** [Cooperative units, "In the spatial world"](../../../concepts/cooperation.md#in-the-spatial-world)
@@ -296,7 +296,7 @@ registered cap of 300 the `not_pinned` gate must be re-read on the full
 pilot. Every death was starvation (no combat deaths once partners are
 protected); mean lifespan at death 123–150 steps; 2–3 generations in 400
 steps, which fails the `generations` gate as expected at this length
-(lifespans of ~130 steps give ~20 generations at 3,000). Units form
+(the full-length pilot below re-reads it). Units form
 readily: coverage 0.42 ± 0.03, ~200 units per run, mean unit lifetime 19
 steps, forfeits per enforced exit 0.38 resource on the received base (the
 holdings base scales with the leaver's wealth instead). `leave` is 1.7%
@@ -322,6 +322,39 @@ where it pays, in 400 steps); the expected exit payment *fell* more in the
 cooperation arm than under drift (S5 −0.017, all three seeds), the opposite
 of the registered direction. S5 stays registered as written; if the
 confirmatory run confirms the pilot's sign, that is the finding.
+
+**Full-length local pilot.** Seeds 1–2, 3,000 steps, population cap 300,
+the four registered arms and every registered value (commit `13ffe91e`,
+clean tree, `PYTHONHASHSEED=0`; two seeds in parallel, 1.6 h; record and
+calibration report in
+[`experiments/intrinsic_cooperation_pilot/`](../../../../experiments/intrinsic_cooperation_pilot/calibration.md)).
+**All six gates pass**: L1 = 0.157, 0.173; L2 = 0.205, 0.220; coverage
+0.50, 0.51 with ~900 units per run; `max_generation` 3 in both cooperation
+replicates; forfeits per enforced exit 0.38–0.65; mean population 11–17% of
+the cap in every arm.
+
+*Regime.* The population is not cap-limited. It peaks at ~70 around step
+100 and then regulates itself at ~33 (baseline), ~35 (placebo), ~45
+(cooperation) and ~50 (`cooperation_no_motive`), so the cap of 300 never
+binds and S3 is not ceiling-limited. Lineages are shallow: the reduced
+pilot's projection of ~20 generations at 3,000 steps did not hold. Median
+lifespan at death is ~100 steps, but offspring start with 5 resources
+against the 8 needed to reproduce (founders start with 12), so few of them
+ever breed: `max_generation` is 2 in the baseline and 3 in the cooperation
+arms, i.e. every birth in 3,000 steps came from generation 0, 1 or 2. The `generations` gate passes on its threshold; the
+selection tests (S4, S5) act on very few generations. Every death but one
+was starvation. Memory ≈ 5 GB per seed process; ≈ 19–30 min per arm.
+
+*Noise and power at n = 20* (α/7, MDE dz 0.90 two-sided, 0.82 one-sided).
+Placebo drift SDs at 3,000 steps: `coop_scope` 0.017, `coop_exit_cost`
+0.022, `coop_recognition` 0.064, expected exit payment 0.021. Pilot effects
+(two seeds; descriptive only, not a basis for changing any registered
+direction): S3 +10.1 agents and S3b +84 steps (power ≈ 1); S2 +0.004 (dz
+0.27, power 0.08: still no learned preference for `bond` where it pays);
+S4 scope −0.009, exit cost −0.027, recognition +0.041 (power 0.02–0.40);
+S5 +0.012 (the registered direction this time, against the reduced pilot's
+sign). Learning is weaker in the cooperation arms (gather lift 0.09–0.10
+against 0.16 in the baseline), as in the reduced pilot.
 
 **Frozen after calibration:** `policy_temperature = 0.1`,
 `initial_diversity_scale = None`, `freeze_platform_genes = True`,

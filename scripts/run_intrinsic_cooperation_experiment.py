@@ -25,13 +25,14 @@ plus each arm's simulation artifacts and cooperation telemetry under
 Registered run (seeds 101-120)::
 
     python scripts/run_intrinsic_cooperation_experiment.py \\
-        --num-steps 3000 --seed 101 --num-replicates 20 --jobs 2 \\
-        --output-dir experiments/intrinsic_cooperation
+        --num-steps 3000 --seed 101 --num-replicates 20 --jobs 6 \\
+        --output-dir experiments/intrinsic_cooperation_confirmatory
 
-Each job holds one seed's population of per-agent networks, about 18 GB at
-the registered cap of 300 (45-68 MB per agent), so size ``--jobs`` to RAM:
-2 on a 64 GB host. The script re-executes itself with ``PYTHONHASHSEED=0``
-when it is not already set.
+At the registered settings the population regulates itself at 30-75 agents
+(the cap of 300 never binds), so each job peaks at about 5 GB and one seed's
+four arms take about 1.6 h on one core (full-length pilot, seeds 1-2). Size
+``--jobs`` to RAM and cores: 6 on a 64 GB host. The script re-executes itself
+with ``PYTHONHASHSEED=0`` when it is not already set.
 
 Quick smoke test::
 
@@ -91,8 +92,8 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help=(
-            "Concurrent seeds. Each worker still runs that seed's four arms in series and needs about 18 GB "
-            "at a population cap of 300."
+            "Concurrent seeds. Each worker still runs that seed's four arms in series and peaks at about 5 GB "
+            "at the registered settings."
         ),
     )
     p.add_argument(

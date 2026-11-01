@@ -15,17 +15,19 @@ Every command below runs from the repository root unless noted.
 
 ## 1. What a seed costs (measured)
 
-These numbers come from local probes of the `baseline` arm on this branch
-(4 vCPU, 16 GB host); the other arms carry the same brains plus the
-cooperation service, so treat them as lower bounds and confirm them in
-the pilot ([§5](#5-step-2-pilot-one-seed-at-full-parameters)).
+These numbers come from the full-length local pilot (seeds 1–2, every
+registered setting, commit `13ffe91e`, two seeds in parallel on a 22-core,
+64 GB host; record in
+[`experiments/intrinsic_cooperation_pilot/`](../../../../experiments/intrinsic_cooperation_pilot/calibration.md)).
+An earlier estimate that assumed the population sits at the cap of 300
+overstated memory and time about fourfold.
 
-| Quantity | Measured | Implication at the registered settings |
+| Quantity | Measured | Implication |
 | --- | --- | --- |
-| Resident memory per living agent | 45–68 MB (CNN DQN per agent; measured with the hidden size and replay size free to evolve — they are now pinned at their defaults, so treat this as an upper bound) | 14–20 GB at the cap of 300 before any growth; budget **≥ 32 GB**, prefer 64 GB |
-| Wall time per step | 0.36 s at 60 agents, 0.81 s at 180 agents (≈ 4.5–6 ms per agent-step) | ≈ 1.5–2 s/step at the cap → **1.3–1.7 h per arm**, **5–7 h per seed** (arms run one after another in the same process) |
-| Population | reaches the cap within ~60 steps and stays there | the memory peak is reached early; a VM that survives step 100 at full population survives the run |
-| Output per seed | ~20–60 MB (summary JSON, per-arm CSV/JSON, one PNG) | negligible storage cost |
+| Population | peaks at ~70 around step 100, then regulates itself at 30–50 (baseline/placebo ~33–35, cooperation arms ~45–50); the cap of 300 never binds | memory peaks in the first ~150 steps |
+| Resident memory per seed process | ≈ 5 GB at peak (two processes added ≈ 10 GB to the host; no swap) | an 8 GB VM is tight; **16 GB is ample** |
+| Wall time per arm | baseline ≈ 19 min, placebo ≈ 20 min, cooperation ≈ 26 min, `cooperation_no_motive` ≈ 30 min | **≈ 1.6 h per seed** (arms run one after another in the same process); the optional fifth arm adds ≈ 30 min |
+| Output per seed | ≈ 12 MB (summary JSON, per-arm JSON/CSV/telemetry) | negligible storage cost |
 
 The runner writes each arm's `arm_result.json` as it finishes and a
 `replicate_summary.json` per seed; `intrinsic_cooperation_summary.json`
@@ -36,13 +38,16 @@ provenance (arm, seed, experiment config, base-config hash, commit,
 dirty flag, hash seed) matches the current run; otherwise it is re-run, so
 a reused output directory cannot leak results from another configuration. A pre-empted Spot VM is stopped, not deleted, and
 the startup script re-runs the same command in the same `results/` directory
-on the next start, so a pre-emption costs the interrupted arm (up to ~1.7 h)
+on the next start, so a pre-emption costs the interrupted arm (up to ~30 min)
 plus the restart you have to issue by hand. The 10-minute bucket sync also
 keeps the finished arms off the VM. Spot stays off by default because the
 restart is manual and a shard pre-empted twice has cost more than on-demand.
 
-Fleet cost (`n2-highmem-8`, 8 vCPU / 64 GB, us-central1 on-demand ≈ $0.47/h):
-20 VMs × ~7 h ≈ **$65–70**; Spot ≈ $20–25 with the caveat above.
+Fleet cost (`n2-standard-4`, 4 vCPU / 16 GB, us-central1 on-demand ≈ $0.19/h):
+20 VMs × ~2 h (install plus ~1.6 h run) ≈ **$8**; the scripts' default
+`n2-highmem-8` also works at ≈ $20. **The fleet is optional:** one 64 GB
+workstation with `--jobs 6` runs all 20 seeds in about 6 h
+([§9](#9-alternative-one-vm-all-seeds)).
 Storage, egress and the pilot add a few dollars.
 
 ## 2. Pre-flight gate
@@ -171,7 +176,7 @@ Decide from the pilot:
 | Observation | Action |
 | --- | --- |
 | peak `mem_used_mb` > 80% of RAM, or `swap_used_mb` > 0 | move to `MACHINE_TYPE=n2-highmem-16` (128 GB) or lower `--max-population` via `EXTRA_ARGS` and re-pilot |
-| peak < 40% of RAM | `n2-highmem-4` (32 GB) is enough; halves the bill |
+| peak < 40% of RAM | a smaller machine is enough; the local pilot peaked at ≈ 5 GB per seed, so `n2-standard-4` (16 GB) fits |
 | wall time per seed | sets the fleet's expected duration; 20 VMs run in parallel so the fleet takes about as long as the pilot |
 | `status.json` not `ok` | read `stderr.log`; fix on the branch, push, re-pilot with the new commit |
 | a calibration gate fails (below) | do not launch; see §2 |
@@ -321,19 +326,27 @@ and commit `merged/intrinsic_cooperation_summary.json` and `hypotheses.md`
 
 ## 9. Alternative: one VM, all seeds
 
-Simplest when quota or budget rules out the fleet. One `n2-highmem-8`
-running the runner's own replicate loop:
+Simplest overall, and the default now that a seed costs ~5 GB and ~1.6 h.
+On a workstation with 64 GB and at least 6 free cores:
 
 ```bash
-RUN_ID=coop-serial SEEDS=101 NUM_REPLICATES=20 KEEP_VM=false scripts/gcp/intrinsic_cooperation_fleet.sh launch
+python scripts/run_intrinsic_cooperation_experiment.py --num-steps 3000 --seed 101 \
+  --num-replicates 20 --jobs 6 --output-dir experiments/intrinsic_cooperation_confirmatory
 ```
 
-The runner then uses seeds 101–120 itself, computes the hypotheses in
-process and writes the figure; no merge is needed (`collect` still works and
-merges the single shard trivially). Expect **5–6 days** of wall time, during
-which a single failure loses everything — the runner has no checkpoint —
-so this path is only sensible after a clean pilot. Use the fleet's
-`status`/`resources.log` to watch it exactly as in §7.
+or on one VM (`n2-standard-8` or `n2-highmem-8`):
+
+```bash
+RUN_ID=coop-serial SEEDS=101 NUM_REPLICATES=20 EXTRA_ARGS="--jobs 6" KEEP_VM=false \
+  scripts/gcp/intrinsic_cooperation_fleet.sh launch
+```
+
+The runner uses seeds 101–120 itself, computes the hypotheses in process and
+writes the figure; no merge is needed. Expect about **6 h** of wall time
+(20 seeds × 1.6 h / 6 jobs). A failure loses only the arms that were in
+progress: re-running the same command reloads every finished arm whose
+provenance matches. Commit before launching so the summary records a clean
+tree.
 
 ## 10. Teardown
 
