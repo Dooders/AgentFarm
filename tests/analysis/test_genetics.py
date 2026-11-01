@@ -1558,7 +1558,10 @@ class TestComputeFitnessGeneCorrelations:
         assert effect_sizes == sorted(effect_sizes, reverse=True)
 
     def test_ci_bounds_present_and_ordered(self):
-        df = _make_evolution_df(50, {"lr": (0.0, 1.0)}, lambda g: 5 * g["lr"])
+        # A perfectly linear fitness collapses the slope CI to a point, so add
+        # a little noise to get a proper interval around the fitted slope.
+        rng = np.random.default_rng(1)
+        df = _make_evolution_df(50, {"lr": (0.0, 1.0)}, lambda g: 5 * g["lr"] + rng.normal(0, 0.1))
         result = compute_fitness_gene_correlations(df)
         row = result.iloc[0]
         assert row["ci_lower"] < row["ols_slope"] < row["ci_upper"]

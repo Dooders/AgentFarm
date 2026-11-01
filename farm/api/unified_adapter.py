@@ -311,6 +311,12 @@ class UnifiedAdapter:
                 ]:
                     data_files.append(str(file_path))
 
+        duration_seconds = (
+            (sim_info["end_time"] - sim_info["start_time"]).total_seconds()
+            if sim_info.get("start_time") and sim_info.get("end_time")
+            else 0
+        )
+
         return SimulationResults(
             simulation_id=simulation_id,
             status=sim_info["status"],
@@ -318,16 +324,9 @@ class UnifiedAdapter:
             final_agent_count=state.get("agent_count", 0),
             final_resource_count=state.get("resource_count", 0),
             metrics={
-                "duration_seconds": (
-                    (sim_info["end_time"] - sim_info["start_time"]).total_seconds()
-                    if sim_info["start_time"] and sim_info["end_time"]
-                    else 0
-                ),
-                "steps_per_second": sim_info["current_step"]
-                / (
-                    (sim_info["end_time"] - sim_info["start_time"]).total_seconds()
-                    if sim_info["start_time"] and sim_info["end_time"]
-                    else 1
+                "duration_seconds": duration_seconds,
+                "steps_per_second": (
+                    sim_info["current_step"] / duration_seconds if duration_seconds > 0 else 0
                 ),
             },
             data_files=data_files,

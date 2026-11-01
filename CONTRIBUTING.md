@@ -42,10 +42,11 @@ git checkout -b my-feature-branch
 1. **Target the `dev` branch** — pull requests against `main` will be asked to retarget
 2. Ensure your branch is up to date with the latest `dev` before opening or updating your PR
 3. Ensure your code follows the project's coding standards
-4. Update documentation as necessary
-5. Include a clear description of the changes in your pull request
-6. Link any relevant issues in your pull request description
-7. Be responsive to feedback and be willing to make changes if requested
+4. Make sure CI passes — see [docs/guides/continuous-integration.md](docs/guides/continuous-integration.md) for what each workflow checks and which jobs block a merge
+5. Update documentation as necessary
+6. Include a clear description of the changes in your pull request
+7. Link any relevant issues in your pull request description
+8. Be responsive to feedback and be willing to make changes if requested
 
 ## When will my PR ship?
 

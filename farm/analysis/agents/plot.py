@@ -41,7 +41,7 @@ def plot_lifespan_distributions(df: pd.DataFrame, ctx: AnalysisContext, **kwargs
     if 'agent_type' in df.columns:
         agent_types = df['agent_type'].unique()
         type_lifespans = [df[df['agent_type'] == t]['lifespan'].dropna() for t in agent_types]
-        ax2.boxplot(type_lifespans, labels=agent_types)
+        ax2.boxplot(type_lifespans, tick_labels=agent_types)
         ax2.set_ylabel('Lifespan')
         ax2.set_title('Lifespan by Agent Type')
         ax2.grid(True, alpha=0.3)

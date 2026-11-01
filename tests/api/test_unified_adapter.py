@@ -382,6 +382,30 @@ class TestUnifiedAdapter:
         assert results.status == SimulationStatus.COMPLETED
         assert results.total_steps == 1000
 
+    def test_get_simulation_results_zero_duration(self, temp_workspace):
+        session_path = temp_workspace / "test_session"
+        session_path.mkdir(parents=True)
+
+        adapter = UnifiedAdapter(session_path)
+        simulation_id = str(uuid.uuid4())
+        timestamp = datetime.now()
+        mock_controller = Mock()
+        mock_controller.get_state.return_value = {}
+        adapter._simulations[simulation_id] = {
+            "controller": mock_controller,
+            "status": SimulationStatus.COMPLETED,
+            "current_step": 1000,
+            "total_steps": 1000,
+            "start_time": timestamp,
+            "end_time": timestamp,
+            "error_message": None,
+        }
+
+        results = adapter.get_simulation_results(simulation_id)
+
+        assert results.metrics["duration_seconds"] == 0
+        assert results.metrics["steps_per_second"] == 0
+
     def test_get_simulation_results_collects_data_files(self, temp_workspace):
         session_path = temp_workspace / "test_session"
         session_path.mkdir(parents=True)

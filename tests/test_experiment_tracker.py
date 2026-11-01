@@ -4,6 +4,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 
 from farm.core.experiment_tracker import ExperimentTracker
@@ -16,7 +17,7 @@ def _make_tracker(tmp_dir):
 
 def _make_sqlite_db(path: str) -> None:
     """Create a minimal SQLite database with a SimulationMetrics table."""
-    with sqlite3.connect(path) as conn:
+    with closing(sqlite3.connect(path)) as conn:
         conn.execute(
             "CREATE TABLE SimulationMetrics (id INTEGER PRIMARY KEY, value REAL)"
         )

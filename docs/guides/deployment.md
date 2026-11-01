@@ -27,4 +27,4 @@ When a Config Explorer frontend exists, it may use variables such as `IS_ELECTRO
 
 ### CI
 
-GitHub Actions workflows live under [`.github/workflows/`](../.github/workflows/). [`tests.yml`](../.github/workflows/tests.yml) runs Python tests (`pytest` with coverage) and `farm/editor` Jest tests (Node 20). There is no `ci.yml` workflow in this repository.
+GitHub Actions workflows live under [`.github/workflows/`](../.github/workflows/). [`tests.yml`](../.github/workflows/tests.yml) runs Python tests (`pytest` with coverage) and `farm/editor` Jest tests (Node 20). There is no `ci.yml` workflow in this repository. See [Continuous integration](continuous-integration.md) for the full inventory of workflows, merge gating, and known gaps.

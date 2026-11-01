@@ -296,4 +296,7 @@ def write_report(
     path: Path,
     contrasts: pd.DataFrame | None = None,
 ) -> None:
-    path.write_text(render_report(trials, summary, allocations, run_config, contrasts=contrasts))
+    path.write_text(
+        render_report(trials, summary, allocations, run_config, contrasts=contrasts),
+        encoding="utf-8",
+    )

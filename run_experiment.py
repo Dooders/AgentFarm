@@ -242,9 +242,9 @@ def _verify_report(results: Path) -> int:
     contrasts = paired_contrasts(trials, include_lambda_primary=include_lambda)
 
     expected = {
-        "summary.csv": summary.to_csv(index=False),
-        "allocation_means.csv": allocations.to_csv(index=False),
-        "contrasts.csv": contrasts.to_csv(index=False),
+        "summary.csv": summary.to_csv(index=False, lineterminator="\n"),
+        "allocation_means.csv": allocations.to_csv(index=False, lineterminator="\n"),
+        "contrasts.csv": contrasts.to_csv(index=False, lineterminator="\n"),
         "REPORT.md": render_report(trials, summary, allocations, run_config, contrasts=contrasts),
     }
     failures = []

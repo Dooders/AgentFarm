@@ -197,6 +197,12 @@ def _resolve_quantized_backend(requested_backend: str) -> str:
     )
 
 
+def _restore_quantized_engine(previous_engine: str, backend_changed: bool) -> None:
+    """Restore a prior backend unless it is the unsupported ``none`` sentinel."""
+    if backend_changed and previous_engine != "none":
+        torch.backends.quantized.engine = previous_engine
+
+
 # ---------------------------------------------------------------------------
 # Internal: static-quantization wrapper
 # ---------------------------------------------------------------------------
@@ -437,8 +443,7 @@ class PostTrainingQuantizer:
                 dtype=self.config.torch_dtype(),
             )
         finally:
-            if backend_changed:
-                torch.backends.quantized.engine = previous_engine
+            _restore_quantized_engine(previous_engine, backend_changed)
         return q_model, 0
 
     def _static(
@@ -473,8 +478,7 @@ class PostTrainingQuantizer:
             tq.convert(wrapped, inplace=True)
             return wrapped, total_samples
         finally:
-            if backend_changed:
-                torch.backends.quantized.engine = previous_engine
+            _restore_quantized_engine(previous_engine, backend_changed)
 
     def _build_notes(self) -> List[str]:
         notes = []
@@ -539,8 +543,7 @@ def _load_full_model_checkpoint(
     try:
         model = torch.load(path, map_location=device, weights_only=False)
     finally:
-        if backend_changed:
-            torch.backends.quantized.engine = previous_engine
+        _restore_quantized_engine(previous_engine, backend_changed)
     model.eval()
 
     return model, metadata

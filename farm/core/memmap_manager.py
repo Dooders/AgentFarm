@@ -162,7 +162,7 @@ class MemmapManager:
         default_dtype: Union[str, np.dtype] = "float32",
         default_mode: str = "w+",
     ) -> None:
-        self.directory: str = directory or tempfile.gettempdir()
+        self.directory: str = os.path.normpath(directory or tempfile.gettempdir())
         os.makedirs(self.directory, exist_ok=True)
         self.simulation_id: Optional[str] = simulation_id
         self.namespace: Optional[str] = namespace
@@ -432,6 +432,12 @@ class MemmapManager:
                 arr.flush()
             except Exception:  # pragma: no cover - best effort
                 pass
+            mmap = getattr(arr, "_mmap", None)
+            if mmap is not None:
+                try:
+                    mmap.close()
+                except Exception:  # pragma: no cover - best effort
+                    pass
             del arr
         if info is not None and delete_file and os.path.exists(info.path):
             try:

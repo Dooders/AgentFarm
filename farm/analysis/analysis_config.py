@@ -1,9 +1,14 @@
-# Add the project root to the Python path
+"""Shared helpers for batch analysis over experiment simulation databases.
+
+Locates experiment output directories, prepares analysis output folders,
+validates database schemas, and runs a per-simulation analysis callable over
+every iteration in an experiment.
+"""
+
 import glob
 import json
 import os
 import shutil
-import sys
 import time
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -12,10 +17,7 @@ import pandas as pd
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.append(project_root)
-
-from farm.utils.logging import get_logger  # noqa: E402
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -1,0 +1,23 @@
+# Minimal spec used by the nightly benchmark smoke job. It exercises the
+# benchmark runner, registry, instrumentation and result serialization in a
+# few seconds; it is not a performance baseline. Trend data comes from the
+# uploaded results JSON.
+experiment: observation_flow
+params:
+  width: 50
+  height: 50
+  steps: 10
+  num_agents: 20
+  radius: 3
+  fov_radius: 3
+  device: cpu
+iterations:
+  warmup: 0
+  measured: 1
+instrumentation:
+  - timing
+  - psutil
+output_dir: benchmarks/results/ci_smoke
+tags: [smoke, ci]
+notes: "CI smoke run; not a baseline"
+seed: 42

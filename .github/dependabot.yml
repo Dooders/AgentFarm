@@ -1,0 +1,36 @@
+# Dependabot keeps three ecosystems current. PRs target the default branch
+# (dev). Minor and patch bumps are grouped to keep PR volume manageable;
+# major bumps arrive individually so they can be reviewed on their own.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      python-minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, python]
+
+  - package-ecosystem: npm
+    directory: /farm/editor
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      editor-dev-tooling:
+        update-types: [minor, patch]
+    labels: [dependencies, javascript]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        update-types: [minor, patch]
+    labels: [dependencies, github-actions]
