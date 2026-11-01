@@ -136,7 +136,6 @@ jobs:
   npm-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
     defaults:
       run:
         working-directory: farm/editor
@@ -146,4 +145,5 @@ jobs:
         with:
           node-version: '20'
       - name: Audit editor dev dependencies (informational)
+        continue-on-error: true
         run: npm audit --audit-level=high
