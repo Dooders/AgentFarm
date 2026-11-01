@@ -33,6 +33,7 @@ tests and a Holm correction over the registered family (see
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import os
 import random
@@ -86,6 +87,31 @@ def git_commit() -> str | None:
     except (OSError, subprocess.SubprocessError):
         return None
     return out.stdout.strip() or None if out.returncode == 0 else None
+
+
+def git_dirty() -> bool | None:
+    """Whether tracked files differ from HEAD (so the commit does not name the code); ``None`` outside git."""
+    try:
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return bool(out.stdout.strip()) if out.returncode == 0 else None
+
+
+def run_provenance() -> dict[str, Any]:
+    """What identifies the code and interpreter a run was made with."""
+    return {
+        "git_commit": git_commit(),
+        "git_dirty": git_dirty(),
+        "python_hash_seed": os.environ.get("PYTHONHASHSEED"),
+    }
 
 
 #: Every arm the runner knows. ``cooperation_zero_synergy`` is optional: the
@@ -700,7 +726,7 @@ class ArmResult:
             "prior_gather_share_late": prior_gather_late,
             "gather_share_over_prior_late": action_share_late.get("gather", 0.0) - prior_gather_late,
             "policy_peak_late": self._late_mean(self.policy_peak),
-            "mean_lifespan_at_death": statistics.mean(self.lifespans) if self.lifespans else 0.0,
+            "mean_lifespan_at_death": statistics.mean(self.lifespans) if self.lifespans else float("nan"),
             "max_generation": self.max_generation,
             "gene_mean_start": gene_start,
             "gene_mean_end": gene_end,
@@ -771,6 +797,9 @@ _ARM_SERIES: tuple[str, ...] = (
 ARM_RESULT_FILE = "arm_result.json"
 REPLICATE_SUMMARY_FILE = "replicate_summary.json"
 
+#: Experiment config keys that do not change what a single arm computes.
+_ARM_INDEPENDENT_CONFIG_KEYS: frozenset[str] = frozenset({"seed", "num_replicates", "jobs"})
+
 
 @dataclass
 class ReplicateResult:
@@ -798,10 +827,15 @@ class IntrinsicCooperationExperiment:
     def __init__(self, base_config: SimulationConfig, config: IntrinsicCooperationExperimentConfig | None = None):
         self.base_config = base_config
         self.config = config or IntrinsicCooperationExperimentConfig()
+        self._provenance = run_provenance()
+        base_json = json.dumps(base_config.to_dict(), sort_keys=True, default=str)
+        self._base_config_sha256 = hashlib.sha256(base_json.encode("utf-8")).hexdigest()
 
     # ------------------------------------------------------------ public
     def run(self) -> IntrinsicCooperationResult:
         os.makedirs(self.config.output_dir, exist_ok=True)
+        if self._provenance["git_dirty"]:
+            logger.warning("intrinsic_cooperation_dirty_tree", git_commit=self._provenance["git_commit"])
         replicates = self._run_replicates()
 
         aggregate = self._aggregate(replicates) if self.config.num_replicates > 1 else None
@@ -809,7 +843,7 @@ class IntrinsicCooperationExperiment:
         result = IntrinsicCooperationResult(replicates=replicates, aggregate=aggregate, hypotheses=hypotheses)
 
         payload = {
-            "config": {**self.config.to_dict(), "git_commit": git_commit()},
+            "config": {**self.config.to_dict(), **self._provenance},
             "replicates": self._replicate_summaries(replicates),
             "aggregate": aggregate,
             "hypotheses": hypotheses,
@@ -889,16 +923,31 @@ class IntrinsicCooperationExperiment:
             json.dump(self._replicate_summaries([replicate])[0], handle, indent=2, default=str)
         return replicate
 
+    def _arm_provenance(self, arm: str, seed: int) -> dict[str, Any]:
+        """What an arm's result depends on, JSON round-tripped so it compares equal to a stored copy."""
+        config = {k: v for k, v in self.config.to_dict().items() if k not in _ARM_INDEPENDENT_CONFIG_KEYS}
+        provenance = {
+            "arm": arm,
+            "seed": seed,
+            "config": config,
+            "base_config_sha256": self._base_config_sha256,
+            **self._provenance,
+        }
+        return json.loads(json.dumps(provenance, default=str))
+
     def _load_or_run_arm(self, arm: str, seed: int, rep_dir: str) -> ArmResult:
         path = os.path.join(rep_dir, arm, ARM_RESULT_FILE)
+        provenance = self._arm_provenance(arm, seed)
         if self.config.resume and os.path.exists(path):
             with open(path, encoding="utf-8") as handle:
-                result = ArmResult.from_dict(json.load(handle))
-            logger.info("intrinsic_cooperation_arm_resumed", arm=arm, seed=seed, path=path)
-            return result
+                data = json.load(handle)
+            if data.get("provenance") == provenance:
+                logger.info("intrinsic_cooperation_arm_resumed", arm=arm, seed=seed, path=path)
+                return ArmResult.from_dict(data)
+            logger.warning("intrinsic_cooperation_arm_stale", arm=arm, seed=seed, path=path)
         result = self._run_arm(arm, seed, rep_dir)
         with open(path, "w", encoding="utf-8") as handle:
-            json.dump(result.to_dict(), handle, default=str)
+            json.dump({**result.to_dict(), "provenance": provenance}, handle, default=str)
         return result
 
     def _build_run_config(self, arm: str, seed: int, out_dir: str) -> SimulationConfig:
@@ -1206,10 +1255,12 @@ __all__ = [
     "aggregate_summaries",
     "expected_test_keys",
     "git_commit",
+    "git_dirty",
     "holm",
     "hypothesis_kind",
     "metric_arrays",
     "replicate_summary",
+    "run_provenance",
     "scalar_metrics",
     "test_hypotheses",
 ]

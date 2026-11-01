@@ -31,7 +31,10 @@ The runner writes each arm's `arm_result.json` as it finishes and a
 `replicate_summary.json` per seed; `intrinsic_cooperation_summary.json`
 follows when every replicate is done. A restart with the same command line
 **resumes at the granularity of a finished arm** (an interrupted arm is
-re-run from its start). A pre-empted Spot VM is stopped, not deleted, and
+re-run from its start). A finished arm is reused only if its stored
+provenance (arm, seed, experiment config, base-config hash, commit,
+dirty flag, hash seed) matches the current run; otherwise it is re-run, so
+a reused output directory cannot leak results from another configuration. A pre-empted Spot VM is stopped, not deleted, and
 the startup script re-runs the same command in the same `results/` directory
 on the next start, so a pre-emption costs the interrupted arm (up to ~1.7 h)
 plus the restart you have to issue by hand. The 10-minute bucket sync also
@@ -128,9 +131,11 @@ python -c "import json; d=json.load(open('/tmp/coop_smoke/intrinsic_cooperation_
 
 Expect (≈ 1.5 min on 4 vCPUs): four arm directories, `run_manifest.json`,
 the summary and `intrinsic_cooperation_comparison.png`;
-`aggregate`/`hypotheses` are `null` with one replicate. `PYTHONHASHSEED=0` is **not** set by this script (unlike
-`run_simulation.py`), so set it yourself wherever you run it; the startup
-script does.
+`aggregate`/`hypotheses` are `null` with one replicate. The script restarts
+itself with `PYTHONHASHSEED=0` when it is not already set (as
+`run_simulation.py` does); the summary records `python_hash_seed`,
+`git_commit` and `git_dirty`, and the merge refuses shards that differ in
+any of them.
 
 ## 5. Step 2: pilot, one seed at full parameters
 
@@ -353,7 +358,7 @@ gcloud storage buckets update gs://<BUCKET> --lifecycle-file=/tmp/lifecycle.json
 | `status.json` → `failed`, `stderr.log` ends in `Killed` | OOM. Confirm with `resources.log` (memory rising to the VM size); use a larger machine type or lower `--max-population`. |
 | `stderr.log`: `numpy` / `numba` import error | `requirements.txt` pins `numpy<2.3` for Tianshou's Numba; a stale venv on a reused VM can have a newer numpy. VMs are disposable — delete and relaunch. |
 | step time much worse than the pilot's per-agent figure | Torch intra-op threads oversubscribed by hundreds of small per-agent networks. Relaunch with `OMP_THREADS=2` (or `4`); the value is recorded in `host_manifest.json`. Try it on the pilot VM first — it changes speed, not results. |
-| two runs of the same seed differ | `PYTHONHASHSEED=0` missing (the CLI does not set it), different commit, or different torch wheel; compare `host_manifest.json` and `pip_freeze.txt`. |
+| two runs of the same seed differ | different commit, a dirty tree (`git_dirty: true` in the summary), or a different torch wheel; compare `host_manifest.json` and `pip_freeze.txt`. |
 | `permission denied` on `gcloud storage rsync` from the VM | Service account lacks bucket access (§3 IAM binding), or the VM was created without the `storage-rw` scope (launch again with the fleet script). |
 | launcher: `HEAD … is not on any remote branch` | Push the branch, or set `GIT_REF` to a pushed commit/branch. |
 | instance name rejected | `RUN_ID` must be lowercase letters, digits and hyphens, start with a letter, and keep `<RUN_ID>-s<seed>` under 63 characters. |

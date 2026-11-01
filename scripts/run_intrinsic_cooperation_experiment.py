@@ -24,9 +24,14 @@ plus each arm's simulation artifacts and cooperation telemetry under
 
 Registered run (seeds 101-120)::
 
-    PYTHONHASHSEED=0 python scripts/run_intrinsic_cooperation_experiment.py \\
-        --num-steps 3000 --seed 101 --num-replicates 20 --jobs 8 \\
+    python scripts/run_intrinsic_cooperation_experiment.py \\
+        --num-steps 3000 --seed 101 --num-replicates 20 --jobs 2 \\
         --output-dir experiments/intrinsic_cooperation
+
+Each job holds one seed's population of per-agent networks, about 18 GB at
+the registered cap of 300 (45-68 MB per agent), so size ``--jobs`` to RAM:
+2 on a 64 GB host. The script re-executes itself with ``PYTHONHASHSEED=0``
+when it is not already set.
 
 Quick smoke test::
 
@@ -49,7 +54,12 @@ for _thread_var in (
     "NUMEXPR_NUM_THREADS",
 ):
     os.environ.setdefault(_thread_var, "1")
-os.environ.setdefault("PYTHONHASHSEED", "0")
+
+# Hash randomisation is fixed at interpreter start, so setting the variable
+# here would only reach child processes; restart instead.
+if __name__ == "__main__" and os.environ.get("PYTHONHASHSEED") != "0":
+    os.environ["PYTHONHASHSEED"] = "0"
+    os.execv(sys.executable, [sys.executable, *sys.argv])
 
 _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _repo_root not in sys.path:
@@ -64,7 +74,7 @@ from farm.runners.intrinsic_cooperation_experiment import (  # noqa: E402
     DEFAULT_ARMS,
     IntrinsicCooperationExperiment,
     IntrinsicCooperationExperimentConfig,
-    git_commit,
+    run_provenance,
 )
 from farm.utils.logging import configure_logging, get_logger  # noqa: E402
 
@@ -80,7 +90,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--jobs",
         type=int,
         default=1,
-        help="Concurrent seeds. Each worker still runs that seed's four arms in series.",
+        help=(
+            "Concurrent seeds. Each worker still runs that seed's four arms in series and needs about 18 GB "
+            "at a population cap of 300."
+        ),
     )
     p.add_argument(
         "--device",
@@ -203,7 +216,7 @@ def main() -> int:
         json.dump(
             {
                 "script": "scripts/run_intrinsic_cooperation_experiment.py",
-                "git_commit": git_commit(),
+                **run_provenance(),
                 "args": vars(args),
             },
             handle,

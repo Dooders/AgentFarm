@@ -161,8 +161,8 @@ SAMPLER_PID=$!
 SYNC_PID=$!
 
 # --- the run ----------------------------------------------------------------
-# The experiment script does not set PYTHONHASHSEED itself (run_simulation.py
-# does); without it two runs of the same seed are not bit-identical.
+# The experiment script restarts itself with PYTHONHASHSEED=0 if unset; export
+# it anyway so the value is in the environment the whole shard sees.
 export PYTHONHASHSEED=0
 if [[ -n "$OMP_THREADS" ]]; then
   export OMP_NUM_THREADS="$OMP_THREADS"

@@ -236,7 +236,13 @@ loci (`--no-evolve-genes`) as follow-ups.
   decision.
 * Resume is at the granularity of a finished arm: an interrupted arm is
   re-run from its start, because checkpoint resume does not restore live
-  units.
+  units. A finished arm is reused only when its stored provenance (config,
+  commit, dirty flag, hash seed) matches the run.
+* S3b's lifespan at death is right-censored: agents alive at the last step
+  do not enter it, so an arm whose agents live longer contributes fewer,
+  earlier-born deaths. At 3,000 steps against lifespans of ~130 the censored
+  share is small, but the metric is a mean over deaths, not a restricted
+  mean survival time. It is NaN for an arm in which nobody died.
 * Bond formation is local (`bond_range`) and the policy sees partners as
   allies in its observation; it has no channel showing who is *open*, so the
   bond action is partly a gamble on nearby intent. This biases the test

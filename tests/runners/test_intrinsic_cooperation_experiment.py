@@ -300,6 +300,63 @@ def test_resume_loads_finished_arms_instead_of_rerunning():
         assert calls == ["run"]
 
 
+def test_resume_reruns_arms_made_under_another_configuration():
+    base = SimulationConfig.from_centralized_config(environment="testing")
+    calls: list[str] = []
+
+    def _counting(*args, **kwargs):
+        calls.append("run")
+        return _fake_run_simulation(*args, **kwargs)
+
+    with tempfile.TemporaryDirectory() as out:
+
+        def cfg(**overrides):
+            return IntrinsicCooperationExperimentConfig(
+                num_steps=4, num_replicates=1, output_dir=out, arms=("baseline",), **overrides
+            )
+
+        with patch("farm.runners.intrinsic_cooperation_experiment.run_simulation", _counting):
+            IntrinsicCooperationExperiment(base, cfg(selection_pressure="low")).run()
+            IntrinsicCooperationExperiment(base, cfg(selection_pressure="medium")).run()
+            assert calls == ["run", "run"]
+
+            # Concurrency and replicate count do not change an arm, so they do not invalidate it.
+            IntrinsicCooperationExperiment(base, cfg(selection_pressure="medium", jobs=3)).run()
+            assert calls == ["run", "run"]
+
+            other_base = base.copy()
+            other_base.resources.resource_regen_rate += 0.05
+            IntrinsicCooperationExperiment(other_base, cfg(selection_pressure="medium")).run()
+            assert calls == ["run", "run", "run"]
+
+            # A file written before provenance was recorded is never trusted.
+            path = os.path.join(out, "baseline", ARM_RESULT_FILE)
+            with open(path, encoding="utf-8") as handle:
+                data = json.load(handle)
+            assert data["provenance"]["arm"] == "baseline" and data["provenance"]["config"]["selection_pressure"]
+            data.pop("provenance")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(data, handle)
+            IntrinsicCooperationExperiment(other_base, cfg(selection_pressure="medium")).run()
+            assert calls == ["run", "run", "run", "run"]
+
+
+def test_summary_records_run_provenance():
+    base = SimulationConfig.from_centralized_config(environment="testing")
+    with tempfile.TemporaryDirectory() as out:
+        cfg = IntrinsicCooperationExperimentConfig(num_steps=4, num_replicates=1, output_dir=out, arms=("baseline",))
+        with patch("farm.runners.intrinsic_cooperation_experiment.run_simulation", _fake_run_simulation):
+            result = IntrinsicCooperationExperiment(base, cfg).run()
+        with open(result.summary_path, encoding="utf-8") as handle:
+            config = json.load(handle)["config"]
+        assert {"git_commit", "git_dirty", "python_hash_seed"} <= set(config)
+        assert config["python_hash_seed"] == os.environ.get("PYTHONHASHSEED")
+
+
+def test_lifespan_at_death_is_nan_when_nobody_died():
+    assert np.isnan(ArmResult(arm="baseline", population=[5, 5]).summary()["mean_lifespan_at_death"])
+
+
 def test_holm_step_down():
     results = [{"p_value": p} for p in (0.001, 0.04, 0.03)]
     holm(results, 0.05)
