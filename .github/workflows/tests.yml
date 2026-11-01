@@ -50,7 +50,14 @@ jobs:
       - name: Run pytest with coverage gate
         if: matrix.required
         run: |
-          pytest -q -vv --durations=50 --ignore=tests/test_deterministic_pytest.py -m "not slow and not integration" --cov=farm --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=90
+          pytest -q -vv --durations=50 --ignore=tests/test_deterministic_pytest.py -m "not slow and not integration" --cov=farm --cov-config=.coveragerc --cov-report=term-missing --cov-report=xml --cov-fail-under=90
+      - name: Upload coverage report
+        if: matrix.required && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-${{ matrix.python }}-${{ matrix.os }}
+          path: coverage.xml
+          if-no-files-found: ignore
       - name: Run pytest (informational leg, no coverage gate)
         if: ${{ !matrix.required }}
         run: |
@@ -58,6 +65,9 @@ jobs:
       - name: Run integration and determinism smoke tests
         run: |
           pytest -q -vv --durations=20 tests/test_simulation_determinism_regression.py::test_simulation_repeatability_fixed_seed tests/test_simulation_id.py::TestSimulationID::test_simulation_id_generation
+      - name: API server startup smoke test
+        if: matrix.required
+        run: bash scripts/ci/api_smoke.sh
 
   python:
     # Single required status check (see the "Protect main and dev" ruleset).
@@ -158,6 +168,28 @@ jobs:
         run: ruff check . --output-format=github
       - name: Check requirements-lock.txt is in sync with pyproject.toml
         run: make lock-check
+
+  typecheck:
+    # Informational until the mypy baseline (see [tool.mypy] in pyproject.toml)
+    # is cleared; not part of the `python` gate.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-lock.txt
+      - name: Install locked dependencies, package and mypy
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-lock.txt
+          pip install -e . --no-deps
+          pip install mypy
+      - name: Run mypy (informational)
+        run: mypy
 
   docs-links:
     runs-on: ubuntu-latest
