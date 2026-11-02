@@ -1,0 +1,320 @@
+{
+  "suite": "review",
+  "context": {
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "cpu_count": 4,
+    "load_avg_1m_at_start": 4.98,
+    "python_version": "3.12.3",
+    "git_revision": "c7c455226bb1941585b1a6ff38a3f93cb358e664",
+    "git_dirty": true,
+    "engine_revision_note": "farm/ package identical to 952c6b14; this branch adds only docs, tests and scripts"
+  },
+  "results": [
+    {
+      "label": "pop_15",
+      "opts": {
+        "label": "pop_15",
+        "agents": 5,
+        "max_population": 15,
+        "steps": 200
+      },
+      "wall_s": 14.12,
+      "steps": 200,
+      "ms_per_step_mean": 56.8,
+      "pop_start": 15,
+      "pop_mean": 15.0,
+      "pop_end": 15,
+      "ms_per_agent_step": 3.78,
+      "peak_rss_mb": 1415.7,
+      "kdtree_rebuilds": 1,
+      "final_resources": 8.0
+    },
+    {
+      "label": "pop_30",
+      "opts": {
+        "label": "pop_30",
+        "agents": 10,
+        "max_population": 30,
+        "steps": 200
+      },
+      "wall_s": 26.35,
+      "steps": 200,
+      "ms_per_step_mean": 116.8,
+      "pop_start": 30,
+      "pop_mean": 30.0,
+      "pop_end": 30,
+      "ms_per_agent_step": 3.89,
+      "peak_rss_mb": 1792.5,
+      "kdtree_rebuilds": 1,
+      "final_resources": 8.0
+    },
+    {
+      "label": "pop_60",
+      "opts": {
+        "label": "pop_60",
+        "agents": 20,
+        "max_population": 60,
+        "steps": 200
+      },
+      "wall_s": 43.17,
+      "steps": 200,
+      "ms_per_step_mean": 200.3,
+      "pop_start": 60,
+      "pop_mean": 52.8,
+      "pop_end": 27,
+      "ms_per_agent_step": 3.79,
+      "peak_rss_mb": 2582.1,
+      "kdtree_rebuilds": 33,
+      "final_resources": 8.0
+    },
+    {
+      "label": "pop_120",
+      "opts": {
+        "label": "pop_120",
+        "agents": 40,
+        "max_population": 120,
+        "steps": 200
+      },
+      "wall_s": 53.0,
+      "steps": 200,
+      "ms_per_step_mean": 246.8,
+      "pop_start": 120,
+      "pop_mean": 68.0,
+      "pop_end": 30,
+      "ms_per_agent_step": 3.63,
+      "peak_rss_mb": 4222.8,
+      "kdtree_rebuilds": 87,
+      "final_resources": 8.0
+    },
+    {
+      "label": "pop_30_nolearn",
+      "opts": {
+        "label": "pop_30_nolearn",
+        "agents": 10,
+        "max_population": 30,
+        "steps": 200,
+        "learning": false
+      },
+      "wall_s": 13.89,
+      "steps": 200,
+      "ms_per_step_mean": 55.2,
+      "pop_start": 30,
+      "pop_mean": 30.0,
+      "pop_end": 30,
+      "ms_per_agent_step": 1.84,
+      "peak_rss_mb": 1288.1,
+      "kdtree_rebuilds": 1,
+      "final_resources": 8.0
+    },
+    {
+      "label": "pop_120_nolearn",
+      "opts": {
+        "label": "pop_120_nolearn",
+        "agents": 40,
+        "max_population": 120,
+        "steps": 200,
+        "learning": false
+      },
+      "wall_s": 29.79,
+      "steps": 200,
+      "ms_per_step_mean": 131.8,
+      "pop_start": 120,
+      "pop_mean": 67.2,
+      "pop_end": 27,
+      "ms_per_agent_step": 1.96,
+      "peak_rss_mb": 2138.8,
+      "kdtree_rebuilds": 94,
+      "final_resources": 8.0
+    },
+    {
+      "label": "R3",
+      "opts": {
+        "label": "R3",
+        "agents": 10,
+        "max_population": 30,
+        "steps": 200,
+        "obs_R": 3
+      },
+      "wall_s": 17.76,
+      "steps": 200,
+      "ms_per_step_mean": 75.3,
+      "pop_start": 30,
+      "pop_mean": 30.0,
+      "pop_end": 30,
+      "ms_per_agent_step": 2.51,
+      "peak_rss_mb": 1294.0,
+      "kdtree_rebuilds": 1,
+      "final_resources": 8.0
+    },
+    {
+      "label": "R10",
+      "opts": {
+        "label": "R10",
+        "agents": 10,
+        "max_population": 30,
+        "steps": 200,
+        "obs_R": 10
+      },
+      "wall_s": 40.81,
+      "steps": 200,
+      "ms_per_step_mean": 189.0,
+      "pop_start": 30,
+      "pop_mean": 30.0,
+      "pop_end": 30,
+      "ms_per_agent_step": 6.3,
+      "peak_rss_mb": 2853.4,
+      "kdtree_rebuilds": 1,
+      "final_resources": 8.0
+    },
+    {
+      "label": "R3_nolearn",
+      "opts": {
+        "label": "R3_nolearn",
+        "agents": 10,
+        "max_population": 30,
+        "steps": 200,
+        "obs_R": 3,
+        "learning": false
+      },
+      "wall_s": 12.59,
+      "steps": 200,
+      "ms_per_step_mean": 48.9,
+      "pop_start": 30,
+      "pop_mean": 30.0,
+      "pop_end": 30,
+      "ms_per_agent_step": 1.63,
+      "peak_rss_mb": 1118.6,
+      "kdtree_rebuilds": 1,
+      "final_resources": 8.0
+    },
+    {
+      "label": "R10_nolearn",
+      "opts": {
+        "label": "R10_nolearn",
+        "agents": 10,
+        "max_population": 30,
+        "steps": 200,
+        "obs_R": 10,
+        "learning": false
+      },
+      "wall_s": 17.07,
+      "steps": 200,
+      "ms_per_step_mean": 70.2,
+      "pop_start": 30,
+      "pop_mean": 30.0,
+      "pop_end": 30,
+      "ms_per_agent_step": 2.34,
+      "peak_rss_mb": 1677.9,
+      "kdtree_rebuilds": 1,
+      "final_resources": 8.0
+    },
+    {
+      "label": "pop_30_diskdb",
+      "opts": {
+        "label": "pop_30_diskdb",
+        "agents": 10,
+        "max_population": 30,
+        "steps": 200,
+        "disk_db": true
+      },
+      "wall_s": 25.26,
+      "steps": 200,
+      "ms_per_step_mean": 112.2,
+      "pop_start": 30,
+      "pop_mean": 30.0,
+      "pop_end": 30,
+      "ms_per_agent_step": 3.74,
+      "peak_rss_mb": 1799.4,
+      "kdtree_rebuilds": 1,
+      "final_resources": 8.0
+    },
+    {
+      "label": "pop_30_fixmove_nolearn",
+      "opts": {
+        "label": "pop_30_fixmove_nolearn",
+        "agents": 10,
+        "max_population": 30,
+        "steps": 200,
+        "learning": false,
+        "fix_move": true
+      },
+      "wall_s": 14.07,
+      "steps": 200,
+      "ms_per_step_mean": 56.3,
+      "pop_start": 30,
+      "pop_mean": 30.0,
+      "pop_end": 30,
+      "ms_per_agent_step": 1.88,
+      "peak_rss_mb": 1287.8,
+      "kdtree_rebuilds": 1751,
+      "final_resources": 8.0
+    },
+    {
+      "label": "pop_120_fixmove_nolearn",
+      "opts": {
+        "label": "pop_120_fixmove_nolearn",
+        "agents": 40,
+        "max_population": 120,
+        "steps": 200,
+        "learning": false,
+        "fix_move": true
+      },
+      "wall_s": 31.59,
+      "steps": 200,
+      "ms_per_step_mean": 140.7,
+      "pop_start": 120,
+      "pop_mean": 68.8,
+      "pop_end": 28,
+      "ms_per_agent_step": 2.05,
+      "peak_rss_mb": 2207.5,
+      "kdtree_rebuilds": 4308,
+      "final_resources": 8.0
+    },
+    {
+      "label": "pop_300_fixmove_nolearn",
+      "opts": {
+        "label": "pop_300_fixmove_nolearn",
+        "agents": 100,
+        "max_population": 300,
+        "steps": 100,
+        "learning": false,
+        "fix_move": true,
+        "width": 100,
+        "height": 100
+      },
+      "wall_s": 44.26,
+      "steps": 100,
+      "ms_per_step_mean": 390.6,
+      "pop_start": 300,
+      "pop_mean": 182.3,
+      "pop_end": 41,
+      "ms_per_agent_step": 2.14,
+      "peak_rss_mb": 3644.4,
+      "kdtree_rebuilds": 6312,
+      "final_resources": 6.0
+    },
+    {
+      "label": "pop_300_nolearn",
+      "opts": {
+        "label": "pop_300_nolearn",
+        "agents": 100,
+        "max_population": 300,
+        "steps": 100,
+        "learning": false,
+        "width": 100,
+        "height": 100
+      },
+      "wall_s": 43.04,
+      "steps": 100,
+      "ms_per_step_mean": 376.5,
+      "pop_start": 300,
+      "pop_mean": 184.4,
+      "pop_end": 47,
+      "ms_per_agent_step": 2.04,
+      "peak_rss_mb": 3653.0,
+      "kdtree_rebuilds": 173,
+      "final_resources": 6.0
+    }
+  ]
+}
