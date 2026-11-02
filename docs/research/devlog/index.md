@@ -6,6 +6,27 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/research/devlog/2026-11-01-intrinsic-cooperation-lineages-stay-shallow/' | relative_url }}">
+      <span class="post-card__date">2026-11-01</span>
+      <h3 class="post-card__title">Spatial cooperation, pre-flight: units form and lives lengthen, but lineages stay three deep</h3>
+      <p class="post-card__excerpt">
+        The registered spatial cooperation run is launch-ready and every
+        calibration gate passes on a full-length pilot. Cooperation sustains
+        ~10 more agents and adds ~84 steps of life at death, but brains have
+        not learned to prefer bond (S2 power 0.08), and lineages reach only
+        generation 3. Neither a 9,000-step run nor cheaper reproduction
+        deepens them: food holds the population at ~34 and newborns starve
+        at the same age whatever they are given.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="{{ '/research/experiments/cooperation/SpatialDesign/' | relative_url }}">Registered design</a>,
+      <a href="{{ '/research/experiments/cooperation/GcpRunbook/' | relative_url }}">GCP runbook</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/research/devlog/2026-09-12-veil-ceiling-observation-collapse/' | relative_url }}">
       <span class="post-card__date">2026-09-12</span>
       <h3 class="post-card__title">The veil ceiling: a leaked cue inverts sealed-world evaluation</h3>

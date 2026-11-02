@@ -17,12 +17,26 @@ import pytest
 from farm.core.action import Action
 from farm.core.agent.core import AgentCore
 from farm.core.hyperparameter_chromosome import (
+    ACTION_PRIOR_GENE_NAMES,
     INTRINSIC_REWARD_ACTION_BONUS_GENES,
     INTRINSIC_REWARD_GENE_NAMES,
+    LEARNING_GENE_NAMES,
     default_hyperparameter_chromosome,
     default_reward_weights,
     reward_weights_from_chromosome,
 )
+
+
+def test_chromosome_a_b_c_partition_the_default_loci():
+    chromosome = default_hyperparameter_chromosome()
+    names = [g.name for g in chromosome.genes]
+    a, b, c = set(LEARNING_GENE_NAMES), set(ACTION_PRIOR_GENE_NAMES), set(INTRINSIC_REWARD_GENE_NAMES)
+    assert a | b | c == set(names)
+    assert not (a & b) and not (a & c) and not (b & c)
+    assert {"learning_rate", "dqn_hidden_size", "memory_size", "epsilon_decay"} <= a
+    assert {"gather_weight", "attack_mult_desperate"} <= b
+    for name in ACTION_PRIOR_GENE_NAMES:
+        assert chromosome.get_gene(name) is not None, name
 
 
 def _make_reward_agent(chromosome=None, alive: bool = True) -> AgentCore:

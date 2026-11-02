@@ -27,6 +27,13 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
 import numpy as np
 
+from farm.core.cooperation.actions import (
+    COOPERATION_ACTION_INDEX,
+    DEFAULT_ACTION_WEIGHTS as COOPERATION_ACTION_WEIGHTS,
+    bond_action,
+    cooperation_service_of,
+    leave_action,
+)
 from farm.core.population import get_population_cap_status
 
 if TYPE_CHECKING:
@@ -576,8 +583,12 @@ def attack_action(agent: "AgentCore") -> dict:
         nearby = agent.spatial_service.get_nearby(agent.position, attack_range, ["agents"])
         nearby_agents = nearby.get("agents", [])
 
-        # Filter out self and find valid targets
+        # Filter out self and find valid targets; unit partners are off limits
+        # when cooperation protects them (CooperationConfig.protect_partners).
         valid_targets = [target for target in nearby_agents if target.agent_id != agent.agent_id and target.alive]
+        cooperation = cooperation_service_of(getattr(agent, "environment", None))
+        if cooperation is not None:
+            valid_targets = [t for t in valid_targets if cooperation.may_attack(agent.agent_id, t.agent_id)]
 
         if not valid_targets:
             logger.debug(f"Agent {agent.agent_id} found no valid targets within range {attack_range}")
@@ -740,8 +751,16 @@ def gather_action(agent: "AgentCore") -> dict:
             # Fallback for lightweight tests/mocks that do not attach an environment.
             actual_gathered = closest_resource.consume(gather_amount)
 
+        # Members of cooperative units pool part of what they gather; the
+        # agent keeps the rest (and so feels the pooled share as a smaller
+        # gain in its reward).
+        pooled = 0.0
+        cooperation = cooperation_service_of(env)
+        if cooperation is not None and actual_gathered > 0:
+            pooled = cooperation.on_income(agent, actual_gathered)
+
         # Add to agent's resources
-        agent.resource_level += actual_gathered
+        agent.resource_level += actual_gathered - pooled
 
         # Calculate simple reward based on amount gathered
         reward = actual_gathered * 0.1  # Simple reward per unit gathered
@@ -754,6 +773,7 @@ def gather_action(agent: "AgentCore") -> dict:
             "error": (None if actual_gathered > 0 else "No resources were actually gathered"),
             "details": {
                 "amount_gathered": actual_gathered,
+                "amount_pooled": pooled,
                 "resource_before": resource_amount_before,
                 "resource_after": closest_resource.amount,
                 "agent_resources_before": initial_agent_resources,
@@ -1499,10 +1519,15 @@ def action_name_to_index(action_name: str) -> int:
         action_name: Name of the action (case-insensitive)
 
     Returns:
-        int: Action index from ActionType enum, defaults to DEFEND (0) if unknown
+        int: Action index from ActionType enum (or, for the opt-in cooperation
+        actions ``bond``/``leave``, their indices 8 and 9), defaults to DEFEND
+        (0) if unknown
     """
+    name = action_name.lower()
     action_space = get_action_space()
-    return action_space.get(action_name.lower(), ActionType.DEFEND.value)
+    if name in action_space:
+        return action_space[name]
+    return COOPERATION_ACTION_INDEX.get(name, ActionType.DEFEND.value)
 
 
 def get_action_names() -> list[str]:
@@ -1531,3 +1556,8 @@ action_registry.register("share", 0.2, share_action)
 action_registry.register("defend", 0.25, defend_action)
 action_registry.register("pass", 0.05, pass_action)
 action_registry.register("communicate", 0.1, communicate_action)
+# Opt-in cooperation actions (farm.core.cooperation). AgentCore drops them from
+# an agent's action list, and the environment from its action space, unless the
+# environment has cooperation enabled, so runs without cooperation are unchanged.
+action_registry.register("bond", COOPERATION_ACTION_WEIGHTS["bond"], bond_action)
+action_registry.register("leave", COOPERATION_ACTION_WEIGHTS["leave"], leave_action)

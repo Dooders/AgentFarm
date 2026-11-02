@@ -1,0 +1,1162 @@
+{
+  "summary_config": {
+    "num_steps": 3000,
+    "seeds": null,
+    "seed": 1,
+    "num_replicates": 2,
+    "arms": [
+      "baseline",
+      "placebo",
+      "cooperation",
+      "cooperation_no_motive"
+    ],
+    "max_population": 300,
+    "selection_pressure": "medium",
+    "policy_temperature": 0.1,
+    "initial_diversity_scale": null,
+    "freeze_platform_genes": true,
+    "git_commit": "13ffe91e44d08904dc6d00f0555885dcfe86e966"
+  },
+  "cooperation_config": {
+    "enabled": true,
+    "mode": "active",
+    "kind": "bond",
+    "bond_range": 6.0,
+    "offer_window": 10,
+    "max_candidates": 5,
+    "terms": "mean",
+    "allow_switching": true,
+    "fixed_settings": null,
+    "evolve_genes": true,
+    "randomize_founder_genes": true,
+    "founder_gene_values": {},
+    "synergy": 0.2,
+    "payout_rate": 0.8,
+    "aid_threshold": 2.0,
+    "aid_amount": 1.0,
+    "benefit_ema_alpha": 0.1,
+    "reserve_target": 2.0,
+    "credit_payouts": true,
+    "membership_reward_scale": 1.0,
+    "horizon": 20.0,
+    "fit_scale": 2.0,
+    "affinity_scale": 4.0,
+    "exit_cost_base": "received",
+    "mask_pointless_actions": true,
+    "partners_as_allies": true,
+    "membership_marker": true,
+    "protect_partners": true,
+    "partner_coparent": true,
+    "family_on_birth": false,
+    "family_settings": null,
+    "review_interval": 10,
+    "record_interval": 1,
+    "keep_events": false,
+    "seed": null,
+    "output_dir": null
+  },
+  "target_n": 20,
+  "alpha": 0.05,
+  "family_size": 7,
+  "alpha_strict": 0.0071428571428571435,
+  "regime": {
+    "baseline": {
+      "mean_population": {
+        "mean": 33.22366666666667,
+        "sd": 0.9569511772057981,
+        "min": 32.547,
+        "max": 33.900333333333336,
+        "n": 2
+      },
+      "peak_population": {
+        "mean": 70.0,
+        "sd": 2.8284271247461903,
+        "min": 68.0,
+        "max": 72.0,
+        "n": 2
+      },
+      "final_population": {
+        "mean": 32.5,
+        "sd": 3.5355339059327378,
+        "min": 30.0,
+        "max": 35.0,
+        "n": 2
+      },
+      "total_births": {
+        "mean": 183.0,
+        "sd": 12.727922061357855,
+        "min": 174.0,
+        "max": 192.0,
+        "n": 2
+      },
+      "total_deaths": {
+        "mean": 180.5,
+        "sd": 9.192388155425117,
+        "min": 174.0,
+        "max": 187.0,
+        "n": 2
+      },
+      "starvation_deaths": {
+        "mean": 179.5,
+        "sd": 7.7781745930520225,
+        "min": 174.0,
+        "max": 185.0,
+        "n": 2
+      },
+      "combat_deaths": {
+        "mean": 1.0,
+        "sd": 1.4142135623730951,
+        "min": 0.0,
+        "max": 2.0,
+        "n": 2
+      },
+      "mean_lifespan_at_death": {
+        "mean": 167.5961030180097,
+        "sd": 0.7825158576730327,
+        "min": 167.0427807486631,
+        "max": 168.1494252873563,
+        "n": 2
+      },
+      "max_generation": {
+        "mean": 2.0,
+        "sd": 0.0,
+        "min": 2.0,
+        "max": 2.0,
+        "n": 2
+      },
+      "mean_coverage": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "final_coverage": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "units_formed": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "mean_unit_lifetime": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "forfeits_per_enforced_exit": {
+        "mean": NaN,
+        "sd": NaN,
+        "min": NaN,
+        "max": NaN,
+        "n": 0
+      },
+      "action_share[bond]": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "action_share[leave]": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "policy_bond_prob_late": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "acting_bond_prob_late": {
+        "mean": NaN,
+        "sd": NaN,
+        "min": NaN,
+        "max": NaN,
+        "n": 0
+      },
+      "bond_rank_late": {
+        "mean": NaN,
+        "sd": NaN,
+        "min": NaN,
+        "max": NaN,
+        "n": 0
+      },
+      "policy_peak_late": {
+        "mean": 0.3889712989151134,
+        "sd": 0.005416769678168268,
+        "min": 0.38514106434355494,
+        "max": 0.39280153348667185,
+        "n": 2
+      }
+    },
+    "placebo": {
+      "mean_population": {
+        "mean": 35.22833333333333,
+        "sd": 0.821186675217976,
+        "min": 34.647666666666666,
+        "max": 35.809,
+        "n": 2
+      },
+      "peak_population": {
+        "mean": 67.5,
+        "sd": 2.1213203435596424,
+        "min": 66.0,
+        "max": 69.0,
+        "n": 2
+      },
+      "final_population": {
+        "mean": 38.5,
+        "sd": 4.949747468305833,
+        "min": 35.0,
+        "max": 42.0,
+        "n": 2
+      },
+      "total_births": {
+        "mean": 234.0,
+        "sd": 74.95331880577403,
+        "min": 181.0,
+        "max": 287.0,
+        "n": 2
+      },
+      "total_deaths": {
+        "mean": 225.5,
+        "sd": 79.90306627407988,
+        "min": 169.0,
+        "max": 282.0,
+        "n": 2
+      },
+      "starvation_deaths": {
+        "mean": 225.5,
+        "sd": 79.90306627407988,
+        "min": 169.0,
+        "max": 282.0,
+        "n": 2
+      },
+      "combat_deaths": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "mean_lifespan_at_death": {
+        "mean": 156.6940807419531,
+        "sd": 40.574543203388146,
+        "min": 128.0035460992908,
+        "max": 185.3846153846154,
+        "n": 2
+      },
+      "max_generation": {
+        "mean": 2.5,
+        "sd": 0.7071067811865476,
+        "min": 2.0,
+        "max": 3.0,
+        "n": 2
+      },
+      "mean_coverage": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "final_coverage": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "units_formed": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "mean_unit_lifetime": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "forfeits_per_enforced_exit": {
+        "mean": NaN,
+        "sd": NaN,
+        "min": NaN,
+        "max": NaN,
+        "n": 0
+      },
+      "action_share[bond]": {
+        "mean": 0.08191554582597754,
+        "sd": 0.02683048102540058,
+        "min": 0.06294353075041981,
+        "max": 0.10088756090153529,
+        "n": 2
+      },
+      "action_share[leave]": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "policy_bond_prob_late": {
+        "mean": 0.09410997378488005,
+        "sd": 0.015805303281444787,
+        "min": 0.08293393665586045,
+        "max": 0.10528601091389965,
+        "n": 2
+      },
+      "acting_bond_prob_late": {
+        "mean": 0.07848861072901236,
+        "sd": 0.015477001413933222,
+        "min": 0.0675447180767864,
+        "max": 0.08943250338123833,
+        "n": 2
+      },
+      "bond_rank_late": {
+        "mean": 5.073710639243648,
+        "sd": 0.6301977777838697,
+        "min": 4.628093517083982,
+        "max": 5.519327761403316,
+        "n": 2
+      },
+      "policy_peak_late": {
+        "mean": 0.3671692428572769,
+        "sd": 0.008892406619558842,
+        "min": 0.3608813618355187,
+        "max": 0.3734571238790351,
+        "n": 2
+      }
+    },
+    "cooperation": {
+      "mean_population": {
+        "mean": 45.34516666666667,
+        "sd": 2.2389357714970055,
+        "min": 43.762,
+        "max": 46.928333333333335,
+        "n": 2
+      },
+      "peak_population": {
+        "mean": 72.0,
+        "sd": 7.0710678118654755,
+        "min": 67.0,
+        "max": 77.0,
+        "n": 2
+      },
+      "final_population": {
+        "mean": 48.0,
+        "sd": 1.4142135623730951,
+        "min": 47.0,
+        "max": 49.0,
+        "n": 2
+      },
+      "total_births": {
+        "mean": 164.5,
+        "sd": 60.10407640085654,
+        "min": 122.0,
+        "max": 207.0,
+        "n": 2
+      },
+      "total_deaths": {
+        "mean": 146.5,
+        "sd": 58.68986283848344,
+        "min": 105.0,
+        "max": 188.0,
+        "n": 2
+      },
+      "starvation_deaths": {
+        "mean": 146.5,
+        "sd": 58.68986283848344,
+        "min": 105.0,
+        "max": 188.0,
+        "n": 2
+      },
+      "combat_deaths": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "mean_lifespan_at_death": {
+        "mean": 241.13381458966566,
+        "sd": 2.330765801999243,
+        "min": 239.4857142857143,
+        "max": 242.78191489361703,
+        "n": 2
+      },
+      "max_generation": {
+        "mean": 3.0,
+        "sd": 0.0,
+        "min": 3.0,
+        "max": 3.0,
+        "n": 2
+      },
+      "mean_coverage": {
+        "mean": 0.5068871068524516,
+        "sd": 0.009400396159569897,
+        "min": 0.5002400229821797,
+        "max": 0.5135341907227234,
+        "n": 2
+      },
+      "final_coverage": {
+        "mean": 0.5636126791141989,
+        "sd": 0.0755311629057276,
+        "min": 0.5102040816326531,
+        "max": 0.6170212765957447,
+        "n": 2
+      },
+      "units_formed": {
+        "mean": 926.0,
+        "sd": 73.53910524340094,
+        "min": 874.0,
+        "max": 978.0,
+        "n": 2
+      },
+      "mean_unit_lifetime": {
+        "mean": 33.94282217948178,
+        "sd": 1.687628316791263,
+        "min": 32.74948875255624,
+        "max": 35.13615560640732,
+        "n": 2
+      },
+      "forfeits_per_enforced_exit": {
+        "mean": 0.5190372214119219,
+        "sd": 0.19043371045336646,
+        "min": 0.38438025338383097,
+        "max": 0.6536941894400129,
+        "n": 2
+      },
+      "action_share[bond]": {
+        "mean": 0.10875721466277727,
+        "sd": 0.01894785823949871,
+        "min": 0.09535905561266633,
+        "max": 0.1221553737128882,
+        "n": 2
+      },
+      "action_share[leave]": {
+        "mean": 0.016078503820074155,
+        "sd": 0.006261715075450737,
+        "min": 0.011650802628364907,
+        "max": 0.020506205011783407,
+        "n": 2
+      },
+      "policy_bond_prob_late": {
+        "mean": 0.09813486547804803,
+        "sd": 0.0006308743574840641,
+        "min": 0.09768876994179435,
+        "max": 0.09858096101430172,
+        "n": 2
+      },
+      "acting_bond_prob_late": {
+        "mean": 0.11525906474269032,
+        "sd": 0.02643676443727902,
+        "min": 0.09656544933645896,
+        "max": 0.13395268014892167,
+        "n": 2
+      },
+      "bond_rank_late": {
+        "mean": 5.141774706136561,
+        "sd": 0.06562777539038855,
+        "min": 5.09536886112383,
+        "max": 5.188180551149292,
+        "n": 2
+      },
+      "policy_peak_late": {
+        "mean": 0.3094822265388652,
+        "sd": 0.007468357269382559,
+        "min": 0.30420130046936095,
+        "max": 0.31476315260836946,
+        "n": 2
+      }
+    },
+    "cooperation_no_motive": {
+      "mean_population": {
+        "mean": 49.94883333333333,
+        "sd": 2.7273108550365133,
+        "min": 48.02033333333333,
+        "max": 51.87733333333333,
+        "n": 2
+      },
+      "peak_population": {
+        "mean": 73.0,
+        "sd": 5.656854249492381,
+        "min": 69.0,
+        "max": 77.0,
+        "n": 2
+      },
+      "final_population": {
+        "mean": 50.0,
+        "sd": 7.0710678118654755,
+        "min": 45.0,
+        "max": 55.0,
+        "n": 2
+      },
+      "total_births": {
+        "mean": 205.5,
+        "sd": 75.66042558696059,
+        "min": 152.0,
+        "max": 259.0,
+        "n": 2
+      },
+      "total_deaths": {
+        "mean": 185.5,
+        "sd": 68.58935777509511,
+        "min": 137.0,
+        "max": 234.0,
+        "n": 2
+      },
+      "starvation_deaths": {
+        "mean": 185.5,
+        "sd": 68.58935777509511,
+        "min": 137.0,
+        "max": 234.0,
+        "n": 2
+      },
+      "combat_deaths": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 2
+      },
+      "mean_lifespan_at_death": {
+        "mean": 230.20431717512008,
+        "sd": 39.463872527355825,
+        "min": 202.2991452991453,
+        "max": 258.1094890510949,
+        "n": 2
+      },
+      "max_generation": {
+        "mean": 3.0,
+        "sd": 0.0,
+        "min": 3.0,
+        "max": 3.0,
+        "n": 2
+      },
+      "mean_coverage": {
+        "mean": 0.5683727146108641,
+        "sd": 0.022782359016973786,
+        "min": 0.5522631540585354,
+        "max": 0.5844822751631927,
+        "n": 2
+      },
+      "final_coverage": {
+        "mean": 0.5868686868686869,
+        "sd": 0.04428345498339992,
+        "min": 0.5555555555555556,
+        "max": 0.6181818181818182,
+        "n": 2
+      },
+      "units_formed": {
+        "mean": 1322.0,
+        "sd": 213.54624791833734,
+        "min": 1171.0,
+        "max": 1473.0,
+        "n": 2
+      },
+      "mean_unit_lifetime": {
+        "mean": 32.23932608762449,
+        "sd": 10.104500531914391,
+        "min": 25.094365241004752,
+        "max": 39.38428693424424,
+        "n": 2
+      },
+      "forfeits_per_enforced_exit": {
+        "mean": 0.6051042810503352,
+        "sd": 0.27878713197344135,
+        "min": 0.40797200952436585,
+        "max": 0.8022365525763046,
+        "n": 2
+      },
+      "action_share[bond]": {
+        "mean": 0.11551314995444242,
+        "sd": 0.021806148841644613,
+        "min": 0.10009387423695233,
+        "max": 0.1309324256719325,
+        "n": 2
+      },
+      "action_share[leave]": {
+        "mean": 0.015654799480542554,
+        "sd": 0.0074035032251216605,
+        "min": 0.010419732145522553,
+        "max": 0.020889866815562555,
+        "n": 2
+      },
+      "policy_bond_prob_late": {
+        "mean": 0.10259774184881446,
+        "sd": 0.00864671296037628,
+        "min": 0.09648359247955879,
+        "max": 0.10871189121807014,
+        "n": 2
+      },
+      "acting_bond_prob_late": {
+        "mean": 0.11730097567495208,
+        "sd": 0.021076841909874994,
+        "min": 0.10239739783448265,
+        "max": 0.1322045535154215,
+        "n": 2
+      },
+      "bond_rank_late": {
+        "mean": 4.981997572774567,
+        "sd": 0.3362884237349414,
+        "min": 4.7442057479170545,
+        "max": 5.219789397632079,
+        "n": 2
+      },
+      "policy_peak_late": {
+        "mean": 0.29500680762223463,
+        "sd": 0.001948306835381667,
+        "min": 0.29362914664710416,
+        "max": 0.2963844685973651,
+        "n": 2
+      }
+    }
+  },
+  "learning": {
+    "L1": {
+      "statement": "The brains learn at all: late in the run the policies' own probability of gather (before priors) exceeds uniform, in the unmodified world.",
+      "metric": "policy_gather_lift_late",
+      "arm": "baseline",
+      "per_replicate": [
+        0.157492000614182,
+        0.1728385287233129
+      ],
+      "all_positive": true
+    },
+    "L2": {
+      "statement": "Learning shows in behaviour: the late gather share exceeds what the innate priors alone would give.",
+      "metric": "gather_share_over_prior_late",
+      "arm": "baseline",
+      "per_replicate": [
+        0.20483671203443415,
+        0.22027926702432757
+      ],
+      "all_positive": true
+    }
+  },
+  "learning_by_arm": {
+    "baseline": {
+      "policy_gather_lift_late": {
+        "mean": 0.16516526466874745,
+        "sd": 0.010851634093636422,
+        "min": 0.157492000614182,
+        "max": 0.1728385287233129,
+        "n": 2
+      },
+      "gather_share_over_prior_late": {
+        "mean": 0.21255798952938088,
+        "sd": 0.010919535352199791,
+        "min": 0.20483671203443415,
+        "max": 0.22027926702432757,
+        "n": 2
+      }
+    },
+    "placebo": {
+      "policy_gather_lift_late": {
+        "mean": 0.16216492731120602,
+        "sd": 0.00957407097051645,
+        "min": 0.15539503680439257,
+        "max": 0.16893481781801947,
+        "n": 2
+      },
+      "gather_share_over_prior_late": {
+        "mean": 0.21868184791479944,
+        "sd": 0.006804131996474828,
+        "min": 0.21387060004000372,
+        "max": 0.22349309578959514,
+        "n": 2
+      }
+    },
+    "cooperation": {
+      "policy_gather_lift_late": {
+        "mean": 0.09908038135372531,
+        "sd": 0.0006820967589887763,
+        "min": 0.09859806611001898,
+        "max": 0.09956269659743164,
+        "n": 2
+      },
+      "gather_share_over_prior_late": {
+        "mean": 0.16345186562417569,
+        "sd": 0.006546609337627477,
+        "min": 0.1588227137677601,
+        "max": 0.16808101748059123,
+        "n": 2
+      }
+    },
+    "cooperation_no_motive": {
+      "policy_gather_lift_late": {
+        "mean": 0.09297211305016843,
+        "sd": 0.015797575885435594,
+        "min": 0.08180154001526785,
+        "max": 0.10414268608506902,
+        "n": 2
+      },
+      "gather_share_over_prior_late": {
+        "mean": 0.156339642452486,
+        "sd": 0.017429374238322182,
+        "min": 0.14401521373673026,
+        "max": 0.16866407116824172,
+        "n": 2
+      }
+    }
+  },
+  "drift": {
+    "change_coop_scope": {
+      "placebo": {
+        "mean": -0.009139575959728446,
+        "sd": 0.017101125282937484,
+        "min": -0.021231897613214257,
+        "max": 0.0029527456937573637,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": -0.018571984276050002,
+        "sd": 0.04396786756200695,
+        "min": -0.04966196158345715,
+        "max": 0.012517993031357144,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": -0.009432408316321556,
+        "sd": 0.06106899284494443,
+        "min": -0.05261470727721451,
+        "max": 0.0337498906445714,
+        "n": 2
+      }
+    },
+    "change_coop_exit_cost": {
+      "placebo": {
+        "mean": 0.022333419104061614,
+        "sd": 0.021886394017191408,
+        "min": 0.006857401478784886,
+        "max": 0.03780943672933834,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": -0.0043723421702956955,
+        "sd": 0.021305722889257247,
+        "min": -0.019437763303370936,
+        "max": 0.010693078962779545,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": -0.02670576127435731,
+        "sd": 0.043192116906448655,
+        "min": -0.05724720003270928,
+        "max": 0.0038356774839946595,
+        "n": 2
+      }
+    },
+    "change_coop_recognition": {
+      "placebo": {
+        "mean": 0.015838784980163056,
+        "sd": 0.0641198839977587,
+        "min": -0.029500819803546907,
+        "max": 0.06117838976387302,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": 0.05711915487006619,
+        "sd": 0.00704512920575193,
+        "min": 0.052137496234343605,
+        "max": 0.06210081350578878,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": 0.041280369889903135,
+        "sd": 0.07116501320351062,
+        "min": -0.009040893529529415,
+        "max": 0.09160163330933568,
+        "n": 2
+      }
+    },
+    "change_coop_symmetry": {
+      "placebo": {
+        "mean": 0.0013786645317421797,
+        "sd": 0.012244974074572233,
+        "min": -0.007279839671841315,
+        "max": 0.010037168735325674,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": -0.035630976300765504,
+        "sd": 0.08134434857866268,
+        "min": -0.09315011679194019,
+        "max": 0.021888164190409176,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": -0.037009640832507684,
+        "sd": 0.06909937450409046,
+        "min": -0.08587027712009887,
+        "max": 0.011850995455083502,
+        "n": 2
+      }
+    },
+    "change_coop_exclusivity": {
+      "placebo": {
+        "mean": 0.015283166834472312,
+        "sd": 0.01848315847152815,
+        "min": 0.0022136001415091755,
+        "max": 0.028352733527435448,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": 0.0019482406452620282,
+        "sd": 0.01356871749515839,
+        "min": -0.007646291507569014,
+        "max": 0.01154277279809307,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": -0.013334926189210283,
+        "sd": 0.0049144409763697584,
+        "min": -0.016809960729342377,
+        "max": -0.00985989164907819,
+        "n": 2
+      }
+    },
+    "change_coop_max_members": {
+      "placebo": {
+        "mean": 0.1301436229559001,
+        "sd": 0.22452594999305298,
+        "min": -0.028620198836539323,
+        "max": 0.2889074447483395,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": 0.14937937269942547,
+        "sd": 0.00950200512997661,
+        "min": 0.14266044043714965,
+        "max": 0.1560983049617013,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": 0.019235749743525377,
+        "sd": 0.23402795512302957,
+        "min": -0.14624700431118987,
+        "max": 0.18471850379824062,
+        "n": 2
+      }
+    },
+    "change_motive_political": {
+      "placebo": {
+        "mean": -0.011459303520533454,
+        "sd": 0.07677251545024942,
+        "min": -0.0657456698041538,
+        "max": 0.0428270627630869,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": 0.002568452514285724,
+        "sd": 0.08658541716996934,
+        "min": -0.058656683118465724,
+        "max": 0.06379358814703717,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": 0.014027756034819178,
+        "sd": 0.00981290171971993,
+        "min": 0.007088986685688081,
+        "max": 0.020966525383950274,
+        "n": 2
+      }
+    },
+    "change_motive_economic": {
+      "placebo": {
+        "mean": 0.0147610446350957,
+        "sd": 0.04800880922189161,
+        "min": -0.019186309922395117,
+        "max": 0.048708399192586516,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": 0.018317707699116642,
+        "sd": 0.07069903880052013,
+        "min": -0.03167406206010198,
+        "max": 0.06830947745833527,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": 0.003556663064020943,
+        "sd": 0.022690229578628523,
+        "min": -0.012487752137706865,
+        "max": 0.01960107826574875,
+        "n": 2
+      }
+    },
+    "change_motive_emotional": {
+      "placebo": {
+        "mean": 0.04801144439078231,
+        "sd": 0.031636407986484684,
+        "min": 0.025641125771154738,
+        "max": 0.07038176301040988,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": -0.021552821008422096,
+        "sd": 0.018657228211037512,
+        "min": -0.03474547359459168,
+        "max": -0.008360168422252512,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": -0.0695642653992044,
+        "sd": 0.012979179775447174,
+        "min": -0.0787419314326624,
+        "max": -0.06038659936574642,
+        "n": 2
+      }
+    },
+    "change_motive_hedonist": {
+      "placebo": {
+        "mean": -0.0690358729812928,
+        "sd": 0.03244257965510738,
+        "min": -0.09197624105460395,
+        "max": -0.046095504907981644,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": -0.09617454012064963,
+        "sd": 0.009565051360957848,
+        "min": -0.10293805280038054,
+        "max": -0.08941102744091872,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": -0.027138667139356837,
+        "sd": 0.04200763101606523,
+        "min": -0.0568425478923989,
+        "max": 0.0025652136136852244,
+        "n": 2
+      }
+    },
+    "change_motive_religious": {
+      "placebo": {
+        "mean": 0.023583219859592913,
+        "sd": 0.05028102374275774,
+        "min": -0.011970832993912883,
+        "max": 0.05913727271309871,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": -0.053852448547084014,
+        "sd": 0.059750371928628095,
+        "min": -0.09610234171623527,
+        "max": -0.011602555377932755,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": -0.07743566840667693,
+        "sd": 0.00946934818587036,
+        "min": -0.08413150872232239,
+        "max": -0.07073982809103146,
+        "n": 2
+      }
+    },
+    "change_bond_weight": {
+      "placebo": {
+        "mean": -0.007579852937627168,
+        "sd": 0.010983049198452697,
+        "min": -0.015346041503958546,
+        "max": 0.0001863356287042095,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": 0.019821630387661826,
+        "sd": 0.025188614799935755,
+        "min": 0.0020105900539314214,
+        "max": 0.03763267072139223,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": 0.027401483325288994,
+        "sd": 0.014205565601483058,
+        "min": 0.017356631557889968,
+        "max": 0.03744633509268802,
+        "n": 2
+      }
+    },
+    "change_leave_weight": {
+      "placebo": {
+        "mean": -0.02932833101880948,
+        "sd": 0.01732783696914865,
+        "min": -0.041580962042989444,
+        "max": -0.017075699994629517,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": -0.030287964542237686,
+        "sd": 0.00026086089433334736,
+        "min": -0.030472421049567183,
+        "max": -0.03010350803490819,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": -0.000959633523428205,
+        "sd": 0.017588697863481998,
+        "min": -0.013396721054937666,
+        "max": 0.011477454008081256,
+        "n": 2
+      }
+    },
+    "change_expected_exit_payment": {
+      "placebo": {
+        "mean": 0.005569252998624014,
+        "sd": 0.02064768609918663,
+        "min": -0.009030865857922066,
+        "max": 0.020169371855170093,
+        "n": 2
+      },
+      "cooperation": {
+        "mean": 0.017419837330944904,
+        "sd": 0.018814001534675235,
+        "min": 0.004116329264521934,
+        "max": 0.030723345397367874,
+        "n": 2
+      },
+      "paired_diff": {
+        "mean": 0.01185058433232089,
+        "sd": 0.001833684564511396,
+        "min": 0.010553973542197781,
+        "max": 0.013147195122444,
+        "n": 2
+      }
+    }
+  },
+  "hypotheses": {
+    "S2": {
+      "metric": "policy_bond_prob_late",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "greater",
+      "pilot_n": 2,
+      "mean_diff": 0.004024891693167984,
+      "sd_diff": 0.015174428923960722,
+      "dz": 0.26524172430717313,
+      "power_at_target_n": 0.08320823620015344,
+      "mde_dz_at_target_n": 0.8224755829418136,
+      "n_for_power": 165
+    },
+    "S3": {
+      "metric": "mean_population",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "greater",
+      "pilot_n": 2,
+      "mean_diff": 10.116833333333336,
+      "sd_diff": 3.0601224467149812,
+      "dz": 3.306022392729311,
+      "power_at_target_n": 1.0,
+      "mde_dz_at_target_n": 0.8224755829418136,
+      "n_for_power": 5
+    },
+    "S3b": {
+      "metric": "mean_lifespan_at_death",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "greater",
+      "pilot_n": 2,
+      "mean_diff": 84.43973384771257,
+      "sd_diff": 42.90530900538739,
+      "dz": 1.968048612285019,
+      "power_at_target_n": 0.9999999581032841,
+      "mde_dz_at_target_n": 0.8224755829418136,
+      "n_for_power": 7
+    },
+    "S4_scope": {
+      "metric": "change_coop_scope",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "two-sided",
+      "pilot_n": 2,
+      "mean_diff": -0.009432408316321556,
+      "sd_diff": 0.06106899284494443,
+      "dz": -0.15445495130844317,
+      "power_at_target_n": 0.019291610552684395,
+      "mde_dz_at_target_n": 0.8992859654393836,
+      "n_for_power": 552
+    },
+    "S4_exit_cost": {
+      "metric": "change_coop_exit_cost",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "two-sided",
+      "pilot_n": 2,
+      "mean_diff": -0.02670576127435731,
+      "sd_diff": 0.043192116906448655,
+      "dz": -0.6183017454828683,
+      "power_at_target_n": 0.3993842443907503,
+      "mde_dz_at_target_n": 0.8992859654393836,
+      "n_for_power": 38
+    },
+    "S4_recognition": {
+      "metric": "change_coop_recognition",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "two-sided",
+      "pilot_n": 2,
+      "mean_diff": 0.041280369889903135,
+      "sd_diff": 0.07116501320351062,
+      "dz": 0.5800655129769124,
+      "power_at_target_n": 0.3428708445469196,
+      "mde_dz_at_target_n": 0.8992859654393836,
+      "n_for_power": 43
+    },
+    "S5": {
+      "metric": "change_expected_exit_payment",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "greater",
+      "pilot_n": 2,
+      "mean_diff": 0.01185058433232089,
+      "sd_diff": 0.001833684564511396,
+      "dz": 6.462716958889055,
+      "power_at_target_n": 1.0,
+      "mde_dz_at_target_n": 0.8224755829418136,
+      "n_for_power": 4
+    }
+  },
+  "gates": {
+    "learning_L1": {
+      "statement": "Policies prefer gather over uniform late in the run (L1 > 0) in every baseline replicate.",
+      "passed": true,
+      "detail": "L1 per replicate: [0.157, 0.173]"
+    },
+    "learning_L2": {
+      "statement": "Late gather share exceeds the innate prior (L2 > 0) in every baseline replicate.",
+      "passed": true,
+      "detail": "L2 per replicate: [0.205, 0.22]"
+    },
+    "units_form": {
+      "statement": "Units form in the cooperation arm (mean coverage > 0.05 and units_formed > 0 in every replicate).",
+      "passed": true,
+      "detail": "mean coverage [0.5, 0.514], units formed [874, 978]"
+    },
+    "generations": {
+      "statement": "Selection has material: max_generation >= 3 in every cooperation replicate.",
+      "passed": true,
+      "detail": "max generation [3, 3]"
+    },
+    "exit_cost_bounded": {
+      "statement": "Enforced exits cost something finite and bounded (0 < forfeits per enforced exit < 10).",
+      "passed": true,
+      "detail": "forfeits per enforced exit [0.654, 0.384]"
+    },
+    "not_pinned": {
+      "statement": "The population is regulated below the cap: mean_population < 0.95 x max_population in every arm.",
+      "passed": true,
+      "detail": "mean population / cap: baseline 0.11, placebo 0.12, cooperation 0.15, cooperation_no_motive 0.17"
+    }
+  }
+}
