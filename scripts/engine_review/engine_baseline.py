@@ -13,12 +13,14 @@ Usage (from the repository root):
 
     python scripts/engine_review/engine_baseline.py --suite smoke --out /tmp/baseline.json
     python scripts/engine_review/engine_baseline.py --suite review --out baseline.json
-    python scripts/engine_review/engine_baseline.py --suite smoke --compare \\
+    python scripts/engine_review/engine_baseline.py --suite review --compare \\
         docs/research/reviews/2026-11-engine-review/baseline_952c6b14.json --threshold 0.10
 
-``--compare`` exits non-zero when ms/agent-step or peak RSS regress by more than the threshold
-on any configuration present in both files. Absolute numbers are hardware-specific: only
-compare files produced on the same machine class.
+``--compare`` exits non-zero when a configuration fails to run, when no configuration shares a
+label and identical opts with the baseline, or when ms/agent-step or peak RSS regress by more
+than the threshold on a configuration present in both files. The committed review baseline does
+not overlap the smoke suite. Absolute numbers are hardware-specific: only compare files produced
+on the same machine class.
 """
 
 from __future__ import annotations
@@ -171,10 +173,18 @@ def _patch_movement(env) -> None:
 # --------------------------------------------------------------------------- parent process
 
 
-def run_suite(configs: list[dict[str, Any]], work_dir: Path) -> list[dict[str, Any]]:
-    results = []
+def run_suite(configs: list[dict[str, Any]], work_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    """Run each configuration in a child process.
+
+    Returns ``(results, failed_labels)``. A child that exits non-zero or emits no ``RESULT``
+    line is recorded in ``failed_labels`` and omitted from ``results``; callers must treat a
+    non-empty failure list as a failed gate rather than a partial success.
+    """
+    results: list[dict[str, Any]] = []
+    failures: list[str] = []
     env = dict(os.environ, PYTHONHASHSEED="0")
     for cfg in configs:
+        label = str(cfg.get("label", ""))
         proc = subprocess.run(
             [sys.executable, __file__, "--child", json.dumps(cfg), "--work-dir", str(work_dir)],
             env=env,
@@ -184,7 +194,8 @@ def run_suite(configs: list[dict[str, Any]], work_dir: Path) -> list[dict[str, A
         )
         result_lines = [line for line in proc.stdout.splitlines() if line.startswith("RESULT ")]
         if proc.returncode != 0 or not result_lines:
-            sys.stderr.write(f"[{cfg.get('label')}] failed (rc={proc.returncode})\n{proc.stderr[-4000:]}\n")
+            sys.stderr.write(f"[{label}] failed (rc={proc.returncode})\n{proc.stderr[-4000:]}\n")
+            failures.append(label)
             continue
         result = json.loads(result_lines[-1][len("RESULT ") :])
         results.append(result)
@@ -194,7 +205,7 @@ def run_suite(configs: list[dict[str, Any]], work_dir: Path) -> list[dict[str, A
             f"peak_rss={result['peak_rss_mb']:>8.1f}MB  kd_rebuilds={result['kdtree_rebuilds']}",
             flush=True,
         )
-    return results
+    return results, failures
 
 
 def hardware_context() -> dict[str, Any]:
@@ -221,15 +232,18 @@ def _git(args: list[str]) -> str:
 def compare(current: dict[str, Any], baseline: dict[str, Any], threshold: float) -> int:
     base_by_label = {r["label"]: r for r in baseline["results"]}
     regressions = []
+    compared = 0
     print(f"\nComparing against baseline from {baseline['context'].get('git_revision', '?')[:12]} "
           f"({baseline['context'].get('platform', '?')})")
     for result in current["results"]:
         base = base_by_label.get(result["label"])
         if base is None:
+            print(f"{result['label']:<28} skipped: not in baseline")
             continue
         if base["opts"] != result["opts"]:
             print(f"{result['label']:<28} skipped: configuration differs from baseline")
             continue
+        compared += 1
         for metric in COMPARED_METRICS:
             before, after = base[metric], result[metric]
             change = (after - before) / before if before else 0.0
@@ -237,6 +251,11 @@ def compare(current: dict[str, Any], baseline: dict[str, Any], threshold: float)
             print(f"{result['label']:<28} {metric:<18} {before:>9.2f} -> {after:>9.2f}  ({change:+.1%}) {flag}")
             if change > threshold:
                 regressions.append((result["label"], metric, change))
+    # Vacuous success: smoke labels/opts do not overlap the review baseline, and a run whose
+    # children all crashed contributes no rows. Neither is a clean pass.
+    if compared == 0:
+        print("\nno configurations compared (no shared label with identical opts)")
+        return 1
     if regressions:
         print(f"\n{len(regressions)} regression(s) above {threshold:.0%}")
         return 1
@@ -264,15 +283,20 @@ def main() -> int:
     configs = SUITES[args.suite]
     if args.only:
         configs = [c for c in configs if c["label"] in set(args.only)]
-    report = {"suite": args.suite, "context": hardware_context(), "results": run_suite(configs, args.work_dir)}
+    results, failures = run_suite(configs, args.work_dir)
+    report = {"suite": args.suite, "context": hardware_context(), "results": results}
 
     if args.out:
         args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(f"\nwrote {args.out}")
+    exit_code = 0
     if args.compare:
         baseline = json.loads(args.compare.read_text(encoding="utf-8"))
-        return compare(report, baseline, args.threshold)
-    return 0
+        exit_code = compare(report, baseline, args.threshold)
+    if failures:
+        sys.stderr.write(f"\n{len(failures)} configuration(s) failed: {', '.join(failures)}\n")
+        return 1
+    return exit_code
 
 
 if __name__ == "__main__":
