@@ -6,6 +6,25 @@ subtitle: Build notes, design decisions, and experiment outcomes from AgentFarm 
 
 <ul class="posts">
   <li>
+    <a class="post-card" href="{{ '/research/devlog/2026-11-02-initial-conditions-and-the-terminal-population/' | relative_url }}">
+      <span class="post-card__date">2026-11-02</span>
+      <h3 class="post-card__title">The surplus is bled off: startup resources do not set the ending population</h3>
+      <p class="post-card__excerpt">
+        Hold the food budget fixed and cross founder endowments with what
+        offspring receive at birth. The late-window population sits between
+        31 and 33 in every cell. The slope of that ending on the early
+        overshoot covers zero. Offspring raised to the reproduction threshold
+        do not move the headcount by a margin the pre-registered rule counts.
+      </p>
+      <span class="post-card__more">Read the post</span>
+    </a>
+    <p class="post-card__excerpt">
+      Related docs:
+      <a href="https://github.com/Dooders/AgentFarm/issues/1040">Initial conditions to terminal state (#1040)</a>,
+      <a href="{{ '/research/experiments/cooperation/SpatialDesign/' | relative_url }}">The cooperation pilot this follows</a>.
+    </p>
+  </li>
+  <li>
     <a class="post-card" href="{{ '/research/devlog/2026-09-12-veil-ceiling-observation-collapse/' | relative_url }}">
       <span class="post-card__date">2026-09-12</span>
       <h3 class="post-card__title">The veil ceiling: a leaked cue inverts sealed-world evaluation</h3>

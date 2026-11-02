@@ -1,0 +1,928 @@
+{
+  "cells_planned": 48,
+  "cells_recorded": 48,
+  "failures": 0,
+  "pinned": {
+    "initial_resource_count": 60,
+    "max_population": 300,
+    "selection_pressure": "medium",
+    "policy_temperature": 0.1,
+    "arms": [
+      "baseline"
+    ]
+  },
+  "records": [
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 7,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 761.9,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_5/seed_7"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 19,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 1202.9,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_5/seed_19"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 42,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 760.6,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_5/seed_42"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 101,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 1170.0,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_5/seed_101"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 137,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2438.0,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_5/seed_137"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 256,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2420.8,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_5/seed_256"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 7,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2635.8,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_8/seed_7"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 19,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 1211.0,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_8/seed_19"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 42,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2653.7,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_8/seed_42"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 101,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 1207.5,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_8/seed_101"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 137,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 3019.6,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_8/seed_137"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 5,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 256,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 3001.6,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_5/offspring_8/seed_256"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 7,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2671.7,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_5/seed_7"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 19,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2907.6,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_5/seed_19"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 42,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2684.6,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_5/seed_42"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 101,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2934.4,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_5/seed_101"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 137,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 3051.0,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_5/seed_137"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 256,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 3022.9,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_5/seed_256"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 7,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2774.9,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_8/seed_7"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 19,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2970.6,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_8/seed_19"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 42,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2740.0,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_8/seed_42"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 101,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2956.9,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_8/seed_101"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 137,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2987.5,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_8/seed_137"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 8,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 256,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2980.9,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_8/offspring_8/seed_256"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 7,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2666.5,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_5/seed_7"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 19,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2935.8,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_5/seed_19"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 42,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2658.7,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_5/seed_42"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 101,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2927.4,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_5/seed_101"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 137,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2965.8,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_5/seed_137"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 256,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2888.7,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_5/seed_256"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 7,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2674.5,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_8/seed_7"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 19,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2607.6,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_8/seed_19"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 42,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 836.5,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_8/seed_42"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 101,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 794.0,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_8/seed_101"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 137,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2648.3,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_8/seed_137"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 12,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 256,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2693.3,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_12/offspring_8/seed_256"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 7,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2653.4,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_5/seed_7"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 19,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2621.5,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_5/seed_19"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 42,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2644.0,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_5/seed_42"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 101,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2602.1,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_5/seed_101"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 137,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2675.5,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_5/seed_137"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 5,
+      "policy_temperature": 0.1,
+      "seed": 256,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2643.2,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_5/seed_256"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 7,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2625.4,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_8/seed_7"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 19,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2638.2,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_8/seed_19"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 42,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2690.4,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_8/seed_42"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 101,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2648.4,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_8/seed_101"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 137,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2704.2,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_8/seed_137"
+    },
+    {
+      "arms": [
+        "baseline"
+      ],
+      "environment": "development",
+      "founder_initial_resources": 20,
+      "freeze_platform_genes": true,
+      "initial_resource_count": 60,
+      "max_population": 300,
+      "num_steps": 3000,
+      "offspring_initial_resources": 8,
+      "policy_temperature": 0.1,
+      "seed": 256,
+      "selection_pressure": "medium",
+      "status": "ok",
+      "elapsed_seconds": 2650.3,
+      "returncode": 0,
+      "run_dir": "/workspace/experiments/initial_conditions_terminal/founder_20/offspring_8/seed_256"
+    }
+  ]
+}

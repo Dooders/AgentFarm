@@ -341,7 +341,11 @@ pilot's projection of ~20 generations at 3,000 steps did not hold. Median
 lifespan at death is ~100 steps, but offspring start with 5 resources
 against the 8 needed to reproduce (founders start with 12), so few of them
 ever breed: `max_generation` is 2 in the baseline and 3 in the cooperation
-arms, i.e. every birth in 3,000 steps came from generation 0, 1 or 2. The `generations` gate passes on its threshold; the
+arms, i.e. every birth in 3,000 steps came from generation 0, 1 or 2.
+A follow-up holds this food budget fixed and crosses founder endowments
+{5, 8, 12, 20} with offspring endowments {5, 8}. The late-window population
+does not follow the boom
+([devlog](../../devlog/2026-11-02-initial-conditions-and-the-terminal-population.md)). The `generations` gate passes on its threshold; the
 selection tests (S4, S5) act on very few generations. Every death but one
 was starvation. Memory ≈ 5 GB per seed process; ≈ 19–30 min per arm.
 
