@@ -2,7 +2,7 @@
 
 Repository: `AgentFarm`, branch `dev`, commit `952c6b14`
 Review environment: 4 x Intel Xeon vCPU, 15 GB RAM, no GPU, Linux 6.12, Python 3.12.3, torch 2.15.0 (CPU), tianshou (as pinned in `requirements-lock.txt`)
-All measurements in this document were produced during this review on the above machine. Raw numbers are in [`scaling_results.jsonl`](scaling_results.jsonl) and [`spatial_benchmark_verified_rerun.md`](spatial_benchmark_verified_rerun.md) next to this file. The scaling harness is committed as `scripts/engine_review/engine_baseline.py`; the learning-signal and movement checks are encoded as strict-xfail tests in `tests/integration/test_engine_semantics.py` so that fixing a finding forces the corresponding marker to be removed. The findings are tracked as GitHub issues generated from [`issues/`](issues/) by `scripts/engine_review/bootstrap_github_project.py`.
+All measurements in this document were produced during this review on the above machine. Raw numbers are in [`scaling_results.jsonl`](scaling_results.jsonl) and [`spatial_benchmark_verified_rerun.md`](spatial_benchmark_verified_rerun.md) next to this file. The scaling harness is committed as `scripts/engine_review/engine_baseline.py`; the learning-signal and movement checks are encoded as strict-xfail tests in `tests/integration/test_engine_semantics.py` so that fixing a finding forces the corresponding marker to be removed. The findings are tracked as GitHub issues generated from [`issues.yaml`](issues.yaml) by `scripts/engine_review/bootstrap_github_project.py`; the committed throughput baseline is `baseline_952c6b14.json`.
 
 ---
 
