@@ -212,6 +212,7 @@ whether selection moves the settings loci.
 - **Docs:** [Registered design, calibration (§8) and Appendix A](experiments/cooperation/SpatialDesign.md),
   [GCP runbook for the confirmatory seeds](experiments/cooperation/GcpRunbook.md),
   [model concept page](../concepts/cooperation.md#in-the-spatial-world)
+- **Devlog:** [Spatial cooperation, pre-flight: units form and lives lengthen, but lineages stay three deep](devlog/2026-11-01-intrinsic-cooperation-lineages-stay-shallow.md)
 
 ## Adding a new experiment
 
