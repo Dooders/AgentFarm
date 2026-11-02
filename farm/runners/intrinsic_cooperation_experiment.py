@@ -560,7 +560,10 @@ class IntrinsicCooperationExperimentConfig:
     selection_pressure: Any = "medium"
 
     # Startup conditions (same knobs as the intrinsic-goals experiment).
+    # ``offspring_initial_resources`` is separate from the founder endowment:
+    # None leaves the environment default (5, below the reproduction threshold).
     initial_agent_resource_level: float | None = 12.0
+    offspring_initial_resources: int | None = None
     initial_resource_count: int | None = 60
     # The development environment caps the population at 50, which pins
     # every arm against the ceiling and leaves selection nothing to act on;
@@ -609,6 +612,9 @@ class IntrinsicCooperationExperimentConfig:
             raise ValueError("policy_temperature must be positive.")
         if self.initial_diversity_scale is not None and self.initial_diversity_scale < 0.0:
             raise ValueError("initial_diversity_scale must be non-negative or None.")
+        offspring = self.offspring_initial_resources
+        if offspring is not None and (isinstance(offspring, bool) or not isinstance(offspring, int) or offspring < 0):
+            raise ValueError("offspring_initial_resources must be a non-negative integer when set.")
         object.__setattr__(self, "mutation_mode", MutationMode(self.mutation_mode))
         object.__setattr__(self, "boundary_mode", BoundaryMode(self.boundary_mode))
         object.__setattr__(self, "crossover_mode", CrossoverMode(self.crossover_mode))
@@ -630,6 +636,7 @@ class IntrinsicCooperationExperimentConfig:
             "coparent_max_radius": self.coparent_max_radius,
             "selection_pressure": self.selection_pressure,
             "initial_agent_resource_level": self.initial_agent_resource_level,
+            "offspring_initial_resources": self.offspring_initial_resources,
             "initial_resource_count": self.initial_resource_count,
             "max_population": self.max_population,
             "initial_diversity_scale": self.initial_diversity_scale,
@@ -967,6 +974,8 @@ class IntrinsicCooperationExperiment:
         run_config.learning.policy_temperature = float(self.config.policy_temperature)
         if self.config.initial_agent_resource_level is not None:
             run_config.agent_behavior.initial_resource_level = float(self.config.initial_agent_resource_level)
+        if self.config.offspring_initial_resources is not None:
+            run_config.agent_behavior.offspring_initial_resources = int(self.config.offspring_initial_resources)
         if self.config.initial_resource_count is not None:
             run_config.resources.initial_resources = int(self.config.initial_resource_count)
         if self.config.max_population is not None:

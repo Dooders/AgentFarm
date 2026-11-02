@@ -118,6 +118,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-crossover", action="store_true", help="Disable crossover (and so partner co-parenting).")
     p.add_argument("--selection-pressure", type=str, default="medium")
     p.add_argument("--initial-agent-resource-level", type=float, default=12.0)
+    p.add_argument(
+        "--offspring-initial-resources",
+        type=int,
+        default=None,
+        help=(
+            "Resources each offspring receives at birth. "
+            "Default: leave the environment config (5 in the development world)."
+        ),
+    )
     p.add_argument("--initial-resource-count", type=int, default=60)
     p.add_argument("--max-population", type=int, default=300)
     # Learning / evolution regime
@@ -205,6 +214,7 @@ def main() -> int:
         crossover_enabled=not args.no_crossover,
         selection_pressure=_parse_selection_pressure(args.selection_pressure),
         initial_agent_resource_level=args.initial_agent_resource_level,
+        offspring_initial_resources=args.offspring_initial_resources,
         initial_resource_count=args.initial_resource_count,
         max_population=args.max_population,
         initial_diversity_scale=args.initial_diversity_scale,
