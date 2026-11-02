@@ -57,7 +57,7 @@ within each offspring level, one point per (founder, seed).
 ![Baseline population in each startup cell. Faint lines are seeds; the bold line is the mean.](figures/initial_conditions_terminal_trajectories.png)
 
 Every panel is the same shape. The population climbs to a peak between step
-89 and 143, then settles near 30 for the rest of the run. The highest peak
+80 and 155, then settles near 30 for the rest of the run. The highest peak
 in the 48 runs is 91. The cap of 300 never binds. Of 10,043 deaths, 10,017
 are starvation and 26 are combat.
 
