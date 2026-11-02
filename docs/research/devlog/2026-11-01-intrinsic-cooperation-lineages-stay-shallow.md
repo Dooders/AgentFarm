@@ -72,7 +72,14 @@ process. The record and calibration report are committed under
 | Not pinned | mean population < 0.95 × cap, every arm | 0.11–0.17 of the cap |
 | Exit cost bounded | 0 < forfeits per enforced exit < 10 | 0.65, 0.38 |
 
-![Full-length pilot, seed 1: population, unit coverage, the policies' own bond probability, and the settings loci over 3,000 steps.](figures/intrinsic_cooperation_pilot_comparison.png)
+![Full-length pilot dynamics, seeds 1–2: population, unit coverage, the policies' own probability of bond, and the expected exit payment, per arm.](figures/intrinsic_cooperation_pilot_dynamics.png)
+
+*Figure 1. The full-length pilot over 3,000 steps. Population (a) separates
+within ~300 steps and stays separated; coverage (b) climbs to ~0.5 and
+holds; the policies' own bond probability (c) sits at about uniform in
+every arm; the expected exit payment (d) wanders inside a seed-to-seed band
+far wider than any arm difference. Panel definitions:
+[Appendix A](#appendix-a-reading-the-figures).*
 
 The population is not cap-limited. Every arm peaks at ~70 around step 100
 and then settles: about 33 in the baseline, 35 in the placebo, 45 in
@@ -120,10 +127,11 @@ The arms that finished show the problem clearly:
 | seed 2 | 9,000 | 475 | 3 | 4,503 | 12 |
 
 Three times the steps produce three times the births and one more
-generation. The median lifespan at death stays at ~100 steps. Reproduction
-is concentrated in a handful of agents that live thousands of steps and
-breed throughout; the typical newborn dies before it breeds. More time adds
-more children of the same few parents, not deeper lineages.
+generation. The median lifespan at death stays at ~100 steps, while a
+handful of agents live thousands of steps. The likeliest reading is that
+those few agents do most of the breeding and the typical newborn dies before
+it breeds, so more time adds more children of the same few parents, not
+deeper lineages.
 
 ### The crash that came with it
 
@@ -180,6 +188,15 @@ Cooperation arm, seeds 1 and 2 (the `generations` gate is read here):
 | A | 3, 3 | 238, 178 | 45.4, 49.4 | 0.46, 0.54 | 0.105, 0.093 | 0.100, 0.096 |
 | B | 4, 3 | 219, 186 | 46.0, 48.0 | 0.51, 0.50 | 0.090, 0.097 | 0.099, 0.100 |
 | C | 3, 3 | 254, 159 | 50.7, 48.3 | 0.55, 0.53 | 0.092, 0.100 | 0.098, 0.095 |
+
+![Lineage depth across regimes: maximum generation, births per 1,000 steps, and the survival curve of lifespan at death.](figures/intrinsic_cooperation_lineage_depth.png)
+
+*Figure 2. Every regime, two seeds each. (a) The deepest generation sits at
+2–3 everywhere; only one run reaches 4. (b) Birth rates overlap across
+regimes, and the seed-to-seed spread is as large as any regime effect. (c)
+The baseline lifespan curves lie on top of each other through the median
+and the body of the distribution; the 9,000-step run only extends the tail.
+Panel definitions: [Appendix A](#appendix-a-reading-the-figures).*
 
 Not even setting C deepens lineages. In C a newborn can breed on its first
 step, yet the maximum generation is still 2–3 in the baseline and 3 in
@@ -277,10 +294,117 @@ python scripts/run_intrinsic_cooperation_experiment.py --seed 1 --num-replicates
     --jobs 2 --arms baseline cooperation \
     --offspring-initial-resources 8 --min-reproduction-resources 5 \
     --output-dir experiments/repro_sweep/C_both
+
+# Figures 1 and 2 (reads the arm records above, plus the 9,000-step run
+# in experiments/intrinsic_cooperation_pilot_9000)
+python scripts/plot_intrinsic_cooperation_devlog.py
 ```
 
 The CLI re-executes itself with `PYTHONHASHSEED=0` when needed, and a
 restart reuses only arms whose stored provenance matches.
+
+## Appendix A. Reading the figures
+
+Both figures are rendered by
+[`scripts/plot_intrinsic_cooperation_devlog.py`](https://github.com/Dooders/AgentFarm/blob/dev/scripts/plot_intrinsic_cooperation_devlog.py)
+from the per-arm records (`arm_result.json`), which hold one value per step
+for every series below.
+
+**Figure 1** shows the full-length pilot (seeds 1 and 2, 3,000 steps, all
+four registered arms). Each series is first smoothed with a centred 50-step
+rolling mean. The line is the mean of the two smoothed seeds, and the band
+spans the lower and upper seed. With two seeds the band is a range, not a
+confidence interval: it shows how far apart two runs of the same arm can
+land.
+
+| Panel | Series | What it measures | Arms shown |
+| --- | --- | --- | --- |
+| (a) Population | `population` | Agents alive at the end of each step. | All four |
+| (b) Share of agents in a unit | `coverage` | Members of any unit ÷ agents alive. | Cooperation arms only (zero by construction in the baseline and placebo) |
+| (c) Policies' own probability of bond | `policy_bond_prob` | Mean over alive agents of the probability their network's softmax (temperature 0.1) puts on `bond`, *before* the innate priors multiply it and before the action mask removes unavailable actions. The dotted line is 1/10, a policy with no preference among the ten actions. | Arms that have `bond` |
+| (d) Expected exit payment | `expected_exit_payment` | Population mean over alive agents of `coop_recognition × coop_exit_cost`: how much of the exit-cost base an enforced exit would take under that agent's own genes. Its change from first to last step is the S5 metric. | Arms that carry the loci |
+
+Panel (c) is the S2 quantity over time. A policy that had learned that
+bonding pays would pull its line above the placebo's and above the dotted
+line. None does. Panel (d) replaces the nine-line locus plot of the
+runner's default figure. For the three S4 loci, the mean gap between the
+two seeds of the same arm against the mean gap between the cooperation and
+placebo arms is 0.050 vs 0.023 for `coop_scope`, 0.123 vs 0.020 for
+`coop_exit_cost` and 0.055 vs 0.048 for `coop_recognition`. Recognition is
+the only locus whose arm gap approaches the seed-to-seed gap. Power is a
+different question: it depends on how consistent the *paired* difference is
+across seeds, not on how far apart the seeds land.
+
+**Figure 2** pools every regime in this post. "Registered" uses the
+registered reproduction settings (newborn 5, reserve 8, cost 3); A, B and C
+are the sweep settings in the table above. The 9,000-step run has no
+cooperation points, because it crashed before either seed finished a
+cooperation arm.
+
+| Panel | Quantity | Definition |
+| --- | --- | --- |
+| (a) Deepest generation reached | `max_generation` | The highest `generation` among agents alive at any step of the run. Founders are generation 0 and a child is its parent's generation + 1. The dotted line is the calibration gate, which is read on the cooperation arm. Circles are seed 1 and squares seed 2. |
+| (b) Births per 1,000 steps | `total_births` ÷ steps × 1,000 | Normalised so the 9,000-step run is comparable with the 3,000-step runs. |
+| (c) Lifespan at death | `lifespans` | For every agent that died, the steps between its birth (step 0 for founders) and its death. The curve is the share of those deaths that happened at that age or later, on log–log axes, with both seeds pooled. Agents alive at the last step are not included (right-censored), which is why the 3,000-step curves stop near 1,300 steps and only the 9,000-step curve reaches 4,500. |
+
+How to read (c): the curves cross the median line at the same age (~100
+steps) in every regime, so the typical life is unchanged. The straight,
+shallow tail on log–log axes is a heavy tail: a few agents live ten to
+forty times the median. The post infers that these agents do most of the
+breeding. The record has no births by parent, so it cannot confirm that.
+
+## Appendix B. Metrics and tests
+
+"Late" means the last quarter of the run (steps 2,250–2,999 at 3,000 steps).
+Every metric is computed per arm and per seed. A paired difference is
+`cooperation − placebo` within a seed.
+
+| Metric | Definition | Used by |
+| --- | --- | --- |
+| L1, `policy_gather_lift_late` | Late mean of the policies' own probability of `gather`, minus 1 / number of actions. Above 0 means the networks prefer gathering. | Learning gate, baseline arm |
+| L2, `gather_share_over_prior_late` | Late share of `gather` among the actions actually taken, minus the share the innate priors alone would give. Above 0 means learning moves behaviour beyond the genes. | Learning gate, baseline arm |
+| Gather lift (other arms) | L1 computed in another arm, against that arm's own uniform (1/10 where `bond` and `leave` exist, 1/8 in the baseline). | Descriptive |
+| `mean_coverage` | Mean over steps of the share of alive agents in a unit. | M1, units-form gate |
+| `units_formed` | Units created over the run. | Units-form gate |
+| `forfeits_per_enforced_exit` | Total resources forfeited on enforced exits ÷ number of enforced exits. | Exit-cost gate |
+| `mean_population` | Mean over steps of agents alive. Its ratio to the cap (300) is the not-pinned gate. | S3, M2, not-pinned gate |
+| `mean_lifespan_at_death` | Mean of `lifespans` (above). NaN if nobody died. Right-censored, as in Figure 2c. | S3b |
+| `policy_bond_prob_late` | Late mean of Figure 1c's series. | S2 |
+| `change_<locus>` | Population mean of a cooperation locus at the last step minus at the first. | S4 (scope, exit cost, recognition) |
+| `change_expected_exit_payment` | Last minus first value of Figure 1d's series. | S5 |
+| `max_generation`, `total_births` | As in Figure 2. | Generations gate, descriptive |
+| Median life at death | Median of `lifespans`, reported in the sweep tables. Robust to the heavy tail that drives the mean. | Descriptive |
+
+**Statistics in the pilot tables.**
+
+- **Pilot effect.** The mean over seeds of the paired difference.
+- **dz.** That mean divided by the SD of the paired differences, signed
+  toward the hypothesis. With two seeds the SD is one number estimated from
+  two points. That is why S5's dz comes out at 6.5 from an SD of 0.002, and
+  why no pilot dz should be read as an effect size.
+- **Power at n = 20.** The probability that a one-sided paired test at the
+  family's strictest Holm level (0.05 / 7 ≈ 0.007) detects the pilot effect
+  across 20 seeds. It uses a paired t-test scaled by the Wilcoxon test's
+  asymptotic relative efficiency (0.955), and is two-sided for S4.
+- **MDE dz.** The smallest standardised effect that has 80% power under the
+  same assumptions: 0.82 one-sided and 0.90 two-sided. Planning should use
+  this number, not the pilot effects.
+- **Holm family.** The seven registered tests (S2, S3, S3b, S4 × 3, S5)
+  are corrected together. The manipulation checks (M1, M2) and learning
+  checks (L1, L2) are reported outside the family.
+
+## Appendix C. What each run is
+
+| Run | Commit | Seeds | Steps | Arms | Status |
+| --- | --- | --- | --- | --- | --- |
+| Full-length pilot | `13ffe91e` (clean) | 1, 2 | 3,000 | all four registered | complete; record committed |
+| 9,000-step pilot | `7e195260` (clean) | 1, 2 | 9,000 | all four registered | crashed in seed 2's placebo at step 8,843, ending the run while seed 1's cooperation arm was in progress; three arms finished (both baselines, seed 1 placebo) |
+| Reproduction sweep A, B, C | `a27f3270` (clean) | 1, 2 | 3,000 | baseline, cooperation | complete |
+
+All runs used `PYTHONHASHSEED=0`, the `development` environment and every
+registered value except the ones named in each run's row. Pilot seeds are
+outside the confirmatory 101–120, so nothing here touches the confirmatory
+record.
 
 ## Related docs
 
