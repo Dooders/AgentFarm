@@ -54,6 +54,7 @@ Navigation hub for tutorials, guides, concepts, reference material, and research
 - [Experiments catalog](research/experiments-catalog.md)
 - [Devlog](research/devlog/index.md)
 - [Consensus paradigms](research/experiments/consensus_paradigms.md)
+- [Engine review (2026-11)](research/reviews/2026-11-engine-review/README.md) — correctness, profiling and methodology audit with tracked remediation issues
 
 ## Design & archive
 
