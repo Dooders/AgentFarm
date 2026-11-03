@@ -29,12 +29,16 @@ import argparse
 import json
 import os
 import platform
-import resource
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any
+
+try:
+    import resource
+except ImportError:  # Windows has no resource module
+    resource = None  # type: ignore[assignment]
 
 from farm.config import SimulationConfig
 from farm.core.agent.core import AgentCore
@@ -137,7 +141,8 @@ def run_one(opts: dict[str, Any], work_dir: Path) -> dict[str, Any]:
         on_step_end=step_end,
     )
     wall = time.perf_counter() - started
-    peak_rss_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    # Linux reports ru_maxrss in kilobytes. Windows has no resource module.
+    peak_rss_mb = None if resource is None else resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
     agent_steps = max(sum(populations), 1)
     return {
         "label": opts.get("label", ""),
@@ -149,7 +154,7 @@ def run_one(opts: dict[str, Any], work_dir: Path) -> dict[str, Any]:
         "pop_mean": round(sum(populations) / max(len(populations), 1), 1),
         "pop_end": populations[-1] if populations else None,
         "ms_per_agent_step": round(1000 * sum(step_times) / agent_steps, 2),
-        "peak_rss_mb": round(peak_rss_mb, 1),
+        "peak_rss_mb": None if peak_rss_mb is None else round(peak_rss_mb, 1),
         "kdtree_rebuilds": kd_rebuilds["n"],
         "final_resources": round(env.cached_total_resources, 1),
     }
@@ -246,6 +251,9 @@ def compare(current: dict[str, Any], baseline: dict[str, Any], threshold: float)
         compared += 1
         for metric in COMPARED_METRICS:
             before, after = base[metric], result[metric]
+            if before is None or after is None:
+                print(f"{result['label']:<28} {metric:<18} unavailable")
+                continue
             change = (after - before) / before if before else 0.0
             flag = "REGRESSION" if change > threshold else ("improved" if change < -threshold else "ok")
             print(f"{result['label']:<28} {metric:<18} {before:>9.2f} -> {after:>9.2f}  ({change:+.1%}) {flag}")

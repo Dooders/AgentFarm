@@ -44,6 +44,14 @@ def test_compare_rejects_disjoint_labels() -> None:
     assert harness.compare(current, baseline, 0.10) == 1
 
 
+def test_compare_skips_unavailable_rss() -> None:
+    """Windows runs have no resource.getrusage peak; comparison must not crash."""
+    current = {"results": [_row("pop_15", 200, ms=1.0, rss=10.0)]}
+    current["results"][0]["peak_rss_mb"] = None
+    baseline = _baseline(_row("pop_15", 200))
+    assert harness.compare(current, baseline, 0.10) == 0
+
+
 def test_compare_rejects_same_label_with_different_opts() -> None:
     current = {"results": [_row("pop_15", 100, ms=9.0, rss=90.0)]}
     baseline = _baseline(_row("pop_15", 200))
