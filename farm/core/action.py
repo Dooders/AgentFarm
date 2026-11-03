@@ -929,7 +929,14 @@ def move_action(agent: "AgentCore") -> dict:
         dx, dy = random.choice(directions)
 
         # Get movement distance from config
-        move_distance = getattr(agent.config, "max_movement", 1)
+        movement = agent.get_component("movement")
+        if movement is None:
+            return {
+                "success": False,
+                "error": "Movement component unavailable",
+                "details": {},
+            }
+        move_distance = movement.config.max_movement
 
         # Calculate new position
         new_x = agent.position[0] + dx * move_distance
@@ -950,13 +957,7 @@ def move_action(agent: "AgentCore") -> dict:
         new_position = (new_x, new_y)
 
         # Check if the new position is valid
-        if (
-            hasattr(agent, "validation_service")
-            and agent.validation_service
-            and agent.validation_service.is_valid_position(new_position)
-        ):
-            # Move the agent
-            agent.update_position(new_position)
+        if agent.move_to(new_position):
 
             logger.debug(f"Agent {agent.agent_id} moved from {original_position} to {new_position}")
 
@@ -984,8 +985,7 @@ def move_action(agent: "AgentCore") -> dict:
                     "distance": move_distance,
                     "direction": (dx, dy),
                     "movement_vector": (dx * move_distance, dy * move_distance),
-                    "validation_service_available": hasattr(agent, "validation_service")
-                    and agent.validation_service is not None,
+                    "validation_service_available": movement.validation_service is not None,
                 },
             }
 
