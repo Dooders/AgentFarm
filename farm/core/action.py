@@ -28,6 +28,14 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional
 import numpy as np
 
 from farm.core.population import get_population_cap_status
+from farm.core.union_bonds import (
+    equalize_with_partner,
+    gather_synergy_multiplier,
+    get_union_policy,
+    mature_bond_partner,
+    try_bond_action,
+    try_leave_action,
+)
 
 if TYPE_CHECKING:
     from farm.core.agent import AgentCore
@@ -370,6 +378,8 @@ class ActionType(IntEnum):
         REPRODUCE (5): Agent attempts to create offspring if conditions are met
         PASS (6): Agent takes no action this turn
         COMMUNICATE (7): Agent broadcasts a message to nearby agents
+        BOND (8): Agent attempts to form an exclusive pair-bond
+        LEAVE (9): Agent dissolves its current pair-bond
     """
 
     DEFEND = 0
@@ -380,6 +390,8 @@ class ActionType(IntEnum):
     REPRODUCE = 5
     PASS = 6
     COMMUNICATE = 7
+    BOND = 8
+    LEAVE = 9
 
 
 class Action:
@@ -716,9 +728,11 @@ def gather_action(agent: "AgentCore") -> dict:
         resource_amount_before = closest_resource.amount
 
         # Determine how much to gather
-        # Prefer config.max_gather_amount if present; fall back to 10
+        # Prefer config.max_gather_amount if present; fall back to 10.
+        # Mature co-located bonds extract more from the same patch (synergy).
         max_gather = getattr(agent.config, "max_gather_amount", 10)
-        gather_amount = min(max_gather, closest_resource.amount)
+        synergy = gather_synergy_multiplier(agent)
+        gather_amount = min(max_gather * synergy, closest_resource.amount)
 
         if gather_amount <= 0:
             logger.debug(f"Agent {agent.agent_id} cannot gather from depleted resource")
@@ -762,6 +776,7 @@ def gather_action(agent: "AgentCore") -> dict:
                 "gathering_range": gathering_range,
                 "resource_id": getattr(closest_resource, "resource_id", "unknown"),
                 "resource_depleted": closest_resource.is_depleted(),
+                "synergy_multiplier": synergy,
             },
         }
 
@@ -805,8 +820,18 @@ def share_action(agent: "AgentCore") -> dict:
 
     # Get sharing range from config
     share_range = getattr(agent.config, "share_range", 30)
+    policy = get_union_policy(agent)
 
     try:
+        if policy is not None and policy.pairing_enabled and policy.suppress_promiscuous_share:
+            equalized = equalize_with_partner(agent)
+            if equalized is not None:
+                return equalized
+            return {
+                "success": False,
+                "error": "Promiscuous share suppressed while pairing is enabled",
+                "details": {"share_range": share_range},
+            }
         # Find nearby agents using spatial index
         nearby = agent.spatial_service.get_nearby(agent.position, share_range, ["agents"])
         nearby_agents = nearby.get("agents", [])
@@ -827,6 +852,8 @@ def share_action(agent: "AgentCore") -> dict:
 
         # Determine share amount (simple fixed amount if agent has enough resources)
         share_amount = getattr(agent.config, "share_amount", 2)
+        if policy is not None and policy.residual_share:
+            share_amount = max(0.0, share_amount * 0.15)
         min_keep = getattr(agent.config, "min_keep_resources", 5)
 
         # Only share if agent has enough resources to keep minimum and share
@@ -1035,9 +1062,11 @@ def reproduce_action(agent: "AgentCore") -> dict:
     min_resources = _get_reproduction_config_value("min_reproduction_resources", 8)
     offspring_cost = _get_reproduction_config_value("offspring_cost", 5)
     reproduction_chance = _get_reproduction_config_value("reproduction_chance", 0.5)
+    mate = mature_bond_partner(agent)
+    effective_cost = 0.5 * offspring_cost if mate is not None else offspring_cost
 
     # Check total resource requirements (minimum + offspring cost)
-    total_required = min_resources + offspring_cost
+    total_required = min_resources + effective_cost
 
     try:
         env = getattr(agent, "environment", None)
@@ -1054,6 +1083,18 @@ def reproduce_action(agent: "AgentCore") -> dict:
                     },
                 }
 
+        if mate is not None and float(mate.resource_level) < effective_cost:
+            return {
+                "success": False,
+                "error": "Bonded partner cannot cover split offspring cost",
+                "details": {
+                    "agent_resources": agent.resource_level,
+                    "partner_resources": mate.resource_level,
+                    "effective_cost": effective_cost,
+                    "target_id": mate.agent_id,
+                },
+            }
+
         if not check_resource_requirement(agent, total_required, "reproduce"):
             return {
                 "success": False,
@@ -1062,6 +1103,7 @@ def reproduce_action(agent: "AgentCore") -> dict:
                     "agent_resources": agent.resource_level,
                     "min_resources": min_resources,
                     "offspring_cost": offspring_cost,
+                    "effective_cost": effective_cost,
                     "total_required": total_required,
                 },
             }
@@ -1094,7 +1136,7 @@ def reproduce_action(agent: "AgentCore") -> dict:
             # Determine target_id based on reproduction type
             # For asexual reproduction, target is the agent itself
             # For sexual reproduction, target would be the mate's ID
-            target_id = agent.agent_id  # Asexual reproduction - self-reproduction
+            target_id = mate.agent_id if mate is not None else agent.agent_id
 
             logger.debug(f"Agent {agent.agent_id} successfully reproduced")
             return {
@@ -1104,10 +1146,13 @@ def reproduce_action(agent: "AgentCore") -> dict:
                     "resources_before": resources_before,
                     "resources_after": agent.resource_level,
                     "offspring_cost": offspring_cost,
+                    "effective_cost": effective_cost,
                     "min_resources": min_resources,
                     "parent_generation": generation_before,
                     "reproduction_roll": reproduction_roll,
                     "reproduction_chance": reproduction_chance,
+                    "target_id": target_id,
+                    "split_cost": mate is not None,
                 },
             }
         else:
@@ -1473,14 +1518,38 @@ def communicate_action(agent: "AgentCore") -> dict:
         }
 
 
+def bond_action(agent: "AgentCore") -> dict:
+    """Attempt to form an exclusive pair-bond with the nearest eligible agent."""
+    if not validate_agent_config(agent, "bond"):
+        return {
+            "success": False,
+            "error": "Invalid agent configuration for bond action",
+            "details": {},
+        }
+    return try_bond_action(agent)
 
-def get_action_space() -> dict[str, int]:
+
+def leave_action(agent: "AgentCore") -> dict:
+    """Dissolve the agent's current pair-bond and charge the exit tax."""
+    if not validate_agent_config(agent, "leave"):
+        return {
+            "success": False,
+            "error": "Invalid agent configuration for leave action",
+            "details": {},
+        }
+    return try_leave_action(agent)
+
+
+def get_action_space(*, include_union: bool = False) -> dict[str, int]:
     """Get the centralized mapping of action names to indices.
+
+    Bond/leave are union-only and stay off the default space so existing
+    0–7 indices and DQN heads stay aligned unless a run opts in.
 
     Returns:
         dict[str, int]: Mapping from action name strings to ActionType enum values
     """
-    return {
+    space = {
         "defend": ActionType.DEFEND.value,
         "attack": ActionType.ATTACK.value,
         "gather": ActionType.GATHER.value,
@@ -1490,6 +1559,10 @@ def get_action_space() -> dict[str, int]:
         "pass": ActionType.PASS.value,
         "communicate": ActionType.COMMUNICATE.value,
     }
+    if include_union:
+        space["bond"] = ActionType.BOND.value
+        space["leave"] = ActionType.LEAVE.value
+    return space
 
 
 def action_name_to_index(action_name: str) -> int:
@@ -1501,26 +1574,26 @@ def action_name_to_index(action_name: str) -> int:
     Returns:
         int: Action index from ActionType enum, defaults to DEFEND (0) if unknown
     """
-    action_space = get_action_space()
+    action_space = get_action_space(include_union=True)
     return action_space.get(action_name.lower(), ActionType.DEFEND.value)
 
 
-def get_action_names() -> list[str]:
+def get_action_names(*, include_union: bool = False) -> list[str]:
     """Get list of all valid action names in the action space.
 
     Returns:
         list[str]: List of action names in the order defined by ActionType enum
     """
-    return list(get_action_space().keys())
+    return list(get_action_space(include_union=include_union).keys())
 
 
-def get_action_count() -> int:
-    """Get the total number of actions in the action space.
+def get_action_count(*, include_union: bool = False) -> int:
+    """Get the total number of actions in the default (or full) action space.
 
     Returns:
-        int: Number of actions defined in the action space
+        int: Number of actions in the requested space
     """
-    return len(ActionType)
+    return len(get_action_space(include_union=include_union))
 
 
 action_registry.register("attack", 0.1, attack_action)
@@ -1531,3 +1604,5 @@ action_registry.register("share", 0.2, share_action)
 action_registry.register("defend", 0.25, defend_action)
 action_registry.register("pass", 0.05, pass_action)
 action_registry.register("communicate", 0.1, communicate_action)
+action_registry.register("bond", 0.15, bond_action)
+action_registry.register("leave", 0.1, leave_action)

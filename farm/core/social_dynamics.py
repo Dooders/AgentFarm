@@ -12,9 +12,12 @@ from sqlalchemy.orm import Session
 from farm.database.models import ActionModel
 
 # Targeted social actions (agent-to-agent or agent-to-target), aligned with social_behavior.compute
-COOPERATION_ACTION_TYPES: Tuple[str, ...] = ("share", "assist", "defend")
+COOPERATION_ACTION_TYPES: Tuple[str, ...] = ("share", "assist", "defend", "bond")
 COMPETITION_ACTION_TYPES: Tuple[str, ...] = ("attack", "steal")
-SOCIAL_TARGETED_TYPES: Tuple[str, ...] = COOPERATION_ACTION_TYPES + COMPETITION_ACTION_TYPES
+DISSOLUTION_ACTION_TYPES: Tuple[str, ...] = ("leave",)
+SOCIAL_TARGETED_TYPES: Tuple[str, ...] = (
+    COOPERATION_ACTION_TYPES + COMPETITION_ACTION_TYPES + DISSOLUTION_ACTION_TYPES
+)
 
 
 def social_dynamics_per_step(session: Session, simulation_id: Optional[str] = None) -> pd.DataFrame:
@@ -23,10 +26,10 @@ def social_dynamics_per_step(session: Session, simulation_id: Optional[str] = No
     Denominator ``total_social_interactions`` counts only targeted actions whose type is
     in cooperation or competition sets (not moves, gathers, etc.).
 
-    ``cooperation_rate`` is (share + assist + defend) / total_social_interactions.
+    ``cooperation_rate`` is (share + assist + defend + bond) / total_social_interactions.
     ``competition_intensity`` is attack_events / total_social_interactions (attacks only),
     matching the common combat proxy. ``competition_intensity_including_steal`` adds steals
-    to the numerator.
+    to the numerator. ``dissolution_actions`` counts ``leave`` events separately.
 
     Parameters
     ----------
@@ -44,6 +47,7 @@ def social_dynamics_per_step(session: Session, simulation_id: Optional[str] = No
     share_cond = ActionModel.action_type == "share"
     attack_cond = ActionModel.action_type == "attack"
     steal_cond = ActionModel.action_type == "steal"
+    leave_cond = ActionModel.action_type.in_(DISSOLUTION_ACTION_TYPES)
 
     q = (
         session.query(
@@ -52,6 +56,7 @@ def social_dynamics_per_step(session: Session, simulation_id: Optional[str] = No
             func.sum(case((share_cond, 1), else_=0)).label("share_actions"),
             func.sum(case((attack_cond, 1), else_=0)).label("attack_events"),
             func.sum(case((steal_cond, 1), else_=0)).label("steal_events"),
+            func.sum(case((leave_cond, 1), else_=0)).label("dissolution_actions"),
             func.count(ActionModel.action_id).label("total_social_interactions"),
         )
         .filter(
@@ -70,6 +75,7 @@ def social_dynamics_per_step(session: Session, simulation_id: Optional[str] = No
         "share_actions",
         "attack_events",
         "steal_events",
+        "dissolution_actions",
         "total_social_interactions",
     ]
     if not rows:
@@ -79,6 +85,7 @@ def social_dynamics_per_step(session: Session, simulation_id: Optional[str] = No
             "share_rate",
             "competition_intensity",
             "competition_intensity_including_steal",
+            "dissolution_rate",
         ):
             empty[extra] = pd.Series(dtype=float)
         return empty
@@ -89,6 +96,7 @@ def social_dynamics_per_step(session: Session, simulation_id: Optional[str] = No
     df["share_rate"] = df["share_actions"] / total
     df["competition_intensity"] = df["attack_events"] / total
     df["competition_intensity_including_steal"] = (df["attack_events"] + df["steal_events"]) / total
+    df["dissolution_rate"] = df["dissolution_actions"] / total
     return df
 
 
