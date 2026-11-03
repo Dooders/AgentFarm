@@ -125,9 +125,14 @@ def test_config_validation():
     assert cfg.initial_diversity_scale is None and cfg.freeze_platform_genes and cfg.resume
     assert "communicate" in TRACKED_ACTIONS
     assert cfg.to_dict()["policy_temperature"] == pytest.approx(0.1)
+    assert cfg.to_dict()["offspring_initial_resources"] is None
     assert cfg.jobs == 1
     with pytest.raises(ValueError):
         IntrinsicCooperationExperimentConfig(jobs=0)
+    with pytest.raises(ValueError):
+        IntrinsicCooperationExperimentConfig(offspring_initial_resources=-1)
+    with pytest.raises(ValueError):
+        IntrinsicCooperationExperimentConfig(offspring_initial_resources=True)  # type: ignore[arg-type]
 
 
 def test_arms_get_the_right_cooperation_config():
@@ -163,6 +168,17 @@ def test_learning_regime_is_applied_to_every_arm():
     assert run_config.initial_diversity.mode == SeedingMode.INDEPENDENT_MUTATION
     assert run_config.initial_diversity.mutation_scale == pytest.approx(0.2)
     assert run_config.initial_diversity.seed == 5
+
+    untouched = exp._build_run_config("baseline", 5, "/tmp/x")
+    assert untouched.agent_behavior.offspring_initial_resources == base.agent_behavior.offspring_initial_resources
+    endowed = IntrinsicCooperationExperiment(
+        base,
+        IntrinsicCooperationExperimentConfig(initial_agent_resource_level=20, offspring_initial_resources=8),
+    )
+    endowed_config = endowed._build_run_config("baseline", 5, "/tmp/x")
+    assert endowed_config.agent_behavior.initial_resource_level == pytest.approx(20.0)
+    assert endowed_config.agent_behavior.offspring_initial_resources == 8
+    assert endowed.config.to_dict()["offspring_initial_resources"] == 8
 
 
 def test_reproduction_economics_reach_every_arm():

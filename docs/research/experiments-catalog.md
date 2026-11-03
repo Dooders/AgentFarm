@@ -214,6 +214,21 @@ whether selection moves the settings loci.
   [model concept page](../concepts/cooperation.md#in-the-spatial-world)
 - **Devlog:** [Spatial cooperation, pre-flight: units form and lives lengthen, but lineages stay three deep](devlog/2026-11-01-intrinsic-cooperation-lineages-stay-shallow.md)
 
+### Initial conditions and the terminal population
+
+The baseline arm of that world, with the food budget pinned, asking whether
+the early boom leaves a mark. Founder endowments of 5, 8, 12, and 20 cross
+offspring endowments of 5 and 8, six seeds each. The late-window population
+stays between 31 and 33. The slope of that ending on overshoot covers zero.
+Offspring raised to the reproduction threshold do not move the headcount by
+a margin the pre-registered rule counts.
+
+- **Status:** Run, 48 baseline simulations (`scripts/run_initial_conditions_terminal.py`).
+- **CLI:** [`scripts/run_initial_conditions_terminal.py`](../../scripts/run_initial_conditions_terminal.py),
+  [`scripts/analyze_initial_conditions_terminal.py`](../../scripts/analyze_initial_conditions_terminal.py)
+- **Docs:** [Devlog](devlog/2026-11-02-initial-conditions-and-the-terminal-population.md)
+- **Raw record:** [`experiments/initial_conditions_terminal/aggregate/summary.md`](../../experiments/initial_conditions_terminal/aggregate/summary.md)
+
 ## Adding a new experiment
 
 When introducing a new experiment, follow the structure used by the

@@ -189,6 +189,10 @@ simulations/
 !/experiments/intrinsic_cooperation_pilot/calibration.json
 !/experiments/intrinsic_cooperation_pilot/run_manifest.json
 !/experiments/intrinsic_cooperation_pilot/resources.log
+!/experiments/initial_conditions_terminal/
+!/experiments/initial_conditions_terminal/aggregate/
+!/experiments/initial_conditions_terminal/aggregate/**
+!/experiments/initial_conditions_terminal/sweep_manifest.json
 
 # Generated experiment outputs (regenerate via run_experiment.py / runners)
 /results/

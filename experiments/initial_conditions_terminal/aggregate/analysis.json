@@ -1,0 +1,703 @@
+{
+  "n_runs": 48,
+  "cells": [
+    {
+      "founder": 5,
+      "offspring": 5,
+      "metrics": {
+        "peak_population": {
+          "n": 6,
+          "mean": 71.0,
+          "low": 62.3461320188424,
+          "high": 79.6538679811576
+        },
+        "peak_step": {
+          "n": 6,
+          "mean": 113.5,
+          "low": 104.38137648806389,
+          "high": 122.61862351193611
+        },
+        "overshoot": {
+          "n": 6,
+          "mean": 39.96088888888889,
+          "low": 31.788593617707036,
+          "high": 48.13318416007074
+        },
+        "oscillation_amplitude": {
+          "n": 6,
+          "mean": 41.0,
+          "low": 32.3461320188424,
+          "high": 49.6538679811576
+        },
+        "final_population": {
+          "n": 6,
+          "mean": 29.666666666666668,
+          "low": 27.952945442909126,
+          "high": 31.38038789042421
+        },
+        "late_window_mean": {
+          "n": 6,
+          "mean": 31.03911111111111,
+          "low": 29.575002087176806,
+          "high": 32.50322013504542
+        },
+        "starvation_deaths": {
+          "n": 6,
+          "mean": 212.0,
+          "low": 170.66768722010858,
+          "high": 253.33231277989142
+        },
+        "mean_lifespan_at_death": {
+          "n": 6,
+          "mean": 169.13947645500969,
+          "low": 141.4247256171901,
+          "high": 196.85422729282928
+        },
+        "max_generation": {
+          "n": 6,
+          "mean": 3.1666666666666665,
+          "low": 2.7382363607272806,
+          "high": 3.5950969726060524
+        },
+        "total_births": {
+          "n": 6,
+          "mean": 212.33333333333334,
+          "low": 169.13701903509497,
+          "high": 255.52964763157172
+        }
+      }
+    },
+    {
+      "founder": 5,
+      "offspring": 8,
+      "metrics": {
+        "peak_population": {
+          "n": 6,
+          "mean": 76.33333333333333,
+          "low": 70.1188782734946,
+          "high": 82.54778839317206
+        },
+        "peak_step": {
+          "n": 6,
+          "mean": 123.33333333333333,
+          "low": 111.67247092797705,
+          "high": 134.9941957386896
+        },
+        "overshoot": {
+          "n": 6,
+          "mean": 43.65533333333334,
+          "low": 37.11016914036449,
+          "high": 50.200497526302186
+        },
+        "oscillation_amplitude": {
+          "n": 6,
+          "mean": 46.333333333333336,
+          "low": 40.1188782734946,
+          "high": 52.54778839317207
+        },
+        "final_population": {
+          "n": 6,
+          "mean": 35.333333333333336,
+          "low": 29.714522547042495,
+          "high": 40.95214411962418
+        },
+        "late_window_mean": {
+          "n": 6,
+          "mean": 32.678,
+          "low": 31.207767077334267,
+          "high": 34.14823292266573
+        },
+        "starvation_deaths": {
+          "n": 6,
+          "mean": 196.16666666666666,
+          "low": 178.06985980032084,
+          "high": 214.26347353301247
+        },
+        "mean_lifespan_at_death": {
+          "n": 6,
+          "mean": 191.09200275981414,
+          "low": 179.43631347724804,
+          "high": 202.74769204238024
+        },
+        "max_generation": {
+          "n": 6,
+          "mean": 3.5,
+          "low": 2.925200427379101,
+          "high": 4.074799572620899
+        },
+        "total_births": {
+          "n": 6,
+          "mean": 202.16666666666666,
+          "low": 181.95401679828188,
+          "high": 222.37931653505143
+        }
+      }
+    },
+    {
+      "founder": 8,
+      "offspring": 5,
+      "metrics": {
+        "peak_population": {
+          "n": 6,
+          "mean": 74.0,
+          "low": 63.89049719026967,
+          "high": 84.10950280973033
+        },
+        "peak_step": {
+          "n": 6,
+          "mean": 117.16666666666667,
+          "low": 96.86702570380174,
+          "high": 137.4663076295316
+        },
+        "overshoot": {
+          "n": 6,
+          "mean": 41.758,
+          "low": 32.29254937454901,
+          "high": 51.223450625450994
+        },
+        "oscillation_amplitude": {
+          "n": 6,
+          "mean": 44.0,
+          "low": 33.89049719026967,
+          "high": 54.10950280973033
+        },
+        "final_population": {
+          "n": 6,
+          "mean": 32.333333333333336,
+          "low": 28.36948465871794,
+          "high": 36.297182007948734
+        },
+        "late_window_mean": {
+          "n": 6,
+          "mean": 32.242,
+          "low": 29.809727716642225,
+          "high": 34.67427228335777
+        },
+        "starvation_deaths": {
+          "n": 6,
+          "mean": 205.5,
+          "low": 163.87694290673986,
+          "high": 247.12305709326014
+        },
+        "mean_lifespan_at_death": {
+          "n": 6,
+          "mean": 165.54988341171585,
+          "low": 133.3750199502666,
+          "high": 197.72474687316512
+        },
+        "max_generation": {
+          "n": 6,
+          "mean": 2.8333333333333335,
+          "low": 2.0433468828413814,
+          "high": 3.6233197838252855
+        },
+        "total_births": {
+          "n": 6,
+          "mean": 208.33333333333334,
+          "low": 165.13701903509497,
+          "high": 251.52964763157172
+        }
+      }
+    },
+    {
+      "founder": 8,
+      "offspring": 8,
+      "metrics": {
+        "peak_population": {
+          "n": 6,
+          "mean": 77.16666666666667,
+          "low": 67.09172014287978,
+          "high": 87.24161319045356
+        },
+        "peak_step": {
+          "n": 6,
+          "mean": 122.33333333333333,
+          "low": 109.5549011892363,
+          "high": 135.11176547743034
+        },
+        "overshoot": {
+          "n": 6,
+          "mean": 43.72688888888889,
+          "low": 33.82987044935494,
+          "high": 53.62390732842283
+        },
+        "oscillation_amplitude": {
+          "n": 6,
+          "mean": 47.166666666666664,
+          "low": 37.09172014287977,
+          "high": 57.241613190453556
+        },
+        "final_population": {
+          "n": 6,
+          "mean": 33.0,
+          "low": 29.68139312017242,
+          "high": 36.31860687982758
+        },
+        "late_window_mean": {
+          "n": 6,
+          "mean": 33.43977777777778,
+          "low": 31.0641654505635,
+          "high": 35.815390104992055
+        },
+        "starvation_deaths": {
+          "n": 6,
+          "mean": 225.33333333333334,
+          "low": 197.70572343899835,
+          "high": 252.96094322766834
+        },
+        "mean_lifespan_at_death": {
+          "n": 6,
+          "mean": 179.44521806964164,
+          "low": 158.8989761703004,
+          "high": 199.9914599689829
+        },
+        "max_generation": {
+          "n": 6,
+          "mean": 3.3333333333333335,
+          "low": 2.7914070991688438,
+          "high": 3.875259567497823
+        },
+        "total_births": {
+          "n": 6,
+          "mean": 228.83333333333334,
+          "low": 198.64008937324854,
+          "high": 259.02657729341814
+        }
+      }
+    },
+    {
+      "founder": 12,
+      "offspring": 5,
+      "metrics": {
+        "peak_population": {
+          "n": 6,
+          "mean": 72.66666666666667,
+          "low": 65.59042971624537,
+          "high": 79.74290361708798
+        },
+        "peak_step": {
+          "n": 6,
+          "mean": 109.66666666666667,
+          "low": 88.58719899131628,
+          "high": 130.74613434201706
+        },
+        "overshoot": {
+          "n": 6,
+          "mean": 41.13355555555555,
+          "low": 33.33077949011187,
+          "high": 48.93633162099923
+        },
+        "oscillation_amplitude": {
+          "n": 6,
+          "mean": 42.333333333333336,
+          "low": 34.922603538464486,
+          "high": 49.744063128202185
+        },
+        "final_population": {
+          "n": 6,
+          "mean": 33.833333333333336,
+          "low": 31.227293521521037,
+          "high": 36.43937314514564
+        },
+        "late_window_mean": {
+          "n": 6,
+          "mean": 31.53311111111111,
+          "low": 30.291375180288377,
+          "high": 32.774847041933846
+        },
+        "starvation_deaths": {
+          "n": 6,
+          "mean": 213.66666666666666,
+          "low": 185.8167194801613,
+          "high": 241.516613853172
+        },
+        "mean_lifespan_at_death": {
+          "n": 6,
+          "mean": 161.9228537612845,
+          "low": 141.90831658929594,
+          "high": 181.93739093327306
+        },
+        "max_generation": {
+          "n": 6,
+          "mean": 2.3333333333333335,
+          "low": 1.7914070991688438,
+          "high": 2.875259567497823
+        },
+        "total_births": {
+          "n": 6,
+          "mean": 218.16666666666666,
+          "low": 190.8699062673835,
+          "high": 245.46342706594982
+        }
+      }
+    },
+    {
+      "founder": 12,
+      "offspring": 8,
+      "metrics": {
+        "peak_population": {
+          "n": 6,
+          "mean": 78.5,
+          "low": 74.3683677540952,
+          "high": 82.6316322459048
+        },
+        "peak_step": {
+          "n": 6,
+          "mean": 112.16666666666667,
+          "low": 98.76973937169096,
+          "high": 125.56359396164238
+        },
+        "overshoot": {
+          "n": 6,
+          "mean": 46.32888888888889,
+          "low": 43.311050348202684,
+          "high": 49.3467274295751
+        },
+        "oscillation_amplitude": {
+          "n": 6,
+          "mean": 48.166666666666664,
+          "low": 43.99964506140997,
+          "high": 52.33368827192336
+        },
+        "final_population": {
+          "n": 6,
+          "mean": 30.166666666666668,
+          "low": 26.161358830315585,
+          "high": 34.17197450301775
+        },
+        "late_window_mean": {
+          "n": 6,
+          "mean": 32.17111111111111,
+          "low": 29.278640779981256,
+          "high": 35.06358144224097
+        },
+        "starvation_deaths": {
+          "n": 6,
+          "mean": 197.33333333333334,
+          "low": 140.87928797227926,
+          "high": 253.78737869438743
+        },
+        "mean_lifespan_at_death": {
+          "n": 6,
+          "mean": 190.63686496800858,
+          "low": 161.32759724648207,
+          "high": 219.9461326895351
+        },
+        "max_generation": {
+          "n": 6,
+          "mean": 3.0,
+          "low": 3.0,
+          "high": 3.0
+        },
+        "total_births": {
+          "n": 6,
+          "mean": 197.5,
+          "low": 139.5135763995661,
+          "high": 255.4864236004339
+        }
+      }
+    },
+    {
+      "founder": 20,
+      "offspring": 5,
+      "metrics": {
+        "peak_population": {
+          "n": 6,
+          "mean": 75.5,
+          "low": 68.35920928651845,
+          "high": 82.64079071348155
+        },
+        "peak_step": {
+          "n": 6,
+          "mean": 104.5,
+          "low": 97.20661105258247,
+          "high": 111.79338894741753
+        },
+        "overshoot": {
+          "n": 6,
+          "mean": 42.796666666666674,
+          "low": 35.020370775455994,
+          "high": 50.572962557877354
+        },
+        "oscillation_amplitude": {
+          "n": 6,
+          "mean": 45.166666666666664,
+          "low": 37.8833514656971,
+          "high": 52.449981867636225
+        },
+        "final_population": {
+          "n": 6,
+          "mean": 30.5,
+          "low": 26.368367754095196,
+          "high": 34.631632245904804
+        },
+        "late_window_mean": {
+          "n": 6,
+          "mean": 32.70333333333333,
+          "low": 31.285163079318913,
+          "high": 34.12150358734775
+        },
+        "starvation_deaths": {
+          "n": 6,
+          "mean": 226.5,
+          "low": 204.28019830754852,
+          "high": 248.71980169245148
+        },
+        "mean_lifespan_at_death": {
+          "n": 6,
+          "mean": 160.87564685881685,
+          "low": 147.1779235907155,
+          "high": 174.5733701269182
+        },
+        "max_generation": {
+          "n": 6,
+          "mean": 2.8333333333333335,
+          "low": 2.0433468828413814,
+          "high": 3.6233197838252855
+        },
+        "total_births": {
+          "n": 6,
+          "mean": 227.66666666666666,
+          "low": 207.27770486728215,
+          "high": 248.05562846605116
+        }
+      }
+    },
+    {
+      "founder": 20,
+      "offspring": 8,
+      "metrics": {
+        "peak_population": {
+          "n": 6,
+          "mean": 83.33333333333333,
+          "low": 78.79925315877759,
+          "high": 87.86741350788907
+        },
+        "peak_step": {
+          "n": 6,
+          "mean": 128.83333333333334,
+          "low": 114.49915394361015,
+          "high": 143.16751272305655
+        },
+        "overshoot": {
+          "n": 6,
+          "mean": 50.21066666666667,
+          "low": 43.648098776783684,
+          "high": 56.77323455654965
+        },
+        "oscillation_amplitude": {
+          "n": 6,
+          "mean": 53.0,
+          "low": 48.96274048371898,
+          "high": 57.03725951628102
+        },
+        "final_population": {
+          "n": 6,
+          "mean": 33.333333333333336,
+          "low": 29.779685368093205,
+          "high": 36.88698129857347
+        },
+        "late_window_mean": {
+          "n": 6,
+          "mean": 33.12266666666667,
+          "low": 30.395587311197133,
+          "high": 35.8497460221362
+        },
+        "starvation_deaths": {
+          "n": 6,
+          "mean": 193.0,
+          "low": 145.2720178336858,
+          "high": 240.7279821663142
+        },
+        "mean_lifespan_at_death": {
+          "n": 6,
+          "mean": 200.02379636861454,
+          "low": 158.51776925236715,
+          "high": 241.52982348486194
+        },
+        "max_generation": {
+          "n": 6,
+          "mean": 3.3333333333333335,
+          "low": 2.7914070991688438,
+          "high": 3.875259567497823
+        },
+        "total_births": {
+          "n": 6,
+          "mean": 197.0,
+          "low": 146.22206130671458,
+          "high": 247.77793869328542
+        }
+      }
+    }
+  ],
+  "slopes": [
+    {
+      "offspring": 5,
+      "n": 24,
+      "slope": -0.007707955809968061,
+      "low": -0.10514450325309514,
+      "high": 0.08972859163315901,
+      "covers_zero": true,
+      "seeds_agreeing": 5,
+      "n_seeds": 6,
+      "directional": null
+    },
+    {
+      "offspring": 8,
+      "n": 24,
+      "slope": -0.08423304217716363,
+      "low": -0.22440202527644484,
+      "high": 0.055935940922117594,
+      "covers_zero": true,
+      "seeds_agreeing": 5,
+      "n_seeds": 6,
+      "directional": null
+    }
+  ],
+  "contrasts": [
+    {
+      "founder": 5,
+      "metric": "late_window_mean",
+      "n": 6,
+      "mean": 1.6388888888888893,
+      "low": -0.07702390642099055,
+      "high": 3.354801684198769,
+      "excludes_zero": false,
+      "n_positive": 6,
+      "n_negative": 0,
+      "directional": null
+    },
+    {
+      "founder": 8,
+      "metric": "late_window_mean",
+      "n": 6,
+      "mean": 1.1977777777777774,
+      "low": -1.572501308294621,
+      "high": 3.968056863850176,
+      "excludes_zero": false,
+      "n_positive": 4,
+      "n_negative": 2,
+      "directional": null
+    },
+    {
+      "founder": 12,
+      "metric": "late_window_mean",
+      "n": 6,
+      "mean": 0.6379999999999999,
+      "low": -3.2210635500247102,
+      "high": 4.49706355002471,
+      "excludes_zero": false,
+      "n_positive": 3,
+      "n_negative": 3,
+      "directional": null
+    },
+    {
+      "founder": 20,
+      "metric": "late_window_mean",
+      "n": 6,
+      "mean": 0.41933333333333483,
+      "low": -2.898296021175954,
+      "high": 3.7369626878426234,
+      "excludes_zero": false,
+      "n_positive": 3,
+      "n_negative": 3,
+      "directional": null
+    },
+    {
+      "founder": 5,
+      "metric": "mean_lifespan_at_death",
+      "n": 6,
+      "mean": 21.952526304804447,
+      "low": -5.847437594171751,
+      "high": 49.752490203780646,
+      "excludes_zero": false,
+      "n_positive": 4,
+      "n_negative": 2,
+      "directional": null
+    },
+    {
+      "founder": 8,
+      "metric": "mean_lifespan_at_death",
+      "n": 6,
+      "mean": 13.895334657925757,
+      "low": -10.04571597598522,
+      "high": 37.836385291836734,
+      "excludes_zero": false,
+      "n_positive": 5,
+      "n_negative": 1,
+      "directional": null
+    },
+    {
+      "founder": 12,
+      "metric": "mean_lifespan_at_death",
+      "n": 6,
+      "mean": 28.71401120672408,
+      "low": -12.808833272584167,
+      "high": 70.23685568603233,
+      "excludes_zero": false,
+      "n_positive": 4,
+      "n_negative": 2,
+      "directional": null
+    },
+    {
+      "founder": 20,
+      "metric": "mean_lifespan_at_death",
+      "n": 6,
+      "mean": 39.148149509797676,
+      "low": 3.5842278852822247,
+      "high": 74.71207113431313,
+      "excludes_zero": true,
+      "n_positive": 6,
+      "n_negative": 0,
+      "directional": "positive"
+    },
+    {
+      "founder": 5,
+      "metric": "max_generation",
+      "n": 6,
+      "mean": 0.3333333333333333,
+      "low": -0.20859290083115628,
+      "high": 0.875259567497823,
+      "excludes_zero": false,
+      "n_positive": 2,
+      "n_negative": 0,
+      "directional": null
+    },
+    {
+      "founder": 8,
+      "metric": "max_generation",
+      "n": 6,
+      "mean": 0.5,
+      "low": -0.3780208503211787,
+      "high": 1.3780208503211786,
+      "excludes_zero": false,
+      "n_positive": 2,
+      "n_negative": 0,
+      "directional": null
+    },
+    {
+      "founder": 12,
+      "metric": "max_generation",
+      "n": 6,
+      "mean": 0.6666666666666666,
+      "low": 0.12474043250217703,
+      "high": 1.2085929008311562,
+      "excludes_zero": true,
+      "n_positive": 4,
+      "n_negative": 0,
+      "directional": null
+    },
+    {
+      "founder": 20,
+      "metric": "max_generation",
+      "n": 6,
+      "mean": 0.5,
+      "low": -0.3780208503211787,
+      "high": 1.3780208503211786,
+      "excludes_zero": false,
+      "n_positive": 2,
+      "n_negative": 0,
+      "directional": null
+    }
+  ]
+}
