@@ -1,5 +1,6 @@
 """Regression tests for component-backed random-cardinal movement."""
 
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -85,3 +86,10 @@ def test_move_without_component_fails_explicitly(agent):
     assert not result["success"]
     assert result["error"] == "Movement component unavailable"
     assert agent.position == (10.0, 10.0)
+
+
+@pytest.mark.parametrize("behavior", [None, SimpleNamespace()])
+def test_simulation_config_preserves_movement_default_without_setting(behavior):
+    config = AgentComponentConfig.from_simulation_config(SimpleNamespace(agent_behavior=behavior))
+
+    assert config.movement.max_movement == MovementConfig().max_movement

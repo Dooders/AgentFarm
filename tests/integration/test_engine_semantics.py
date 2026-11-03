@@ -12,6 +12,7 @@ from farm.core.services.implementations import EnvironmentValidationService
 @pytest.fixture
 def moving_environment():
     config = SimulationConfig()
+    config.agent_behavior.max_movement = 3
     environment = Environment(
         width=30,
         height=30,
@@ -37,6 +38,7 @@ def test_agents_move(moving_environment, monkeypatch):
     environment, agent = moving_environment
     monkeypatch.setattr("farm.core.action.random.choice", lambda _: (1, 0))
     old_position = agent.position
+    assert agent.config.movement.max_movement == 3
     assert isinstance(agent.services.validation_service, EnvironmentValidationService)
     assert agent.get_component("movement").validation_service is agent.validation_service
 

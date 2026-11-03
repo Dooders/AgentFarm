@@ -349,6 +349,9 @@ class AgentComponentConfig:
                     decision_kwargs[decision_field] = getattr(learning, learning_field)
 
         return cls(
+            movement=MovementConfig(
+                max_movement=getattr(agent_behavior, "max_movement", MovementConfig.max_movement),
+            ),
             resource=ResourceConfig(
                 base_consumption_rate=base_consumption_rate,
                 starvation_threshold=starvation_threshold,
