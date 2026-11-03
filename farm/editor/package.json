@@ -4,7 +4,7 @@
 	"type": "commonjs",
 	"devDependencies": {
 		"@babel/core": "^8.0.10",
-		"@babel/preset-env": "^7.28.3",
+		"@babel/preset-env": "^8.0.7",
 		"babel-jest": "^30.5.2",
 		"jest": "^29.7.0",
 		"jest-environment-jsdom": "^30.5.2",
