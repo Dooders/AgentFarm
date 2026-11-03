@@ -169,6 +169,20 @@ inheritance on 30 seed-matched runs per cell.
   [`VALIDITY_FOLLOWUP.md`](../../experiments/veil_ceiling/results/VALIDITY_FOLLOWUP.md)
   (with per-cell ledgers and analysis tables alongside)
 
+## Validity notice: 2026-11 engine review
+
+The [2026-11 engine review](reviews/2026-11-engine-review/README.md)
+found that, at commit `952c6b14`, agents never move, the RESOURCES
+observation channel is effectively blind, action parameters in YAML are
+ignored, and terminal transitions are never stored. Every experiment
+above that depends on foraging, spatial dynamics, resource perception or
+death-as-terminal-state is being audited and, where necessary, re-run on
+the fixed engine with control arms (milestone *M1 Validation and re-run*
+in the remediation project). Until that audit adds a status column to
+this page, treat learning and movement-dependent conclusions as
+provisional. The findings are encoded as strict-xfail tests in
+[`tests/integration/test_engine_semantics.py`](../../tests/integration/test_engine_semantics.py).
+
 ## Adding a new experiment
 
 When introducing a new experiment, follow the structure used by the

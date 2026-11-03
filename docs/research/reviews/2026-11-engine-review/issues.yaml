@@ -1,0 +1,827 @@
+# Issue set derived from the 2026-11 engine review (README.md in this directory).
+#
+# Consumed by scripts/engine_review/bootstrap_github_project.py, which creates the
+# labels, milestones, a GitHub Project (v2) with custom fields, and one issue per
+# entry below, then rewrites `blocked_by` ids into issue references and fills each
+# epic's task list with its children.
+#
+# Conventions
+#   id          stable key used for cross references (never renumber)
+#   epic        id of the tracking issue this belongs to (epics have `epic: null`)
+#   blocked_by  ids that must close before this can start
+#   labels      must exist in `labels:` below
+#   fields      values for the Project custom fields defined in `project.fields`
+
+project:
+  title: "Engine review 2026-11: correctness, validation, performance"
+  short_description: >-
+    Tracks remediation of the findings in docs/research/reviews/2026-11-engine-review.
+    Milestones are gates with exit criteria, not dates.
+  fields:
+    Priority:
+      type: single_select
+      options: ["P0 blocks claims", "P1 degrades results", "P2 cost or hygiene"]
+    Effort:
+      type: single_select
+      options: ["S single function", "M single module", "L cross-module"]
+    Area:
+      type: single_select
+      options: ["engine", "perception", "decision", "data", "experiments", "benchmarks", "docs"]
+    Evidence:
+      type: single_select
+      options: ["measured", "verified by reading", "suspected"]
+
+labels:
+  - { name: "engine-review", color: "5319e7", description: "Derived from the 2026-11 engine review" }
+  - { name: "epic", color: "0e8a16", description: "Tracking issue with a task list of children" }
+  - { name: "priority:P0", color: "b60205", description: "Blocks scientific claims" }
+  - { name: "priority:P1", color: "d93f0b", description: "Degrades results" }
+  - { name: "priority:P2", color: "fbca04", description: "Cost or hygiene" }
+  - { name: "area:engine", color: "1d76db", description: "Simulation loop, environment, agent lifecycle" }
+  - { name: "area:perception", color: "1d76db", description: "Observations and channels" }
+  - { name: "area:decision", color: "1d76db", description: "Decision module, RL algorithms, chromosome" }
+  - { name: "area:data", color: "1d76db", description: "Database, logging, metrics" }
+  - { name: "area:experiments", color: "1d76db", description: "Runners, statistics, provenance" }
+  - { name: "area:benchmarks", color: "1d76db", description: "Benchmark harness and specs" }
+  - { name: "area:docs", color: "1d76db", description: "Documentation drift" }
+  - { name: "needs-decision", color: "c5def5", description: "Requires a research or scope decision before work starts" }
+
+milestones:
+  - title: "M0 Engine correctness"
+    description: >-
+      Exit criterion: a 200-step development run shows agents moving, a non-zero RESOURCES
+      channel, done=True on every death, one agent_actions row per agent-step and combat/share
+      rows present. Every strict-xfail marker in tests/integration/test_engine_semantics.py has
+      been removed because the test passes.
+  - title: "M1 Validation and re-run"
+    description: >-
+      Exit criterion: docs/research/experiments-catalog.md carries a status column
+      (unaffected / re-run / retracted) for every finding since Aug 2025, with links to
+      new results produced on the M0 engine with control arms.
+  - title: "M2 Statistical and provenance infrastructure"
+    description: >-
+      Exit criterion: all experiment folders import from farm/stats; a fresh ExperimentRunner
+      run has distinct per-iteration seeds and a recorded git revision; PettingZoo api_test
+      runs in CI.
+  - title: "M3 Performance"
+    description: >-
+      Exit criterion: ms/agent-step and peak RSS improved against the committed baseline in
+      docs/research/reviews/2026-11-engine-review/baseline_952c6b14.json, and the benchmark
+      regression CI job is green.
+  - title: "M4 Scale and architecture"
+    description: >-
+      Exit criterion: the agreed target-scale run (see the epic) completes within memory on
+      reference hardware with Protocol-typed services and a configurable scheduler.
+
+issues:
+  # ------------------------------------------------------------------ epics
+  - id: M0
+    title: "Epic: M0 Engine correctness"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, epic, "priority:P0", "area:engine"]
+    epic: null
+    blocked_by: []
+    fields: { Priority: "P0 blocks claims", Effort: "L cross-module", Area: engine, Evidence: measured }
+    body: |
+      Tracking issue for the correctness fixes that must land before any further experiments.
+      Review: `docs/research/reviews/2026-11-engine-review/README.md` sections 1, 2 and 3.5.
+
+      **Why this gate is strictly sequential.** Performance work on a broken engine is wasted,
+      and experiment re-runs (M1) are meaningless until these semantics are fixed.
+
+      **Exit criterion.** A 200-step development run shows agents moving, a non-zero RESOURCES
+      channel, `done=True` on every death, one `agent_actions` row per agent-step and
+      combat/share rows present. All strict-xfail markers in
+      `tests/integration/test_engine_semantics.py` have been removed because the tests pass.
+
+  - id: M1
+    title: "Epic: M1 Validation and re-run of affected experiments"
+    milestone: "M1 Validation and re-run"
+    labels: [engine-review, epic, "priority:P0", "area:experiments"]
+    epic: null
+    blocked_by: [M0]
+    fields: { Priority: "P0 blocks claims", Effort: "L cross-module", Area: experiments, Evidence: measured }
+    body: |
+      Tracking issue for auditing every published finding against the M0 fixes.
+      Review sections 4.2 and 4.4.
+
+      Every devlog entry and experiments-catalog item since the Aug 2025 component refactor
+      gets a three-way status: **unaffected** (does not depend on movement, resource
+      perception or terminal rewards), **re-run** (same seeds and arms on the fixed engine
+      plus control arms) or **retracted**.
+
+      **Exit criterion.** `docs/research/experiments-catalog.md` carries the status column with
+      links to new results, and a devlog entry summarises the audit.
+
+  - id: M2
+    title: "Epic: M2 Statistical and provenance infrastructure"
+    milestone: "M2 Statistical and provenance infrastructure"
+    labels: [engine-review, epic, "priority:P1", "area:experiments"]
+    epic: null
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "L cross-module", Area: experiments, Evidence: "verified by reading" }
+    body: |
+      Tracking issue for shared statistics, seeding, provenance and documentation hygiene.
+      Review sections 4.1, 4.3, 4.6 and 5.2. Can run in parallel with M0.
+
+      **Exit criterion.** All experiment folders import from `farm/stats`; a fresh
+      `ExperimentRunner` run has distinct per-iteration seeds and a recorded git revision;
+      `pettingzoo.test.api_test` runs in CI; dead config keys and stale docs are removed.
+
+  - id: M3
+    title: "Epic: M3 Performance"
+    milestone: "M3 Performance"
+    labels: [engine-review, epic, "priority:P1", "area:engine"]
+    epic: null
+    blocked_by: [M0]
+    fields: { Priority: "P1 degrades results", Effort: "L cross-module", Area: engine, Evidence: measured }
+    body: |
+      Tracking issue for the measured hot spots. Review section 3 and 3.7.
+
+      Baseline (4 vCPU, no GPU, commit `952c6b14`): ~3.8 ms per agent-step with learning,
+      ~1.9 ms without; DQN training 52-61% of wall time; ~27 MB peak RSS per agent; R=10 is
+      2.5x the cost of R=3. SQLite backend, spatial index and metrics tracker are *not*
+      bottlenecks.
+
+      **Exit criterion.** `scripts/engine_review/engine_baseline.py --compare` shows improved
+      ms/agent-step and peak RSS against
+      `docs/research/reviews/2026-11-engine-review/baseline_952c6b14.json` and the benchmark
+      regression CI job is green. Re-measure after M0 lands first: movement changes the
+      spatial-index workload (+5% measured) and the population curve.
+
+  - id: M4
+    title: "Epic: M4 Scale and architecture"
+    milestone: "M4 Scale and architecture"
+    labels: [engine-review, epic, "priority:P2", "area:engine", needs-decision]
+    epic: null
+    blocked_by: [M0, M3]
+    fields: { Priority: "P2 cost or hygiene", Effort: "L cross-module", Area: engine, Evidence: "verified by reading" }
+    body: |
+      Tracking issue for structural changes. Review sections 2.11, 5.2 and 5.3.
+
+      **Decision required before scoping (review Open Question 5).** What is the target scale?
+      The recommendations differ sharply between roughly "50 agents, 10k steps, 20 seeds" (fix
+      correctness, modest optimisation) and "1000 agents, 100k steps" (shared networks,
+      vectorised perception, multiprocessing). Record the decision here and in the exit
+      criterion below.
+
+      **Exit criterion.** TARGET SCALE TBD: a run of N agents for S steps completes within
+      memory on the reference hardware, with Protocol-typed agent services and a configurable
+      scheduler.
+
+  # ------------------------------------------------------------------ M0 children
+  - id: M0-A
+    title: "Movement: agents never move because move_action requires services AgentCore lacks"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P0", "area:engine"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P0 blocks claims", Effort: "M single module", Area: engine, Evidence: measured }
+    body: |
+      **Evidence.** `farm/core/action.py` `move_action` succeeds only if
+      `hasattr(agent, "validation_service") and agent.validation_service` and then calls
+      `agent.update_position(...)`. `AgentCore` has neither attribute. The injection in
+      `Environment.add_agent` is guarded by `if hasattr(agent, "validation_service") and
+      agent.validation_service is None`, which never fires. Review sections 1, 2.2, 2.5, 3.5.
+
+      **Observed.** 0 of 28 agents changed position over 200 development steps; every move
+      returned `success=False`, `error="Invalid position..."`,
+      `validation_service_available=False`.
+      **Expected.** Agents move by `max_movement` in a chosen direction when the target cell is valid.
+
+      **Acceptance test.** `tests/integration/test_engine_semantics.py::test_agents_move`
+      (currently strict-xfail). Remove the marker when it passes.
+
+      **Suggested shape.** Route `move_action` through `MovementComponent` (which already
+      validates and updates the spatial index) instead of duck-typed attributes, and make the
+      validation service an explicit constructor dependency of `AgentCore`/`AgentServices`.
+      Decide whether `move` stays a random-direction primitive or becomes directional
+      (review Open Question 3) before changing the action space.
+
+  - id: M0-B
+    title: "Perception: RESOURCES channel is blind due to perception_radius 5 vs ObservationConfig.R 6"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P0", "area:perception"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P0 blocks claims", Effort: "S single function", Area: perception, Evidence: measured }
+    body: |
+      **Evidence.** `PerceptionConfig.perception_radius = 5` builds 11x11 world layers in
+      `PerceptionComponent._create_world_layers`; `Environment._setup_observation_space`
+      defaults to `ObservationConfig()` with `R = 6` (13x13). `WorldLayerHandler.process` in
+      `farm/core/channels.py` treats the shape mismatch as a world-sized grid and crops at world
+      coordinates. `AgentComponentConfig.from_simulation_config` does not propagate `R`.
+      Review sections 1, 2.4.
+
+      **Observed.** 10 non-zero resource cells vs 58 ground-truth resources within R=6 at
+      step 0, then 0 non-zero cells for the rest of the run.
+      **Expected.** Every resource within R appears in the RESOURCES channel every step.
+
+      **Acceptance test.**
+      `tests/integration/test_engine_semantics.py::test_resources_channel_sees_nearby_resources`
+      (strict-xfail).
+
+      **Suggested shape.** Derive `perception_radius` from `ObservationConfig.R` in
+      `from_simulation_config` (single source of truth) and make `WorldLayerHandler.process`
+      raise on a shape that matches neither the local window nor the world grid.
+
+  - id: M0-C
+    title: "Action parameters in YAML are ignored; getattr fallbacks hard-code gather 30 / attack 20 / share 30"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P0", "area:engine"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P0 blocks claims", Effort: "M single module", Area: engine, Evidence: "verified by reading" }
+    body: |
+      **Evidence.** `farm/core/action.py` reads `getattr(agent.config, "gathering_range", 30)`,
+      `attack_range` (20), `share_range` (30), `max_gather_amount` (10), `share_amount` (2),
+      `min_keep_amount` (5), `max_movement` (1). `agent.config` is an `AgentComponentConfig`
+      that defines none of these, so `farm/config/default.yaml` values never reach the actions.
+      `curriculum_phases` is likewise unmapped (runtime `None`). Review sections 1, 2.5.
+
+      **Observed.** On the 50x50 development world a gathering range of 30 lets stationary
+      agents gather from most of the map, which is why #M0-A went unnoticed.
+      **Expected.** Changing `gathering_range` in YAML changes gathering behaviour; an unknown
+      or missing parameter raises at config load, not at action time.
+
+      **Acceptance test.**
+      `tests/integration/test_engine_semantics.py::test_gathering_range_from_config_is_respected`
+      (strict-xfail): with `gathering_range = 1` an agent 10 cells from the only resource must
+      not gather.
+
+      **Suggested shape.** Add an `ActionConfig` dataclass to
+      `farm/core/agent/config/component_configs.py`, populate it in `from_simulation_config`,
+      and delete every `getattr(agent.config, ..., literal)` in `action.py`.
+
+  - id: M0-D
+    title: "Learning signal: terminal transitions never stored and metabolic cost excluded from reward"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P0", "area:decision"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P0 blocks claims", Effort: "M single module", Area: decision, Evidence: measured }
+    body: |
+      **Evidence.** `ResourceComponent.on_step_start` applies base consumption and starvation
+      before `AgentCore.step` takes the reward pre-snapshot; a starving agent calls
+      `core.terminate()` before any transition is stored, and `behavior.update(..., done=not
+      self.alive)` is only reached by survivors. Review sections 1, 2.2, 2.7, 3.5.
+
+      **Observed.** 31 deaths, 0 transitions with `done=True`; `reward_death_penalty` has no
+      effect on any Q-target; the agent's own cost of living is invisible to
+      `_calculate_reward`.
+      **Expected.** Every death stores exactly one terminal transition with the death penalty
+      applied; the reward includes the step's metabolic cost.
+
+      **Acceptance test.**
+      `tests/integration/test_engine_semantics.py::test_every_death_stores_a_terminal_transition`
+      (strict-xfail).
+
+      **Suggested shape.** Take the pre-snapshot before `on_step_start`, or move consumption
+      into the post-action phase; have `terminate()` push the final transition. Decide
+      explicitly whether metabolic cost belongs in the reward (review Open Question 4) and
+      record it in `RewardConfig`.
+
+  - id: M0-E1
+    title: "Every action is logged twice to agent_actions"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P1", "area:data"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: data, Evidence: measured }
+    body: |
+      **Evidence.** `DecisionModule.update()` in `farm/core/decision/decision.py` calls
+      `log_agent_action` a second time with module metadata after `AgentCore._execute_action`
+      has already logged the action. Review sections 2.6, 3.5.
+
+      **Observed.** 66,584 `agent_actions` rows for 33,292 agent-steps (exactly 2x).
+      **Expected.** One row per agent-step, carrying the module metadata.
+
+      **Acceptance test.**
+      `tests/integration/test_engine_semantics.py::test_one_action_row_per_agent_step`
+      (strict-xfail).
+
+  - id: M0-E2
+    title: "Combat and share metrics are never recorded (metrics_service never injected)"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P1", "area:data"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: data, Evidence: "verified by reading" }
+    body: |
+      **Evidence.** `attack_action` and `share_action` in `farm/core/action.py` record metrics
+      only inside `if hasattr(agent, "metrics_service")`, which is false for `AgentCore`.
+      `simulation_steps` deliberately omits combat counters ("derive from actions"), which is
+      impossible while this path is dead. Review sections 2.5, 2.9.
+
+      **Expected.** Combat encounters and shares are counted in step metrics and visible to
+      `farm/analysis/combat` and `social_behavior`.
+
+      **Acceptance test.** Add a test that runs two adjacent agents with attack enabled and
+      asserts `combat_encounters > 0` in the step metrics.
+
+      **Suggested shape.** Inject `metrics_service` via `AgentServices` (it already has the
+      slot) and make the actions use it unconditionally.
+
+  - id: M0-E3
+    title: "Three reward paths disagree: _calculate_reward vs RewardComponent vs action side effects"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P1", "area:decision"]
+    epic: M0
+    blocked_by: [M0-D]
+    fields: { Priority: "P1 degrades results", Effort: "M single module", Area: decision, Evidence: "verified by reading" }
+    body: |
+      **Evidence.** The learner sees `AgentCore._calculate_reward`. `RewardComponent`
+      (`components/reward.py`) computes `resource_delta + 0.5*health_delta + 0.1` into
+      `total_reward`; `pass_action`/`defend_action` add `ActionRewardConfig` bonuses (0.01/0.02)
+      directly to `total_reward`. Review section 2.6.
+
+      **Observed.** `agent_states.total_reward` is not the cumulative sum of the rewards the
+      policy was trained on, so "reward over time" analyses measure a different quantity from
+      the learning signal.
+      **Expected.** One reward function; `total_reward` equals the cumulative training reward.
+
+      **Acceptance test.** Assert after a short run that for every agent
+      `total_reward == sum(rewards passed to behavior.update)` within float tolerance.
+
+  - id: M0-F1
+    title: "algorithm_type 'ddqn' is accepted but silently falls through to the random FallbackAlgorithm"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P1", "area:decision"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: decision, Evidence: "verified by reading" }
+    body: |
+      **Evidence.** `DecisionConfig` lists `"ddqn"` as valid ("alias for dqn with DDQN
+      features"); `DecisionModule._initialize_algorithm` branches only on
+      `ppo/sac/dqn/a2c/ddpg/fallback`, so `ddqn` becomes `FallbackAlgorithm` (random in both
+      epsilon branches). The live `dqn` path is vanilla one-step DQN; Double DQN exists only in
+      the orphaned `BaseDQNModule`. `DecisionConfig.tau` is unused on the Tianshou path.
+      Review sections 2.6, 4.6.
+
+      **Expected.** `ddqn` either configures `DQNPolicy(is_double=True)` or raises a config
+      error. Unknown types raise instead of degrading to random.
+
+      **Acceptance test.** Unit test constructing `DecisionModule` with `algorithm_type="ddqn"`
+      and asserting the policy is a double-DQN (or that an error is raised, per decision).
+
+  - id: M0-F2
+    title: "PPO and A2C are trained off-policy from the DQN replay buffer"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P1", "area:decision"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: decision, Evidence: "verified by reading" }
+    body: |
+      **Evidence.** The Tianshou PPO/A2C wrappers in
+      `farm/core/decision/algorithms/tianshou.py` sample from the same replay buffer as DQN,
+      which is not a valid regime for on-policy methods. SAC/DDPG continuous actors are
+      projected onto discrete logits. Review section 2.6.
+
+      **Expected.** Either implement an on-policy rollout collector for PPO/A2C or refuse
+      those algorithm types with a clear error until one exists.
+
+      **Acceptance test.** Config validation test: `algorithm_type="ppo"` either constructs
+      an on-policy collector or raises `ValueError` mentioning the limitation.
+
+  - id: M0-F3
+    title: "Two divergent sets of DQN defaults (DecisionConfig vs LearningConfig)"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P1", "area:decision", "area:docs"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: decision, Evidence: "verified by reading" }
+    body: |
+      **Evidence.** `DecisionConfig` defaults are `gamma=0.99`, `memory_size=10000`,
+      `dqn_hidden_size=64`; `farm/config/config.py` `LearningConfig` defaults are `0.95`,
+      `2000`, `24`, and `AgentComponentConfig.from_simulation_config` maps the latter over the
+      former. Every run started from a `SimulationConfig` (including the review profiling)
+      uses 0.95 / 2000 / 24. Review section 2.6.
+
+      **Expected.** One authoritative set of defaults, documented, and a warning or error when
+      both are set to different values.
+
+      **Acceptance test.** Unit test asserting `DecisionConfig.from_simulation_config(
+      SimulationConfig())` yields the documented values and that docs quote the same numbers.
+
+  - id: M0-F4
+    title: "Tianshou wrapper hard-codes device=cpu and cpu_threads=1"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P2", "area:decision"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P2 cost or hygiene", Effort: "S single function", Area: decision, Evidence: "verified by reading" }
+    body: |
+      **Evidence.** `_get_default_config` in `farm/core/decision/algorithms/tianshou.py` sets
+      `"device": "cpu"` regardless of `SimulationConfig.device`; `DeviceConfig.cpu_threads`
+      defaults to 1 and `torch.set_num_threads(1)` is applied. On the 4-core review host the
+      learner was single-threaded by configuration. Review section 2.6.
+
+      **Expected.** The wrapper honours `SimulationConfig.device`; `cpu_threads` defaults to
+      the physical core count (or documents why 1 is required for determinism).
+
+      **Acceptance test.** Unit test that a `SimulationConfig(device="cuda")` (mocked
+      availability) produces a policy on that device.
+
+  - id: M0-G
+    title: "ExperimentRunner: no per-iteration seeds, flat setattr on nested config, wrong DB filename"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P0", "area:experiments"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P0 blocks claims", Effort: "M single module", Area: experiments, Evidence: "verified by reading" }
+    body: |
+      **Evidence.** `farm/runners/experiment_runner.py` does not vary `config.seed` across
+      iterations (N iterations replay one trajectory); applies `config_variations` with
+      `setattr(config, key, value)` on a nested `SimulationConfig` (creates an unused flat
+      attribute); reads `getattr(base_config, "use_in_memory_db")` flat; and expects
+      `simulation.db` while the engine writes `simulation_{id}.db`, so its analysis step is
+      always skipped. Review sections 1, 2.10, 4.1.
+
+      **Expected.** Iteration *i* uses `base_seed + i`; variations use the nested config
+      update API; the analysis step finds the DB it just wrote.
+
+      **Acceptance test.** Two iterations produce different per-step digests; a variation of
+      `population.system_agents` changes the initial population; analysis output exists after
+      a run.
+
+  - id: M0-H
+    title: "memory_size gene bound of 1e6 implies ~17 GB per agent and will OOM during evolution"
+    milestone: "M0 Engine correctness"
+    labels: [engine-review, "priority:P1", "area:decision"]
+    epic: M0
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: decision, Evidence: measured }
+    body: |
+      **Evidence.** `farm/core/hyperparameter_chromosome.py` allows `memory_size` in
+      `[1, 1e6]`. The replay buffer in `rl_base.py` stores full `state` and `next_state`
+      tensors (13x13x13 float32, ~17.6 KB per transition). Measured peak RSS is ~27 MB per
+      agent at the default 2000 (buffer not yet full at 200 steps). Review sections 2.6, 2.7, 3.3.
+
+      **Expected.** Gene bounds derived from the observation footprint and a configurable
+      per-process memory budget (for example cap at 20k transitions for R=6).
+
+      **Acceptance test.** Unit test that the chromosome's `memory_size` upper bound scales
+      with `ObservationConfig.R` and never exceeds the budget.
+
+  # ------------------------------------------------------------------ M1 children
+  - id: M1-A
+    title: "Audit matrix: classify every finding since Aug 2025 as unaffected / re-run / retracted"
+    milestone: "M1 Validation and re-run"
+    labels: [engine-review, "priority:P0", "area:experiments", "area:docs"]
+    epic: M1
+    blocked_by: [M0]
+    fields: { Priority: "P0 blocks claims", Effort: "M single module", Area: experiments, Evidence: measured }
+    body: |
+      Build the audit table before re-running anything. For each devlog entry under
+      `docs/research/devlog/` and each catalog item in `docs/research/experiments-catalog.md`
+      dated after the component refactor, record: which of movement / resource perception /
+      terminal reward / combat-share metrics / action counts it depends on; the original seeds
+      and arms; and the resulting status. Review sections 4.2, 4.4 and Open Question 1.
+
+      Entries already known to be sensitive: 2026-05-16 "Is the DQN learning" (learning gain
+      barely above zero is explained by findings 1-4), 2026-06-04 and the 2026-07 inheritance
+      ladder (warm-start losses were measured on a malformed signal), 2026-06-09 intrinsic
+      goals (population and gather-share deltas depend on foraging).
+
+  - id: M1-B
+    title: "Add random-policy and no-learning control arms to the research runners"
+    milestone: "M1 Validation and re-run"
+    labels: [engine-review, "priority:P0", "area:experiments"]
+    epic: M1
+    blocked_by: []
+    fields: { Priority: "P0 blocks claims", Effort: "M single module", Area: experiments, Evidence: "verified by reading" }
+    body: |
+      No runner currently produces a random-policy or no-learning baseline automatically.
+      Given the blind RESOURCES channel, learned policies may be indistinguishable from
+      random; this must be testable before any learning claim. Review section 4.3.
+
+      **Scope.** `farm/runners/cohort_runner.py` and
+      `farm/runners/intrinsic_goals_experiment.py` gain `control_arms` (random, no-learning)
+      that share seeds with the treatment arms and appear in the aggregate output.
+
+      **Acceptance test.** A cohort run with controls enabled writes per-arm results and the
+      aggregate reports treatment-minus-control deltas with CIs.
+
+  - id: M1-C
+    title: "Re-run experiments classified 're-run' on the M0 engine with control arms"
+    milestone: "M1 Validation and re-run"
+    labels: [engine-review, "priority:P0", "area:experiments"]
+    epic: M1
+    blocked_by: [M1-A, M1-B]
+    fields: { Priority: "P0 blocks claims", Effort: "L cross-module", Area: experiments, Evidence: measured }
+    body: |
+      One sub-task per experiment in the audit matrix with status *re-run*. Use the original
+      seed lists and arm definitions, add the control arms from #M1-B, and record the new
+      results next to the old ones so the catalog can show both. Open a follow-up issue for
+      any finding whose direction flips.
+
+  - id: M1-D
+    title: "Publish the audit: catalog status column and devlog entry"
+    milestone: "M1 Validation and re-run"
+    labels: [engine-review, "priority:P1", "area:docs"]
+    epic: M1
+    blocked_by: [M1-C]
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: docs, Evidence: measured }
+    body: |
+      Add a status column (unaffected / re-run / retracted, with links) to
+      `docs/research/experiments-catalog.md` and write a devlog entry summarising what the
+      engine review changed and which conclusions survived. The public record should be
+      explicit about retractions.
+
+  # ------------------------------------------------------------------ M2 children
+  - id: M2-A
+    title: "Create farm/stats and migrate the five scattered statistics implementations"
+    milestone: "M2 Statistical and provenance infrastructure"
+    labels: [engine-review, "priority:P1", "area:experiments"]
+    epic: M2
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "M single module", Area: experiments, Evidence: "verified by reading" }
+    body: |
+      Statistical helpers are duplicated across `farm/experiments/consensus/contrasts.py`
+      (paired deltas, t-CI, Wilcoxon, Holm, paired Cohen's d),
+      `farm/experiments/veil_ceiling/analysis.py` (percentile bootstrap),
+      `farm/runners/intrinsic_goals_experiment.py` (`ttest_rel`, Cohen's dz),
+      `farm/analysis/advantage` (`ttest_ind`, Cohen's d) and
+      `farm/core/decision/training/recombination_stats.py` (bootstrap, Welch).
+      `CohortRunner` reports mean/std only. Review section 4.3.
+
+      **Scope.** New `farm/stats/` package: bootstrap CI, paired/Welch tests, Holm and BH
+      correction, Cohen's d / dz, Cliff's delta, autocorrelation-aware CI for step-level
+      series. Migrate every caller; delete the duplicates.
+
+      **Acceptance test.** Unit tests for each function against scipy references; `rg` finds no
+      remaining local `bootstrap`/`holm` implementations outside `farm/stats`.
+
+  - id: M2-B
+    title: "Record provenance in the simulation DB: git revision, dirty flag, package versions, effective config"
+    milestone: "M2 Statistical and provenance infrastructure"
+    labels: [engine-review, "priority:P1", "area:data", "area:experiments"]
+    epic: M2
+    blocked_by: [M0-C]
+    fields: { Priority: "P1 degrades results", Effort: "M single module", Area: data, Evidence: "verified by reading" }
+    body: |
+      `simulations/config.json` and the `simulation_config` table store the *requested* YAML,
+      not the *effective* configuration after fallbacks, and no git revision or package
+      versions. The verified spatial benchmark already records revision, platform and
+      `PYTHONHASHSEED`; the simulation DB should match that standard. Review section 4.1.
+
+      **Acceptance test.** After a run, `simulation_config` contains `git_revision`,
+      `git_dirty`, `python_version`, `package_versions` and the resolved config dict.
+
+  - id: M2-C
+    title: "Pre-registration manifest written by every runner"
+    milestone: "M2 Statistical and provenance infrastructure"
+    labels: [engine-review, "priority:P2", "area:experiments"]
+    epic: M2
+    blocked_by: [M2-A]
+    fields: { Priority: "P2 cost or hygiene", Effort: "M single module", Area: experiments, Evidence: suspected }
+    body: |
+      Runners should write a manifest (primary endpoint, arms, seeds, planned analysis,
+      correction method) into the results directory *before* the first simulation starts, so
+      post-hoc endpoint selection is visible. Review section 5.3.
+
+  - id: M2-D
+    title: "Run pettingzoo.test.api_test against Environment in CI"
+    milestone: "M2 Statistical and provenance infrastructure"
+    labels: [engine-review, "priority:P1", "area:engine"]
+    epic: M2
+    blocked_by: [M0-D]
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: engine, Evidence: "verified by reading" }
+    body: |
+      The PettingZoo API test validates observation spaces, `done`/`terminated` handling and
+      agent iteration; it would very likely have surfaced #M0-D. Add it to
+      `tests/integration/` and to `.github/workflows/tests.yml`. Review section 4.5.
+
+  - id: M2-E
+    title: "Replication defaults: warn or fail when an experiment runs with a single seed"
+    milestone: "M2 Statistical and provenance infrastructure"
+    labels: [engine-review, "priority:P1", "area:experiments"]
+    epic: M2
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: experiments, Evidence: "verified by reading" }
+    body: |
+      `IntrinsicGoalsExperimentConfig.num_replicates` defaults to 1 and the cohort example uses
+      three seeds, while the project's own 2026-05-12 devlog found single-seed effects "mostly
+      die" at six seeds. Raise the defaults and emit a warning in the aggregate output when
+      fewer than five replicates are used. Review section 4.3.
+
+  - id: M2-F
+    title: "Default-on mutation in reproduce and a genotype-distance diversity metric"
+    milestone: "M2 Statistical and provenance infrastructure"
+    labels: [engine-review, "priority:P1", "area:decision", needs-decision]
+    epic: M2
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "M single module", Area: decision, Evidence: "verified by reading" }
+    body: |
+      `AgentCore._derive_child_chromosome` returns `deepcopy(parent)` unless an
+      `IntrinsicEvolutionPolicy` is attached, so default runs have no variation, yet
+      `MetricsTracker.genetic_diversity` (unique lineages / N) is reported as if evolution were
+      happening. `docs/design/hyperparameter_chromosome.md` still describes mutation in
+      `reproduce`. Review sections 2.2, 2.7, 4.2 and Open Question 7.
+
+      **Decision.** Should the default simulation mutate? If yes, add a configurable rate and
+      make `genetic_diversity` a genotype-distance measure (and rename the lineage count).
+      If no, rename the metric and fix the docs.
+
+  - id: M2-G
+    title: "Benchmark rot: memory_db benchmark measures nothing, spatial spec unregistered, README claims unmeasured"
+    milestone: "M2 Statistical and provenance infrastructure"
+    labels: [engine-review, "priority:P1", "area:benchmarks", "area:docs"]
+    epic: M2
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: benchmarks, Evidence: measured }
+    body: |
+      `benchmarks/implementations/memory_db_benchmark.py` sets `use_in_memory_db`,
+      `system_agents` and `width` as flat attributes on a nested `SimulationConfig`, so all
+      three arms run the same disk-backed configuration; the reported "1.41x" and the README's
+      "33.6% faster" are warm-up noise (measured disk vs in-memory: 25.73 s vs 25.80 s).
+      `benchmarks/specs/spatial_comprehensive_baseline.yaml` references an experiment not
+      registered in `run_benchmarks.py`. Review section 3.2.
+
+      **Scope.** Fix the config writes, re-measure, update or delete the README claim,
+      register or delete the spatial spec, add a CODEOWNERS entry for `benchmarks/`.
+
+  - id: M2-H
+    title: "Documentation drift: dead config keys, stale design docs, nonexistent backends"
+    milestone: "M2 Statistical and provenance infrastructure"
+    labels: [engine-review, "priority:P2", "area:docs"]
+    epic: M2
+    blocked_by: [M0-C, M0-F3]
+    fields: { Priority: "P2 cost or hygiene", Effort: "S single function", Area: docs, Evidence: "verified by reading" }
+    body: |
+      Remove per-module DQN knobs (`move_*`, `attack_*`, ...) and `curriculum_phases` from
+      `farm/config/default.yaml` or wire them; correct
+      `docs/design/hyperparameter_chromosome.md`; move `docs/concepts/agents-and-decisions.md`
+      to a proposals folder; remove README references to Stable-Baselines3/TD3; reconcile
+      `CurriculumConfig` defaults with `DecisionConfig.curriculum_phases = None`; remove the
+      `LearningExperience` table reference in `research_models.py`. Review section 4.6.
+
+  # ------------------------------------------------------------------ M3 children
+  - id: M3-A
+    title: "Use foreach/fused Adam in the Tianshou wrapper (6% of runtime in Tensor.sqrt)"
+    milestone: "M3 Performance"
+    labels: [engine-review, "priority:P1", "area:decision"]
+    epic: M3
+    blocked_by: []
+    fields: { Priority: "P1 degrades results", Effort: "S single function", Area: decision, Evidence: measured }
+    body: |
+      Profile: `adam._single_tensor_adam` 44.6 s cumulative of 292.5 s, of which 17.9 s in
+      `Tensor.sqrt` across 89,412 calls. `torch.optim.Adam(..., foreach=True)` (or `fused=True`
+      on supported devices) removes the per-parameter Python loop. Review section 3.1.
+
+      **Acceptance.** `engine_baseline.py --compare` shows reduced ms/agent-step on the
+      learning configurations with identical loss trajectories for a fixed seed.
+
+  - id: M3-B
+    title: "Batch policy inference across agents (one forward pass per step)"
+    milestone: "M3 Performance"
+    labels: [engine-review, "priority:P2", "area:decision"]
+    epic: M3
+    blocked_by: [M0-A]
+    fields: { Priority: "P2 cost or hygiene", Effort: "M single module", Area: decision, Evidence: measured }
+    body: |
+      33,292 single-observation `predict_proba` calls cost 23.5 s (8%). With per-agent
+      networks this requires grouping by network; with shared networks (#M4-D) it is a single
+      stacked forward. Review sections 3.1, 3.7.
+
+  - id: M3-C
+    title: "Vectorise observation construction and drop the four never-populated channels"
+    milestone: "M3 Performance"
+    labels: [engine-review, "priority:P1", "area:perception"]
+    epic: M3
+    blocked_by: [M0-B]
+    fields: { Priority: "P1 degrades results", Effort: "M single module", Area: perception, Evidence: measured }
+    body: |
+      `perceive_world` + `update_known_empty` + `_build_dense_tensor` = 53.6 s (18% of total,
+      ~52% of the non-learning floor), dominated by Python per-cell loops in `apply_to_dense`
+      (150,953 calls) and `channels.process` (196,749 calls). DAMAGE_HEAT, TRAILS,
+      ALLY_SIGNAL and GOAL are allocated but never written (31% of the tensor).
+      Review sections 2.4, 3.1, 3.7.
+
+      **Scope.** NumPy slice-based layer extraction, pre-allocated per-agent buffers, cached
+      static OBSTACLES/TERRAIN layers, and channel registration gated on a producer existing.
+
+  - id: M3-D
+    title: "Replay buffer: compact observation storage and segment-tree PER"
+    milestone: "M3 Performance"
+    labels: [engine-review, "priority:P1", "area:decision"]
+    epic: M3
+    blocked_by: [M0-H]
+    fields: { Priority: "P1 degrades results", Effort: "M single module", Area: decision, Evidence: measured }
+    body: |
+      `rl_base.PrioritizedReplayBuffer` stores a list of dicts with full `state` and
+      `next_state` float32 tensors and samples with `np.random.choice` over the full priority
+      vector (O(n)). Measured ~17 MB RSS per agent attributable to the learning stack at
+      200 steps. Review sections 2.6, 3.3.
+
+      **Scope.** Store observations as uint8/float16 in a preallocated array, reference
+      `next_state` by index, and use Tianshou's segment-tree `PrioritizedReplayBuffer`.
+
+  - id: M3-E
+    title: "Per-step agent/resource state persistence is synchronous; make it buffered and sampleable"
+    milestone: "M3 Performance"
+    labels: [engine-review, "priority:P2", "area:data"]
+    epic: M3
+    blocked_by: []
+    fields: { Priority: "P2 cost or hygiene", Effort: "M single module", Area: data, Evidence: "verified by reading" }
+    body: |
+      `DataLogger.log_step` in `farm/database/data_logging.py` bulk-inserts every alive agent
+      state, every resource and the step row inside an immediate `_execute_in_transaction`;
+      the `_step_buffer` size check after it is unreachable for that data, so the
+      `buffer_size=1000` / `commit_interval=30s` design only applies to actions and health.
+      The legacy `DataCollector._estimate_agent_territory` is O(n^2). Review section 2.9.
+
+      **Scope.** Route step data through the buffer, add `state_log_interval` so large runs
+      can persist states every k steps, replace the territory estimate with a spatial-index
+      query or retire it.
+
+  - id: M3-F
+    title: "Benchmark regression CI job using scripts/engine_review/engine_baseline.py"
+    milestone: "M3 Performance"
+    labels: [engine-review, "priority:P1", "area:benchmarks"]
+    epic: M3
+    blocked_by: [M0]
+    fields: { Priority: "P1 degrades results", Effort: "M single module", Area: benchmarks, Evidence: measured }
+    body: |
+      Run a fixed small configuration set on every PR to `dev`, compare against a committed
+      baseline JSON for the CI runner class, and fail on >10% regression in ms/agent-step or
+      peak RSS. Re-baseline deliberately (separate PR) after M0 lands since movement changes
+      the workload. Review section 5.3.
+
+  - id: M3-G
+    title: "Spatial index: replace md5 position hashing with a version counter; batch updates off by default"
+    milestone: "M3 Performance"
+    labels: [engine-review, "priority:P2", "area:engine"]
+    epic: M3
+    blocked_by: [M0-A]
+    fields: { Priority: "P2 cost or hygiene", Effort: "S single function", Area: engine, Evidence: measured }
+    body: |
+      Not a bottleneck today (6,312 rebuilds at 300 moving agents cost +5% wall time), but
+      `SpatialIndex.update` hashes all positions with md5 on every dirty query and the verified
+      benchmark shows batch updates slower than immediate ones and the AgentFarm KD-tree
+      wrapper 7x slower to build than raw SciPy. Review sections 2.3, 3.2, 3.4.
+
+  # ------------------------------------------------------------------ M4 children
+  - id: M4-A
+    title: "Replace getattr/hasattr duck typing with typing.Protocol services and run mypy in CI"
+    milestone: "M4 Scale and architecture"
+    labels: [engine-review, "priority:P1", "area:engine"]
+    epic: M4
+    blocked_by: [M0]
+    fields: { Priority: "P1 degrades results", Effort: "L cross-module", Area: engine, Evidence: "verified by reading" }
+    body: |
+      Every M0 correctness failure is a case where a "tolerant" `getattr`/`hasattr` branch
+      silently became the only branch after a refactor. Define `ValidationService`,
+      `MetricsService`, `SpatialService`, `LoggingService` protocols, validate at construction,
+      add mypy to CI, and add a lint check that forbids new `getattr(obj, "name", default)` on
+      service attributes. Review section 2.11.
+
+  - id: M4-B
+    title: "Configurable activation scheduler (random permutation by default)"
+    milestone: "M4 Scale and architecture"
+    labels: [engine-review, "priority:P1", "area:engine"]
+    epic: M4
+    blocked_by: [M0-A]
+    fields: { Priority: "P1 degrades results", Effort: "M single module", Area: engine, Evidence: "verified by reading" }
+    body: |
+      Agents act in insertion order every step, giving early-spawned agents and their lineages
+      first pick at contested resources. Provide random, staged and insertion-order schedulers
+      (Mesa `RandomActivation` is the minimum bar) and make random the default, seeded from the
+      simulation RNG. Review sections 2.1, 4.2, 4.5.
+
+  - id: M4-C
+    title: "Split Environment: AEC adapter vs batch simulation core vs resource/metrics services"
+    milestone: "M4 Scale and architecture"
+    labels: [engine-review, "priority:P2", "area:engine"]
+    epic: M4
+    blocked_by: [M4-A]
+    fields: { Priority: "P2 cost or hygiene", Effort: "L cross-module", Area: engine, Evidence: "verified by reading" }
+    body: |
+      `Environment` implements the PettingZoo AECEnv API, the batch loop (`step()` and
+      `update()` overlap), resource management, metrics, spatial lifecycle, agent registry,
+      DB handoff and observation-space construction. Review section 2.1.
+
+  - id: M4-D
+    title: "Optional parameter sharing across agents of a type with agent-ID conditioning"
+    milestone: "M4 Scale and architecture"
+    labels: [engine-review, "priority:P2", "area:decision", needs-decision]
+    epic: M4
+    blocked_by: [M3-D]
+    fields: { Priority: "P2 cost or hygiene", Effort: "L cross-module", Area: decision, Evidence: measured }
+    body: |
+      Per-agent independent DQN with private buffers is the most expensive and least
+      sample-efficient MARL configuration and caps populations at a few hundred on commodity
+      hardware (~27 MB/agent measured). Decide whether independent networks are a research
+      requirement (review Open Question 2); if not, add a shared-network mode.
+
+  - id: M4-E
+    title: "Scale path: multiprocessing over agents or vectorised world representation"
+    milestone: "M4 Scale and architecture"
+    labels: [engine-review, "priority:P2", "area:engine", needs-decision]
+    epic: M4
+    blocked_by: [M3-C, M4-C]
+    fields: { Priority: "P2 cost or hygiene", Effort: "L cross-module", Area: engine, Evidence: measured }
+    body: |
+      With a ~2 ms/agent-step pure-Python floor, 1000 agents for 10k steps is ~6 hours
+      single-core. Scoping depends on the target scale recorded in the M4 epic. Review
+      section 5.3.

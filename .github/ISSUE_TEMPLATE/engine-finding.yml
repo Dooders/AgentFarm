@@ -1,0 +1,85 @@
+name: Engine finding
+description: Report a correctness, performance or methodology finding in the simulation engine with evidence and an acceptance test.
+title: "[engine] "
+labels: ["engine-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for findings that affect what simulation results mean (semantics, learning
+        signal, data integrity, statistics) or how fast they are produced. Every finding needs
+        evidence that points at code and a test that fails today and passes once it is fixed.
+        See `docs/research/reviews/` for the review that established this format.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: File, function and (if available) measured numbers. Link the review section or profile output you are citing.
+      placeholder: |
+        `farm/core/action.py` `move_action` requires `agent.validation_service`, which `AgentCore` does not define.
+        Measured: 0 of 28 agents changed position in 200 development steps.
+    validations:
+      required: true
+  - type: textarea
+    id: observed-expected
+    attributes:
+      label: Observed vs expected
+      description: One line each.
+      placeholder: |
+        Observed: every move returns success=False.
+        Expected: agents move by max_movement when the target cell is valid.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-test
+    attributes:
+      label: Acceptance test
+      description: The pytest (path and name) that fails today and must pass. Prefer a real `Environment` plus `AgentCore` run over mocks; for known bugs add it as a strict xfail in `tests/integration/test_engine_semantics.py` so the fix is forced to remove the marker.
+      placeholder: tests/integration/test_engine_semantics.py::test_agents_move
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 blocks scientific claims
+        - P1 degrades results
+        - P2 cost or hygiene
+    validations:
+      required: true
+  - type: dropdown
+    id: evidence-level
+    attributes:
+      label: Evidence level
+      options:
+        - measured (reproduced with a run, profile or test)
+        - verified by reading the code
+        - suspected
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - engine
+        - perception
+        - decision
+        - data
+        - experiments
+        - benchmarks
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: research-impact
+    attributes:
+      label: Research impact
+      description: Which experiments, devlog entries or catalog items depend on this behaviour, and whether they need re-running.
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Blocked by / blocks
+      description: Issue references, so the dependency chain is visible on the project board.
+      placeholder: "Blocked by #123. Blocks #456."
