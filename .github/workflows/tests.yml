@@ -123,6 +123,11 @@ jobs:
         run: |
           python -m venv "$RUNNER_TEMP/wheel-venv"
           "$RUNNER_TEMP/wheel-venv/bin/pip" install --upgrade pip
+          "$RUNNER_TEMP/wheel-venv/bin/pip" install \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --no-deps \
+            -c requirements-lock.txt \
+            torch
           "$RUNNER_TEMP/wheel-venv/bin/pip" install -c requirements-lock.txt dist/*.whl
       - name: Smoke-test the installed package
         working-directory: ${{ runner.temp }}
