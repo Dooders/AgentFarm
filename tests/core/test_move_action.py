@@ -43,6 +43,18 @@ def test_move_action_uses_component_distance_and_updates_state(agent, monkeypatc
     agent.spatial_service.mark_positions_dirty.assert_called_once_with()
 
 
+def test_move_action_accepts_configured_step_at_large_coordinates(agent, monkeypatch):
+    movement = agent.get_component("movement")
+    movement.config = MovementConfig(max_movement=0.1)
+    agent.position = (100_000.0, 100_000.0)
+    monkeypatch.setattr("farm.core.action.random.choice", lambda _: (1, 0))
+
+    result = move_action(agent)
+
+    assert result["success"], result
+    assert agent.position == (100_000.1, 100_000.0)
+
+
 def test_rejected_move_preserves_state_and_spatial_index(agent, monkeypatch):
     agent.validation_service.is_valid_position.return_value = False
     monkeypatch.setattr("farm.core.action.random.choice", lambda _: (1, 0))
