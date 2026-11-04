@@ -164,7 +164,9 @@ class MovementComponent(AgentComponent):
             dy = position[1] - self.position[1]
             distance = math.sqrt(dx * dx + dy * dy)
 
-            if distance > self.config.max_movement:
+            if distance > self.config.max_movement and not math.isclose(
+                distance, self.config.max_movement, rel_tol=1e-12, abs_tol=1e-12
+            ):
                 logger.debug(f"[{self.name}] Movement distance {distance:.2f} exceeds max {self.config.max_movement}")
                 return False
 

@@ -44,6 +44,7 @@ from farm.core.policy_inheritance import (
     apply_p4_policy_warmstart,
 )
 from farm.core.state import AgentState, AgentStateManager
+from farm.core.services.interfaces import IValidationService
 from farm.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -884,9 +885,18 @@ class AgentCore:
     def position(self, value: tuple[float, float]) -> None:
         """Set agent position."""
         movement_comp = self.get_component("movement")
-        if movement_comp:
-            movement_comp.set_position(value)
+        if movement_comp and movement_comp.set_position(value):
             self.state.update_position(value)
+            self._invalidate_obs_cache()
+
+    def move_to(self, position: tuple[float, float]) -> bool:
+        """Move through the movement component and synchronize agent state."""
+        movement_comp = self.get_component("movement")
+        if movement_comp is None or not movement_comp.move_to(position):
+            return False
+        self.state.update_position(movement_comp.position)
+        self._invalidate_obs_cache()
+        return True
 
     @property
     def resource_level(self) -> float:
@@ -1003,6 +1013,16 @@ class AgentCore:
             self.services = AgentServices(spatial_service=value)
         else:
             self.services.spatial_service = value
+
+    @property
+    def validation_service(self) -> IValidationService | None:
+        """Get the explicitly injected position validation service."""
+        return self.services.validation_service
+
+    @validation_service.setter
+    def validation_service(self, value: IValidationService | None) -> None:
+        """Set validation in the shared services container for all components."""
+        self.services.validation_service = value
 
     def _derive_child_chromosome(
         self, parent_chromosome: HyperparameterChromosome
