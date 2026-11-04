@@ -93,7 +93,7 @@ dev = [
     "hypothesis>=6.100.0",
 ]
 notary = [
-    "farm-notary @ git+https://github.com/Dooders/FarmNotary.git@v0.1.0",
+    "farm-notary>=1.0,<2.0",
 ]
 # Video export (scripts/animate_simulation.py). Kept optional because moviepy
 # 2.x caps Pillow below 12, which would hold the core install on a Pillow
