@@ -179,6 +179,16 @@ simulations/
 !/experiments/veil_ceiling/
 !/experiments/veil_ceiling/results/
 !/experiments/veil_ceiling/results/**
+!/experiments/cooperation/
+!/experiments/cooperation/results/
+!/experiments/cooperation/results/**
+!/experiments/intrinsic_cooperation_pilot/
+!/experiments/intrinsic_cooperation_pilot/intrinsic_cooperation_summary.json
+!/experiments/intrinsic_cooperation_pilot/intrinsic_cooperation_comparison.png
+!/experiments/intrinsic_cooperation_pilot/calibration.md
+!/experiments/intrinsic_cooperation_pilot/calibration.json
+!/experiments/intrinsic_cooperation_pilot/run_manifest.json
+!/experiments/intrinsic_cooperation_pilot/resources.log
 
 # Generated experiment outputs (regenerate via run_experiment.py / runners)
 /results/

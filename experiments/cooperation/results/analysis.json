@@ -1,0 +1,118 @@
+{
+  "confirmatory": [
+    {
+      "key": "H1",
+      "statement": "With full recognition, a higher exit cost (0.6 vs 0) lengthens bond life.",
+      "metric": "bond_rmst",
+      "n": 20,
+      "mean_diff": 79.95698484810566,
+      "ci_low": 77.48598188911674,
+      "ci_high": 82.64314326677192,
+      "positive_seeds": 20,
+      "p_value": 9.5367431640625e-07,
+      "p_holm": 5.7220458984375e-06,
+      "significant": true
+    },
+    {
+      "key": "H2",
+      "statement": "Broad scope needs a high exit cost: the scope penalty on bond life at exit cost 0 shrinks at exit cost 0.6 (full recognition).",
+      "metric": "bond_rmst",
+      "n": 20,
+      "mean_diff": 8.678233879477162,
+      "ci_low": 5.692865140720029,
+      "ci_high": 11.773135370102354,
+      "positive_seeds": 19,
+      "p_value": 1.811981201171875e-05,
+      "p_holm": 5.435943603515625e-05,
+      "significant": true
+    },
+    {
+      "key": "H3",
+      "statement": "With no exit cost, full recognition still lengthens bond life (by blocking outside offers).",
+      "metric": "bond_rmst",
+      "n": 20,
+      "mean_diff": 4.021003835934646,
+      "ci_low": 3.4820477998953425,
+      "ci_high": 4.603046967358962,
+      "positive_seeds": 20,
+      "p_value": 9.5367431640625e-07,
+      "p_holm": 5.7220458984375e-06,
+      "significant": true
+    },
+    {
+      "key": "H4a",
+      "statement": "Founder welfare is higher at a moderate exit cost (0.3) than at none (full recognition).",
+      "metric": "welfare_d_lifespan",
+      "n": 20,
+      "mean_diff": 7.107499999999999,
+      "ci_low": 5.053881944444444,
+      "ci_high": 9.172798611111109,
+      "positive_seeds": 19,
+      "p_value": 2.86102294921875e-06,
+      "p_holm": 1.1444091796875e-05,
+      "significant": true
+    },
+    {
+      "key": "H4b",
+      "statement": "Founder welfare is higher at a moderate exit cost (0.3) than at a high one (0.6) (full recognition).",
+      "metric": "welfare_d_lifespan",
+      "n": 20,
+      "mean_diff": -3.5272222222222225,
+      "ci_low": -5.807000000000002,
+      "ci_high": -1.1507569444444463,
+      "positive_seeds": 3,
+      "p_value": 0.9946556091308594,
+      "p_holm": 1.0,
+      "significant": false
+    },
+    {
+      "key": "H5",
+      "statement": "Trapped time rises with exit cost (0.6 vs 0.3, full recognition).",
+      "metric": "trap_rate",
+      "n": 20,
+      "mean_diff": -0.007841724519944453,
+      "ci_low": -0.011349252616173987,
+      "ci_high": -0.004220194857449886,
+      "positive_seeds": 4,
+      "p_value": 0.9995746612548828,
+      "p_holm": 1.0,
+      "significant": false
+    }
+  ],
+  "verdicts": {
+    "H1": "supported",
+    "H2": "supported",
+    "H3": "supported",
+    "H5": "not supported",
+    "H4": "not supported"
+  },
+  "manipulation_checks": [
+    {
+      "key": "M1",
+      "statement": "Unrecognised exit cost is inert: bond life at exit cost 0.6 vs 0 with no recognition (two-sided).",
+      "metric": "bond_rmst",
+      "n": 20,
+      "mean_diff": -1.2072695988161828,
+      "ci_low": -1.6926822710368221,
+      "ci_high": -0.6956084636164571,
+      "positive_seeds": 2,
+      "p_value": 0.000209808349609375,
+      "p_holm": NaN,
+      "significant": false
+    },
+    {
+      "key": "M2",
+      "statement": "No exit payment, no trap: trap rate with exit cost 0 is zero at every recognition level (two-sided).",
+      "metric": "trap_rate",
+      "n": 20,
+      "mean_diff": 0.0,
+      "ci_low": 0.0,
+      "ci_high": 0.0,
+      "positive_seeds": 0,
+      "p_value": 1.0,
+      "p_holm": NaN,
+      "significant": false
+    }
+  ],
+  "notes": []
+}

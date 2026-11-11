@@ -195,6 +195,14 @@ class DecisionConfig(BaseDQNConfig):
         default=True,
         description="If true, add small exploration bonus to probabilities",
     )
+    policy_temperature: float = Field(
+        default=1.0,
+        description=(
+            "Temperature applied to the policy's action distribution before it is "
+            "combined with action weights: p_i^(1/T) renormalised. 1.0 leaves the "
+            "algorithm's own softmax; values below 1 sharpen it towards the argmax."
+        ),
+    )
 
     # State-based multipliers
     move_mult_no_resources: float = Field(
@@ -266,6 +274,14 @@ class DecisionConfig(BaseDQNConfig):
         """Validate PER exponents are in [0, 1]."""
         if not 0.0 <= v <= 1.0:
             raise ValueError("PER exponents must be in [0, 1]")
+        return v
+
+    @field_validator("policy_temperature")
+    @classmethod
+    def validate_policy_temperature(cls, v):
+        """Validate the policy temperature is positive."""
+        if v <= 0:
+            raise ValueError("policy_temperature must be positive")
         return v
 
     @field_validator("per_epsilon")

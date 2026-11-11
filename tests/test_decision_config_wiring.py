@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import patch
 
 import gymnasium
+import numpy as np
 
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule, TIANSHOU_AVAILABLE
@@ -321,6 +322,32 @@ class TestReplayBufferWiring(unittest.TestCase):
         # Legacy fields still receive the value too, for the legacy DQN module.
         self.assertEqual(decision_cfg.memory_size, 1234)
         self.assertEqual(decision_cfg.batch_size, 17)
+
+
+class TestPolicyTemperatureWiring(unittest.TestCase):
+    """``learning.policy_temperature`` must reach ``DecisionConfig`` and the live module."""
+
+    def test_policy_temperature_reaches_the_decision_config(self):
+        from farm.config import SimulationConfig
+        from farm.core.agent.config.component_configs import AgentComponentConfig
+
+        cfg = SimulationConfig.from_centralized_config(environment="development")
+        self.assertEqual(cfg.learning.policy_temperature, 1.0)
+        cfg.learning.policy_temperature = 0.1
+        decision_cfg = AgentComponentConfig.from_simulation_config(cfg).decision
+        self.assertAlmostEqual(decision_cfg.policy_temperature, 0.1)
+
+        flat = SimulationConfig.from_dict({"policy_temperature": 0.25})
+        self.assertAlmostEqual(flat.learning.policy_temperature, 0.25)
+        again = SimulationConfig.from_dict(flat.to_dict())
+        self.assertAlmostEqual(again.learning.policy_temperature, 0.25)
+
+    def test_module_reads_temperature_from_its_config(self):
+        module = _make_module(DecisionConfig(policy_temperature=0.5))
+        self.assertEqual(module.config.policy_temperature, 0.5)
+        sharpened = module._apply_temperature(np.array([0.6, 0.4, 0.0, 0.0]))
+        self.assertGreater(sharpened[0], 0.6)
+        self.assertEqual(sharpened[2], 0.0)
 
 
 if __name__ == "__main__":

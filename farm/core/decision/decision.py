@@ -105,6 +105,10 @@ class DecisionModule:
 
         # Use provided action space
         self.action_space = action_space
+        # The policy's own action distribution at the last decision (telemetry).
+        self.last_policy_probs: Optional[np.ndarray] = None
+        # The distribution the last action was drawn from (policy x priors x mask).
+        self.last_action_probs: Optional[np.ndarray] = None
         # Get number of actions directly from action space
         if hasattr(action_space, "n"):
             self.num_actions = int(action_space.n)
@@ -580,7 +584,27 @@ class DecisionModule:
         total = float(np.sum(probs))
         if total <= 0.0 or not np.isfinite(total):
             return np.ones(self.num_actions, dtype=np.float64) / self.num_actions
-        return probs / total
+        return self._apply_temperature(probs / total)
+
+    def _apply_temperature(self, probs: np.ndarray) -> np.ndarray:
+        """Sharpen or flatten ``probs`` by ``config.policy_temperature``.
+
+        For a softmax over scores this equals re-running the softmax at that
+        temperature, so the knob is algorithm-agnostic.
+        """
+        temperature = float(getattr(self.config, "policy_temperature", 1.0))
+        if temperature == 1.0:
+            return probs
+        with np.errstate(divide="ignore"):
+            log_probs = np.log(probs)
+        scaled = log_probs / temperature
+        finite = np.isfinite(scaled)
+        if not finite.any():
+            return probs
+        out = np.zeros_like(probs)
+        out[finite] = np.exp(scaled[finite] - np.max(scaled[finite]))
+        total = float(out.sum())
+        return out / total if total > 0.0 else probs
 
     def _normalize_distribution(
         self,
@@ -640,6 +664,9 @@ class DecisionModule:
         """
         state_np = self._normalize_state_for_algorithm(state)
         policy_probs = self._policy_probs(state_np)
+        # Kept for telemetry: the policy's own distribution before priors and
+        # curriculum masks, so a learned preference can be told from an innate one.
+        self.last_policy_probs = np.asarray(policy_probs, dtype=np.float64).copy()
         mask = self._create_action_mask(enabled_actions)
 
         if action_weights is not None and len(action_weights) == self.num_actions:
@@ -649,6 +676,8 @@ class DecisionModule:
 
         composite = policy_probs * weights * mask.astype(np.float64)
         composite = self._normalize_distribution(composite, mask)
+        # The distribution actually sampled from (policy x priors x mask).
+        self.last_action_probs = composite.copy()
         self._advance_epsilon_if_available()
         chosen = int(np.random.choice(self.num_actions, p=composite))
         return self._map_to_enabled_index(chosen, enabled_actions)
