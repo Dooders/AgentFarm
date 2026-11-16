@@ -61,8 +61,11 @@ jobs:
         #   needs tianshou>=0.5, which is held back for NumPy compatibility.
         # Python 3.10-only exceptions: filelock 4.1.x, Pillow 12.x, and
         #   tornado 6.5.x are the latest releases compatible with Python 3.10;
-        #   their audited fixes require Python 3.11+. Remove these exceptions
-        #   when Python 3.10 support is dropped. Python 3.12 uses fixed releases.
+        #   their audited fixes require Python 3.11+. CVE-2026-126347 is fixed
+        #   in tornado 6.6.1 (Python >= 3.11; the 3.10 pin stays at 6.5.10).
+        #   PYSEC-2026-4363, CVE-2026-128066, and CVE-2026-128067 are fixed in
+        #   Pillow 13, which also requires Python >= 3.11. Remove these
+        #   exceptions when Python 3.10 support is dropped.
         run: |
           ignores=(
             --ignore-vuln PYSEC-2026-1805
@@ -129,6 +132,10 @@ jobs:
               --ignore-vuln CVE-2026-116577
               --ignore-vuln CVE-2026-115927
               --ignore-vuln CVE-2026-116578
+              --ignore-vuln CVE-2026-126347
+              --ignore-vuln PYSEC-2026-4363
+              --ignore-vuln CVE-2026-128066
+              --ignore-vuln CVE-2026-128067
             )
           fi
           pip-audit -r requirements-lock.txt --no-deps --progress-spinner off --strict "${ignores[@]}"
