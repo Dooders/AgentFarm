@@ -98,7 +98,7 @@ class CombatComponent(AgentComponent):
 
         # Check for death
         if self.health <= 0 and self.core:
-            self.core.terminate()
+            self.core.terminate(cause="combat")
 
         return actual_damage
 

@@ -37,7 +37,7 @@ Notes
 import math
 import random
 import time as _time
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
@@ -49,6 +49,7 @@ from farm.config import ResourceConfig, SimulationConfig
 # Use action registry for cleaner action management
 from farm.core.action import ActionType, action_registry
 from farm.core.channels import NUM_CHANNELS
+from farm.core.cooperation import CooperationActionType, CooperationConfig, CooperationService
 from farm.core.geometry import discretize_position_continuous
 from farm.core.interfaces import DatabaseFactoryProtocol, DatabaseProtocol
 from farm.core.environment_grids import EnvironmentalGridManager
@@ -315,6 +316,14 @@ class Environment(AECEnv):
         self.resource_distribution = resource_distribution
         self.max_steps = config.max_steps if config and hasattr(config, "max_steps") else 1000
 
+        # Opt-in cooperation (farm.core.cooperation). Created before the action
+        # mapping so the bond/leave actions enter the action space, and before
+        # any agent is added so founders receive their cooperation loci.
+        self.cooperation: Optional[CooperationService] = None
+        cooperation_config = getattr(config, "cooperation", None) if config is not None else None
+        if isinstance(cooperation_config, CooperationConfig) and cooperation_config.enabled:
+            self.cooperation = CooperationService(cooperation_config, environment=self, seed=self.seed_value)
+
         # Initialize action mapping based on configuration and available actions
         self._initialize_action_mapping()
 
@@ -534,6 +543,9 @@ class Environment(AECEnv):
             ActionType.PASS: "pass",
             ActionType.COMMUNICATE: "communicate",
         }
+        if getattr(self, "cooperation", None) is not None:
+            default_action_mapping[CooperationActionType.BOND] = "bond"
+            default_action_mapping[CooperationActionType.LEAVE] = "leave"
 
         # Get enabled actions from config, or use all available if not specified
         if self.config and hasattr(self.config, "enabled_actions"):
@@ -886,6 +898,13 @@ class Environment(AECEnv):
         death_time = self.time
         death_cause = getattr(agent, "death_cause", "unknown")
 
+        cooperation = getattr(self, "cooperation", None)
+        if cooperation is not None:
+            try:
+                cooperation.on_agent_removed(agent)
+            except Exception as exc:  # never let bookkeeping block a removal
+                logger.warning("cooperation_remove_agent_failed", agent_id=agent_id, error=str(exc))
+
         self.record_death()
 
         # Update agent death in database
@@ -980,6 +999,12 @@ class Environment(AECEnv):
         for the current time step but before the next step begins.
         """
         try:
+            # Settle cooperative units for the step the agents just took:
+            # surplus, dues, aid and payouts (credited to members' resources).
+            cooperation = getattr(self, "cooperation", None)
+            if cooperation is not None:
+                cooperation.settle()
+
             # Update resources using ResourceManager
             resource_stats = self.resource_manager.update_resources(self.time)
 
@@ -1164,6 +1189,19 @@ class Environment(AECEnv):
             - Spatial index state
         """
         return EnvironmentState.from_environment(self)
+
+    def unavailable_actions(self, agent: Any) -> Set[str]:
+        """Names of actions ``agent`` may not choose this step.
+
+        Agents consult this before deciding so that actions the world makes
+        pointless right now are masked rather than wasted. Cooperation is the
+        only contributor at present (see
+        :meth:`CooperationService.unavailable_actions`).
+        """
+        cooperation = getattr(self, "cooperation", None)
+        if cooperation is None:
+            return set()
+        return cooperation.unavailable_actions(agent)
 
     def is_valid_position(self, position: Tuple[float, float]) -> bool:
         """Check if a position is valid within the environment bounds.
@@ -1441,6 +1479,13 @@ class Environment(AECEnv):
             # cache is treated as authoritative (_genome_id_cache_loaded=True).
             self._genome_id_cache.add(agent.genome_id)
 
+        # Cooperation: give founders their heritable loci, set the bond/leave
+        # prior weights from the agent's genes, and enrol newborns in their
+        # household's units (before the action weights are logged below).
+        cooperation = getattr(self, "cooperation", None)
+        if cooperation is not None:
+            cooperation.on_agent_added(agent)
+
         agent_data = [
             {
                 "simulation_id": self.simulation_id,
@@ -1664,6 +1709,12 @@ class Environment(AECEnv):
         Cleanup errors are logged but do not raise exceptions to allow
         for graceful shutdown even if some resources fail to close properly.
         """
+        cooperation = getattr(self, "cooperation", None)
+        if cooperation is not None:
+            try:
+                cooperation.close()
+            except OSError as e:
+                logger.error("cooperation_close_error", error_type=type(e).__name__, error_message=str(e))
         try:
             if hasattr(self, "db") and self.db is not None:
                 # Use logger for buffer flushing
@@ -2530,6 +2581,10 @@ class Environment(AECEnv):
         self.resources = []
         self.initialize_resources(self.resource_distribution)
 
+        # A new episode starts with no cooperative units.
+        if getattr(self, "cooperation", None) is not None:
+            self.cooperation = CooperationService(self.cooperation.config, environment=self, seed=self.seed_value)
+
         # Optionally replace agents if provided via options
         if options and isinstance(options, dict) and options.get("agents") is not None:
             # Clear existing agents and re-add provided ones
@@ -2544,6 +2599,8 @@ class Environment(AECEnv):
             self.agent_observations = {}
             for agent in self._agent_objects.values():
                 self.agent_observations[agent.agent_id] = AgentObservation(self.observation_config)
+                if getattr(self, "cooperation", None) is not None:
+                    self.cooperation.on_agent_added(agent)
 
         self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
         self.spatial_index.update()

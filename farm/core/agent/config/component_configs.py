@@ -343,6 +343,7 @@ class AgentComponentConfig:
                 ("training_frequency", "rl_train_freq"),
                 ("dqn_hidden_size", "dqn_hidden_size"),
                 ("tau", "tau"),
+                ("policy_temperature", "policy_temperature"),
             )
             for learning_field, decision_field in learning_to_decision_fields:
                 if hasattr(learning, learning_field):

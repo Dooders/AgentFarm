@@ -65,7 +65,7 @@ class ResourceComponent(AgentComponent):
             self.starvation_counter += 1
             if self.starvation_counter >= self.config.starvation_threshold:
                 if self.core:
-                    self.core.terminate()
+                    self.core.terminate(cause="starvation")
                 return True
         else:
             self.starvation_counter = 0

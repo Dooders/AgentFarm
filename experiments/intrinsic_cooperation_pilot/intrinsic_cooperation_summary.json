@@ -1,0 +1,4988 @@
+{
+  "config": {
+    "num_steps": 3000,
+    "seed": 1,
+    "num_replicates": 2,
+    "jobs": 2,
+    "arms": [
+      "baseline",
+      "placebo",
+      "cooperation",
+      "cooperation_no_motive"
+    ],
+    "cooperation": {
+      "enabled": true,
+      "mode": "active",
+      "kind": "bond",
+      "bond_range": 6.0,
+      "offer_window": 10,
+      "max_candidates": 5,
+      "terms": "mean",
+      "allow_switching": true,
+      "fixed_settings": null,
+      "evolve_genes": true,
+      "randomize_founder_genes": true,
+      "founder_gene_values": {},
+      "synergy": 0.2,
+      "payout_rate": 0.8,
+      "aid_threshold": 2.0,
+      "aid_amount": 1.0,
+      "benefit_ema_alpha": 0.1,
+      "reserve_target": 2.0,
+      "credit_payouts": true,
+      "membership_reward_scale": 1.0,
+      "horizon": 20.0,
+      "fit_scale": 2.0,
+      "affinity_scale": 4.0,
+      "exit_cost_base": "received",
+      "mask_pointless_actions": true,
+      "partners_as_allies": true,
+      "membership_marker": true,
+      "protect_partners": true,
+      "partner_coparent": true,
+      "family_on_birth": false,
+      "family_settings": null,
+      "review_interval": 10,
+      "record_interval": 1,
+      "keep_events": false,
+      "seed": null,
+      "output_dir": null
+    },
+    "mutation_rate": 0.1,
+    "mutation_scale": 0.1,
+    "mutation_mode": "gaussian",
+    "boundary_mode": "reflect",
+    "crossover_enabled": true,
+    "coparent_max_radius": 10.0,
+    "selection_pressure": "medium",
+    "initial_agent_resource_level": 12.0,
+    "initial_resource_count": 60,
+    "max_population": 300,
+    "initial_diversity_scale": null,
+    "freeze_platform_genes": true,
+    "policy_temperature": 0.1,
+    "alpha": 0.05,
+    "git_commit": "13ffe91e44d08904dc6d00f0555885dcfe86e966",
+    "git_dirty": false,
+    "python_hash_seed": "0"
+  },
+  "replicates": [
+    {
+      "index": 0,
+      "seed": 1,
+      "baseline": {
+        "arm": "baseline",
+        "final_population": 35,
+        "mean_population": 33.900333333333336,
+        "peak_population": 72,
+        "total_births": 192,
+        "total_deaths": 187,
+        "starvation_deaths": 185,
+        "combat_deaths": 2,
+        "death_causes": {
+          "starvation": 185,
+          "combat": 2
+        },
+        "mean_coverage": 0.0,
+        "final_coverage": 0.0,
+        "mean_units_active": 0,
+        "mean_action_share": {
+          "move": 0.19277854981351789,
+          "gather": 0.40455137091051385,
+          "share": 0.020817349705051322,
+          "attack": 0.04249351300066138,
+          "defend": 0.26734096384294215,
+          "reproduce": 0.009988904532059563,
+          "pass": 0.014406327802993947,
+          "communicate": 0.04762302039225991,
+          "bond": 0.0,
+          "leave": 0.0
+        },
+        "late_action_share": {
+          "move": 0.19386558516781607,
+          "gather": 0.3964069356253381,
+          "share": 0.018607115305119708,
+          "attack": 0.044504232722710424,
+          "defend": 0.27602654099307,
+          "reproduce": 0.00895900976348851,
+          "pass": 0.014098371430800737,
+          "communicate": 0.04753220899165645,
+          "bond": 0.0,
+          "leave": 0.0
+        },
+        "bond_share_late": 0.0,
+        "policy_bond_prob_late": 0.0,
+        "acting_bond_prob_late": NaN,
+        "bond_rank_late": NaN,
+        "num_actions": 8,
+        "policy_gather_prob_late": 0.282492000614182,
+        "policy_gather_lift_late": 0.157492000614182,
+        "prior_gather_share_late": 0.19157022359090392,
+        "gather_share_over_prior_late": 0.20483671203443415,
+        "policy_peak_late": 0.38514106434355494,
+        "mean_lifespan_at_death": 167.0427807486631,
+        "max_generation": 2,
+        "gene_mean_start": {
+          "coop_scope": NaN,
+          "coop_exit_cost": NaN,
+          "coop_recognition": NaN,
+          "coop_symmetry": NaN,
+          "coop_exclusivity": NaN,
+          "coop_max_members": NaN,
+          "motive_political": NaN,
+          "motive_economic": NaN,
+          "motive_emotional": NaN,
+          "motive_hedonist": NaN,
+          "motive_religious": NaN,
+          "bond_weight": NaN,
+          "leave_weight": NaN
+        },
+        "gene_mean_end": {
+          "coop_scope": NaN,
+          "coop_exit_cost": NaN,
+          "coop_recognition": NaN,
+          "coop_symmetry": NaN,
+          "coop_exclusivity": NaN,
+          "coop_max_members": NaN,
+          "motive_political": NaN,
+          "motive_economic": NaN,
+          "motive_emotional": NaN,
+          "motive_hedonist": NaN,
+          "motive_religious": NaN,
+          "bond_weight": NaN,
+          "leave_weight": NaN
+        },
+        "gene_mean_change": {
+          "coop_scope": NaN,
+          "coop_exit_cost": NaN,
+          "coop_recognition": NaN,
+          "coop_symmetry": NaN,
+          "coop_exclusivity": NaN,
+          "coop_max_members": NaN,
+          "motive_political": NaN,
+          "motive_economic": NaN,
+          "motive_emotional": NaN,
+          "motive_hedonist": NaN,
+          "motive_religious": NaN,
+          "bond_weight": NaN,
+          "leave_weight": NaN
+        },
+        "expected_exit_payment_start": NaN,
+        "expected_exit_payment_end": NaN,
+        "change_expected_exit_payment": NaN,
+        "units_formed": 0,
+        "mean_unit_lifetime": 0.0,
+        "forfeits_total": 0.0,
+        "forfeits_per_enforced_exit": NaN,
+        "failure_modes": {},
+        "counters": {}
+      },
+      "placebo": {
+        "arm": "placebo",
+        "final_population": 35,
+        "mean_population": 34.647666666666666,
+        "peak_population": 66,
+        "total_births": 287,
+        "total_deaths": 282,
+        "starvation_deaths": 282,
+        "combat_deaths": 0,
+        "death_causes": {
+          "starvation": 282
+        },
+        "mean_coverage": 0.0,
+        "final_coverage": 0.0,
+        "mean_units_active": 0,
+        "mean_action_share": {
+          "move": 0.18268255351355683,
+          "gather": 0.3880401960394886,
+          "share": 0.01737096931440931,
+          "attack": 0.03608839021592345,
+          "defend": 0.24720626377638322,
+          "reproduce": 0.011368496105691921,
+          "pass": 0.010738678343723924,
+          "communicate": 0.04356092194040293,
+          "bond": 0.06294353075041981,
+          "leave": 0.0
+        },
+        "late_action_share": {
+          "move": 0.1864423198756827,
+          "gather": 0.37597741169051313,
+          "share": 0.019350204198044826,
+          "attack": 0.03932201509911292,
+          "defend": 0.24434160949461728,
+          "reproduce": 0.010830891928417057,
+          "pass": 0.011501337209562564,
+          "communicate": 0.04465785549465425,
+          "bond": 0.06757635500939531,
+          "leave": 0.0
+        },
+        "bond_share_late": 0.06757635500939531,
+        "policy_bond_prob_late": 0.08293393665586045,
+        "acting_bond_prob_late": 0.0675447180767864,
+        "bond_rank_late": 5.519327761403316,
+        "num_actions": 10,
+        "policy_gather_prob_late": 0.2689348178180195,
+        "policy_gather_lift_late": 0.16893481781801947,
+        "prior_gather_share_late": 0.152484315900918,
+        "gather_share_over_prior_late": 0.22349309578959514,
+        "policy_peak_late": 0.3608813618355187,
+        "mean_lifespan_at_death": 128.0035460992908,
+        "max_generation": 3,
+        "gene_mean_start": {
+          "coop_scope": 0.5206178451996227,
+          "coop_exit_cost": 0.5073938885804419,
+          "coop_recognition": 0.5127055274824001,
+          "coop_symmetry": 0.5448609028948349,
+          "coop_exclusivity": 0.4974702820173656,
+          "coop_max_members": 3.854530174087208,
+          "motive_political": 0.5103659564106878,
+          "motive_economic": 0.48783463653652304,
+          "motive_emotional": 0.541156805128488,
+          "motive_hedonist": 0.5573766567539011,
+          "motive_religious": 0.4750866389438359,
+          "bond_weight": 0.1511438549116711,
+          "leave_weight": 0.13917976521391295
+        },
+        "gene_mean_end": {
+          "coop_scope": 0.5235705908933801,
+          "coop_exit_cost": 0.5452033253097802,
+          "coop_recognition": 0.48320470767885315,
+          "coop_symmetry": 0.5548980716301606,
+          "coop_exclusivity": 0.525823015544801,
+          "coop_max_members": 4.143437618835548,
+          "motive_political": 0.444620286606534,
+          "motive_economic": 0.4686483266141279,
+          "motive_emotional": 0.5667979308996427,
+          "motive_hedonist": 0.5112811518459195,
+          "motive_religious": 0.5342239116569346,
+          "bond_weight": 0.13579781340771255,
+          "leave_weight": 0.09759880317092351
+        },
+        "gene_mean_change": {
+          "coop_scope": 0.0029527456937573637,
+          "coop_exit_cost": 0.03780943672933834,
+          "coop_recognition": -0.029500819803546907,
+          "coop_symmetry": 0.010037168735325674,
+          "coop_exclusivity": 0.028352733527435448,
+          "coop_max_members": 0.2889074447483395,
+          "motive_political": -0.0657456698041538,
+          "motive_economic": -0.019186309922395117,
+          "motive_emotional": 0.025641125771154738,
+          "motive_hedonist": -0.046095504907981644,
+          "motive_religious": 0.05913727271309871,
+          "bond_weight": -0.015346041503958546,
+          "leave_weight": -0.041580962042989444
+        },
+        "expected_exit_payment_start": 0.26502709949779796,
+        "expected_exit_payment_end": 0.2559962336398759,
+        "change_expected_exit_payment": -0.009030865857922066,
+        "units_formed": 0,
+        "mean_unit_lifetime": 0.0,
+        "forfeits_total": 0.0,
+        "forfeits_per_enforced_exit": NaN,
+        "failure_modes": {
+          "n_classified": 0.0,
+          "fragility": NaN,
+          "primary_fragility": NaN,
+          "override": NaN,
+          "primary_override": NaN,
+          "capture": NaN,
+          "primary_capture": NaN,
+          "trap": NaN,
+          "primary_trap": NaN,
+          "drift": NaN,
+          "primary_drift": NaN,
+          "hollow": NaN,
+          "primary_hollow": NaN,
+          "healthy": NaN,
+          "primary_healthy": NaN,
+          "unclassified": NaN,
+          "primary_unclassified": NaN
+        },
+        "counters": {
+          "bond_attempts": 6702.0,
+          "bond_placebo": 6702.0
+        }
+      },
+      "cooperation": {
+        "arm": "cooperation",
+        "final_population": 49,
+        "mean_population": 46.928333333333335,
+        "peak_population": 67,
+        "total_births": 207,
+        "total_deaths": 188,
+        "starvation_deaths": 188,
+        "combat_deaths": 0,
+        "death_causes": {
+          "starvation": 188
+        },
+        "mean_coverage": 0.5002400229821797,
+        "final_coverage": 0.5102040816326531,
+        "mean_units_active": 10.233666666666666,
+        "mean_action_share": {
+          "move": 0.18780857391752814,
+          "gather": 0.3279684251694849,
+          "share": 0.022788415814549462,
+          "attack": 0.03749429019759368,
+          "defend": 0.2554106364263611,
+          "reproduce": 0.009740910859578027,
+          "pass": 0.010557634798205812,
+          "communicate": 0.041221254575667686,
+          "bond": 0.09535905561266633,
+          "leave": 0.011650802628364907
+        },
+        "late_action_share": {
+          "move": 0.19451694665705385,
+          "gather": 0.31576730453658103,
+          "share": 0.021321814194212148,
+          "attack": 0.04005242571000621,
+          "defend": 0.2540518114909504,
+          "reproduce": 0.011980914012711306,
+          "pass": 0.012419872109740365,
+          "communicate": 0.042223953928286255,
+          "bond": 0.0955971799215268,
+          "leave": 0.012067777438931653
+        },
+        "bond_share_late": 0.0955971799215268,
+        "policy_bond_prob_late": 0.09768876994179435,
+        "acting_bond_prob_late": 0.09656544933645896,
+        "bond_rank_late": 5.09536886112383,
+        "num_actions": 10,
+        "policy_gather_prob_late": 0.19859806611001898,
+        "policy_gather_lift_late": 0.09859806611001898,
+        "prior_gather_share_late": 0.15694459076882092,
+        "gather_share_over_prior_late": 0.1588227137677601,
+        "policy_peak_late": 0.31476315260836946,
+        "mean_lifespan_at_death": 242.78191489361703,
+        "max_generation": 3,
+        "gene_mean_start": {
+          "coop_scope": 0.5206178451996227,
+          "coop_exit_cost": 0.5073938885804419,
+          "coop_recognition": 0.5127055274824001,
+          "coop_symmetry": 0.5448609028948349,
+          "coop_exclusivity": 0.4974702820173656,
+          "coop_max_members": 3.854530174087208,
+          "motive_political": 0.5103659564106878,
+          "motive_economic": 0.48783463653652304,
+          "motive_emotional": 0.541156805128488,
+          "motive_hedonist": 0.5573766567539011,
+          "motive_religious": 0.4750866389438359,
+          "bond_weight": 0.1511438549116711,
+          "leave_weight": 0.13917976521391295
+        },
+        "gene_mean_end": {
+          "coop_scope": 0.4709558836161656,
+          "coop_exit_cost": 0.48795612527707094,
+          "coop_recognition": 0.5748063409881888,
+          "coop_symmetry": 0.5667490670852441,
+          "coop_exclusivity": 0.5090130548154587,
+          "coop_max_members": 3.997190614524358,
+          "motive_political": 0.4517092732922221,
+          "motive_economic": 0.45616057447642105,
+          "motive_emotional": 0.5064113315338963,
+          "motive_hedonist": 0.4544386039535206,
+          "motive_religious": 0.46348408356590315,
+          "bond_weight": 0.15315444496560252,
+          "leave_weight": 0.10907625717900477
+        },
+        "gene_mean_change": {
+          "coop_scope": -0.04966196158345715,
+          "coop_exit_cost": -0.019437763303370936,
+          "coop_recognition": 0.06210081350578878,
+          "coop_symmetry": 0.021888164190409176,
+          "coop_exclusivity": 0.01154277279809307,
+          "coop_max_members": 0.14266044043714965,
+          "motive_political": -0.058656683118465724,
+          "motive_economic": -0.03167406206010198,
+          "motive_emotional": -0.03474547359459168,
+          "motive_hedonist": -0.10293805280038054,
+          "motive_religious": -0.011602555377932755,
+          "bond_weight": 0.0020105900539314214,
+          "leave_weight": -0.03010350803490819
+        },
+        "expected_exit_payment_start": 0.26502709949779796,
+        "expected_exit_payment_end": 0.2691434287623199,
+        "change_expected_exit_payment": 0.004116329264521934,
+        "units_formed": 874,
+        "mean_unit_lifetime": 35.13615560640732,
+        "forfeits_total": 559.562226160651,
+        "forfeits_per_enforced_exit": 0.6536941894400129,
+        "failure_modes": {
+          "n_classified": 855.0,
+          "fragility": 0.8456140350877193,
+          "primary_fragility": 0.8456140350877193,
+          "override": 0.0,
+          "primary_override": 0.0,
+          "capture": 0.2304093567251462,
+          "primary_capture": 0.04678362573099415,
+          "trap": 0.08888888888888889,
+          "primary_trap": 0.05380116959064327,
+          "drift": 0.27251461988304093,
+          "primary_drift": 0.0023391812865497076,
+          "hollow": 0.5333333333333333,
+          "primary_hollow": 0.011695906432748537,
+          "healthy": 0.014035087719298246,
+          "primary_healthy": 0.014035087719298246,
+          "unclassified": 0.0,
+          "primary_unclassified": 0.025730994152046785
+        },
+        "counters": {
+          "bond_attempts": 13425.0,
+          "units_formed": 874.0,
+          "bond_success": 2121.0,
+          "membership_reward": 2773.911086810571,
+          "pooled": 7272.830264169111,
+          "credited_payout": 7809.397186910399,
+          "leave_attempts": 1645.0,
+          "exits_leave": 1645.0,
+          "dissolved_by_exit": 825.0,
+          "credited_dissolution": 916.2782085736668,
+          "forfeits": 559.562226160651,
+          "exits_enforced": 856.0,
+          "units_joined": 1247.0,
+          "exits_switch": 381.0,
+          "offers_blocked": 308.0,
+          "member_deaths": 63.0
+        }
+      },
+      "cooperation_no_motive": {
+        "arm": "cooperation_no_motive",
+        "final_population": 55,
+        "mean_population": 51.87733333333333,
+        "peak_population": 77,
+        "total_births": 259,
+        "total_deaths": 234,
+        "starvation_deaths": 234,
+        "combat_deaths": 0,
+        "death_causes": {
+          "starvation": 234
+        },
+        "mean_coverage": 0.5844822751631927,
+        "final_coverage": 0.6181818181818182,
+        "mean_units_active": 15.367,
+        "mean_action_share": {
+          "move": 0.18994995541525805,
+          "gather": 0.30953064716871215,
+          "share": 0.02323336302368008,
+          "attack": 0.037676356210536444,
+          "defend": 0.2637275043987209,
+          "reproduce": 0.01017438248727993,
+          "pass": 0.0118547821442975,
+          "communicate": 0.04333940276904006,
+          "bond": 0.10009387423695233,
+          "leave": 0.010419732145522553
+        },
+        "late_action_share": {
+          "move": 0.18602261129985448,
+          "gather": 0.3023215049156676,
+          "share": 0.02581927021244388,
+          "attack": 0.03871643472829075,
+          "defend": 0.2670851793586414,
+          "reproduce": 0.009490070407675992,
+          "pass": 0.012407952390443852,
+          "communicate": 0.04575220673947604,
+          "bond": 0.10241488635078319,
+          "leave": 0.00996988359672279
+        },
+        "bond_share_late": 0.10241488635078319,
+        "policy_bond_prob_late": 0.10871189121807014,
+        "acting_bond_prob_late": 0.10239739783448265,
+        "bond_rank_late": 4.7442057479170545,
+        "num_actions": 10,
+        "policy_gather_prob_late": 0.18180154001526785,
+        "policy_gather_lift_late": 0.08180154001526785,
+        "prior_gather_share_late": 0.15830629117893735,
+        "gather_share_over_prior_late": 0.14401521373673026,
+        "policy_peak_late": 0.29362914664710416,
+        "mean_lifespan_at_death": 202.2991452991453,
+        "max_generation": 3,
+        "gene_mean_start": {
+          "coop_scope": 0.5206178451996227,
+          "coop_exit_cost": 0.5073938885804419,
+          "coop_recognition": 0.5127055274824001,
+          "coop_symmetry": 0.5448609028948349,
+          "coop_exclusivity": 0.4974702820173656,
+          "coop_max_members": 3.854530174087208,
+          "motive_political": 0.5103659564106878,
+          "motive_economic": 0.48783463653652304,
+          "motive_emotional": 0.541156805128488,
+          "motive_hedonist": 0.5573766567539011,
+          "motive_religious": 0.4750866389438359,
+          "bond_weight": 0.1511438549116711,
+          "leave_weight": 0.13917976521391295
+        },
+        "gene_mean_end": {
+          "coop_scope": 0.5183021873071413,
+          "coop_exit_cost": 0.5199554523514937,
+          "coop_recognition": 0.47783337341127846,
+          "coop_symmetry": 0.5698296742141019,
+          "coop_exclusivity": 0.5004909776439216,
+          "coop_max_members": 4.078667208451587,
+          "motive_political": 0.4010846511361277,
+          "motive_economic": 0.4802785720288918,
+          "motive_emotional": 0.5567816423838492,
+          "motive_hedonist": 0.478884850714454,
+          "motive_religious": 0.49276208376403674,
+          "bond_weight": 0.15157607986079402,
+          "leave_weight": 0.09148474101302216
+        },
+        "gene_mean_change": {
+          "coop_scope": -0.0023156578924814486,
+          "coop_exit_cost": 0.012561563771051776,
+          "coop_recognition": -0.0348721540711216,
+          "coop_symmetry": 0.024968771319267002,
+          "coop_exclusivity": 0.0030206956265559914,
+          "coop_max_members": 0.2241370343643787,
+          "motive_political": -0.10928130527456015,
+          "motive_economic": -0.007556064507631244,
+          "motive_emotional": 0.015624837255361235,
+          "motive_hedonist": -0.07849180603944711,
+          "motive_religious": 0.017675444820200836,
+          "bond_weight": 0.00043222494912292797,
+          "leave_weight": -0.04769502420089079
+        },
+        "expected_exit_payment_start": 0.26502709949779796,
+        "expected_exit_payment_end": 0.248858925911193,
+        "change_expected_exit_payment": -0.016168173586604967,
+        "units_formed": 1171,
+        "mean_unit_lifetime": 39.38428693424424,
+        "forfeits_total": 808.654444996915,
+        "forfeits_per_enforced_exit": 0.8022365525763046,
+        "failure_modes": {
+          "n_classified": 1134.0,
+          "fragility": 0.8562610229276896,
+          "primary_fragility": 0.8562610229276896,
+          "override": 0.0,
+          "primary_override": 0.0,
+          "capture": 0.17195767195767195,
+          "primary_capture": 0.03262786596119929,
+          "trap": 0.07760141093474426,
+          "primary_trap": 0.05291005291005291,
+          "drift": 0.22310405643738976,
+          "primary_drift": 0.001763668430335097,
+          "hollow": 0.5537918871252204,
+          "primary_hollow": 0.008818342151675485,
+          "healthy": 0.014109347442680775,
+          "primary_healthy": 0.014109347442680775,
+          "unclassified": 0.0,
+          "primary_unclassified": 0.03350970017636684
+        },
+        "counters": {
+          "bond_attempts": 15551.0,
+          "units_formed": 1171.0,
+          "bond_success": 2392.0,
+          "pooled": 9563.435096251313,
+          "credited_payout": 10426.524377154641,
+          "leave_attempts": 1627.0,
+          "exits_leave": 1627.0,
+          "dissolved_by_exit": 1099.0,
+          "credited_dissolution": 1070.5053958786125,
+          "forfeits": 808.654444996915,
+          "exits_enforced": 1008.0,
+          "units_joined": 1221.0,
+          "exits_switch": 635.0,
+          "offers_blocked": 384.0,
+          "member_deaths": 80.0
+        }
+      }
+    },
+    {
+      "index": 1,
+      "seed": 2,
+      "baseline": {
+        "arm": "baseline",
+        "final_population": 30,
+        "mean_population": 32.547,
+        "peak_population": 68,
+        "total_births": 174,
+        "total_deaths": 174,
+        "starvation_deaths": 174,
+        "combat_deaths": 0,
+        "death_causes": {
+          "starvation": 174
+        },
+        "mean_coverage": 0.0,
+        "final_coverage": 0.0,
+        "mean_units_active": 0,
+        "mean_action_share": {
+          "move": 0.20038520784255348,
+          "gather": 0.424546218056541,
+          "share": 0.022451851101316034,
+          "attack": 0.0333636898268468,
+          "defend": 0.2526543235542193,
+          "reproduce": 0.0080407392858085,
+          "pass": 0.013946149941110991,
+          "communicate": 0.04461182039160391,
+          "bond": 0.0,
+          "leave": 0.0
+        },
+        "late_action_share": {
+          "move": 0.2037539428016134,
+          "gather": 0.41476591403591284,
+          "share": 0.024713953642047492,
+          "attack": 0.034174317784742766,
+          "defend": 0.2563673901326233,
+          "reproduce": 0.008281913914704706,
+          "pass": 0.015043338591791666,
+          "communicate": 0.04289922909656382,
+          "bond": 0.0,
+          "leave": 0.0
+        },
+        "bond_share_late": 0.0,
+        "policy_bond_prob_late": 0.0,
+        "acting_bond_prob_late": NaN,
+        "bond_rank_late": NaN,
+        "num_actions": 8,
+        "policy_gather_prob_late": 0.2978385287233129,
+        "policy_gather_lift_late": 0.1728385287233129,
+        "prior_gather_share_late": 0.19448664701158527,
+        "gather_share_over_prior_late": 0.22027926702432757,
+        "policy_peak_late": 0.39280153348667185,
+        "mean_lifespan_at_death": 168.1494252873563,
+        "max_generation": 2,
+        "gene_mean_start": {
+          "coop_scope": NaN,
+          "coop_exit_cost": NaN,
+          "coop_recognition": NaN,
+          "coop_symmetry": NaN,
+          "coop_exclusivity": NaN,
+          "coop_max_members": NaN,
+          "motive_political": NaN,
+          "motive_economic": NaN,
+          "motive_emotional": NaN,
+          "motive_hedonist": NaN,
+          "motive_religious": NaN,
+          "bond_weight": NaN,
+          "leave_weight": NaN
+        },
+        "gene_mean_end": {
+          "coop_scope": NaN,
+          "coop_exit_cost": NaN,
+          "coop_recognition": NaN,
+          "coop_symmetry": NaN,
+          "coop_exclusivity": NaN,
+          "coop_max_members": NaN,
+          "motive_political": NaN,
+          "motive_economic": NaN,
+          "motive_emotional": NaN,
+          "motive_hedonist": NaN,
+          "motive_religious": NaN,
+          "bond_weight": NaN,
+          "leave_weight": NaN
+        },
+        "gene_mean_change": {
+          "coop_scope": NaN,
+          "coop_exit_cost": NaN,
+          "coop_recognition": NaN,
+          "coop_symmetry": NaN,
+          "coop_exclusivity": NaN,
+          "coop_max_members": NaN,
+          "motive_political": NaN,
+          "motive_economic": NaN,
+          "motive_emotional": NaN,
+          "motive_hedonist": NaN,
+          "motive_religious": NaN,
+          "bond_weight": NaN,
+          "leave_weight": NaN
+        },
+        "expected_exit_payment_start": NaN,
+        "expected_exit_payment_end": NaN,
+        "change_expected_exit_payment": NaN,
+        "units_formed": 0,
+        "mean_unit_lifetime": 0.0,
+        "forfeits_total": 0.0,
+        "forfeits_per_enforced_exit": NaN,
+        "failure_modes": {},
+        "counters": {}
+      },
+      "placebo": {
+        "arm": "placebo",
+        "final_population": 42,
+        "mean_population": 35.809,
+        "peak_population": 69,
+        "total_births": 181,
+        "total_deaths": 169,
+        "starvation_deaths": 169,
+        "combat_deaths": 0,
+        "death_causes": {
+          "starvation": 169
+        },
+        "mean_coverage": 0.0,
+        "final_coverage": 0.0,
+        "mean_units_active": 0,
+        "mean_action_share": {
+          "move": 0.17064692355502073,
+          "gather": 0.3775807375930513,
+          "share": 0.019034504706174817,
+          "attack": 0.0343539666119229,
+          "defend": 0.23867249170271565,
+          "reproduce": 0.008170741712922449,
+          "pass": 0.012923680710749287,
+          "communicate": 0.03772939250590757,
+          "bond": 0.10088756090153529,
+          "leave": 0.0
+        },
+        "late_action_share": {
+          "move": 0.18020951465892432,
+          "gather": 0.3644301570362183,
+          "share": 0.024027106986288682,
+          "attack": 0.033723170750720136,
+          "defend": 0.24828694759210934,
+          "reproduce": 0.008386561364792834,
+          "pass": 0.012827070739184666,
+          "communicate": 0.03770192199622222,
+          "bond": 0.09040754887553955,
+          "leave": 0.0
+        },
+        "bond_share_late": 0.09040754887553955,
+        "policy_bond_prob_late": 0.10528601091389965,
+        "acting_bond_prob_late": 0.08943250338123833,
+        "bond_rank_late": 4.628093517083982,
+        "num_actions": 10,
+        "policy_gather_prob_late": 0.2553950368043926,
+        "policy_gather_lift_late": 0.15539503680439257,
+        "prior_gather_share_late": 0.15055955699621457,
+        "gather_share_over_prior_late": 0.21387060004000372,
+        "policy_peak_late": 0.3734571238790351,
+        "mean_lifespan_at_death": 185.3846153846154,
+        "max_generation": 2,
+        "gene_mean_start": {
+          "coop_scope": 0.5107923055525834,
+          "coop_exit_cost": 0.4221079973144279,
+          "coop_recognition": 0.4483313817334037,
+          "coop_symmetry": 0.5605139183353834,
+          "coop_exclusivity": 0.5491894442207516,
+          "coop_max_members": 3.9902586357728698,
+          "motive_political": 0.49946960504715376,
+          "motive_economic": 0.4996468884828056,
+          "motive_emotional": 0.40049048872608695,
+          "motive_hedonist": 0.4248783478718667,
+          "motive_religious": 0.40061082039845686,
+          "bond_weight": 0.16550691105821347,
+          "leave_weight": 0.14684372070839277
+        },
+        "gene_mean_end": {
+          "coop_scope": 0.4895604079393691,
+          "coop_exit_cost": 0.42896539879321277,
+          "coop_recognition": 0.5095097714972767,
+          "coop_symmetry": 0.5532340786635421,
+          "coop_exclusivity": 0.5514030443622607,
+          "coop_max_members": 3.9616384369363304,
+          "motive_political": 0.5422966678102407,
+          "motive_economic": 0.5483552876753921,
+          "motive_emotional": 0.4708722517364968,
+          "motive_hedonist": 0.33290210681726273,
+          "motive_religious": 0.388639987404544,
+          "bond_weight": 0.16569324668691768,
+          "leave_weight": 0.12976802071376325
+        },
+        "gene_mean_change": {
+          "coop_scope": -0.021231897613214257,
+          "coop_exit_cost": 0.006857401478784886,
+          "coop_recognition": 0.06117838976387302,
+          "coop_symmetry": -0.007279839671841315,
+          "coop_exclusivity": 0.0022136001415091755,
+          "coop_max_members": -0.028620198836539323,
+          "motive_political": 0.0428270627630869,
+          "motive_economic": 0.048708399192586516,
+          "motive_emotional": 0.07038176301040988,
+          "motive_hedonist": -0.09197624105460395,
+          "motive_religious": -0.011970832993912883,
+          "bond_weight": 0.0001863356287042095,
+          "leave_weight": -0.017075699994629517
+        },
+        "expected_exit_payment_start": 0.19921166455343864,
+        "expected_exit_payment_end": 0.21938103640860873,
+        "change_expected_exit_payment": 0.020169371855170093,
+        "units_formed": 0,
+        "mean_unit_lifetime": 0.0,
+        "forfeits_total": 0.0,
+        "forfeits_per_enforced_exit": NaN,
+        "failure_modes": {
+          "n_classified": 0.0,
+          "fragility": NaN,
+          "primary_fragility": NaN,
+          "override": NaN,
+          "primary_override": NaN,
+          "capture": NaN,
+          "primary_capture": NaN,
+          "trap": NaN,
+          "primary_trap": NaN,
+          "drift": NaN,
+          "primary_drift": NaN,
+          "hollow": NaN,
+          "primary_hollow": NaN,
+          "healthy": NaN,
+          "primary_healthy": NaN,
+          "unclassified": NaN,
+          "primary_unclassified": NaN
+        },
+        "counters": {
+          "bond_attempts": 10885.0,
+          "bond_placebo": 10885.0
+        }
+      },
+      "cooperation": {
+        "arm": "cooperation",
+        "final_population": 47,
+        "mean_population": 43.762,
+        "peak_population": 77,
+        "total_births": 122,
+        "total_deaths": 105,
+        "starvation_deaths": 105,
+        "combat_deaths": 0,
+        "death_causes": {
+          "starvation": 105
+        },
+        "mean_coverage": 0.5135341907227234,
+        "final_coverage": 0.6170212765957447,
+        "mean_units_active": 10.670666666666667,
+        "mean_action_share": {
+          "move": 0.17843749121979724,
+          "gather": 0.3400410630974937,
+          "share": 0.027872229341697547,
+          "attack": 0.026054436850802293,
+          "defend": 0.2249569391168972,
+          "reproduce": 0.0069681998210008225,
+          "pass": 0.01120483108653101,
+          "communicate": 0.04180323074110857,
+          "bond": 0.1221553737128882,
+          "leave": 0.020506205011783407
+        },
+        "late_action_share": {
+          "move": 0.18131059823822496,
+          "gather": 0.3182546369575221,
+          "share": 0.035167663100659594,
+          "attack": 0.021055063777160803,
+          "defend": 0.21738764256986362,
+          "reproduce": 0.009311792449964043,
+          "pass": 0.013292801177277484,
+          "communicate": 0.04483099058234877,
+          "bond": 0.13670291513177457,
+          "leave": 0.02268589601520407
+        },
+        "bond_share_late": 0.13670291513177457,
+        "policy_bond_prob_late": 0.09858096101430172,
+        "acting_bond_prob_late": 0.13395268014892167,
+        "bond_rank_late": 5.188180551149292,
+        "num_actions": 10,
+        "policy_gather_prob_late": 0.19956269659743164,
+        "policy_gather_lift_late": 0.09956269659743164,
+        "prior_gather_share_late": 0.15017361947693086,
+        "gather_share_over_prior_late": 0.16808101748059123,
+        "policy_peak_late": 0.30420130046936095,
+        "mean_lifespan_at_death": 239.4857142857143,
+        "max_generation": 3,
+        "gene_mean_start": {
+          "coop_scope": 0.5107923055525834,
+          "coop_exit_cost": 0.4221079973144279,
+          "coop_recognition": 0.4483313817334037,
+          "coop_symmetry": 0.5605139183353834,
+          "coop_exclusivity": 0.5491894442207516,
+          "coop_max_members": 3.9902586357728698,
+          "motive_political": 0.49946960504715376,
+          "motive_economic": 0.4996468884828056,
+          "motive_emotional": 0.40049048872608695,
+          "motive_hedonist": 0.4248783478718667,
+          "motive_religious": 0.40061082039845686,
+          "bond_weight": 0.16550691105821347,
+          "leave_weight": 0.14684372070839277
+        },
+        "gene_mean_end": {
+          "coop_scope": 0.5233102985839405,
+          "coop_exit_cost": 0.43280107627720743,
+          "coop_recognition": 0.5004688779677473,
+          "coop_symmetry": 0.46736380154344326,
+          "coop_exclusivity": 0.5415431527131825,
+          "coop_max_members": 4.146356940734571,
+          "motive_political": 0.5632631931941909,
+          "motive_economic": 0.5679563659411409,
+          "motive_emotional": 0.39213032030383443,
+          "motive_hedonist": 0.33546732043094796,
+          "motive_religious": 0.3045084786822216,
+          "bond_weight": 0.2031395817796057,
+          "leave_weight": 0.11637129965882559
+        },
+        "gene_mean_change": {
+          "coop_scope": 0.012517993031357144,
+          "coop_exit_cost": 0.010693078962779545,
+          "coop_recognition": 0.052137496234343605,
+          "coop_symmetry": -0.09315011679194019,
+          "coop_exclusivity": -0.007646291507569014,
+          "coop_max_members": 0.1560983049617013,
+          "motive_political": 0.06379358814703717,
+          "motive_economic": 0.06830947745833527,
+          "motive_emotional": -0.008360168422252512,
+          "motive_hedonist": -0.08941102744091872,
+          "motive_religious": -0.09610234171623527,
+          "bond_weight": 0.03763267072139223,
+          "leave_weight": -0.030472421049567183
+        },
+        "expected_exit_payment_start": 0.19921166455343864,
+        "expected_exit_payment_end": 0.2299350099508065,
+        "change_expected_exit_payment": 0.030723345397367874,
+        "units_formed": 978,
+        "mean_unit_lifetime": 32.74948875255624,
+        "forfeits_total": 553.1231846193327,
+        "forfeits_per_enforced_exit": 0.38438025338383097,
+        "failure_modes": {
+          "n_classified": 960.0,
+          "fragility": 0.84375,
+          "primary_fragility": 0.84375,
+          "override": 0.0,
+          "primary_override": 0.0,
+          "capture": 0.24791666666666667,
+          "primary_capture": 0.07083333333333333,
+          "trap": 0.11354166666666667,
+          "primary_trap": 0.05416666666666667,
+          "drift": 0.22916666666666666,
+          "primary_drift": 0.0010416666666666667,
+          "hollow": 0.51875,
+          "primary_hollow": 0.0010416666666666667,
+          "healthy": 0.008333333333333333,
+          "primary_healthy": 0.008333333333333333,
+          "unclassified": 0.0,
+          "primary_unclassified": 0.020833333333333332
+        },
+        "counters": {
+          "bond_attempts": 16166.0,
+          "units_formed": 978.0,
+          "bond_success": 3231.0,
+          "leave_attempts": 2735.0,
+          "exits_enforced": 1439.0,
+          "exits_leave": 2735.0,
+          "dissolved_by_exit": 944.0,
+          "membership_reward": 527.9641805350584,
+          "pooled": 6334.170492832352,
+          "credited_payout": 6927.4602541151435,
+          "units_joined": 2253.0,
+          "forfeits": 553.1231846193327,
+          "credited_dissolution": 799.4093924088755,
+          "exits_switch": 406.0,
+          "offers_blocked": 153.0,
+          "member_deaths": 37.0
+        }
+      },
+      "cooperation_no_motive": {
+        "arm": "cooperation_no_motive",
+        "final_population": 45,
+        "mean_population": 48.02033333333333,
+        "peak_population": 69,
+        "total_births": 152,
+        "total_deaths": 137,
+        "starvation_deaths": 137,
+        "combat_deaths": 0,
+        "death_causes": {
+          "starvation": 137
+        },
+        "mean_coverage": 0.5522631540585354,
+        "final_coverage": 0.5555555555555556,
+        "mean_units_active": 12.317333333333334,
+        "mean_action_share": {
+          "move": 0.18693301664680653,
+          "gather": 0.32333808584619417,
+          "share": 0.02865565452216557,
+          "attack": 0.02653150269125259,
+          "defend": 0.22135504834342992,
+          "reproduce": 0.010800015046583277,
+          "pass": 0.012033544224410957,
+          "communicate": 0.03853084019166193,
+          "bond": 0.1309324256719325,
+          "leave": 0.020889866815562555
+        },
+        "late_action_share": {
+          "move": 0.18748744856198954,
+          "gather": 0.3164217066098125,
+          "share": 0.028989868136006475,
+          "attack": 0.029984869724692092,
+          "defend": 0.22450442296466105,
+          "reproduce": 0.011486296885173846,
+          "pass": 0.012319457989237075,
+          "communicate": 0.039881733111119956,
+          "bond": 0.1293287438015041,
+          "leave": 0.019595452215803343
+        },
+        "bond_share_late": 0.1293287438015041,
+        "policy_bond_prob_late": 0.09648359247955879,
+        "acting_bond_prob_late": 0.1322045535154215,
+        "bond_rank_late": 5.219789397632079,
+        "num_actions": 10,
+        "policy_gather_prob_late": 0.20414268608506903,
+        "policy_gather_lift_late": 0.10414268608506902,
+        "prior_gather_share_late": 0.14775763544157078,
+        "gather_share_over_prior_late": 0.16866407116824172,
+        "policy_peak_late": 0.2963844685973651,
+        "mean_lifespan_at_death": 258.1094890510949,
+        "max_generation": 3,
+        "gene_mean_start": {
+          "coop_scope": 0.5107923055525834,
+          "coop_exit_cost": 0.4221079973144279,
+          "coop_recognition": 0.4483313817334037,
+          "coop_symmetry": 0.5605139183353834,
+          "coop_exclusivity": 0.5491894442207516,
+          "coop_max_members": 3.9902586357728698,
+          "motive_political": 0.49946960504715376,
+          "motive_economic": 0.4996468884828056,
+          "motive_emotional": 0.40049048872608695,
+          "motive_hedonist": 0.4248783478718667,
+          "motive_religious": 0.40061082039845686,
+          "bond_weight": 0.16550691105821347,
+          "leave_weight": 0.14684372070839277
+        },
+        "gene_mean_end": {
+          "coop_scope": 0.5318797035602091,
+          "coop_exit_cost": 0.41514538838097276,
+          "coop_recognition": 0.49204242477032245,
+          "coop_symmetry": 0.54955568533179,
+          "coop_exclusivity": 0.5871779810536765,
+          "coop_max_members": 4.111483606549102,
+          "motive_political": 0.5580359075557813,
+          "motive_economic": 0.6279087208306252,
+          "motive_emotional": 0.35799736495089535,
+          "motive_hedonist": 0.3637755405007224,
+          "motive_religious": 0.3238792290204362,
+          "bond_weight": 0.1960987435597659,
+          "leave_weight": 0.10542871837644531
+        },
+        "gene_mean_change": {
+          "coop_scope": 0.021087398007625713,
+          "coop_exit_cost": -0.006962608933455128,
+          "coop_recognition": 0.04371104303691875,
+          "coop_symmetry": -0.010958233003593443,
+          "coop_exclusivity": 0.03798853683292491,
+          "coop_max_members": 0.12122497077623251,
+          "motive_political": 0.05856630250862749,
+          "motive_economic": 0.12826183234781963,
+          "motive_emotional": -0.0424931237751916,
+          "motive_hedonist": -0.06110280737114426,
+          "motive_religious": -0.07673159137802066,
+          "bond_weight": 0.030591832501552424,
+          "leave_weight": -0.04141500233194746
+        },
+        "expected_exit_payment_start": 0.19921166455343864,
+        "expected_exit_payment_end": 0.20230909390303725,
+        "change_expected_exit_payment": 0.0030974293495986127,
+        "units_formed": 1473,
+        "mean_unit_lifetime": 25.094365241004752,
+        "forfeits_total": 860.820940096412,
+        "forfeits_per_enforced_exit": 0.40797200952436585,
+        "failure_modes": {
+          "n_classified": 1450.0,
+          "fragility": 0.8979310344827586,
+          "primary_fragility": 0.8979310344827586,
+          "override": 0.0,
+          "primary_override": 0.0,
+          "capture": 0.24344827586206896,
+          "primary_capture": 0.046206896551724136,
+          "trap": 0.05103448275862069,
+          "primary_trap": 0.02689655172413793,
+          "drift": 0.28206896551724137,
+          "primary_drift": 0.0020689655172413794,
+          "hollow": 0.5324137931034483,
+          "primary_hollow": 0.0020689655172413794,
+          "healthy": 0.005517241379310344,
+          "primary_healthy": 0.005517241379310344,
+          "unclassified": 0.0,
+          "primary_unclassified": 0.019310344827586208
+        },
+        "counters": {
+          "bond_attempts": 18786.0,
+          "units_formed": 1473.0,
+          "bond_success": 4204.0,
+          "leave_attempts": 3010.0,
+          "exits_enforced": 2110.0,
+          "exits_leave": 3010.0,
+          "dissolved_by_exit": 1436.0,
+          "pooled": 7567.414719492808,
+          "credited_payout": 8132.593826428265,
+          "units_joined": 2731.0,
+          "forfeits": 860.820940096412,
+          "credited_dissolution": 1298.3840642953517,
+          "exits_switch": 1109.0,
+          "offers_blocked": 1223.0,
+          "member_deaths": 51.0
+        }
+      }
+    }
+  ],
+  "aggregate": {
+    "num_replicates": 2,
+    "seeds": [
+      1,
+      2
+    ],
+    "per_arm": {
+      "baseline": {
+        "mean_population": {
+          "mean": 33.22366666666667,
+          "std": 0.9569511772057981,
+          "sem": 0.6766666666666693
+        },
+        "final_population": {
+          "mean": 32.5,
+          "std": 3.5355339059327378,
+          "sem": 2.5
+        },
+        "peak_population": {
+          "mean": 70.0,
+          "std": 2.8284271247461903,
+          "sem": 2.0
+        },
+        "total_births": {
+          "mean": 183.0,
+          "std": 12.727922061357855,
+          "sem": 9.0
+        },
+        "total_deaths": {
+          "mean": 180.5,
+          "std": 9.192388155425117,
+          "sem": 6.499999999999999
+        },
+        "mean_coverage": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "final_coverage": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "mean_units_active": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "units_formed": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "mean_unit_lifetime": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "bond_share_late": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "policy_bond_prob_late": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "acting_bond_prob_late": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "bond_rank_late": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "policy_gather_prob_late": {
+          "mean": 0.2901652646687475,
+          "std": 0.010851634093636422,
+          "sem": 0.007673264054565448
+        },
+        "policy_gather_lift_late": {
+          "mean": 0.16516526466874745,
+          "std": 0.010851634093636422,
+          "sem": 0.007673264054565448
+        },
+        "gather_share_over_prior_late": {
+          "mean": 0.21255798952938088,
+          "std": 0.010919535352199791,
+          "sem": 0.007721277494946707
+        },
+        "policy_peak_late": {
+          "mean": 0.3889712989151134,
+          "std": 0.005416769678168268,
+          "sem": 0.0038302345715584547
+        },
+        "mean_lifespan_at_death": {
+          "mean": 167.5961030180097,
+          "std": 0.7825158576730327,
+          "sem": 0.5533222693466087
+        },
+        "starvation_deaths": {
+          "mean": 179.5,
+          "std": 7.7781745930520225,
+          "sem": 5.499999999999999
+        },
+        "combat_deaths": {
+          "mean": 1.0,
+          "std": 1.4142135623730951,
+          "sem": 1.0
+        },
+        "max_generation": {
+          "mean": 2.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "change_expected_exit_payment": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "forfeits_per_enforced_exit": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "action_share[move]": {
+          "mean": 0.19658187882803568,
+          "std": 0.005378719474498168,
+          "sem": 0.003803329014517798
+        },
+        "action_share[gather]": {
+          "mean": 0.41454879448352744,
+          "std": 0.0141384920057443,
+          "sem": 0.009997423573013585
+        },
+        "action_share[share]": {
+          "mean": 0.021634600403183678,
+          "std": 0.0011557670211576581,
+          "sem": 0.0008172506981323559
+        },
+        "action_share[attack]": {
+          "mean": 0.03792860141375409,
+          "std": 0.006455759877238374,
+          "sem": 0.004564911586907288
+        },
+        "action_share[defend]": {
+          "mean": 0.2599976436985807,
+          "std": 0.010385022941003482,
+          "sem": 0.007343320144361425
+        },
+        "action_share[reproduce]": {
+          "mean": 0.009014821908934031,
+          "std": 0.0013775608564960868,
+          "sem": 0.0009740826231255315
+        },
+        "action_share[pass]": {
+          "mean": 0.01417623887205247,
+          "std": 0.000325394886689365,
+          "sem": 0.00023008893094147824
+        },
+        "action_share[communicate]": {
+          "mean": 0.04611742039193191,
+          "std": 0.0021292399399727904,
+          "sem": 0.0015056000003279973
+        },
+        "action_share[bond]": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "action_share[leave]": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "mean_coop_scope_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_coop_exit_cost_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_coop_recognition_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_coop_symmetry_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_coop_exclusivity_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_coop_max_members_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_motive_political_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_motive_economic_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_motive_emotional_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_motive_hedonist_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_motive_religious_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_bond_weight_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "mean_leave_weight_end": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_coop_scope": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_coop_exit_cost": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_coop_recognition": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_coop_symmetry": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_coop_exclusivity": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_coop_max_members": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_motive_political": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_motive_economic": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_motive_emotional": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_motive_hedonist": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_motive_religious": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_bond_weight": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "change_leave_weight": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        }
+      },
+      "placebo": {
+        "mean_population": {
+          "mean": 35.22833333333333,
+          "std": 0.821186675217976,
+          "sem": 0.5806666666666658
+        },
+        "final_population": {
+          "mean": 38.5,
+          "std": 4.949747468305833,
+          "sem": 3.4999999999999996
+        },
+        "peak_population": {
+          "mean": 67.5,
+          "std": 2.1213203435596424,
+          "sem": 1.4999999999999998
+        },
+        "total_births": {
+          "mean": 234.0,
+          "std": 74.95331880577403,
+          "sem": 52.99999999999999
+        },
+        "total_deaths": {
+          "mean": 225.5,
+          "std": 79.90306627407988,
+          "sem": 56.5
+        },
+        "mean_coverage": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "final_coverage": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "mean_units_active": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "units_formed": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "mean_unit_lifetime": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "bond_share_late": {
+          "mean": 0.07899195194246743,
+          "std": 0.0161440920053353,
+          "sem": 0.011415596933072118
+        },
+        "policy_bond_prob_late": {
+          "mean": 0.09410997378488005,
+          "std": 0.015805303281444787,
+          "sem": 0.0111760371290196
+        },
+        "acting_bond_prob_late": {
+          "mean": 0.07848861072901236,
+          "std": 0.015477001413933222,
+          "sem": 0.010943892652225964
+        },
+        "bond_rank_late": {
+          "mean": 5.073710639243648,
+          "std": 0.6301977777838697,
+          "sem": 0.4456171221596672
+        },
+        "policy_gather_prob_late": {
+          "mean": 0.262164927311206,
+          "std": 0.00957407097051645,
+          "sem": 0.006769890506813452
+        },
+        "policy_gather_lift_late": {
+          "mean": 0.16216492731120602,
+          "std": 0.00957407097051645,
+          "sem": 0.006769890506813452
+        },
+        "gather_share_over_prior_late": {
+          "mean": 0.21868184791479944,
+          "std": 0.006804131996474828,
+          "sem": 0.004811247874795713
+        },
+        "policy_peak_late": {
+          "mean": 0.3671692428572769,
+          "std": 0.008892406619558842,
+          "sem": 0.006287881021758201
+        },
+        "mean_lifespan_at_death": {
+          "mean": 156.6940807419531,
+          "std": 40.574543203388146,
+          "sem": 28.6905346426623
+        },
+        "starvation_deaths": {
+          "mean": 225.5,
+          "std": 79.90306627407988,
+          "sem": 56.5
+        },
+        "combat_deaths": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "max_generation": {
+          "mean": 2.5,
+          "std": 0.7071067811865476,
+          "sem": 0.5
+        },
+        "change_expected_exit_payment": {
+          "mean": 0.005569252998624014,
+          "std": 0.02064768609918663,
+          "sem": 0.014600118856546078
+        },
+        "forfeits_per_enforced_exit": {
+          "mean": NaN,
+          "std": NaN,
+          "sem": NaN
+        },
+        "action_share[move]": {
+          "mean": 0.17666473853428877,
+          "std": 0.008510475559532845,
+          "sem": 0.006017814979268052
+        },
+        "action_share[gather]": {
+          "mean": 0.38281046681626996,
+          "std": 0.007395953995014732,
+          "sem": 0.005229729223218654
+        },
+        "action_share[share]": {
+          "mean": 0.018202737010292062,
+          "std": 0.0011762971562612095,
+          "sem": 0.0008317676958827531
+        },
+        "action_share[attack]": {
+          "mean": 0.03522117841392318,
+          "std": 0.0012264226918388,
+          "sem": 0.0008672118020002749
+        },
+        "action_share[defend]": {
+          "mean": 0.24293937773954943,
+          "std": 0.006034288102390722,
+          "sem": 0.0042668860368337835
+        },
+        "action_share[reproduce]": {
+          "mean": 0.009769618909307186,
+          "std": 0.0022611538156963643,
+          "sem": 0.001598877196384736
+        },
+        "action_share[pass]": {
+          "mean": 0.011831179527236606,
+          "std": 0.001545029990632292,
+          "sem": 0.0010925011835126817
+        },
+        "action_share[communicate]": {
+          "mean": 0.04064515722315525,
+          "std": 0.004123514007820621,
+          "sem": 0.002915764717247679
+        },
+        "action_share[bond]": {
+          "mean": 0.08191554582597754,
+          "std": 0.02683048102540058,
+          "sem": 0.018972015075557742
+        },
+        "action_share[leave]": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "mean_coop_scope_end": {
+          "mean": 0.5065654994163746,
+          "std": 0.02404883099617629,
+          "sem": 0.01700509147700549
+        },
+        "mean_coop_exit_cost_end": {
+          "mean": 0.4870843620514965,
+          "std": 0.08219262607092845,
+          "sem": 0.058118963258283717
+        },
+        "mean_coop_recognition_end": {
+          "mean": 0.49635723958806494,
+          "std": 0.018600489005552202,
+          "sem": 0.013152531909211783
+        },
+        "mean_coop_symmetry_end": {
+          "mean": 0.5540660751468514,
+          "std": 0.00117662071054263,
+          "sem": 0.0008319964833092274
+        },
+        "mean_coop_exclusivity_end": {
+          "mean": 0.5386130299535309,
+          "std": 0.01808781183977305,
+          "sem": 0.012790014408729844
+        },
+        "mean_coop_max_members_end": {
+          "mean": 4.052538027885939,
+          "std": 0.1285514343351032,
+          "sem": 0.09089959094960863
+        },
+        "mean_motive_political_end": {
+          "mean": 0.4934584772083873,
+          "std": 0.0690676315109032,
+          "sem": 0.04883819060185332
+        },
+        "mean_motive_economic_end": {
+          "mean": 0.50850180714476,
+          "std": 0.056361332674191994,
+          "sem": 0.039853480530632084
+        },
+        "mean_motive_emotional_end": {
+          "mean": 0.5188350913180697,
+          "std": 0.06782969822618555,
+          "sem": 0.047962839581572936
+        },
+        "mean_motive_hedonist_end": {
+          "mean": 0.4220916293315911,
+          "std": 0.12613303236134368,
+          "sem": 0.08918952251432836
+        },
+        "mean_motive_religious_end": {
+          "mean": 0.4614319495307393,
+          "std": 0.1029433800706141,
+          "sem": 0.07279196212619532
+        },
+        "mean_bond_weight_end": {
+          "mean": 0.1507455300473151,
+          "std": 0.02113926359823593,
+          "sem": 0.014947716639602563
+        },
+        "mean_leave_weight_end": {
+          "mean": 0.11368341194234338,
+          "std": 0.02274707187000723,
+          "sem": 0.016084608771419873
+        },
+        "change_coop_scope": {
+          "mean": -0.009139575959728446,
+          "std": 0.017101125282937484,
+          "sem": 0.01209232165348581
+        },
+        "change_coop_exit_cost": {
+          "mean": 0.022333419104061614,
+          "std": 0.021886394017191408,
+          "sem": 0.015476017625276726
+        },
+        "change_coop_recognition": {
+          "mean": 0.015838784980163056,
+          "std": 0.0641198839977587,
+          "sem": 0.045339604783709964
+        },
+        "change_coop_symmetry": {
+          "mean": 0.0013786645317421797,
+          "std": 0.012244974074572233,
+          "sem": 0.008658504203583495
+        },
+        "change_coop_exclusivity": {
+          "mean": 0.015283166834472312,
+          "std": 0.01848315847152815,
+          "sem": 0.013069566692963136
+        },
+        "change_coop_max_members": {
+          "mean": 0.1301436229559001,
+          "std": 0.22452594999305298,
+          "sem": 0.15876382179243942
+        },
+        "change_motive_political": {
+          "mean": -0.011459303520533454,
+          "std": 0.07677251545024942,
+          "sem": 0.05428636628362035
+        },
+        "change_motive_economic": {
+          "mean": 0.0147610446350957,
+          "std": 0.04800880922189161,
+          "sem": 0.03394735455749081
+        },
+        "change_motive_emotional": {
+          "mean": 0.04801144439078231,
+          "std": 0.031636407986484684,
+          "sem": 0.022370318619627568
+        },
+        "change_motive_hedonist": {
+          "mean": -0.0690358729812928,
+          "std": 0.03244257965510738,
+          "sem": 0.022940368073311148
+        },
+        "change_motive_religious": {
+          "mean": 0.023583219859592913,
+          "std": 0.05028102374275774,
+          "sem": 0.035554052853505796
+        },
+        "change_bond_weight": {
+          "mean": -0.007579852937627168,
+          "std": 0.010983049198452697,
+          "sem": 0.007766188566331377
+        },
+        "change_leave_weight": {
+          "mean": -0.02932833101880948,
+          "std": 0.01732783696914865,
+          "sem": 0.012252631024179962
+        }
+      },
+      "cooperation": {
+        "mean_population": {
+          "mean": 45.34516666666667,
+          "std": 2.2389357714970055,
+          "sem": 1.5831666666666668
+        },
+        "final_population": {
+          "mean": 48.0,
+          "std": 1.4142135623730951,
+          "sem": 1.0
+        },
+        "peak_population": {
+          "mean": 72.0,
+          "std": 7.0710678118654755,
+          "sem": 5.0
+        },
+        "total_births": {
+          "mean": 164.5,
+          "std": 60.10407640085654,
+          "sem": 42.5
+        },
+        "total_deaths": {
+          "mean": 146.5,
+          "std": 58.68986283848344,
+          "sem": 41.49999999999999
+        },
+        "mean_coverage": {
+          "mean": 0.5068871068524516,
+          "std": 0.009400396159569897,
+          "sem": 0.006647083870271853
+        },
+        "final_coverage": {
+          "mean": 0.5636126791141989,
+          "std": 0.0755311629057276,
+          "sem": 0.0534085974815458
+        },
+        "mean_units_active": {
+          "mean": 10.452166666666667,
+          "std": 0.3090056633785221,
+          "sem": 0.21850000000000055
+        },
+        "units_formed": {
+          "mean": 926.0,
+          "std": 73.53910524340094,
+          "sem": 51.99999999999999
+        },
+        "mean_unit_lifetime": {
+          "mean": 33.94282217948178,
+          "std": 1.687628316791263,
+          "sem": 1.193333426925541
+        },
+        "bond_share_late": {
+          "mean": 0.11615004752665069,
+          "std": 0.02906614411282483,
+          "sem": 0.020552867605123884
+        },
+        "policy_bond_prob_late": {
+          "mean": 0.09813486547804803,
+          "std": 0.0006308743574840641,
+          "sem": 0.0004460955362536878
+        },
+        "acting_bond_prob_late": {
+          "mean": 0.11525906474269032,
+          "std": 0.02643676443727902,
+          "sem": 0.018693615406231354
+        },
+        "bond_rank_late": {
+          "mean": 5.141774706136561,
+          "std": 0.06562777539038855,
+          "sem": 0.046405845012731366
+        },
+        "policy_gather_prob_late": {
+          "mean": 0.1990803813537253,
+          "std": 0.0006820967589887763,
+          "sem": 0.0004823152437063299
+        },
+        "policy_gather_lift_late": {
+          "mean": 0.09908038135372531,
+          "std": 0.0006820967589887763,
+          "sem": 0.0004823152437063299
+        },
+        "gather_share_over_prior_late": {
+          "mean": 0.16345186562417569,
+          "std": 0.006546609337627477,
+          "sem": 0.0046291518564155615
+        },
+        "policy_peak_late": {
+          "mean": 0.3094822265388652,
+          "std": 0.007468357269382559,
+          "sem": 0.005280926069504254
+        },
+        "mean_lifespan_at_death": {
+          "mean": 241.13381458966566,
+          "std": 2.330765801999243,
+          "sem": 1.6481003039513666
+        },
+        "starvation_deaths": {
+          "mean": 146.5,
+          "std": 58.68986283848344,
+          "sem": 41.49999999999999
+        },
+        "combat_deaths": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "max_generation": {
+          "mean": 3.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "change_expected_exit_payment": {
+          "mean": 0.017419837330944904,
+          "std": 0.018814001534675235,
+          "sem": 0.01330350806642297
+        },
+        "forfeits_per_enforced_exit": {
+          "mean": 0.5190372214119219,
+          "std": 0.19043371045336646,
+          "sem": 0.13465696802809093
+        },
+        "action_share[move]": {
+          "mean": 0.1831230325686627,
+          "std": 0.006626356122625448,
+          "sem": 0.004685541348865452
+        },
+        "action_share[gather]": {
+          "mean": 0.3340047441334893,
+          "std": 0.008536644145704956,
+          "sem": 0.006036318964004416
+        },
+        "action_share[share]": {
+          "mean": 0.025330322578123503,
+          "std": 0.0035947990193343116,
+          "sem": 0.0025419067635740426
+        },
+        "action_share[attack]": {
+          "mean": 0.031774363524197984,
+          "std": 0.008089197877295808,
+          "sem": 0.005719926673395692
+        },
+        "action_share[defend]": {
+          "mean": 0.24018378777162913,
+          "std": 0.021534015879724422,
+          "sem": 0.015226848654731935
+        },
+        "action_share[reproduce]": {
+          "mean": 0.008354555340289425,
+          "std": 0.0019606027776487363,
+          "sem": 0.0013863555192886023
+        },
+        "action_share[pass]": {
+          "mean": 0.01088123294236841,
+          "std": 0.0004576368842335115,
+          "sem": 0.00032359814416259893
+        },
+        "action_share[communicate]": {
+          "mean": 0.04151224265838813,
+          "std": 0.00041151929307219114,
+          "sem": 0.0002909880827204406
+        },
+        "action_share[bond]": {
+          "mean": 0.10875721466277727,
+          "std": 0.01894785823949871,
+          "sem": 0.013398159050110936
+        },
+        "action_share[leave]": {
+          "mean": 0.016078503820074155,
+          "std": 0.006261715075450737,
+          "sem": 0.00442770119170925
+        },
+        "mean_coop_scope_end": {
+          "mean": 0.49713309110005305,
+          "std": 0.037020161848768135,
+          "sem": 0.026177207483887462
+        },
+        "mean_coop_exit_cost_end": {
+          "mean": 0.4603786007771392,
+          "std": 0.039000509164479794,
+          "sem": 0.02757752449993175
+        },
+        "mean_coop_recognition_end": {
+          "mean": 0.537637609477968,
+          "std": 0.052564524197958415,
+          "sem": 0.03716873151022076
+        },
+        "mean_coop_symmetry_end": {
+          "mean": 0.5170564343143437,
+          "std": 0.07027599521463308,
+          "sem": 0.04969263277090041
+        },
+        "mean_coop_exclusivity_end": {
+          "mean": 0.5252781037643206,
+          "std": 0.023002252816142807,
+          "sem": 0.016265048948861938
+        },
+        "mean_coop_max_members_end": {
+          "mean": 4.071773777629464,
+          "std": 0.1054765207879264,
+          "sem": 0.0745831631051066
+        },
+        "mean_motive_political_end": {
+          "mean": 0.5074862332432065,
+          "std": 0.07888053323062312,
+          "sem": 0.05577695995098441
+        },
+        "mean_motive_economic_end": {
+          "mean": 0.5120584702087809,
+          "std": 0.07905156225282052,
+          "sem": 0.0558978957323599
+        },
+        "mean_motive_emotional_end": {
+          "mean": 0.44927082591886536,
+          "std": 0.08080887800163272,
+          "sem": 0.057140505615030916
+        },
+        "mean_motive_hedonist_end": {
+          "mean": 0.3949529621922343,
+          "std": 0.08412540134527847,
+          "sem": 0.05948564176128631
+        },
+        "mean_motive_religious_end": {
+          "mean": 0.38399628112406237,
+          "std": 0.11241272825648446,
+          "sem": 0.07948780244184078
+        },
+        "mean_bond_weight_end": {
+          "mean": 0.1781470133726041,
+          "std": 0.03534482919971899,
+          "sem": 0.024992568407001592
+        },
+        "mean_leave_weight_end": {
+          "mean": 0.11272377841891518,
+          "std": 0.005158374006525232,
+          "sem": 0.0036475212399104113
+        },
+        "change_coop_scope": {
+          "mean": -0.018571984276050002,
+          "std": 0.04396786756200695,
+          "sem": 0.031089977307407146
+        },
+        "change_coop_exit_cost": {
+          "mean": -0.0043723421702956955,
+          "std": 0.021305722889257247,
+          "sem": 0.01506542113307524
+        },
+        "change_coop_recognition": {
+          "mean": 0.05711915487006619,
+          "std": 0.00704512920575193,
+          "sem": 0.004981658635722585
+        },
+        "change_coop_symmetry": {
+          "mean": -0.035630976300765504,
+          "std": 0.08134434857866268,
+          "sem": 0.05751914049117468
+        },
+        "change_coop_exclusivity": {
+          "mean": 0.0019482406452620282,
+          "std": 0.01356871749515839,
+          "sem": 0.009594532152831042
+        },
+        "change_coop_max_members": {
+          "mean": 0.14937937269942547,
+          "std": 0.00950200512997661,
+          "sem": 0.006718932262275822
+        },
+        "change_motive_political": {
+          "mean": 0.002568452514285724,
+          "std": 0.08658541716996934,
+          "sem": 0.06122513563275144
+        },
+        "change_motive_economic": {
+          "mean": 0.018317707699116642,
+          "std": 0.07069903880052013,
+          "sem": 0.04999176975921862
+        },
+        "change_motive_emotional": {
+          "mean": -0.021552821008422096,
+          "std": 0.018657228211037512,
+          "sem": 0.013192652586169583
+        },
+        "change_motive_hedonist": {
+          "mean": -0.09617454012064963,
+          "std": 0.009565051360957848,
+          "sem": 0.00676351267973091
+        },
+        "change_motive_religious": {
+          "mean": -0.053852448547084014,
+          "std": 0.059750371928628095,
+          "sem": 0.04224989316915125
+        },
+        "change_bond_weight": {
+          "mean": 0.019821630387661826,
+          "std": 0.025188614799935755,
+          "sem": 0.017811040333730405
+        },
+        "change_leave_weight": {
+          "mean": -0.030287964542237686,
+          "std": 0.00026086089433334736,
+          "sem": 0.00018445650732949734
+        }
+      },
+      "cooperation_no_motive": {
+        "mean_population": {
+          "mean": 49.94883333333333,
+          "std": 2.7273108550365133,
+          "sem": 1.9284999999999994
+        },
+        "final_population": {
+          "mean": 50.0,
+          "std": 7.0710678118654755,
+          "sem": 5.0
+        },
+        "peak_population": {
+          "mean": 73.0,
+          "std": 5.656854249492381,
+          "sem": 4.0
+        },
+        "total_births": {
+          "mean": 205.5,
+          "std": 75.66042558696059,
+          "sem": 53.49999999999999
+        },
+        "total_deaths": {
+          "mean": 185.5,
+          "std": 68.58935777509511,
+          "sem": 48.5
+        },
+        "mean_coverage": {
+          "mean": 0.5683727146108641,
+          "std": 0.022782359016973786,
+          "sem": 0.01610956055232865
+        },
+        "final_coverage": {
+          "mean": 0.5868686868686869,
+          "std": 0.04428345498339992,
+          "sem": 0.03131313131313129
+        },
+        "mean_units_active": {
+          "mean": 13.842166666666667,
+          "std": 2.1564399803585745,
+          "sem": 1.5248333333333333
+        },
+        "units_formed": {
+          "mean": 1322.0,
+          "std": 213.54624791833734,
+          "sem": 150.99999999999997
+        },
+        "mean_unit_lifetime": {
+          "mean": 32.23932608762449,
+          "std": 10.104500531914391,
+          "sem": 7.1449608466197425
+        },
+        "bond_share_late": {
+          "mean": 0.11587181507614365,
+          "std": 0.019030971111292847,
+          "sem": 0.013456928725360457
+        },
+        "policy_bond_prob_late": {
+          "mean": 0.10259774184881446,
+          "std": 0.00864671296037628,
+          "sem": 0.006114149369255674
+        },
+        "acting_bond_prob_late": {
+          "mean": 0.11730097567495208,
+          "std": 0.021076841909874994,
+          "sem": 0.014903577840469431
+        },
+        "bond_rank_late": {
+          "mean": 4.981997572774567,
+          "std": 0.3362884237349414,
+          "sem": 0.23779182485751216
+        },
+        "policy_gather_prob_late": {
+          "mean": 0.19297211305016843,
+          "std": 0.015797575885435594,
+          "sem": 0.011170573034900586
+        },
+        "policy_gather_lift_late": {
+          "mean": 0.09297211305016843,
+          "std": 0.015797575885435594,
+          "sem": 0.011170573034900586
+        },
+        "gather_share_over_prior_late": {
+          "mean": 0.156339642452486,
+          "std": 0.017429374238322182,
+          "sem": 0.01232442871575573
+        },
+        "policy_peak_late": {
+          "mean": 0.29500680762223463,
+          "std": 0.001948306835381667,
+          "sem": 0.0013776609751304791
+        },
+        "mean_lifespan_at_death": {
+          "mean": 230.20431717512008,
+          "std": 39.463872527355825,
+          "sem": 27.905171875974798
+        },
+        "starvation_deaths": {
+          "mean": 185.5,
+          "std": 68.58935777509511,
+          "sem": 48.5
+        },
+        "combat_deaths": {
+          "mean": 0.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "max_generation": {
+          "mean": 3.0,
+          "std": 0.0,
+          "sem": 0.0
+        },
+        "change_expected_exit_payment": {
+          "mean": -0.006535372118503177,
+          "std": 0.013622838479837012,
+          "sem": 0.00963280146810179
+        },
+        "forfeits_per_enforced_exit": {
+          "mean": 0.6051042810503352,
+          "std": 0.27878713197344135,
+          "sem": 0.19713227152596932
+        },
+        "action_share[move]": {
+          "mean": 0.18844148603103228,
+          "std": 0.002133297861596662,
+          "sem": 0.0015084693842257607
+        },
+        "action_share[gather]": {
+          "mean": 0.31643436650745316,
+          "std": 0.009763333519664952,
+          "sem": 0.00690371933874101
+        },
+        "action_share[share]": {
+          "mean": 0.025944508772922825,
+          "std": 0.0038341390881492573,
+          "sem": 0.0027111457492427454
+        },
+        "action_share[attack]": {
+          "mean": 0.03210392945089452,
+          "std": 0.007880601498816373,
+          "sem": 0.005572426759641927
+        },
+        "action_share[defend]": {
+          "mean": 0.24254127637107542,
+          "std": 0.029961851012225232,
+          "sem": 0.021186228027645485
+        },
+        "action_share[reproduce]": {
+          "mean": 0.010487198766931605,
+          "std": 0.00044238902521449077,
+          "sem": 0.00031281627965167296
+        },
+        "action_share[pass]": {
+          "mean": 0.011944163184354229,
+          "std": 0.00012640387906723798,
+          "sem": 8.938104005672826e-05
+        },
+        "action_share[communicate]": {
+          "mean": 0.040935121480351,
+          "std": 0.0034001672062239363,
+          "sem": 0.0024042812886890634
+        },
+        "action_share[bond]": {
+          "mean": 0.11551314995444242,
+          "std": 0.021806148841644613,
+          "sem": 0.015419275717490083
+        },
+        "action_share[leave]": {
+          "mean": 0.015654799480542554,
+          "std": 0.0074035032251216605,
+          "sem": 0.005235067335020001
+        },
+        "mean_coop_scope_end": {
+          "mean": 0.5250909454336752,
+          "std": 0.009600753814214807,
+          "sem": 0.0067887581265339
+        },
+        "mean_coop_exit_cost_end": {
+          "mean": 0.4675504203662332,
+          "std": 0.07411190697015116,
+          "sem": 0.05240503198526044
+        },
+        "mean_coop_recognition_end": {
+          "mean": 0.48493789909080043,
+          "std": 0.010047316570207934,
+          "sem": 0.007104525679521994
+        },
+        "mean_coop_symmetry_end": {
+          "mean": 0.559692679772946,
+          "std": 0.014335875020383426,
+          "sem": 0.010136994441155955
+        },
+        "mean_coop_exclusivity_end": {
+          "mean": 0.543834479348799,
+          "std": 0.061296967951779045,
+          "sem": 0.04334350170487744
+        },
+        "mean_coop_max_members_end": {
+          "mean": 4.095075407500344,
+          "std": 0.023204697628870424,
+          "sem": 0.016408199048757677
+        },
+        "mean_motive_political_end": {
+          "mean": 0.47956027934595447,
+          "std": 0.11098129773008569,
+          "sem": 0.07847562820982679
+        },
+        "mean_motive_economic_end": {
+          "mean": 0.5540936464297586,
+          "std": 0.10439027932528476,
+          "sem": 0.0738150744008667
+        },
+        "mean_motive_emotional_end": {
+          "mean": 0.4573895036673723,
+          "std": 0.14056171056610967,
+          "sem": 0.09939213871647692
+        },
+        "mean_motive_hedonist_end": {
+          "mean": 0.4213301956075882,
+          "std": 0.08139457382983553,
+          "sem": 0.0575546551068658
+        },
+        "mean_motive_religious_end": {
+          "mean": 0.40832065639223647,
+          "std": 0.11941821181534264,
+          "sem": 0.08444142737180027
+        },
+        "mean_bond_weight_end": {
+          "mean": 0.17383741171027994,
+          "std": 0.03148227741803115,
+          "sem": 0.022261331849485935
+        },
+        "mean_leave_weight_end": {
+          "mean": 0.09845672969473374,
+          "std": 0.009859880950388224,
+          "sem": 0.006971988681711574
+        },
+        "change_coop_scope": {
+          "mean": 0.009385870057572132,
+          "std": 0.016548459527453614,
+          "sem": 0.011701527950053579
+        },
+        "change_coop_exit_cost": {
+          "mean": 0.002799477418798324,
+          "std": 0.013805674916414127,
+          "sem": 0.009762086352253452
+        },
+        "change_coop_recognition": {
+          "mean": 0.004419444482898577,
+          "std": 0.05556671156241442,
+          "sem": 0.03929159855402017
+        },
+        "change_coop_symmetry": {
+          "mean": 0.00700526915783678,
+          "std": 0.02540422838441303,
+          "sem": 0.017963502161430223
+        },
+        "change_coop_exclusivity": {
+          "mean": 0.020504616229740452,
+          "std": 0.02472599764047785,
+          "sem": 0.01748392060318446
+        },
+        "change_coop_max_members": {
+          "mean": 0.1726810025703056,
+          "std": 0.07276981802907936,
+          "sem": 0.0514560317940731
+        },
+        "change_motive_political": {
+          "mean": -0.02535750138296633,
+          "std": 0.11868618166943191,
+          "sem": 0.08392380389159382
+        },
+        "change_motive_economic": {
+          "mean": 0.06035288392009419,
+          "std": 0.09603775587298438,
+          "sem": 0.06790894842772544
+        },
+        "change_motive_emotional": {
+          "mean": -0.013434143259915182,
+          "std": 0.04109560435343942,
+          "sem": 0.029058980515276413
+        },
+        "change_motive_hedonist": {
+          "mean": -0.06979730670529569,
+          "std": 0.012295878876400787,
+          "sem": 0.008694499334151421
+        },
+        "change_motive_religious": {
+          "mean": -0.02952807327890991,
+          "std": 0.06675585548748628,
+          "sem": 0.04720351809911074
+        },
+        "change_bond_weight": {
+          "mean": 0.015512028725337676,
+          "std": 0.02132606301824791,
+          "sem": 0.015079803776214746
+        },
+        "change_leave_weight": {
+          "mean": -0.04455501326641913,
+          "std": 0.004440646049529645,
+          "sem": 0.003140010934471665
+        }
+      }
+    },
+    "paired_deltas": {
+      "cooperation_minus_placebo": {
+        "mean_population": {
+          "mean_diff": 10.116833333333336,
+          "ci_low": 7.953000000000003,
+          "ci_high": 12.280666666666669,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "final_population": {
+          "mean_diff": 9.5,
+          "ci_low": 5.0,
+          "ci_high": 14.0,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "peak_population": {
+          "mean_diff": 4.5,
+          "ci_low": 1.0,
+          "ci_high": 8.0,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "total_births": {
+          "mean_diff": -69.5,
+          "ci_low": -80.0,
+          "ci_high": -59.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "total_deaths": {
+          "mean_diff": -79.0,
+          "ci_low": -94.0,
+          "ci_high": -64.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coverage": {
+          "mean_diff": 0.5068871068524516,
+          "ci_low": 0.5002400229821797,
+          "ci_high": 0.5135341907227234,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "final_coverage": {
+          "mean_diff": 0.5636126791141989,
+          "ci_low": 0.5102040816326531,
+          "ci_high": 0.6170212765957447,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_units_active": {
+          "mean_diff": 10.452166666666667,
+          "ci_low": 10.233666666666666,
+          "ci_high": 10.670666666666667,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "units_formed": {
+          "mean_diff": 926.0,
+          "ci_low": 874.0,
+          "ci_high": 978.0,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_unit_lifetime": {
+          "mean_diff": 33.94282217948178,
+          "ci_low": 32.74948875255624,
+          "ci_high": 35.13615560640732,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "bond_share_late": {
+          "mean_diff": 0.03715809558418326,
+          "ci_low": 0.028020824912131495,
+          "ci_high": 0.046295366256235024,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_bond_prob_late": {
+          "mean_diff": 0.004024891693167984,
+          "ci_low": -0.0067050498995979285,
+          "ci_high": 0.014754833285933897,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "acting_bond_prob_late": {
+          "mean_diff": 0.03677045401367795,
+          "ci_low": 0.029020731259672555,
+          "ci_high": 0.04452017676768334,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "bond_rank_late": {
+          "mean_diff": 0.06806406689291222,
+          "ci_low": -0.42395890027948635,
+          "ci_high": 0.5600870340653108,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "policy_gather_prob_late": {
+          "mean_diff": -0.06308454595748071,
+          "ci_low": -0.0703367517080005,
+          "ci_high": -0.05583234020696093,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_gather_lift_late": {
+          "mean_diff": -0.06308454595748071,
+          "ci_low": -0.0703367517080005,
+          "ci_high": -0.05583234020696093,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "gather_share_over_prior_late": {
+          "mean_diff": -0.05522998229062376,
+          "ci_low": -0.06467038202183503,
+          "ci_high": -0.045789582559412484,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_peak_late": {
+          "mean_diff": -0.05768701631841172,
+          "ci_low": -0.06925582340967418,
+          "ci_high": -0.046118209227149265,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_lifespan_at_death": {
+          "mean_diff": 84.43973384771257,
+          "ci_low": 54.10109890109891,
+          "ci_high": 114.77836879432624,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "starvation_deaths": {
+          "mean_diff": -79.0,
+          "ci_low": -94.0,
+          "ci_high": -64.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "combat_deaths": {
+          "mean_diff": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "max_generation": {
+          "mean_diff": 0.5,
+          "ci_low": 0.0,
+          "ci_high": 1.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_expected_exit_payment": {
+          "mean_diff": 0.01185058433232089,
+          "ci_low": 0.010553973542197781,
+          "ci_high": 0.013147195122444,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "forfeits_per_enforced_exit": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "action_share[move]": {
+          "mean_diff": 0.00645829403437391,
+          "ci_low": 0.00512602040397131,
+          "ci_high": 0.00779056766477651,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[gather]": {
+          "mean_diff": -0.04880572268278063,
+          "ci_low": -0.060071770870003705,
+          "ci_high": -0.03753967449555756,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[share]": {
+          "mean_diff": 0.00712758556783144,
+          "ci_low": 0.005417446500140151,
+          "ci_high": 0.00883772463552273,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[attack]": {
+          "mean_diff": -0.0034468148897251905,
+          "ci_low": -0.008299529761120607,
+          "ci_high": 0.0014058999816702264,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[defend]": {
+          "mean_diff": -0.0027555899679202883,
+          "ci_low": -0.013715552585818441,
+          "ci_high": 0.008204372649977865,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[reproduce]": {
+          "mean_diff": -0.0014150635690177603,
+          "ci_low": -0.001627585246113894,
+          "ci_high": -0.0012025418919216265,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[pass]": {
+          "mean_diff": -0.0009499465848681948,
+          "ci_low": -0.0017188496242182775,
+          "ci_high": -0.0001810435455181121,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[communicate]": {
+          "mean_diff": 0.0008670854352328741,
+          "ci_low": -0.0023396673647352456,
+          "ci_high": 0.004073838235200994,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[bond]": {
+          "mean_diff": 0.02684166883679972,
+          "ci_low": 0.021267812811352912,
+          "ci_high": 0.032415524862246525,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[leave]": {
+          "mean_diff": 0.016078503820074155,
+          "ci_low": 0.011650802628364907,
+          "ci_high": 0.020506205011783407,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coop_scope_end": {
+          "mean_diff": -0.009432408316321556,
+          "ci_low": -0.05261470727721451,
+          "ci_high": 0.0337498906445714,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_exit_cost_end": {
+          "mean_diff": -0.02670576127435731,
+          "ci_low": -0.05724720003270928,
+          "ci_high": 0.0038356774839946595,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_recognition_end": {
+          "mean_diff": 0.041280369889903135,
+          "ci_low": -0.009040893529529415,
+          "ci_high": 0.09160163330933568,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_symmetry_end": {
+          "mean_diff": -0.037009640832507684,
+          "ci_low": -0.08587027712009887,
+          "ci_high": 0.011850995455083502,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_exclusivity_end": {
+          "mean_diff": -0.013334926189210283,
+          "ci_low": -0.016809960729342377,
+          "ci_high": -0.00985989164907819,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coop_max_members_end": {
+          "mean_diff": 0.019235749743525377,
+          "ci_low": -0.14624700431118987,
+          "ci_high": 0.18471850379824062,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_political_end": {
+          "mean_diff": 0.014027756034819178,
+          "ci_low": 0.007088986685688081,
+          "ci_high": 0.020966525383950274,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_motive_economic_end": {
+          "mean_diff": 0.003556663064020943,
+          "ci_low": -0.012487752137706865,
+          "ci_high": 0.01960107826574875,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_emotional_end": {
+          "mean_diff": -0.0695642653992044,
+          "ci_low": -0.0787419314326624,
+          "ci_high": -0.06038659936574642,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_motive_hedonist_end": {
+          "mean_diff": -0.027138667139356837,
+          "ci_low": -0.0568425478923989,
+          "ci_high": 0.0025652136136852244,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_religious_end": {
+          "mean_diff": -0.07743566840667693,
+          "ci_low": -0.08413150872232239,
+          "ci_high": -0.07073982809103146,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_bond_weight_end": {
+          "mean_diff": 0.027401483325288994,
+          "ci_low": 0.017356631557889968,
+          "ci_high": 0.03744633509268802,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_leave_weight_end": {
+          "mean_diff": -0.000959633523428205,
+          "ci_low": -0.013396721054937666,
+          "ci_high": 0.011477454008081256,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_coop_scope": {
+          "mean_diff": -0.009432408316321556,
+          "ci_low": -0.05261470727721451,
+          "ci_high": 0.0337498906445714,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_coop_exit_cost": {
+          "mean_diff": -0.02670576127435731,
+          "ci_low": -0.05724720003270928,
+          "ci_high": 0.0038356774839946595,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_coop_recognition": {
+          "mean_diff": 0.041280369889903135,
+          "ci_low": -0.009040893529529415,
+          "ci_high": 0.09160163330933568,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_coop_symmetry": {
+          "mean_diff": -0.037009640832507684,
+          "ci_low": -0.08587027712009887,
+          "ci_high": 0.011850995455083502,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_coop_exclusivity": {
+          "mean_diff": -0.013334926189210283,
+          "ci_low": -0.016809960729342377,
+          "ci_high": -0.00985989164907819,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_coop_max_members": {
+          "mean_diff": 0.019235749743525377,
+          "ci_low": -0.14624700431118987,
+          "ci_high": 0.18471850379824062,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_motive_political": {
+          "mean_diff": 0.014027756034819178,
+          "ci_low": 0.007088986685688081,
+          "ci_high": 0.020966525383950274,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_motive_economic": {
+          "mean_diff": 0.003556663064020943,
+          "ci_low": -0.012487752137706865,
+          "ci_high": 0.01960107826574875,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_motive_emotional": {
+          "mean_diff": -0.0695642653992044,
+          "ci_low": -0.0787419314326624,
+          "ci_high": -0.06038659936574642,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_motive_hedonist": {
+          "mean_diff": -0.027138667139356837,
+          "ci_low": -0.0568425478923989,
+          "ci_high": 0.0025652136136852244,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_motive_religious": {
+          "mean_diff": -0.07743566840667693,
+          "ci_low": -0.08413150872232239,
+          "ci_high": -0.07073982809103146,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_bond_weight": {
+          "mean_diff": 0.027401483325288994,
+          "ci_low": 0.017356631557889968,
+          "ci_high": 0.03744633509268802,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_leave_weight": {
+          "mean_diff": -0.000959633523428205,
+          "ci_low": -0.013396721054937666,
+          "ci_high": 0.011477454008081256,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        }
+      },
+      "no_motive_minus_placebo": {
+        "mean_population": {
+          "mean_diff": 14.720500000000001,
+          "ci_low": 12.211333333333336,
+          "ci_high": 17.229666666666667,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "final_population": {
+          "mean_diff": 11.5,
+          "ci_low": 3.0,
+          "ci_high": 20.0,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "peak_population": {
+          "mean_diff": 5.5,
+          "ci_low": 0.0,
+          "ci_high": 11.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "total_births": {
+          "mean_diff": -28.5,
+          "ci_low": -29.0,
+          "ci_high": -28.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "total_deaths": {
+          "mean_diff": -40.0,
+          "ci_low": -48.0,
+          "ci_high": -32.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coverage": {
+          "mean_diff": 0.5683727146108641,
+          "ci_low": 0.5522631540585354,
+          "ci_high": 0.5844822751631927,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "final_coverage": {
+          "mean_diff": 0.5868686868686869,
+          "ci_low": 0.5555555555555556,
+          "ci_high": 0.6181818181818182,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_units_active": {
+          "mean_diff": 13.842166666666667,
+          "ci_low": 12.317333333333334,
+          "ci_high": 15.367,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "units_formed": {
+          "mean_diff": 1322.0,
+          "ci_low": 1171.0,
+          "ci_high": 1473.0,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_unit_lifetime": {
+          "mean_diff": 32.23932608762449,
+          "ci_low": 25.094365241004752,
+          "ci_high": 39.38428693424424,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "bond_share_late": {
+          "mean_diff": 0.03687986313367622,
+          "ci_low": 0.03483853134138788,
+          "ci_high": 0.03892119492596456,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_bond_prob_late": {
+          "mean_diff": 0.008487768063934413,
+          "ci_low": -0.008802418434340861,
+          "ci_high": 0.025777954562209687,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "acting_bond_prob_late": {
+          "mean_diff": 0.03881236494593972,
+          "ci_low": 0.03485267975769625,
+          "ci_high": 0.042772050134183184,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "bond_rank_late": {
+          "mean_diff": -0.09171306646908217,
+          "ci_low": -0.7751220134862615,
+          "ci_high": 0.5916958805480972,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "policy_gather_prob_late": {
+          "mean_diff": -0.06919281426103759,
+          "ci_low": -0.08713327780275162,
+          "ci_high": -0.05125235071932355,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_gather_lift_late": {
+          "mean_diff": -0.06919281426103759,
+          "ci_low": -0.08713327780275162,
+          "ci_high": -0.05125235071932355,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "gather_share_over_prior_late": {
+          "mean_diff": -0.062342205462313435,
+          "ci_low": -0.07947788205286488,
+          "ci_high": -0.04520652887176199,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_peak_late": {
+          "mean_diff": -0.07216243523504229,
+          "ci_low": -0.07707265528167001,
+          "ci_high": -0.06725221518841457,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_lifespan_at_death": {
+          "mean_diff": 73.51023643316701,
+          "ci_low": 72.72487366647951,
+          "ci_high": 74.29559919985451,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "starvation_deaths": {
+          "mean_diff": -40.0,
+          "ci_low": -48.0,
+          "ci_high": -32.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "combat_deaths": {
+          "mean_diff": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "max_generation": {
+          "mean_diff": 0.5,
+          "ci_low": 0.0,
+          "ci_high": 1.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_expected_exit_payment": {
+          "mean_diff": -0.01210462511712719,
+          "ci_low": -0.01707194250557148,
+          "ci_high": -0.007137307728682901,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "forfeits_per_enforced_exit": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "action_share[move]": {
+          "mean_diff": 0.011776747496743512,
+          "ci_low": 0.00726740190170122,
+          "ci_high": 0.016286093091785803,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[gather]": {
+          "mean_diff": -0.06637610030881677,
+          "ci_low": -0.07850954887077644,
+          "ci_high": -0.05424265174685711,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[share]": {
+          "mean_diff": 0.00774177176263076,
+          "ci_low": 0.005862393709270768,
+          "ci_high": 0.009621149815990753,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[attack]": {
+          "mean_diff": -0.00311724896302866,
+          "ci_low": -0.007822463920670313,
+          "ci_high": 0.0015879659946129929,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[defend]": {
+          "mean_diff": -0.000398101368474027,
+          "ci_low": -0.017317443359285728,
+          "ci_high": 0.016521240622337674,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[reproduce]": {
+          "mean_diff": 0.0007175798576244188,
+          "ci_low": -0.0011941136184119901,
+          "ci_high": 0.002629273333660828,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[pass]": {
+          "mean_diff": 0.000112983657117623,
+          "ci_low": -0.0008901364863383304,
+          "ci_high": 0.0011161038005735764,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[communicate]": {
+          "mean_diff": 0.00028996425719574406,
+          "ci_low": -0.0002215191713628717,
+          "ci_high": 0.0008014476857543598,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[bond]": {
+          "mean_diff": 0.03359760412846487,
+          "ci_low": 0.03004486477039721,
+          "ci_high": 0.037150343486532525,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[leave]": {
+          "mean_diff": 0.015654799480542554,
+          "ci_low": 0.010419732145522553,
+          "ci_high": 0.020889866815562555,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coop_scope_end": {
+          "mean_diff": 0.01852544601730058,
+          "ci_low": -0.005268403586238812,
+          "ci_high": 0.04231929562083997,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_exit_cost_end": {
+          "mean_diff": -0.01953394168526329,
+          "ci_low": -0.025247872958286566,
+          "ci_high": -0.013820010412240014,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coop_recognition_end": {
+          "mean_diff": -0.01141934049726448,
+          "ci_low": -0.01746734672695427,
+          "ci_high": -0.00537133426757469,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coop_symmetry_end": {
+          "mean_diff": 0.0056266046260946,
+          "ci_low": -0.003678393331752128,
+          "ci_high": 0.014931602583941328,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_exclusivity_end": {
+          "mean_diff": 0.005221449395268141,
+          "ci_low": -0.025332037900879456,
+          "ci_high": 0.03577493669141574,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_max_members_end": {
+          "mean_diff": 0.04253737961440551,
+          "ci_low": -0.06477041038396081,
+          "ci_high": 0.14984516961277183,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_political_end": {
+          "mean_diff": -0.013898197862432876,
+          "ci_low": -0.04353563547040634,
+          "ci_high": 0.01573923974554059,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_economic_end": {
+          "mean_diff": 0.04559183928499849,
+          "ci_low": 0.011630245414763873,
+          "ci_high": 0.07955343315523311,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_motive_emotional_end": {
+          "mean_diff": -0.06144558765069749,
+          "ci_low": -0.11287488678560148,
+          "ci_high": -0.010016288515793503,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_motive_hedonist_end": {
+          "mean_diff": -0.0007614337240028912,
+          "ci_low": -0.032396301131465466,
+          "ci_high": 0.030873433683459683,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_religious_end": {
+          "mean_diff": -0.053111293138502824,
+          "ci_low": -0.06476075838410777,
+          "ci_high": -0.04146182789289787,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_bond_weight_end": {
+          "mean_diff": 0.023091881662964844,
+          "ci_low": 0.015778266453081474,
+          "ci_high": 0.030405496872848214,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_leave_weight_end": {
+          "mean_diff": -0.015226682247609646,
+          "ci_low": -0.024339302337317945,
+          "ci_high": -0.006114062157901348,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_coop_scope": {
+          "mean_diff": 0.01852544601730058,
+          "ci_low": -0.005268403586238812,
+          "ci_high": 0.04231929562083997,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_coop_exit_cost": {
+          "mean_diff": -0.01953394168526329,
+          "ci_low": -0.025247872958286566,
+          "ci_high": -0.013820010412240014,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_coop_recognition": {
+          "mean_diff": -0.01141934049726448,
+          "ci_low": -0.01746734672695427,
+          "ci_high": -0.00537133426757469,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_coop_symmetry": {
+          "mean_diff": 0.0056266046260946,
+          "ci_low": -0.003678393331752128,
+          "ci_high": 0.014931602583941328,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_coop_exclusivity": {
+          "mean_diff": 0.005221449395268141,
+          "ci_low": -0.025332037900879456,
+          "ci_high": 0.03577493669141574,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_coop_max_members": {
+          "mean_diff": 0.04253737961440551,
+          "ci_low": -0.06477041038396081,
+          "ci_high": 0.14984516961277183,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_motive_political": {
+          "mean_diff": -0.013898197862432876,
+          "ci_low": -0.04353563547040634,
+          "ci_high": 0.01573923974554059,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_motive_economic": {
+          "mean_diff": 0.04559183928499849,
+          "ci_low": 0.011630245414763873,
+          "ci_high": 0.07955343315523311,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_motive_emotional": {
+          "mean_diff": -0.06144558765069749,
+          "ci_low": -0.11287488678560148,
+          "ci_high": -0.010016288515793503,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_motive_hedonist": {
+          "mean_diff": -0.0007614337240028912,
+          "ci_low": -0.032396301131465466,
+          "ci_high": 0.030873433683459683,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_motive_religious": {
+          "mean_diff": -0.053111293138502824,
+          "ci_low": -0.06476075838410777,
+          "ci_high": -0.04146182789289787,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_bond_weight": {
+          "mean_diff": 0.023091881662964844,
+          "ci_low": 0.015778266453081474,
+          "ci_high": 0.030405496872848214,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_leave_weight": {
+          "mean_diff": -0.015226682247609646,
+          "ci_low": -0.024339302337317945,
+          "ci_high": -0.006114062157901348,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        }
+      },
+      "cooperation_minus_no_motive": {
+        "mean_population": {
+          "mean_diff": -4.6036666666666655,
+          "ci_low": -4.948999999999998,
+          "ci_high": -4.258333333333333,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "final_population": {
+          "mean_diff": -2.0,
+          "ci_low": -6.0,
+          "ci_high": 2.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "peak_population": {
+          "mean_diff": -1.0,
+          "ci_low": -10.0,
+          "ci_high": 8.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "total_births": {
+          "mean_diff": -41.0,
+          "ci_low": -52.0,
+          "ci_high": -30.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "total_deaths": {
+          "mean_diff": -39.0,
+          "ci_low": -46.0,
+          "ci_high": -32.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coverage": {
+          "mean_diff": -0.0614856077584125,
+          "ci_low": -0.084242252181013,
+          "ci_high": -0.038728963335811994,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "final_coverage": {
+          "mean_diff": -0.023256007754487995,
+          "ci_low": -0.1079777365491651,
+          "ci_high": 0.0614657210401891,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_units_active": {
+          "mean_diff": -3.3900000000000006,
+          "ci_low": -5.133333333333335,
+          "ci_high": -1.6466666666666665,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "units_formed": {
+          "mean_diff": -396.0,
+          "ci_low": -495.0,
+          "ci_high": -297.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_unit_lifetime": {
+          "mean_diff": 1.7034960918572857,
+          "ci_low": -4.248131327836916,
+          "ci_high": 7.655123511551487,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "bond_share_late": {
+          "mean_diff": 0.0002782324505070377,
+          "ci_low": -0.006817706429256387,
+          "ci_high": 0.0073741713302704626,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "policy_bond_prob_late": {
+          "mean_diff": -0.004462876370766429,
+          "ci_low": -0.01102312127627579,
+          "ci_high": 0.0020973685347429327,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "acting_bond_prob_late": {
+          "mean_diff": -0.0020419109322617687,
+          "ci_low": -0.005831948498023695,
+          "ci_high": 0.0017481266335001577,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "bond_rank_late": {
+          "mean_diff": 0.1597771333619944,
+          "ci_low": -0.03160884648278639,
+          "ci_high": 0.3511631132067752,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "policy_gather_prob_late": {
+          "mean_diff": 0.006108268303556874,
+          "ci_low": -0.0045799894876373815,
+          "ci_high": 0.01679652609475113,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "policy_gather_lift_late": {
+          "mean_diff": 0.006108268303556874,
+          "ci_low": -0.0045799894876373815,
+          "ci_high": 0.01679652609475113,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "gather_share_over_prior_late": {
+          "mean_diff": 0.007112223171689677,
+          "ci_low": -0.0005830536876504921,
+          "ci_high": 0.014807500031029847,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "policy_peak_late": {
+          "mean_diff": 0.014475418916630567,
+          "ci_low": 0.007816831871995833,
+          "ci_high": 0.0211340059612653,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_lifespan_at_death": {
+          "mean_diff": 10.929497414545565,
+          "ci_low": -18.623774765380603,
+          "ci_high": 40.48276959447173,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "starvation_deaths": {
+          "mean_diff": -39.0,
+          "ci_low": -46.0,
+          "ci_high": -32.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "combat_deaths": {
+          "mean_diff": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "max_generation": {
+          "mean_diff": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_expected_exit_payment": {
+          "mean_diff": 0.02395520944944808,
+          "ci_low": 0.0202845028511269,
+          "ci_high": 0.02762591604776926,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "forfeits_per_enforced_exit": {
+          "mean_diff": -0.08606705963841327,
+          "ci_low": -0.14854236313629166,
+          "ci_high": -0.02359175614053488,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[move]": {
+          "mean_diff": -0.005318453462369602,
+          "ci_low": -0.008495525427009293,
+          "ci_high": -0.0021413814977299106,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[gather]": {
+          "mean_diff": 0.017570377626036138,
+          "ci_low": 0.016702977251299544,
+          "ci_high": 0.01843777800077273,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[share]": {
+          "mean_diff": -0.00061418619479932,
+          "ci_low": -0.0007834251804680233,
+          "ci_high": -0.0004449472091306167,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[attack]": {
+          "mean_diff": -0.0003295659266965307,
+          "ci_low": -0.0004770658404502949,
+          "ci_high": -0.00018206601294276648,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[defend]": {
+          "mean_diff": -0.0023574885994462613,
+          "ci_low": -0.00831686797235981,
+          "ci_high": 0.0036018907734672867,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[reproduce]": {
+          "mean_diff": -0.002132643426642179,
+          "ci_low": -0.0038318152255824543,
+          "ci_high": -0.00043347162770190385,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[pass]": {
+          "mean_diff": -0.0010629302419858178,
+          "ci_low": -0.0012971473460916885,
+          "ci_high": -0.0008287131378799471,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[communicate]": {
+          "mean_diff": 0.0005771211780371301,
+          "ci_low": -0.002118148193372374,
+          "ci_high": 0.003272390549446634,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[bond]": {
+          "mean_diff": -0.006755935291665148,
+          "ci_low": -0.008777051959044296,
+          "ci_high": -0.004734818624286,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[leave]": {
+          "mean_diff": 0.00042370433953160293,
+          "ci_low": -0.0003836618037791478,
+          "ci_high": 0.0012310704828423537,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_scope_end": {
+          "mean_diff": -0.027957854333622134,
+          "ci_low": -0.0473463036909757,
+          "ci_high": -0.008569404976268569,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coop_exit_cost_end": {
+          "mean_diff": -0.0071718195890940195,
+          "ci_low": -0.03199932707442271,
+          "ci_high": 0.017655687896234673,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_recognition_end": {
+          "mean_diff": 0.052699710387167614,
+          "ci_low": 0.008426453197424855,
+          "ci_high": 0.09697296757691037,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coop_symmetry_end": {
+          "mean_diff": -0.042636245458602284,
+          "ci_low": -0.08219188378834674,
+          "ci_high": -0.0030806071288578263,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coop_exclusivity_end": {
+          "mean_diff": -0.018556375584478424,
+          "ci_low": -0.04563482834049393,
+          "ci_high": 0.008522077171537079,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_max_members_end": {
+          "mean_diff": -0.023301629870880136,
+          "ci_low": -0.08147659392722906,
+          "ci_high": 0.034873334185468785,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_political_end": {
+          "mean_diff": 0.027925953897252054,
+          "ci_low": 0.005227285638409684,
+          "ci_high": 0.05062462215609442,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_motive_economic_end": {
+          "mean_diff": -0.04203517622097755,
+          "ci_low": -0.05995235488948436,
+          "ci_high": -0.024117997552470738,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_motive_emotional_end": {
+          "mean_diff": -0.008118677748506914,
+          "ci_low": -0.050370310849952915,
+          "ci_high": 0.03413295535293909,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_hedonist_end": {
+          "mean_diff": -0.026377233415353946,
+          "ci_low": -0.02830822006977446,
+          "ci_high": -0.024446246760933432,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_motive_religious_end": {
+          "mean_diff": -0.024324375268174103,
+          "ci_low": -0.02927800019813359,
+          "ci_high": -0.019370750338214615,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_bond_weight_end": {
+          "mean_diff": 0.00430960166232415,
+          "ci_low": 0.0015783651048084935,
+          "ci_high": 0.007040838219839807,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_leave_weight_end": {
+          "mean_diff": 0.014267048724181441,
+          "ci_low": 0.010942581282380279,
+          "ci_high": 0.017591516165982604,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_coop_scope": {
+          "mean_diff": -0.027957854333622134,
+          "ci_low": -0.0473463036909757,
+          "ci_high": -0.008569404976268569,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_coop_exit_cost": {
+          "mean_diff": -0.0071718195890940195,
+          "ci_low": -0.03199932707442271,
+          "ci_high": 0.017655687896234673,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_coop_recognition": {
+          "mean_diff": 0.052699710387167614,
+          "ci_low": 0.008426453197424855,
+          "ci_high": 0.09697296757691037,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_coop_symmetry": {
+          "mean_diff": -0.042636245458602284,
+          "ci_low": -0.08219188378834674,
+          "ci_high": -0.0030806071288578263,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_coop_exclusivity": {
+          "mean_diff": -0.018556375584478424,
+          "ci_low": -0.04563482834049393,
+          "ci_high": 0.008522077171537079,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_coop_max_members": {
+          "mean_diff": -0.023301629870880136,
+          "ci_low": -0.08147659392722906,
+          "ci_high": 0.034873334185468785,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_motive_political": {
+          "mean_diff": 0.027925953897252054,
+          "ci_low": 0.005227285638409684,
+          "ci_high": 0.05062462215609442,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_motive_economic": {
+          "mean_diff": -0.04203517622097755,
+          "ci_low": -0.05995235488948436,
+          "ci_high": -0.024117997552470738,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_motive_emotional": {
+          "mean_diff": -0.008118677748506914,
+          "ci_low": -0.050370310849952915,
+          "ci_high": 0.03413295535293909,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_motive_hedonist": {
+          "mean_diff": -0.026377233415353946,
+          "ci_low": -0.02830822006977446,
+          "ci_high": -0.024446246760933432,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_motive_religious": {
+          "mean_diff": -0.024324375268174103,
+          "ci_low": -0.02927800019813359,
+          "ci_high": -0.019370750338214615,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_bond_weight": {
+          "mean_diff": 0.00430960166232415,
+          "ci_low": 0.0015783651048084935,
+          "ci_high": 0.007040838219839807,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_leave_weight": {
+          "mean_diff": 0.014267048724181441,
+          "ci_low": 0.010942581282380279,
+          "ci_high": 0.017591516165982604,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        }
+      },
+      "cooperation_minus_baseline": {
+        "mean_population": {
+          "mean_diff": 12.121500000000001,
+          "ci_low": 11.215000000000003,
+          "ci_high": 13.027999999999999,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "final_population": {
+          "mean_diff": 15.5,
+          "ci_low": 14.0,
+          "ci_high": 17.0,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "peak_population": {
+          "mean_diff": 2.0,
+          "ci_low": -5.0,
+          "ci_high": 9.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "total_births": {
+          "mean_diff": -18.5,
+          "ci_low": -52.0,
+          "ci_high": 15.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "total_deaths": {
+          "mean_diff": -34.0,
+          "ci_low": -69.0,
+          "ci_high": 1.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coverage": {
+          "mean_diff": 0.5068871068524516,
+          "ci_low": 0.5002400229821797,
+          "ci_high": 0.5135341907227234,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "final_coverage": {
+          "mean_diff": 0.5636126791141989,
+          "ci_low": 0.5102040816326531,
+          "ci_high": 0.6170212765957447,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_units_active": {
+          "mean_diff": 10.452166666666667,
+          "ci_low": 10.233666666666666,
+          "ci_high": 10.670666666666667,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "units_formed": {
+          "mean_diff": 926.0,
+          "ci_low": 874.0,
+          "ci_high": 978.0,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_unit_lifetime": {
+          "mean_diff": 33.94282217948178,
+          "ci_low": 32.74948875255624,
+          "ci_high": 35.13615560640732,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "bond_share_late": {
+          "mean_diff": 0.11615004752665069,
+          "ci_low": 0.0955971799215268,
+          "ci_high": 0.13670291513177457,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_bond_prob_late": {
+          "mean_diff": 0.09813486547804803,
+          "ci_low": 0.09768876994179435,
+          "ci_high": 0.09858096101430172,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "acting_bond_prob_late": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "bond_rank_late": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "policy_gather_prob_late": {
+          "mean_diff": -0.09108488331502214,
+          "ci_low": -0.09827583212588126,
+          "ci_high": -0.08389393450416302,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_gather_lift_late": {
+          "mean_diff": -0.06608488331502214,
+          "ci_low": -0.07327583212588126,
+          "ci_high": -0.058893934504163026,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "gather_share_over_prior_late": {
+          "mean_diff": -0.04910612390520519,
+          "ci_low": -0.052198249543736336,
+          "ci_high": -0.046013998266674044,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_peak_late": {
+          "mean_diff": -0.0794890723762482,
+          "ci_low": -0.0886002330173109,
+          "ci_high": -0.07037791173518548,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_lifespan_at_death": {
+          "mean_diff": 73.53771157165596,
+          "ci_low": 71.33628899835799,
+          "ci_high": 75.73913414495394,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "starvation_deaths": {
+          "mean_diff": -33.0,
+          "ci_low": -69.0,
+          "ci_high": 3.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "combat_deaths": {
+          "mean_diff": -1.0,
+          "ci_low": -2.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "max_generation": {
+          "mean_diff": 1.0,
+          "ci_low": 1.0,
+          "ci_high": 1.0,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "change_expected_exit_payment": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "forfeits_per_enforced_exit": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "action_share[move]": {
+          "mean_diff": -0.013458846259372992,
+          "ci_low": -0.02194771662275624,
+          "ci_high": -0.004969975895989742,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[gather]": {
+          "mean_diff": -0.08054405035003814,
+          "ci_low": -0.08450515495904731,
+          "ci_high": -0.07658294574102897,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[share]": {
+          "mean_diff": 0.0036957221749398268,
+          "ci_low": 0.00197106610949814,
+          "ci_high": 0.005420378240381513,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[attack]": {
+          "mean_diff": -0.006154237889556104,
+          "ci_low": -0.007309252976044508,
+          "ci_high": -0.0049992228030677,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[defend]": {
+          "mean_diff": -0.019813855926951576,
+          "ci_low": -0.027697384437322087,
+          "ci_high": -0.011930327416581066,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[reproduce]": {
+          "mean_diff": -0.0006602665686446067,
+          "ci_low": -0.0010725394648076775,
+          "ci_high": -0.0002479936724815359,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[pass]": {
+          "mean_diff": -0.003295005929684058,
+          "ci_low": -0.0038486930047881354,
+          "ci_high": -0.002741318854579981,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[communicate]": {
+          "mean_diff": -0.004605177733543783,
+          "ci_low": -0.006401765816592221,
+          "ci_high": -0.0028085896504953453,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[bond]": {
+          "mean_diff": 0.10875721466277727,
+          "ci_low": 0.09535905561266633,
+          "ci_high": 0.1221553737128882,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[leave]": {
+          "mean_diff": 0.016078503820074155,
+          "ci_low": 0.011650802628364907,
+          "ci_high": 0.020506205011783407,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_coop_scope_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_exit_cost_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_recognition_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_symmetry_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_exclusivity_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_max_members_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_political_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_economic_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_emotional_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_hedonist_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_religious_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_bond_weight_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_leave_weight_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_scope": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_exit_cost": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_recognition": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_symmetry": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_exclusivity": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_max_members": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_motive_political": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_motive_economic": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_motive_emotional": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_motive_hedonist": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_motive_religious": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_bond_weight": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_leave_weight": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        }
+      },
+      "placebo_minus_baseline": {
+        "mean_population": {
+          "mean_diff": 2.0046666666666653,
+          "ci_low": 0.7473333333333301,
+          "ci_high": 3.2620000000000005,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "final_population": {
+          "mean_diff": 6.0,
+          "ci_low": 0.0,
+          "ci_high": 12.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "peak_population": {
+          "mean_diff": -2.5,
+          "ci_low": -6.0,
+          "ci_high": 1.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "total_births": {
+          "mean_diff": 51.0,
+          "ci_low": 7.0,
+          "ci_high": 95.0,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "total_deaths": {
+          "mean_diff": 45.0,
+          "ci_low": -5.0,
+          "ci_high": 95.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coverage": {
+          "mean_diff": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "final_coverage": {
+          "mean_diff": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_units_active": {
+          "mean_diff": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "units_formed": {
+          "mean_diff": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_unit_lifetime": {
+          "mean_diff": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "bond_share_late": {
+          "mean_diff": 0.07899195194246743,
+          "ci_low": 0.06757635500939531,
+          "ci_high": 0.09040754887553955,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_bond_prob_late": {
+          "mean_diff": 0.09410997378488005,
+          "ci_low": 0.08293393665586045,
+          "ci_high": 0.10528601091389965,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "acting_bond_prob_late": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "bond_rank_late": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "policy_gather_prob_late": {
+          "mean_diff": -0.028000337357541427,
+          "ci_low": -0.04244349191892033,
+          "ci_high": -0.013557182796162526,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "policy_gather_lift_late": {
+          "mean_diff": -0.0030003373575414327,
+          "ci_low": -0.017443491918920334,
+          "ci_high": 0.011442817203837469,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "gather_share_over_prior_late": {
+          "mean_diff": 0.006123858385418568,
+          "ci_low": -0.006408666984323852,
+          "ci_high": 0.018656383755160988,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "policy_peak_late": {
+          "mean_diff": -0.021802056057836472,
+          "ci_low": -0.02425970250803622,
+          "ci_high": -0.019344409607636726,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "mean_lifespan_at_death": {
+          "mean_diff": -10.902022276056613,
+          "ci_low": -39.039234649372304,
+          "ci_high": 17.23519009725908,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "starvation_deaths": {
+          "mean_diff": 46.0,
+          "ci_low": -5.0,
+          "ci_high": 97.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "combat_deaths": {
+          "mean_diff": -1.0,
+          "ci_low": -2.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "max_generation": {
+          "mean_diff": 0.5,
+          "ci_low": 0.0,
+          "ci_high": 1.0,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "change_expected_exit_payment": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "forfeits_per_enforced_exit": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "action_share[move]": {
+          "mean_diff": -0.0199171402937469,
+          "ci_low": -0.02973828428753275,
+          "ci_high": -0.010095996299961052,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[gather]": {
+          "mean_diff": -0.03173832766725751,
+          "ci_low": -0.04696548046348975,
+          "ci_high": -0.01651117487102527,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[share]": {
+          "mean_diff": -0.0034318633928916136,
+          "ci_low": -0.0034463803906420107,
+          "ci_high": -0.0034173463951412165,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[attack]": {
+          "mean_diff": -0.0027074229998309135,
+          "ci_low": -0.006405122784737927,
+          "ci_high": 0.0009902767850760996,
+          "positive_seeds": 1,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "action_share[defend]": {
+          "mean_diff": -0.017058265959031288,
+          "ci_low": -0.02013470006655893,
+          "ci_high": -0.013981831851503645,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[reproduce]": {
+          "mean_diff": 0.0007547970003731535,
+          "ci_low": 0.00013000242711394897,
+          "ci_high": 0.001379591573632358,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[pass]": {
+          "mean_diff": -0.0023450593448158634,
+          "ci_low": -0.0036676494592700233,
+          "ci_high": -0.0010224692303617035,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[communicate]": {
+          "mean_diff": -0.005472263168776657,
+          "ci_low": -0.006882427885696339,
+          "ci_high": -0.0040620984518569755,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[bond]": {
+          "mean_diff": 0.08191554582597754,
+          "ci_low": 0.06294353075041981,
+          "ci_high": 0.10088756090153529,
+          "positive_seeds": 2,
+          "n": 2,
+          "p_two_sided": 0.5
+        },
+        "action_share[leave]": {
+          "mean_diff": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "positive_seeds": 0,
+          "n": 2,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_scope_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_exit_cost_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_recognition_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_symmetry_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_exclusivity_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_coop_max_members_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_political_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_economic_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_emotional_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_hedonist_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_motive_religious_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_bond_weight_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "mean_leave_weight_end": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_scope": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_exit_cost": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_recognition": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_symmetry": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_exclusivity": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_coop_max_members": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_motive_political": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_motive_economic": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_motive_emotional": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_motive_hedonist": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_motive_religious": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_bond_weight": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        },
+        "change_leave_weight": {
+          "mean_diff": NaN,
+          "ci_low": NaN,
+          "ci_high": NaN,
+          "positive_seeds": 0,
+          "n": 0,
+          "p_two_sided": 1.0
+        }
+      }
+    }
+  },
+  "hypotheses": [
+    {
+      "key": "S2",
+      "statement": "The brain learns to bond: in the last quarter of the run the policies' own probability of choosing bond (before innate priors) is higher in the cooperation arm than in the placebo, where it never pays.",
+      "metric": "policy_bond_prob_late",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "greater",
+      "n": 2,
+      "mean_diff": 0.004024891693167984,
+      "ci_low": -0.0067050498995979285,
+      "ci_high": 0.014754833285933897,
+      "positive_seeds": 1,
+      "p_value": 0.5,
+      "p_holm": 1.0,
+      "significant": false
+    },
+    {
+      "key": "S3",
+      "statement": "Cooperation sustains a larger population than the same world without working units.",
+      "metric": "mean_population",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "greater",
+      "n": 2,
+      "mean_diff": 10.116833333333336,
+      "ci_low": 7.953000000000003,
+      "ci_high": 12.280666666666669,
+      "positive_seeds": 2,
+      "p_value": 0.25,
+      "p_holm": 1.0,
+      "significant": false
+    },
+    {
+      "key": "S3b",
+      "statement": "Cooperation lengthens lives: agents that die in the cooperation arm lived longer than in the placebo. Unlike population, lifespan has no ceiling when the population sits at its cap.",
+      "metric": "mean_lifespan_at_death",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "greater",
+      "n": 2,
+      "mean_diff": 84.43973384771257,
+      "ci_low": 54.10109890109891,
+      "ci_high": 114.77836879432624,
+      "positive_seeds": 2,
+      "p_value": 0.25,
+      "p_holm": 1.0,
+      "significant": false
+    },
+    {
+      "key": "S4_scope",
+      "statement": "Selection acts on scope: the run-long change in the population mean of coop_scope differs from its neutral drift in the placebo.",
+      "metric": "change_coop_scope",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "two-sided",
+      "n": 2,
+      "mean_diff": -0.009432408316321556,
+      "ci_low": -0.05261470727721451,
+      "ci_high": 0.0337498906445714,
+      "positive_seeds": 1,
+      "p_value": 1.0,
+      "p_holm": 1.0,
+      "significant": false
+    },
+    {
+      "key": "S4_exit_cost",
+      "statement": "Selection acts on exit_cost: the run-long change in the population mean of coop_exit_cost differs from its neutral drift in the placebo.",
+      "metric": "change_coop_exit_cost",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "two-sided",
+      "n": 2,
+      "mean_diff": -0.02670576127435731,
+      "ci_low": -0.05724720003270928,
+      "ci_high": 0.0038356774839946595,
+      "positive_seeds": 1,
+      "p_value": 1.0,
+      "p_holm": 1.0,
+      "significant": false
+    },
+    {
+      "key": "S4_recognition",
+      "statement": "Selection acts on recognition: the run-long change in the population mean of coop_recognition differs from its neutral drift in the placebo.",
+      "metric": "change_coop_recognition",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "two-sided",
+      "n": 2,
+      "mean_diff": 0.041280369889903135,
+      "ci_low": -0.009040893529529415,
+      "ci_high": 0.09160163330933568,
+      "positive_seeds": 1,
+      "p_value": 1.0,
+      "p_holm": 1.0,
+      "significant": false
+    },
+    {
+      "key": "S5",
+      "statement": "Selection favours binding terms: the population mean of recognition x exit cost (the enforced exit payment per unit of the exit-cost base) rises more than under neutral drift.",
+      "metric": "change_expected_exit_payment",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "greater",
+      "n": 2,
+      "mean_diff": 0.01185058433232089,
+      "ci_low": 0.010553973542197781,
+      "ci_high": 0.013147195122444,
+      "positive_seeds": 2,
+      "p_value": 0.25,
+      "p_holm": 1.0,
+      "significant": false
+    },
+    {
+      "key": "M1",
+      "statement": "Units form at all: coverage in the cooperation arm exceeds the placebo's, which is zero by construction.",
+      "metric": "mean_coverage",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "greater",
+      "n": 2,
+      "mean_diff": 0.5068871068524516,
+      "ci_low": 0.5002400229821797,
+      "ci_high": 0.5135341907227234,
+      "positive_seeds": 2,
+      "p_value": 0.25,
+      "p_holm": null,
+      "significant": false,
+      "manipulation_check": true
+    },
+    {
+      "key": "M2",
+      "statement": "The cost of carrying two extra actions and twelve extra loci without a working institution.",
+      "metric": "mean_population",
+      "contrast": "placebo_minus_baseline",
+      "direction": "two-sided",
+      "n": 2,
+      "mean_diff": 2.0046666666666653,
+      "ci_low": 0.7473333333333301,
+      "ci_high": 3.2620000000000005,
+      "positive_seeds": 2,
+      "p_value": 0.5,
+      "p_holm": null,
+      "significant": false,
+      "manipulation_check": true
+    },
+    {
+      "key": "L1",
+      "statement": "The brains learn at all: late in the run the policies' own probability of gather (before priors) exceeds uniform, in the unmodified world.",
+      "metric": "policy_gather_lift_late",
+      "contrast": "baseline vs 0",
+      "direction": "greater",
+      "n": 2,
+      "mean_diff": 0.16516526466874745,
+      "ci_low": 0.157492000614182,
+      "ci_high": 0.1728385287233129,
+      "positive_seeds": 2,
+      "p_value": 0.25,
+      "p_holm": null,
+      "significant": false,
+      "learning_check": true
+    },
+    {
+      "key": "L2",
+      "statement": "Learning shows in behaviour: the late gather share exceeds what the innate priors alone would give.",
+      "metric": "gather_share_over_prior_late",
+      "contrast": "baseline vs 0",
+      "direction": "greater",
+      "n": 2,
+      "mean_diff": 0.21255798952938088,
+      "ci_low": 0.20483671203443415,
+      "ci_high": 0.22027926702432757,
+      "positive_seeds": 2,
+      "p_value": 0.25,
+      "p_holm": null,
+      "significant": false,
+      "learning_check": true
+    },
+    {
+      "key": "X4_symmetry",
+      "statement": "Selection acts on symmetry: the run-long change in the population mean of coop_symmetry differs from its neutral drift in the placebo.",
+      "metric": "change_coop_symmetry",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "two-sided",
+      "n": 2,
+      "mean_diff": -0.037009640832507684,
+      "ci_low": -0.08587027712009887,
+      "ci_high": 0.011850995455083502,
+      "positive_seeds": 1,
+      "p_value": 1.0,
+      "p_holm": null,
+      "significant": false,
+      "exploratory": true
+    },
+    {
+      "key": "X4_exclusivity",
+      "statement": "Selection acts on exclusivity: the run-long change in the population mean of coop_exclusivity differs from its neutral drift in the placebo.",
+      "metric": "change_coop_exclusivity",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "two-sided",
+      "n": 2,
+      "mean_diff": -0.013334926189210283,
+      "ci_low": -0.016809960729342377,
+      "ci_high": -0.00985989164907819,
+      "positive_seeds": 0,
+      "p_value": 0.5,
+      "p_holm": null,
+      "significant": false,
+      "exploratory": true
+    },
+    {
+      "key": "X4_max_members",
+      "statement": "Selection acts on max_members: the run-long change in the population mean of coop_max_members differs from its neutral drift in the placebo.",
+      "metric": "change_coop_max_members",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "two-sided",
+      "n": 2,
+      "mean_diff": 0.019235749743525377,
+      "ci_low": -0.14624700431118987,
+      "ci_high": 0.18471850379824062,
+      "positive_seeds": 1,
+      "p_value": 1.0,
+      "p_holm": null,
+      "significant": false,
+      "exploratory": true
+    },
+    {
+      "key": "X_starvation",
+      "statement": "Insurance works: fewer agents starve to death in the cooperation arm.",
+      "metric": "starvation_deaths",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "less",
+      "n": 2,
+      "mean_diff": -79.0,
+      "ci_low": -94.0,
+      "ci_high": -64.0,
+      "positive_seeds": 0,
+      "p_value": 0.25,
+      "p_holm": null,
+      "significant": false,
+      "exploratory": true
+    },
+    {
+      "key": "X_births",
+      "statement": "Cooperation raises turnover: more births over the run than in the placebo.",
+      "metric": "total_births",
+      "contrast": "cooperation_minus_placebo",
+      "direction": "greater",
+      "n": 2,
+      "mean_diff": -69.5,
+      "ci_low": -80.0,
+      "ci_high": -59.0,
+      "positive_seeds": 0,
+      "p_value": 1.0,
+      "p_holm": null,
+      "significant": false,
+      "exploratory": true
+    }
+  ]
+}

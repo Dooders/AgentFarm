@@ -727,6 +727,59 @@ class TestDecisionModule(unittest.TestCase):
                 probs, [0.1, 0.3, 0.4, 0.2, 0.0, 0.0, 0.0]
             )
 
+    def test_policy_temperature_sharpens_the_policy_distribution(self):
+        """Temperature below 1 sharpens, above 1 flattens, 1 leaves it alone."""
+        n = get_action_count()
+        raw = np.zeros(n)
+        raw[:3] = [0.5, 0.3, 0.2]
+        for temperature, check in (
+            (1.0, lambda p: np.testing.assert_array_almost_equal(p, raw)),
+            (0.5, lambda p: self.assertGreater(p[0], 0.5)),
+            (2.0, lambda p: self.assertLess(p[0], 0.5)),
+        ):
+            module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.observation_space,
+                DecisionConfig(policy_temperature=temperature),
+            )
+            with patch.object(module.algorithm, "predict_proba", return_value=raw[None, :]):
+                probs = module._policy_probs(np.zeros(8, dtype=np.float32))
+            self.assertAlmostEqual(float(probs.sum()), 1.0)
+            check(probs)
+            # Zero-probability actions stay at zero and the ordering is preserved.
+            self.assertEqual(float(probs[3:].sum()), 0.0)
+            self.assertTrue(probs[0] > probs[1] > probs[2])
+
+        # p^(1/T) renormalised equals a softmax at temperature T over log p.
+        module = DecisionModule(
+            self.mock_agent, self.mock_env.action_space, self.observation_space, DecisionConfig(policy_temperature=0.1)
+        )
+        sharpened = module._apply_temperature(raw)
+        expected = raw[:3] ** 10.0
+        np.testing.assert_array_almost_equal(sharpened[:3], expected / expected.sum())
+
+    def test_policy_temperature_must_be_positive(self):
+        with self.assertRaises(ValidationError):
+            DecisionConfig(policy_temperature=0.0)
+        with self.assertRaises(ValidationError):
+            DecisionConfig(policy_temperature=-1.0)
+
+    def test_decide_action_records_policy_and_acting_distributions(self):
+        """``last_policy_probs`` is the policy's own view; ``last_action_probs`` includes priors."""
+        module = DecisionModule(
+            self.mock_agent, self.mock_env.action_space, self.observation_space, DecisionConfig()
+        )
+        n = get_action_count()
+        policy = np.full(n, 1.0 / n)
+        weights = np.zeros(n)
+        weights[0] = 1.0
+        with patch.object(module.algorithm, "predict_proba", return_value=policy[None, :]):
+            action = module.decide_action(torch.zeros(8), action_weights=weights)
+        self.assertEqual(action, 0)
+        np.testing.assert_array_almost_equal(module.last_policy_probs, policy)
+        self.assertAlmostEqual(float(module.last_action_probs[0]), 1.0)
+
     def test_get_action_probabilities_fallback(self):
         """Test get_action_probabilities fallback to uniform distribution."""
         module = DecisionModule(

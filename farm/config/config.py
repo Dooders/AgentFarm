@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from farm.core.cooperation.config import CooperationConfig
 from farm.core.initial_diversity import InitialDiversityConfig
 from farm.core.observations import ObservationConfig
 
@@ -365,6 +366,9 @@ class LearningConfig:
     training_frequency: int = 4
     dqn_hidden_size: int = 24
     tau: float = 0.005
+    # Temperature of the policy's action distribution before innate priors
+    # are applied (1.0 = the algorithm's own softmax over Q; <1 sharpens).
+    policy_temperature: float = 1.0
 
     # Caching settings
     dqn_state_cache_size: int = 100  # Maximum size of DQN state tensor cache
@@ -962,6 +966,10 @@ class SimulationConfig:
     # simulation or via the intrinsic-evolution runner's defaults).
     initial_diversity: InitialDiversityConfig = field(default_factory=InitialDiversityConfig)
 
+    # Opt-in cooperative units with learned bond/leave actions and heritable
+    # settings/motive genes (farm.core.cooperation). Off by default.
+    cooperation: CooperationConfig = field(default_factory=CooperationConfig)
+
     # Analysis configurations
     spatial_analysis: SpatialAnalysisConfig = field(default_factory=SpatialAnalysisConfig)
     genesis_analysis: GenesisAnalysisConfig = field(default_factory=GenesisAnalysisConfig)
@@ -992,6 +1000,8 @@ class SimulationConfig:
                 config_dict[key] = self.redis.to_dict()
             elif key == "initial_diversity":
                 config_dict[key] = self.initial_diversity.to_dict()
+            elif key == "cooperation":
+                config_dict[key] = self.cooperation.to_dict()
             elif key == "analysis_global":
                 config_dict[key] = self.analysis_global.to_dict()
             elif key in [
@@ -1081,6 +1091,9 @@ class SimulationConfig:
             nested_data["initial_diversity"] = InitialDiversityConfig()
         else:
             nested_data["initial_diversity"] = InitialDiversityConfig(**diversity_data)
+
+        # Cooperation config (frozen dataclass; absent in older saved configs).
+        nested_data["cooperation"] = CooperationConfig.from_dict(nested_data.pop("cooperation", None))
 
         # Handle analysis configs specially
         analysis_configs = {
@@ -1326,6 +1339,7 @@ class SimulationConfig:
                     "training_frequency",
                     "dqn_hidden_size",
                     "tau",
+                    "policy_temperature",
                     "dqn_state_cache_size",
                     "gradient_clip_norm",
                     "enable_gradient_clipping",

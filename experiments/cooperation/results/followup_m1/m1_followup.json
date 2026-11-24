@@ -1,0 +1,13 @@
+{
+  "key": "M1-nofit",
+  "statement": "Bond life at exit cost 0.6 vs 0 with no recognition, settings fit switched off (two-sided).",
+  "metric": "bond_rmst",
+  "n": 20,
+  "mean_diff": 0.0,
+  "ci_low": 0.0,
+  "ci_high": 0.0,
+  "positive_seeds": 0,
+  "p_value": 1.0,
+  "p_holm": NaN,
+  "significant": false
+}

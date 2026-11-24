@@ -1,0 +1,136 @@
+{
+  "condition": {
+    "name": "preset_business_partnership",
+    "family": "preset",
+    "bond": {
+      "kind": "bond",
+      "min_members": 2,
+      "max_members": 4,
+      "scope": 0.3,
+      "exit_cost": 0.25,
+      "recognition": 0.8,
+      "exclusive": false,
+      "entry": "chosen",
+      "symmetry": 1.0,
+      "nonexclusive_limit": 3
+    },
+    "nesting": "none",
+    "motive_mix": null,
+    "description": "bond configured as the business partnership preset"
+  },
+  "signature": {
+    "seeds": [
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120
+    ],
+    "world": {
+      "initial_population": 60,
+      "max_population": 120,
+      "carrying_capacity": 70,
+      "ticks": 600,
+      "skill_median": 1.0,
+      "skill_sigma": 0.35,
+      "shock_prob": 0.15,
+      "drought_period": 120,
+      "drought_length": 20,
+      "drought_factor": 0.4,
+      "metabolism": 0.2,
+      "effort_cost": 1.0,
+      "min_effort": 0.2,
+      "initial_energy": 8.0,
+      "max_energy": 40.0,
+      "reproduction_threshold": 22.0,
+      "offspring_cost": 12.0,
+      "offspring_energy": 8.0,
+      "maturity_age": 20,
+      "max_age": 300,
+      "trait_heritability": 0.0,
+      "motive_heritability": 0.0,
+      "affinity_mutation_sigma": 0.15,
+      "affinity_dims": 3
+    },
+    "decisions": {
+      "encounters_per_tick": 1,
+      "horizon": 20.0,
+      "fit_scale": 1.0,
+      "affinity_scale": 2.0,
+      "accept_threshold": 0.5,
+      "switch_premium": 1.0,
+      "decision_noise": 0.5,
+      "min_tenure": 10,
+      "review_interval": 10,
+      "income_signal_noise": 0.2,
+      "income_ema_alpha": 0.05,
+      "diligence_a": 2.0,
+      "diligence_b": 2.0,
+      "motive_mix": [
+        [
+          "political",
+          1.0
+        ],
+        [
+          "economic",
+          1.0
+        ],
+        [
+          "emotional",
+          1.0
+        ],
+        [
+          "hedonist",
+          1.0
+        ],
+        [
+          "religious",
+          1.0
+        ]
+      ],
+      "arranged_attempts_per_tick": 1
+    },
+    "economics": {
+      "synergy": 0.2,
+      "payout_rate": 0.8,
+      "aid_threshold": 2.0,
+      "aid_amount": 1.0,
+      "benefit_ema_alpha": 0.1
+    },
+    "unit_goals": {
+      "persistence": 1.0,
+      "reserve": 0.5,
+      "growth": 0.25,
+      "reserve_target": 2.0
+    },
+    "thresholds": {
+      "min_steps": 20,
+      "window": 50,
+      "capture_share": 0.6,
+      "capture_gap": 0.25,
+      "hollow_throughput": 0.05,
+      "fragility_lifetime": 30,
+      "trap_steps": 15,
+      "loss_tolerance": 0.02,
+      "fragility_reasons": [
+        "below_min_members"
+      ]
+    },
+    "rmst_tau": 200
+  }
+}

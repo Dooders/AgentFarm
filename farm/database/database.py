@@ -56,7 +56,7 @@ from farm.utils.logging import get_logger
 import pandas as pd
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import joinedload, scoped_session, sessionmaker
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import QueuePool, StaticPool
 
 from farm.core.interfaces import DatabaseProtocol
 from farm.database.data_retrieval import DataRetriever
@@ -287,21 +287,26 @@ class SimulationDatabase(DatabaseProtocol):
         self.pool_recycle = _get_db_setting("connection_pool_recycle", 3600)
         self.connection_timeout = _get_db_setting("connection_timeout", 30)
 
-        # Create engine with connect_args using config values
-        self.engine = create_engine(
-            self._get_database_url(db_path),
-            # Larger pool size for concurrent operations
-            pool_size=self.pool_size,
-            # Longer timeout before connections are recycled
-            pool_recycle=self.pool_recycle,
-            # Enable connection pooling
-            poolclass=QueuePool,
-            # Optimize for write-heavy workloads
-            connect_args={
-                "timeout": self.connection_timeout,  # Longer timeout for busy database
-                "check_same_thread": False,  # Allow cross-thread usage
-            },
-        )
+        connect_args = {
+            "timeout": self.connection_timeout,  # Longer timeout for busy database
+            "check_same_thread": False,  # Allow cross-thread usage
+        }
+        if db_path == ":memory:":
+            # Every new connection to ":memory:" is a separate, empty database, so
+            # the engine must hold exactly one connection and never recycle it.
+            self.engine = create_engine(
+                self._get_database_url(db_path), poolclass=StaticPool, connect_args=connect_args
+            )
+        else:
+            self.engine = create_engine(
+                self._get_database_url(db_path),
+                # Larger pool size for concurrent operations
+                pool_size=self.pool_size,
+                # Longer timeout before connections are recycled
+                pool_recycle=self.pool_recycle,
+                poolclass=QueuePool,
+                connect_args=connect_args,
+            )
 
         # Apply pragma settings directly for the initial connection
         conn = self.engine.raw_connection()
